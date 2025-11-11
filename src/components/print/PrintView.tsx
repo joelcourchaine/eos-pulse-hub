@@ -274,35 +274,18 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
                   );
                 })}
 
-                {/* Financial Metrics Section */}
-                <tr className="section-divider">
-                  <td colSpan={2 + periods.length}>
-                    <strong>Financial Metrics (Monthly)</strong>
-                  </td>
-                </tr>
-                {FINANCIAL_METRICS.map(metric => (
-                  <tr key={metric.key} className="financial-row">
-                    <td className="kpi-name">{metric.name}</td>
-                    <td className="target-value">-</td>
-                    {mode === "weekly" ? (
-                      // For weekly view, show monthly data but span multiple columns
-                      <>
-                        {months.map((month, idx) => {
-                          const entry = financialEntries.find(
-                            e => e.metric_name === metric.key && e.month === month.identifier
-                          );
-                          const weeksPerMonth = idx === 0 ? 4 : idx === 1 ? 4 : 5;
-                          
-                          return (
-                            <td key={month.identifier} className="value-cell" colSpan={weeksPerMonth}>
-                              {formatValue(entry?.value || null, metric.type)}
-                            </td>
-                          );
-                        })}
-                      </>
-                    ) : (
-                      // For monthly view, normal display
-                      <>
+                {/* Financial Metrics Section - Only show in monthly mode */}
+                {mode === "monthly" && (
+                  <>
+                    <tr className="section-divider">
+                      <td colSpan={2 + periods.length}>
+                        <strong>Financial Metrics</strong>
+                      </td>
+                    </tr>
+                    {FINANCIAL_METRICS.map(metric => (
+                      <tr key={metric.key} className="financial-row">
+                        <td className="kpi-name">{metric.name}</td>
+                        <td className="target-value">-</td>
                         {months.map(month => {
                           const entry = financialEntries.find(
                             e => e.metric_name === metric.key && e.month === month.identifier
@@ -314,10 +297,10 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
                             </td>
                           );
                         })}
-                      </>
-                    )}
-                  </tr>
-                ))}
+                      </tr>
+                    ))}
+                  </>
+                )}
               </tbody>
             </table>
           </div>
