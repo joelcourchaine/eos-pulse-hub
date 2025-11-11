@@ -91,10 +91,14 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
 
   useEffect(() => {
-    loadAllData();
-  }, [year, quarter]);
+    if (departmentId) {
+      loadAllData();
+    }
+  }, [year, quarter, departmentId]);
 
   const loadAllData = async () => {
+    if (!departmentId) return;
+    
     setLoading(true);
     
     // Fetch profiles
@@ -211,7 +215,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         });
 
         return (
-          <div key={dept.id} className="department-page">
+          <div key={dept.id} className="department-content">
             {/* Department Header */}
             <div className="print-header">
               <h1>{dept.name}</h1>
@@ -323,16 +327,6 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           body {
             margin: 0;
             padding: 0;
-          }
-
-          .department-page {
-            page-break-after: always;
-            break-after: always;
-          }
-
-          .department-page:last-child {
-            page-break-after: avoid;
-            break-after: avoid;
           }
         }
 
