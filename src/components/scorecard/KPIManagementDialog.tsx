@@ -92,6 +92,21 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     onKPIsChange();
   };
 
+  const handleUpdateOwner = async (kpiId: string, newOwnerId: string | null) => {
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .update({ assigned_to: newOwnerId })
+      .eq("id", kpiId);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "Owner updated successfully" });
+    onKPIsChange();
+  };
+
   const handleDeleteKPI = async (id: string) => {
     const { error } = await supabase
       .from("kpi_definitions")
@@ -216,14 +231,22 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                             {kpi.metric_type === "percentage" && "%"}
                           </TableCell>
                           <TableCell>
-                            {owner ? (
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-sm">{owner.full_name}</span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">Unassigned</span>
-                            )}
+                            <Select
+                              value={kpi.assigned_to || "unassigned"}
+                              onValueChange={(value) => handleUpdateOwner(kpi.id, value === "unassigned" ? null : value)}
+                            >
+                              <SelectTrigger className="w-[180px] h-8">
+                                <SelectValue placeholder="Select owner" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover z-50">
+                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                                {profiles.map((profile) => (
+                                  <SelectItem key={profile.id} value={profile.id}>
+                                    {profile.full_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
