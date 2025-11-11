@@ -247,8 +247,8 @@ export type Database = {
           full_name: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
-          start_day: number | null
           start_month: number | null
+          start_year: number | null
           updated_at: string
         }
         Insert: {
@@ -259,8 +259,8 @@ export type Database = {
           full_name: string
           id: string
           role?: Database["public"]["Enums"]["app_role"]
-          start_day?: number | null
           start_month?: number | null
+          start_year?: number | null
           updated_at?: string
         }
         Update: {
@@ -271,8 +271,8 @@ export type Database = {
           full_name?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          start_day?: number | null
           start_month?: number | null
+          start_year?: number | null
           updated_at?: string
         }
         Relationships: []

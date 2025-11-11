@@ -16,7 +16,7 @@ const authSchema = z.object({
   birthdayMonth: z.number().min(1).max(12).optional(),
   birthdayDay: z.number().min(1).max(31).optional(),
   startMonth: z.number().min(1).max(12).optional(),
-  startDay: z.number().min(1).max(31).optional(),
+  startYear: z.number().min(1950).max(2100).optional(),
 });
 
 const Auth = () => {
@@ -32,7 +32,7 @@ const Auth = () => {
     birthdayMonth: "",
     birthdayDay: "",
     startMonth: "",
-    startDay: "",
+    startYear: "",
   });
 
   useEffect(() => {
@@ -67,7 +67,7 @@ const Auth = () => {
         birthdayMonth: isLogin ? undefined : (formData.birthdayMonth ? parseInt(formData.birthdayMonth) : undefined),
         birthdayDay: isLogin ? undefined : (formData.birthdayDay ? parseInt(formData.birthdayDay) : undefined),
         startMonth: isLogin ? undefined : (formData.startMonth ? parseInt(formData.startMonth) : undefined),
-        startDay: isLogin ? undefined : (formData.startDay ? parseInt(formData.startDay) : undefined),
+        startYear: isLogin ? undefined : (formData.startYear ? parseInt(formData.startYear) : undefined),
       });
 
       if (isLogin) {
@@ -92,7 +92,7 @@ const Auth = () => {
               birthday_month: validation.birthdayMonth,
               birthday_day: validation.birthdayDay,
               start_month: validation.startMonth,
-              start_day: validation.startDay,
+              start_year: validation.startYear,
             },
             emailRedirectTo: `${window.location.origin}/`,
           },
@@ -217,21 +217,24 @@ const Auth = () => {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="startDay">Start Date Day</Label>
+                    <Label htmlFor="startYear">Start Date Year</Label>
                     <select
-                      id="startDay"
-                      value={formData.startDay}
+                      id="startYear"
+                      value={formData.startYear}
                       onChange={(e) =>
-                        setFormData({ ...formData, startDay: e.target.value })
+                        setFormData({ ...formData, startYear: e.target.value })
                       }
                       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
-                      <option value="">Select day</option>
-                      {Array.from({ length: 31 }, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          {i + 1}
-                        </option>
-                      ))}
+                      <option value="">Select year</option>
+                      {Array.from({ length: 51 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
