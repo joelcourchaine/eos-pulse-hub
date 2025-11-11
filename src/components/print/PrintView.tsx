@@ -462,12 +462,20 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             margin: 0.5in;
           }
           
-          .no-print {
-            display: none !important;
+          body * {
+            visibility: hidden;
           }
           
-          .print-preview-area {
-            display: block !important;
+          .print-view,
+          .print-view * {
+            visibility: visible !important;
+          }
+          
+          .print-view {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
           }
           
           .status-green {
@@ -490,6 +498,24 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           
           .print-table th {
             background-color: #e0e0e0 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .owner-row {
+            background-color: #e9ecef !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .section-divider {
+            background-color: #343a40 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .financial-row {
+            background-color: #f8f9fa !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
