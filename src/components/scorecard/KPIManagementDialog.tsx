@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Settings, Trash2, Plus } from "lucide-react";
+import { Settings, Trash2, Plus, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -16,6 +16,13 @@ interface KPI {
   metric_type: "dollar" | "percentage" | "unit";
   target_value: number;
   display_order: number;
+  assigned_to: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
 }
 
 interface KPIManagementDialogProps {
@@ -29,8 +36,30 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [name, setName] = useState("");
   const [metricType, setMetricType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [targetValue, setTargetValue] = useState("");
+  const [assignedTo, setAssignedTo] = useState<string>("");
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (open) {
+      fetchProfiles();
+    }
+  }, [open]);
+
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .order("full_name");
+
+    if (error) {
+      console.error("Error fetching profiles:", error);
+      return;
+    }
+
+    setProfiles(data || []);
+  };
 
   const handleAddKPI = async () => {
     if (!name || !targetValue) {
@@ -48,6 +77,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
         target_value: parseFloat(targetValue),
         department_id: departmentId,
         display_order: maxOrder + 1,
+        assigned_to: assignedTo || null,
       });
 
     if (error) {
@@ -58,6 +88,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     toast({ title: "Success", description: "KPI added successfully" });
     setName("");
     setTargetValue("");
+    setAssignedTo("");
     onKPIsChange();
   };
 
@@ -97,7 +128,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
           <div className="space-y-6">
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold text-sm">Add New KPI</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="name">KPI Name</Label>
                   <Input
@@ -130,6 +161,22 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                     placeholder="10000"
                   />
                 </div>
+                <div>
+                  <Label htmlFor="owner">Owner (Optional)</Label>
+                  <Select value={assignedTo} onValueChange={setAssignedTo}>
+                    <SelectTrigger id="owner">
+                      <SelectValue placeholder="Select owner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-end">
                   <Button onClick={handleAddKPI} className="w-full">
                     <Plus className="h-4 w-4 mr-2" />
@@ -151,31 +198,45 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Target</TableHead>
+                      <TableHead>Owner</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {kpis.map((kpi) => (
-                      <TableRow key={kpi.id}>
-                        <TableCell>{kpi.display_order}</TableCell>
-                        <TableCell className="font-medium">{kpi.name}</TableCell>
-                        <TableCell className="capitalize">{kpi.metric_type}</TableCell>
-                        <TableCell>
-                          {kpi.metric_type === "dollar" && "$"}
-                          {kpi.target_value}
-                          {kpi.metric_type === "percentage" && "%"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteKpiId(kpi.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {kpis.map((kpi) => {
+                      const owner = profiles.find(p => p.id === kpi.assigned_to);
+                      return (
+                        <TableRow key={kpi.id}>
+                          <TableCell>{kpi.display_order}</TableCell>
+                          <TableCell className="font-medium">{kpi.name}</TableCell>
+                          <TableCell className="capitalize">{kpi.metric_type}</TableCell>
+                          <TableCell>
+                            {kpi.metric_type === "dollar" && "$"}
+                            {kpi.target_value}
+                            {kpi.metric_type === "percentage" && "%"}
+                          </TableCell>
+                          <TableCell>
+                            {owner ? (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-sm">{owner.full_name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">Unassigned</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteKpiId(kpi.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

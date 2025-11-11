@@ -58,6 +58,7 @@ export type Database = {
       }
       kpi_definitions: {
         Row: {
+          assigned_to: string | null
           created_at: string
           department_id: string
           display_order: number
@@ -68,6 +69,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_to?: string | null
           created_at?: string
           department_id: string
           display_order?: number
@@ -78,6 +80,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_to?: string | null
           created_at?: string
           department_id?: string
           display_order?: number
@@ -88,6 +91,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "kpi_definitions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "kpi_definitions_department_id_fkey"
             columns: ["department_id"]

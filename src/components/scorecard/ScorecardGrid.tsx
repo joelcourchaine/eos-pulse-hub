@@ -12,6 +12,12 @@ interface KPI {
   metric_type: "dollar" | "percentage" | "unit";
   target_value: number;
   display_order: number;
+  assigned_to: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string;
 }
 
 interface ScorecardEntry {
@@ -50,12 +56,31 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
   const [entries, setEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
+  const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const weeks = getWeekDates();
   const { toast } = useToast();
 
   useEffect(() => {
     loadScorecardData();
+    fetchProfiles();
   }, [departmentId, kpis]);
+
+  const fetchProfiles = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name");
+
+    if (error) {
+      console.error("Error fetching profiles:", error);
+      return;
+    }
+
+    const profilesMap: { [key: string]: Profile } = {};
+    data?.forEach(profile => {
+      profilesMap[profile.id] = profile;
+    });
+    setProfiles(profilesMap);
+  };
 
   const loadScorecardData = async () => {
     if (!departmentId || kpis.length === 0) {
@@ -182,11 +207,31 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
           </TableRow>
         </TableHeader>
         <TableBody>
-          {kpis.map((kpi) => (
-            <TableRow key={kpi.id} className="hover:bg-muted/30">
-              <TableCell className="sticky left-0 bg-background z-10 font-medium">
-                {kpi.name}
-              </TableCell>
+          {kpis.map((kpi, index) => {
+            const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
+            const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+            
+            return (
+              <>
+                {showOwnerHeader && kpi.assigned_to && (
+                  <TableRow key={`owner-${kpi.assigned_to}`} className="bg-muted/50">
+                    <TableCell colSpan={2} className="sticky left-0 z-10 bg-muted/50">
+                      <div className="flex items-center gap-2 py-1">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-primary">
+                            {owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-sm">{owner?.full_name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell colSpan={weeks.length} className="bg-muted/50" />
+                  </TableRow>
+                )}
+                <TableRow key={kpi.id} className="hover:bg-muted/30">
+                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8">
+                    {kpi.name}
+                  </TableCell>
               <TableCell className="text-center text-muted-foreground">
                 {formatTarget(kpi.target_value, kpi.metric_type)}
               </TableCell>
@@ -228,8 +273,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
                   </TableCell>
                 );
               })}
-            </TableRow>
-          ))}
+                </TableRow>
+              </>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
