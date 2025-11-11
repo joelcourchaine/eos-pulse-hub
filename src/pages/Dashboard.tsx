@@ -208,7 +208,9 @@ const Dashboard = () => {
                       </div>
                     </RadioGroup>
                   </div>
-                  <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode} departmentId={selectedDepartment} />
+                  <div className="print-preview-area">
+                    <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode} departmentId={selectedDepartment} />
+                  </div>
                   <div className="flex justify-end gap-2 mt-4 no-print">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel

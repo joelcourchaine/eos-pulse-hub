@@ -315,29 +315,6 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
       })}
 
       <style>{`
-        @media print {
-          @page {
-            size: landscape;
-            margin: 0.5in;
-          }
-          
-          * {
-            visibility: hidden;
-          }
-          
-          .print-view,
-          .print-view * {
-            visibility: visible;
-          }
-          
-          .print-view {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-        }
-
         .print-view {
           font-family: Arial, sans-serif;
           font-size: 10px;
@@ -453,21 +430,17 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         }
         
         @media print {
-          .print-table,
-          .print-table thead,
-          .print-table tbody,
-          .print-table tr,
-          .print-table th,
-          .print-table td {
-            page-break-inside: avoid;
-            break-inside: avoid;
+          @page {
+            size: landscape;
+            margin: 0.5in;
           }
           
-          .print-table th,
-          .print-table td {
-            background-color: transparent !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+          .no-print {
+            display: none !important;
+          }
+          
+          .print-preview-area {
+            display: block !important;
           }
           
           .status-green {
@@ -484,6 +457,12 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
 
           .status-red {
             background-color: #f8d7da !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .print-table th {
+            background-color: #e0e0e0 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
