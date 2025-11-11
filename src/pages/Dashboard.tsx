@@ -334,7 +334,7 @@ const Dashboard = () => {
         )}
 
         {/* Rocks Section */}
-        <RocksPanel />
+        <RocksPanel departmentId={selectedDepartment} />
 
         {/* Meeting Framework */}
         <MeetingFramework />
