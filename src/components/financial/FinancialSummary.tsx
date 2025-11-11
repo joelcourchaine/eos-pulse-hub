@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp, DollarSign, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -49,16 +51,67 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
 
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
+  const [targets, setTargets] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [isOpen, setIsOpen] = useState(true);
+  const [targetsDialogOpen, setTargetsDialogOpen] = useState(false);
+  const [editTargets, setEditTargets] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
 
   const months = getMonthsForQuarter(quarter, year);
 
   useEffect(() => {
     loadFinancialData();
+    loadTargets();
   }, [departmentId, year, quarter]);
+
+  const loadTargets = async () => {
+    if (!departmentId) return;
+
+    const { data, error } = await supabase
+      .from("financial_targets")
+      .select("*")
+      .eq("department_id", departmentId);
+
+    if (error) {
+      console.error("Error loading targets:", error);
+      return;
+    }
+
+    const targetsMap: { [key: string]: number } = {};
+    const editMap: { [key: string]: string } = {};
+    data?.forEach(target => {
+      targetsMap[target.metric_name] = target.target_value || 0;
+      editMap[target.metric_name] = target.target_value?.toString() || "";
+    });
+
+    setTargets(targetsMap);
+    setEditTargets(editMap);
+  };
+
+  const handleSaveTargets = async () => {
+    const updates = FINANCIAL_METRICS.map(metric => ({
+      department_id: departmentId,
+      metric_name: metric.key,
+      target_value: parseFloat(editTargets[metric.key] || "0"),
+    }));
+
+    const { error } = await supabase
+      .from("financial_targets")
+      .upsert(updates, {
+        onConflict: "department_id,metric_name"
+      });
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to save targets", variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "Targets saved successfully" });
+    setTargetsDialogOpen(false);
+    loadTargets();
+  };
 
   const loadFinancialData = async () => {
     if (!departmentId) {
@@ -130,7 +183,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return value.toString();
   };
 
-  const formatDisplay = (value: number | undefined, type: string) => {
+  const formatTarget = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "-";
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
@@ -170,9 +223,52 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                   Monthly financial performance metrics for Q{quarter} {year}
                 </CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
-                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Set Targets
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent onClick={(e) => e.stopPropagation()}>
+                    <DialogHeader>
+                      <DialogTitle>Set Financial Targets</DialogTitle>
+                      <DialogDescription>
+                        Define target values for each financial metric
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                      {FINANCIAL_METRICS.map((metric) => (
+                        <div key={metric.key} className="space-y-2">
+                          <Label htmlFor={metric.key}>{metric.name}</Label>
+                          <Input
+                            id={metric.key}
+                            type="number"
+                            step="any"
+                            value={editTargets[metric.key] || ""}
+                            onChange={(e) =>
+                              setEditTargets(prev => ({ ...prev, [metric.key]: e.target.value }))
+                            }
+                            placeholder={`Enter ${metric.name} target`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setTargetsDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveTargets}>
+                        Save Targets
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button variant="ghost" size="sm">
+                  {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           </CollapsibleTrigger>
         </CardHeader>
@@ -185,6 +281,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold">
                       Financial Metric
                     </TableHead>
+                    <TableHead className="text-center font-bold min-w-[100px]">Target</TableHead>
                     {months.map((month) => (
                       <TableHead key={month.identifier} className="text-center min-w-[140px] font-bold">
                         {month.label}
@@ -193,48 +290,55 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {FINANCIAL_METRICS.map((metric) => (
-                    <TableRow key={metric.key} className="hover:bg-muted/30">
-                      <TableCell className="sticky left-0 bg-background z-10">
-                        <div>
-                          <p className="font-medium">{metric.name}</p>
-                          <p className="text-xs text-muted-foreground">{metric.description}</p>
-                        </div>
-                      </TableCell>
-                      {months.map((month) => {
-                        const key = `${metric.key}-${month.identifier}`;
-                        const value = entries[key];
-                        
-                        return (
-                          <TableCell
-                            key={month.identifier}
-                            className={cn(
-                              "p-1 relative",
-                              metric.key === "net" && value && value < 0 && "bg-destructive/10"
-                            )}
-                          >
-                            <Input
-                              type="number"
-                              step="any"
-                              value={formatValue(value, metric.type)}
-                              onChange={(e) =>
-                                handleValueChange(metric.key, month.identifier, e.target.value)
-                              }
+                  {FINANCIAL_METRICS.map((metric) => {
+                    const target = targets[metric.key];
+                    
+                    return (
+                      <TableRow key={metric.key} className="hover:bg-muted/30">
+                        <TableCell className="sticky left-0 bg-background z-10">
+                          <div>
+                            <p className="font-medium">{metric.name}</p>
+                            <p className="text-xs text-muted-foreground">{metric.description}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center text-muted-foreground">
+                          {formatTarget(target, metric.type)}
+                        </TableCell>
+                        {months.map((month) => {
+                          const key = `${metric.key}-${month.identifier}`;
+                          const value = entries[key];
+                          
+                          return (
+                            <TableCell
+                              key={month.identifier}
                               className={cn(
-                                "text-center border-0 bg-transparent focus-visible:ring-1",
-                                metric.key === "net" && value && value < 0 && "text-destructive font-medium"
+                                "p-1 relative",
+                                metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
-                              placeholder="-"
-                              disabled={saving[key]}
-                            />
-                            {saving[key] && (
-                              <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
+                            >
+                              <Input
+                                type="number"
+                                step="any"
+                                value={formatValue(value, metric.type)}
+                                onChange={(e) =>
+                                  handleValueChange(metric.key, month.identifier, e.target.value)
+                                }
+                                className={cn(
+                                  "text-center border-0 bg-transparent focus-visible:ring-1",
+                                  metric.key === "net" && value && value < 0 && "text-destructive font-medium"
+                                )}
+                                placeholder="-"
+                                disabled={saving[key]}
+                              />
+                              {saving[key] && (
+                                <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>

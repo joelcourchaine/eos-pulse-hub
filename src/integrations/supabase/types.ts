@@ -104,6 +104,41 @@ export type Database = {
           },
         ]
       }
+      financial_targets: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          metric_name: string
+          target_value: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id?: string
+          metric_name: string
+          target_value: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          metric_name?: string
+          target_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_targets_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_definitions: {
         Row: {
           assigned_to: string | null
