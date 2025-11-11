@@ -127,3 +127,24 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+  
+  .print-view, .print-view * {
+    visibility: visible;
+  }
+  
+  .print-view {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

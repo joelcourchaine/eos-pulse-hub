@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
 import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog";
 import { FinancialSummary } from "@/components/financial/FinancialSummary";
+import { PrintView } from "@/components/print/PrintView";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ const Dashboard = () => {
   const [kpis, setKpis] = useState<any[]>([]);
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -125,6 +128,13 @@ const Dashboard = () => {
     }
   };
 
+  const handlePrint = () => {
+    setPrintDialogOpen(true);
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  };
+
   if (loading || !user || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -166,6 +176,26 @@ const Dashboard = () => {
                   </SelectContent>
                 </Select>
               )}
+              <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print PDF
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">
+                  <PrintView year={selectedYear} quarter={selectedQuarter} />
+                  <div className="flex justify-end gap-2 mt-4 no-print">
+                    <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handlePrint}>
+                      <Printer className="h-4 w-4 mr-2" />
+                      Print
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium">{profile.full_name}</p>
                 <p className="text-xs text-muted-foreground capitalize">
