@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -129,7 +129,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
+  const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
+  const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
@@ -193,51 +195,63 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setLoading(false);
   };
 
-  const handleValueChange = async (kpiId: string, periodKey: string, value: string, target: number, type: string, isMonthly: boolean, monthId?: string) => {
+  const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, isMonthly: boolean, monthId?: string) => {
     const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
-    const actualValue = parseFloat(value) || null;
+    
+    // Update local state immediately for responsive UI
+    setLocalValues(prev => ({ ...prev, [key]: value }));
 
-    if (actualValue === null) return;
-
-    setSaving(prev => ({ ...prev, [key]: true }));
-
-    const variance = type === "percentage" 
-      ? actualValue - target 
-      : ((actualValue - target) / target) * 100;
-
-    const status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
-
-    const { data: session } = await supabase.auth.getSession();
-    const userId = session.session?.user?.id;
-
-    const entryData: any = {
-      kpi_id: kpiId,
-      actual_value: actualValue,
-      variance,
-      status,
-      created_by: userId,
-      entry_type: isMonthly ? 'monthly' : 'weekly',
-    };
-
-    if (isMonthly) {
-      entryData.month = monthId;
-    } else {
-      entryData.week_start_date = periodKey;
+    // Clear existing timeout for this field
+    if (saveTimeoutRef.current[key]) {
+      clearTimeout(saveTimeoutRef.current[key]);
     }
 
-    const { error } = await supabase
-      .from("scorecard_entries")
-      .upsert(entryData, {
-        onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
-      });
+    // Set new timeout to save after user stops typing
+    saveTimeoutRef.current[key] = setTimeout(async () => {
+      const actualValue = parseFloat(value) || null;
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
-    } else {
-      await loadScorecardData();
-    }
+      if (actualValue === null) return;
 
-    setSaving(prev => ({ ...prev, [key]: false }));
+      setSaving(prev => ({ ...prev, [key]: true }));
+
+      const variance = type === "percentage" 
+        ? actualValue - target 
+        : ((actualValue - target) / target) * 100;
+
+      const status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user?.id;
+
+      const entryData: any = {
+        kpi_id: kpiId,
+        actual_value: actualValue,
+        variance,
+        status,
+        created_by: userId,
+        entry_type: isMonthly ? 'monthly' : 'weekly',
+      };
+
+      if (isMonthly) {
+        entryData.month = monthId;
+      } else {
+        entryData.week_start_date = periodKey;
+      }
+
+      const { error } = await supabase
+        .from("scorecard_entries")
+        .upsert(entryData, {
+          onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
+        });
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
+      } else {
+        await loadScorecardData();
+      }
+
+      setSaving(prev => ({ ...prev, [key]: false }));
+    }, 800); // Wait 800ms after user stops typing
   };
 
   const getStatus = (status: string | null) => {
@@ -358,6 +372,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     const key = `${kpi.id}-${weekDate}`;
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
                     
                     return (
                       <TableCell
@@ -372,7 +387,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <Input
                           type="number"
                           step="any"
-                          value={formatValue(entry?.actual_value || null, kpi.metric_type)}
+                          value={displayValue}
                           onChange={(e) =>
                             handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, false)
                           }
@@ -395,6 +410,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     const key = `${kpi.id}-month-${month.identifier}`;
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
                     
                     return (
                       <TableCell
@@ -409,7 +425,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <Input
                           type="number"
                           step="any"
-                          value={formatValue(entry?.actual_value || null, kpi.metric_type)}
+                          value={displayValue}
                           onChange={(e) =>
                             handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, true, month.identifier)
                           }
