@@ -11,6 +11,7 @@ import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
 import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog";
+import { FinancialSummary } from "@/components/financial/FinancialSummary";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -22,6 +23,8 @@ const Dashboard = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [kpis, setKpis] = useState<any[]>([]);
+  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedQuarter, setSelectedQuarter] = useState(1);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -249,6 +252,10 @@ const Dashboard = () => {
                 departmentId={selectedDepartment}
                 kpis={kpis}
                 onKPIsChange={fetchKPIs}
+                year={selectedYear}
+                quarter={selectedQuarter}
+                onYearChange={setSelectedYear}
+                onQuarterChange={setSelectedQuarter}
               />
             ) : (
               <p className="text-muted-foreground text-center py-8">
@@ -257,6 +264,15 @@ const Dashboard = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Financial Summary Section */}
+        {selectedDepartment && (
+          <FinancialSummary 
+            departmentId={selectedDepartment}
+            year={selectedYear}
+            quarter={selectedQuarter}
+          />
+        )}
 
         {/* Rocks Section */}
         <RocksPanel />

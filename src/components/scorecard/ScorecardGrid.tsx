@@ -34,6 +34,10 @@ interface ScorecardGridProps {
   departmentId: string;
   kpis: KPI[];
   onKPIsChange: () => void;
+  year: number;
+  quarter: number;
+  onYearChange: (year: number) => void;
+  onQuarterChange: (quarter: number) => void;
 }
 
 // Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
@@ -120,24 +124,22 @@ const getMonthsForQuarter = (selectedQuarter: { year: number; quarter: number })
   return months;
 };
 
-const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps) => {
+const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange }: ScorecardGridProps) => {
   const [entries, setEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [selectedQuarter, setSelectedQuarter] = useState(1);
   const { toast } = useToast();
   
   const currentQuarterInfo = getQuarterInfo(new Date());
-  const weeks = getWeekDates({ year: selectedYear, quarter: selectedQuarter });
-  const months = getMonthsForQuarter({ year: selectedYear, quarter: selectedQuarter });
+  const weeks = getWeekDates({ year, quarter });
+  const months = getMonthsForQuarter({ year, quarter });
   const allPeriods = [...weeks, ...months];
 
   useEffect(() => {
     loadScorecardData();
     fetchProfiles();
-  }, [departmentId, kpis, selectedYear, selectedQuarter]);
+  }, [departmentId, kpis, year, quarter]);
 
   const fetchProfiles = async () => {
     const { data, error } = await supabase
@@ -279,7 +281,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
     <div className="space-y-4">
       {/* Quarter Controls */}
       <div className="flex items-center gap-2">
-        <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+        <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
           <SelectTrigger className="w-[100px]">
             <SelectValue />
           </SelectTrigger>
@@ -289,7 +291,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
             <SelectItem value="2027">2027</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={selectedQuarter.toString()} onValueChange={(v) => setSelectedQuarter(parseInt(v))}>
+        <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
           <SelectTrigger className="w-[100px]">
             <SelectValue />
           </SelectTrigger>
