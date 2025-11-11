@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface KPI {
   id: string;
@@ -72,34 +71,19 @@ const getQuarterInfo = (date: Date): { year: number; quarter: number; weekInQuar
   return { year: fiscalYear, quarter: Math.min(quarter, 4), weekInQuarter };
 };
 
-const getWeekDates = (viewType: "weekly" | "quarterly", selectedQuarter?: { year: number; quarter: number }) => {
+const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   const weeks = [];
-  const today = new Date();
+  const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
+  const quarterStartWeek = (selectedQuarter.quarter - 1) * 13;
   
-  if (viewType === "weekly") {
-    const currentMonday = getMondayOfWeek(today);
-    
-    for (let i = -3; i <= 3; i++) {
-      const weekStart = new Date(currentMonday);
-      weekStart.setDate(currentMonday.getDate() + (i * 7));
-      weeks.push({
-        start: weekStart,
-        label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`,
-      });
-    }
-  } else if (viewType === "quarterly" && selectedQuarter) {
-    const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
-    const quarterStartWeek = (selectedQuarter.quarter - 1) * 13;
-    
-    for (let i = 0; i < 13; i++) {
-      const weekStart = new Date(yearStart);
-      weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
-      const weekInfo = getQuarterInfo(weekStart);
-      weeks.push({
-        start: weekStart,
-        label: `W${weekInfo.weekInQuarter}`,
-      });
-    }
+  for (let i = 0; i < 13; i++) {
+    const weekStart = new Date(yearStart);
+    weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
+    const weekInfo = getQuarterInfo(weekStart);
+    weeks.push({
+      start: weekStart,
+      label: `W${weekInfo.weekInQuarter}`,
+    });
   }
   
   return weeks;
@@ -110,21 +94,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
-  const [viewType, setViewType] = useState<"weekly" | "quarterly">("weekly");
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const { toast } = useToast();
   
   const currentQuarterInfo = getQuarterInfo(new Date());
-  const weeks = getWeekDates(
-    viewType, 
-    viewType === "quarterly" ? { year: selectedYear, quarter: selectedQuarter } : undefined
-  );
+  const weeks = getWeekDates({ year: selectedYear, quarter: selectedQuarter });
 
   useEffect(() => {
     loadScorecardData();
     fetchProfiles();
-  }, [departmentId, kpis, viewType, selectedYear, selectedQuarter]);
+  }, [departmentId, kpis, selectedYear, selectedQuarter]);
 
   const fetchProfiles = async () => {
     const { data, error } = await supabase
@@ -253,56 +233,29 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
 
   return (
     <div className="space-y-4">
-      {/* View Controls */}
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Button
-            variant={viewType === "weekly" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewType("weekly")}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Weekly View
-          </Button>
-          <Button
-            variant={viewType === "quarterly" ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setViewType("quarterly");
-              setSelectedYear(currentQuarterInfo.year);
-              setSelectedQuarter(currentQuarterInfo.quarter);
-            }}
-          >
-            <Calendar className="h-4 w-4 mr-2" />
-            Quarterly View
-          </Button>
-        </div>
-        
-        {viewType === "quarterly" && (
-          <div className="flex items-center gap-2">
-            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-              <SelectTrigger className="w-[100px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2025">2025</SelectItem>
-                <SelectItem value="2026">2026</SelectItem>
-                <SelectItem value="2027">2027</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={selectedQuarter.toString()} onValueChange={(v) => setSelectedQuarter(parseInt(v))}>
-              <SelectTrigger className="w-[100px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Q1</SelectItem>
-                <SelectItem value="2">Q2</SelectItem>
-                <SelectItem value="3">Q3</SelectItem>
-                <SelectItem value="4">Q4</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+      {/* Quarter Controls */}
+      <div className="flex items-center gap-2">
+        <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+          <SelectTrigger className="w-[100px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="2025">2025</SelectItem>
+            <SelectItem value="2026">2026</SelectItem>
+            <SelectItem value="2027">2027</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={selectedQuarter.toString()} onValueChange={(v) => setSelectedQuarter(parseInt(v))}>
+          <SelectTrigger className="w-[100px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">Q1</SelectItem>
+            <SelectItem value="2">Q2</SelectItem>
+            <SelectItem value="3">Q3</SelectItem>
+            <SelectItem value="4">Q4</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="overflow-x-auto border rounded-lg">
