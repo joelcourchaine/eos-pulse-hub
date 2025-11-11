@@ -352,17 +352,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold">
+            <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-2">
               KPI
             </TableHead>
-            <TableHead className="text-center font-bold min-w-[100px]">Target</TableHead>
+            <TableHead className="text-center font-bold min-w-[100px] py-2">Target</TableHead>
             {weeks.map((week) => (
-              <TableHead key={week.label} className="text-center min-w-[110px] text-xs">
+              <TableHead key={week.label} className="text-center min-w-[110px] text-xs py-2">
                 {week.label}
               </TableHead>
             ))}
             {months.map((month) => (
-              <TableHead key={month.identifier} className="text-center min-w-[140px] bg-primary/10 font-bold border-l-2">
+              <TableHead key={month.identifier} className="text-center min-w-[140px] bg-primary/10 font-bold border-l-2 py-2">
                 {month.label}
               </TableHead>
             ))}
@@ -377,9 +377,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               <>
                 {showOwnerHeader && kpi.assigned_to && (
                   <TableRow key={`owner-${kpi.assigned_to}`} className="bg-muted/50">
-                    <TableCell colSpan={2} className="sticky left-0 z-10 bg-muted/50">
-                      <div className="flex items-center gap-2 py-1">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <TableCell colSpan={2} className="sticky left-0 z-10 bg-muted/50 py-1">
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
                             {owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase()}
                           </span>
@@ -387,14 +387,14 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <span className="font-semibold text-sm">{owner?.full_name}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={weeks.length + months.length} className="bg-muted/50" />
+                    <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow key={kpi.id} className="hover:bg-muted/30">
-                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8">
+                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8 py-2">
                     {kpi.name}
                   </TableCell>
-                  <TableCell className="text-center text-muted-foreground">
+                  <TableCell className="text-center text-muted-foreground py-2">
                     {formatTarget(kpi.target_value, kpi.metric_type)}
                   </TableCell>
                   {weeks.map((week) => {
@@ -422,7 +422,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                             handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, false)
                           }
                           className={cn(
-                            "text-center border-0 bg-transparent focus-visible:ring-1",
+                            "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
                             status === "success" && "text-success font-medium",
                             status === "warning" && "text-warning font-medium",
                             status === "destructive" && "text-destructive font-medium"
@@ -460,7 +460,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                             handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, true, month.identifier)
                           }
                           className={cn(
-                            "text-center border-0 bg-transparent focus-visible:ring-1",
+                            "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
                             status === "success" && "text-success font-medium",
                             status === "warning" && "text-warning font-medium",
                             status === "destructive" && "text-destructive font-medium"
