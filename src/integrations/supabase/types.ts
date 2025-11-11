@@ -247,8 +247,10 @@ export type Database = {
           actual_value: number | null
           created_at: string
           created_by: string | null
+          entry_type: string | null
           id: string
           kpi_id: string
+          month: string | null
           notes: string | null
           status: string | null
           updated_at: string
@@ -259,8 +261,10 @@ export type Database = {
           actual_value?: number | null
           created_at?: string
           created_by?: string | null
+          entry_type?: string | null
           id?: string
           kpi_id: string
+          month?: string | null
           notes?: string | null
           status?: string | null
           updated_at?: string
@@ -271,8 +275,10 @@ export type Database = {
           actual_value?: number | null
           created_at?: string
           created_by?: string | null
+          entry_type?: string | null
           id?: string
           kpi_id?: string
+          month?: string | null
           notes?: string | null
           status?: string | null
           updated_at?: string

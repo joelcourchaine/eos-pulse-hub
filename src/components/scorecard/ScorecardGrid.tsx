@@ -82,10 +82,39 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
     weeks.push({
       start: weekStart,
       label: `W${i + 1}`,
+      type: 'week' as const,
     });
   }
   
   return weeks;
+};
+
+const getMonthsForQuarter = (selectedQuarter: { year: number; quarter: number }) => {
+  const months = [];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  // Q1: Dec, Jan, Feb (starting from Dec of previous year)
+  // Q2: Mar, Apr, May
+  // Q3: Jun, Jul, Aug
+  // Q4: Sep, Oct, Nov
+  
+  const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
+  const startMonth = yearStart.getMonth(); // December (11) for 2025
+  
+  for (let i = 0; i < 3; i++) {
+    const monthOffset = (selectedQuarter.quarter - 1) * 3 + i;
+    const monthIndex = (startMonth + monthOffset) % 12;
+    const year = selectedQuarter.year + (startMonth + monthOffset >= 12 ? 0 : -1);
+    
+    months.push({
+      label: monthNames[monthIndex],
+      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      type: 'month' as const,
+    });
+  }
+  
+  return months;
 };
 
 const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps) => {
@@ -99,6 +128,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year: selectedYear, quarter: selectedQuarter });
+  const months = getMonthsForQuarter({ year: selectedYear, quarter: selectedQuarter });
+  const allPeriods = [...weeks, ...months];
 
   useEffect(() => {
     loadScorecardData();
@@ -131,12 +162,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
     setLoading(true);
     const kpiIds = kpis.map(k => k.id);
     const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
+    const monthIds = months.map(m => m.identifier);
 
     const { data, error } = await supabase
       .from("scorecard_entries")
       .select("*")
       .in("kpi_id", kpiIds)
-      .in("week_start_date", weekDates);
+      .or(`week_start_date.in.(${weekDates.join(',')}),month.in.(${monthIds.join(',')})`);
 
     if (error) {
       toast({ title: "Error", description: "Failed to load scorecard data", variant: "destructive" });
@@ -146,7 +178,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
 
     const entriesMap: { [key: string]: ScorecardEntry } = {};
     data?.forEach(entry => {
-      const key = `${entry.kpi_id}-${entry.week_start_date}`;
+      const key = entry.entry_type === 'monthly' 
+        ? `${entry.kpi_id}-month-${entry.month}`
+        : `${entry.kpi_id}-${entry.week_start_date}`;
       entriesMap[key] = entry;
     });
 
@@ -154,8 +188,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
     setLoading(false);
   };
 
-  const handleValueChange = async (kpiId: string, weekDate: string, value: string, target: number, type: string) => {
-    const key = `${kpiId}-${weekDate}`;
+  const handleValueChange = async (kpiId: string, periodKey: string, value: string, target: number, type: string, isMonthly: boolean, monthId?: string) => {
+    const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
     const actualValue = parseFloat(value) || null;
 
     if (actualValue === null) return;
@@ -171,17 +205,25 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
     const { data: session } = await supabase.auth.getSession();
     const userId = session.session?.user?.id;
 
+    const entryData: any = {
+      kpi_id: kpiId,
+      actual_value: actualValue,
+      variance,
+      status,
+      created_by: userId,
+      entry_type: isMonthly ? 'monthly' : 'weekly',
+    };
+
+    if (isMonthly) {
+      entryData.month = monthId;
+    } else {
+      entryData.week_start_date = periodKey;
+    }
+
     const { error } = await supabase
       .from("scorecard_entries")
-      .upsert({
-        kpi_id: kpiId,
-        week_start_date: weekDate,
-        actual_value: actualValue,
-        variance,
-        status,
-        created_by: userId,
-      }, {
-        onConflict: "kpi_id,week_start_date"
+      .upsert(entryData, {
+        onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
       });
 
     if (error) {
@@ -267,7 +309,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
             <TableHead className="text-center font-bold min-w-[100px]">Target</TableHead>
             {weeks.map((week) => (
               <TableHead key={week.label} className="text-center min-w-[120px]">
-                Week {week.label}
+                {week.label}
+              </TableHead>
+            ))}
+            {months.map((month) => (
+              <TableHead key={month.identifier} className="text-center min-w-[140px] bg-primary/10 font-bold border-l-2">
+                {month.label}
               </TableHead>
             ))}
           </TableRow>
@@ -291,54 +338,91 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
                         <span className="font-semibold text-sm">{owner?.full_name}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={weeks.length} className="bg-muted/50" />
+                    <TableCell colSpan={weeks.length + months.length} className="bg-muted/50" />
                   </TableRow>
                 )}
                 <TableRow key={kpi.id} className="hover:bg-muted/30">
                   <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8">
                     {kpi.name}
                   </TableCell>
-              <TableCell className="text-center text-muted-foreground">
-                {formatTarget(kpi.target_value, kpi.metric_type)}
-              </TableCell>
-              {weeks.map((week) => {
-                const weekDate = week.start.toISOString().split('T')[0];
-                const key = `${kpi.id}-${weekDate}`;
-                const entry = entries[key];
-                const status = getStatus(entry?.status || null);
-                
-                return (
-                  <TableCell
-                    key={week.label}
-                    className={cn(
-                      "p-1 relative",
-                      status === "success" && "bg-success/10",
-                      status === "warning" && "bg-warning/10",
-                      status === "destructive" && "bg-destructive/10"
-                    )}
-                  >
-                    <Input
-                      type="number"
-                      step="any"
-                      value={formatValue(entry?.actual_value || null, kpi.metric_type)}
-                      onChange={(e) =>
-                        handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type)
-                      }
-                      className={cn(
-                        "text-center border-0 bg-transparent focus-visible:ring-1",
-                        status === "success" && "text-success font-medium",
-                        status === "warning" && "text-warning font-medium",
-                        status === "destructive" && "text-destructive font-medium"
-                      )}
-                      placeholder="-"
-                      disabled={saving[key]}
-                    />
-                    {saving[key] && (
-                      <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    )}
+                  <TableCell className="text-center text-muted-foreground">
+                    {formatTarget(kpi.target_value, kpi.metric_type)}
                   </TableCell>
-                );
-              })}
+                  {weeks.map((week) => {
+                    const weekDate = week.start.toISOString().split('T')[0];
+                    const key = `${kpi.id}-${weekDate}`;
+                    const entry = entries[key];
+                    const status = getStatus(entry?.status || null);
+                    
+                    return (
+                      <TableCell
+                        key={week.label}
+                        className={cn(
+                          "p-1 relative",
+                          status === "success" && "bg-success/10",
+                          status === "warning" && "bg-warning/10",
+                          status === "destructive" && "bg-destructive/10"
+                        )}
+                      >
+                        <Input
+                          type="number"
+                          step="any"
+                          value={formatValue(entry?.actual_value || null, kpi.metric_type)}
+                          onChange={(e) =>
+                            handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, false)
+                          }
+                          className={cn(
+                            "text-center border-0 bg-transparent focus-visible:ring-1",
+                            status === "success" && "text-success font-medium",
+                            status === "warning" && "text-warning font-medium",
+                            status === "destructive" && "text-destructive font-medium"
+                          )}
+                          placeholder="-"
+                          disabled={saving[key]}
+                        />
+                        {saving[key] && (
+                          <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  {months.map((month) => {
+                    const key = `${kpi.id}-month-${month.identifier}`;
+                    const entry = entries[key];
+                    const status = getStatus(entry?.status || null);
+                    
+                    return (
+                      <TableCell
+                        key={month.identifier}
+                        className={cn(
+                          "p-1 relative border-l-2",
+                          status === "success" && "bg-success/10",
+                          status === "warning" && "bg-warning/10",
+                          status === "destructive" && "bg-destructive/10"
+                        )}
+                      >
+                        <Input
+                          type="number"
+                          step="any"
+                          value={formatValue(entry?.actual_value || null, kpi.metric_type)}
+                          onChange={(e) =>
+                            handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, true, month.identifier)
+                          }
+                          className={cn(
+                            "text-center border-0 bg-transparent focus-visible:ring-1",
+                            status === "success" && "text-success font-medium",
+                            status === "warning" && "text-warning font-medium",
+                            status === "destructive" && "text-destructive font-medium"
+                          )}
+                          placeholder="-"
+                          disabled={saving[key]}
+                        />
+                        {saving[key] && (
+                          <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               </>
             );
