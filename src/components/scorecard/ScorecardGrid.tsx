@@ -143,6 +143,27 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     fetchProfiles();
   }, [departmentId, kpis, year, quarter]);
 
+  // Update local values when entries change
+  useEffect(() => {
+    const newLocalValues: { [key: string]: string } = {};
+    Object.entries(entries).forEach(([key, entry]) => {
+      const kpi = kpis.find(k => entry.kpi_id === k.id);
+      if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+        newLocalValues[key] = formatValue(entry.actual_value, kpi.metric_type);
+      }
+    });
+    setLocalValues(prev => {
+      // Only update if we don't have pending saves for these keys
+      const updated = { ...prev };
+      Object.keys(newLocalValues).forEach(key => {
+        if (!saveTimeoutRef.current[key]) {
+          updated[key] = newLocalValues[key];
+        }
+      });
+      return updated;
+    });
+  }, [entries, kpis]);
+
   const fetchProfiles = async () => {
     const { data, error } = await supabase
       .from("profiles")

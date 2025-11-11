@@ -13,7 +13,7 @@ import RocksPanel from "@/components/rocks/RocksPanel";
 import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog";
 import { FinancialSummary } from "@/components/financial/FinancialSummary";
 import { PrintView } from "@/components/print/PrintView";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -183,7 +183,11 @@ const Dashboard = () => {
                     Print PDF
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">
+                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto" aria-describedby="print-description">
+                  <DialogTitle className="sr-only">Print Report</DialogTitle>
+                  <div id="print-description" className="sr-only">
+                    Preview of all department scorecards and financial data for printing
+                  </div>
                   <PrintView year={selectedYear} quarter={selectedQuarter} />
                   <div className="flex justify-end gap-2 mt-4 no-print">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
