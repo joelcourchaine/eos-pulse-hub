@@ -6,6 +6,7 @@ interface PrintViewProps {
   year: number;
   quarter: number;
   mode: "weekly" | "monthly";
+  departmentId?: string;
 }
 
 interface Department {
@@ -83,7 +84,7 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
-export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
+export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps) => {
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentData, setDepartmentData] = useState<any>({});
@@ -107,11 +108,16 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
     });
     setProfiles(profilesMap);
 
-    // Fetch all departments
-    const { data: depts } = await supabase
+    // Fetch departments - only selected one if departmentId provided
+    let query = supabase
       .from("departments")
-      .select("*")
-      .order("name");
+      .select("*");
+    
+    if (departmentId) {
+      query = query.eq("id", departmentId);
+    }
+    
+    const { data: depts } = await query.order("name");
 
     if (!depts) {
       setLoading(false);
