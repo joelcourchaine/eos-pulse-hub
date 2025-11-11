@@ -314,9 +314,10 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
             margin: 0.5in;
           }
           
-          body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
+          * {
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
 
           .page-break {
@@ -335,6 +336,7 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
         .print-view {
           font-family: Arial, sans-serif;
           font-size: 10px;
+          color: #000;
         }
 
         .print-header {
@@ -363,15 +365,17 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
 
         .print-table th,
         .print-table td {
-          border: 1px solid #ddd;
+          border: 1px solid #333 !important;
           padding: 6px;
           text-align: left;
+          color: #000 !important;
         }
 
         .print-table th {
-          background-color: #f5f5f5;
+          background-color: #e0e0e0 !important;
           font-weight: bold;
           text-align: center;
+          color: #000 !important;
         }
 
         .metric-col {
