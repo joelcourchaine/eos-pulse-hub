@@ -100,6 +100,8 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     if (!departmentId) return;
     
     setLoading(true);
+    setDepartments([]); // Clear previous departments
+    setDepartmentData({}); // Clear previous data
     
     // Fetch profiles
     const { data: profilesData } = await supabase
@@ -196,9 +198,14 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
   const weeks = getWeekDates({ year, quarter });
   const periods = mode === "weekly" ? weeks : months;
 
+  // If we have a departmentId filter, only show that one department
+  const filteredDepartments = departmentId 
+    ? departments.filter(d => d.id === departmentId)
+    : departments;
+
   return (
     <div className="print-view">
-      {departments.map((dept, deptIndex) => {
+      {filteredDepartments.map((dept, deptIndex) => {
         const data = departmentData[dept.id];
         if (!data) return null;
 
