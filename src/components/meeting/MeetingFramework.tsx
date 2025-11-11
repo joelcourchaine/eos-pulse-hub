@@ -28,7 +28,7 @@ const MeetingFramework = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">EOS Meeting Framework</CardTitle>
+        <CardTitle className="text-2xl">GO Meeting Framework</CardTitle>
         <CardDescription>
           Structured 60-minute weekly meeting agenda
         </CardDescription>

@@ -14,11 +14,11 @@ const Index = () => {
             <BarChart3 className="h-12 w-12 text-primary-foreground" />
           </div>
           <h1 className="text-5xl font-bold text-foreground mb-4">
-            EOS Scorecard Platform
+            GO Scorecard Platform
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Transform your dealership performance with data-driven accountability.
-            Track KPIs, manage quarterly rocks, and run effective EOS meetings—all in one place.
+            Track KPIs, manage quarterly rocks, and run effective GO meetings—all in one place.
           </p>
           <div className="mt-8 flex gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth")}>
@@ -58,7 +58,7 @@ const Index = () => {
             <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center mb-4">
               <Users className="h-6 w-6 text-success" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">EOS Meeting Flow</h3>
+            <h3 className="text-xl font-semibold mb-2">GO Meeting Flow</h3>
             <p className="text-muted-foreground">
               Built-in 60-minute meeting framework with segue, scorecard review, rocks,
               headlines, to-dos, and IDS (Identify, Discuss, Solve).

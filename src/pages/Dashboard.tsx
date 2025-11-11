@@ -162,8 +162,8 @@ const Dashboard = () => {
                 <BarChart3 className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-foreground">EOS Scorecard</h1>
-                <p className="text-sm text-muted-foreground">Performance Management</p>
+                <h1 className="text-xl font-bold text-foreground">GO Scorecard</h1>
+                <p className="text-sm text-muted-foreground">Growth Operating System</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
