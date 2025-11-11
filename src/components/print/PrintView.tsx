@@ -217,11 +217,15 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
   const periods = mode === "weekly" ? weeks : months;
 
   return (
-    <div className="print-view">
+    <div className="print-view" style={{ minHeight: '100vh', padding: '20px', backgroundColor: 'white' }}>
       {departments.map((dept) => {
         const data = departmentData[dept.id];
-        if (!data) return null;
+        if (!data) {
+          console.log('No data for department:', dept.id);
+          return null;
+        }
 
+        console.log('Rendering department:', dept.name, 'with KPIs:', data.kpis.length);
         const kpis: KPI[] = data.kpis;
         const scorecardEntries = data.scorecardEntries;
         const financialEntries = data.financialEntries;
