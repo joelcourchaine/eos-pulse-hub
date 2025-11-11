@@ -205,7 +205,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       ? actualValue - target 
       : ((actualValue - target) / target) * 100;
 
-    const status = variance >= 0 ? "on_track" : variance >= -10 ? "at_risk" : "off_track";
+    const status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
 
     const { data: session } = await supabase.auth.getSession();
     const userId = session.session?.user?.id;
@@ -242,8 +242,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
   const getStatus = (status: string | null) => {
     if (!status) return "default";
-    if (status === "on_track") return "success";
-    if (status === "at_risk") return "warning";
+    if (status === "green") return "success";
+    if (status === "yellow") return "warning";
     return "destructive";
   };
 
