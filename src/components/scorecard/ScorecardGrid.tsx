@@ -363,30 +363,14 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
       <div 
         ref={scrollContainerRef}
-        className="overflow-x-scroll border rounded-lg"
+        className="relative border rounded-lg"
         style={{ 
-          scrollbarWidth: 'auto',
-          scrollbarColor: 'hsl(var(--muted-foreground) / 0.5) hsl(var(--muted))',
-          overflowX: 'scroll'
+          overflowX: 'scroll',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        <style>{`
-          div.overflow-x-scroll::-webkit-scrollbar {
-            height: 14px;
-            display: block;
-          }
-          div.overflow-x-scroll::-webkit-scrollbar-track {
-            background: hsl(var(--muted));
-          }
-          div.overflow-x-scroll::-webkit-scrollbar-thumb {
-            background: hsl(var(--muted-foreground) / 0.5);
-            border-radius: 4px;
-          }
-          div.overflow-x-scroll::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--muted-foreground) / 0.7);
-          }
-        `}</style>
-        <Table className="min-w-[2400px]">
+        <div className="min-w-[2400px]">
+        <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold">
@@ -516,7 +500,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             );
           })}
         </TableBody>
-      </Table>
+        </Table>
+        </div>
       </div>
     </div>
   );
