@@ -94,22 +94,17 @@ const getMonthsForQuarter = (selectedQuarter: { year: number; quarter: number })
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
   
-  // Q1: Dec, Jan, Feb (starting from Dec of previous year)
-  // Q2: Mar, Apr, May
-  // Q3: Jun, Jul, Aug
-  // Q4: Sep, Oct, Nov
-  
-  const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
-  const startMonth = yearStart.getMonth(); // December (11) for 2025
+  // Q1: Jan, Feb, Mar (months 0, 1, 2)
+  // Q2: Apr, May, Jun (months 3, 4, 5)
+  // Q3: Jul, Aug, Sep (months 6, 7, 8)
+  // Q4: Oct, Nov, Dec (months 9, 10, 11)
   
   for (let i = 0; i < 3; i++) {
-    const monthOffset = (selectedQuarter.quarter - 1) * 3 + i;
-    const monthIndex = (startMonth + monthOffset) % 12;
-    const year = selectedQuarter.year + (startMonth + monthOffset >= 12 ? 0 : -1);
+    const monthIndex = (selectedQuarter.quarter - 1) * 3 + i;
     
     months.push({
       label: monthNames[monthIndex],
-      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      identifier: `${selectedQuarter.year}-${String(monthIndex + 1).padStart(2, '0')}`,
       type: 'month' as const,
     });
   }
