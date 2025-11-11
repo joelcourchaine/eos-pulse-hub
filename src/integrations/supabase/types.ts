@@ -246,6 +246,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          reports_to: string | null
           role: Database["public"]["Enums"]["app_role"]
           start_month: number | null
           start_year: number | null
@@ -258,6 +259,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          reports_to?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
@@ -270,12 +272,21 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          reports_to?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_reports_to_fkey"
+            columns: ["reports_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rocks: {
         Row: {

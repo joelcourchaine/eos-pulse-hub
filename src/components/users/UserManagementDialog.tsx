@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +18,7 @@ interface Profile {
   start_month: number | null;
   start_year: number | null;
   role: string;
+  reports_to: string | null;
 }
 
 export const UserManagementDialog = () => {
@@ -54,6 +56,7 @@ export const UserManagementDialog = () => {
     birthday_day?: number | null;
     start_month?: number | null;
     start_year?: number | null;
+    reports_to?: string | null;
   }) => {
     setSaving(profileId);
 
@@ -109,6 +112,7 @@ export const UserManagementDialog = () => {
                   <TableHead className="min-w-[100px]">Birthday Day</TableHead>
                   <TableHead className="min-w-[120px]">Start Month</TableHead>
                   <TableHead className="min-w-[100px]">Start Year</TableHead>
+                  <TableHead className="min-w-[150px]">Reports To</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -184,6 +188,26 @@ export const UserManagementDialog = () => {
                         })}
                       </select>
                     </TableCell>
+                    <TableCell>
+                      <Select
+                        value={profile.reports_to || "none"}
+                        onValueChange={(value) => updateProfileField(profile.id, "reports_to", value === "none" ? null : value)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {profiles
+                            .filter(p => p.id !== profile.id)
+                            .map(p => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.full_name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         size="sm"
@@ -193,6 +217,7 @@ export const UserManagementDialog = () => {
                           birthday_day: profile.birthday_day,
                           start_month: profile.start_month,
                           start_year: profile.start_year,
+                          reports_to: profile.reports_to,
                         })}
                         disabled={saving === profile.id}
                       >
