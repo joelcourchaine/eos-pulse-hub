@@ -205,7 +205,7 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
         });
 
         return (
-          <div key={dept.id} className={`page-break ${deptIndex > 0 ? 'break-before' : ''}`}>
+          <div key={dept.id} className="department-page">
             {/* Department Header */}
             <div className="print-header">
               <h1>{dept.name}</h1>
@@ -319,19 +319,14 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
             padding: 0;
           }
 
-          .page-break {
+          .department-page {
             page-break-after: always;
             break-after: always;
           }
 
-          .page-break:last-child {
+          .department-page:last-child {
             page-break-after: avoid;
             break-after: avoid;
-          }
-
-          .break-before {
-            page-break-before: always;
-            break-before: always;
           }
         }
 
