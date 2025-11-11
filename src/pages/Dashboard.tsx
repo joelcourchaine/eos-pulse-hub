@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Celebrations } from "@/components/celebrations/Celebrations";
+import { UserManagementDialog } from "@/components/users/UserManagementDialog";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -223,6 +224,7 @@ const Dashboard = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+              <UserManagementDialog />
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium">{profile.full_name}</p>
                 <p className="text-xs text-muted-foreground capitalize">
