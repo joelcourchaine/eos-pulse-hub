@@ -372,19 +372,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           {kpis.map((kpi, index) => {
             const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
             const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+            const ownerName = owner?.full_name || "Unassigned";
+            const ownerInitials = owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U";
             
             return (
               <>
-                {showOwnerHeader && kpi.assigned_to && (
-                  <TableRow key={`owner-${kpi.assigned_to}`} className="bg-muted/50">
+                {showOwnerHeader && (
+                  <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
                     <TableCell colSpan={2} className="sticky left-0 z-10 bg-muted/50 py-1">
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
-                            {owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            {ownerInitials}
                           </span>
                         </div>
-                        <span className="font-semibold text-sm">{owner?.full_name}</span>
+                        <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
                     <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
