@@ -14,6 +14,8 @@ import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog"
 import { FinancialSummary } from "@/components/financial/FinancialSummary";
 import { PrintView } from "@/components/print/PrintView";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -28,6 +30,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(2025);
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -188,7 +191,24 @@ const Dashboard = () => {
                   <div id="print-description" className="sr-only">
                     Preview of all department scorecards and financial data for printing
                   </div>
-                  <PrintView year={selectedYear} quarter={selectedQuarter} />
+                  <div className="no-print mb-4 p-4 border rounded-lg bg-muted/30">
+                    <Label className="text-sm font-semibold mb-3 block">Print Format</Label>
+                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly") => setPrintMode(value)}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="weekly" id="weekly" />
+                        <Label htmlFor="weekly" className="cursor-pointer font-normal">
+                          Weekly Scores (13 weeks per quarter)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="monthly" id="monthly" />
+                        <Label htmlFor="monthly" className="cursor-pointer font-normal">
+                          Monthly Scores (3 months per quarter)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode} />
                   <div className="flex justify-end gap-2 mt-4 no-print">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel

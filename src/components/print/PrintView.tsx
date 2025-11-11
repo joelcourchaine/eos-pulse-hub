@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 interface PrintViewProps {
   year: number;
   quarter: number;
+  mode: "weekly" | "monthly";
 }
 
 interface Department {
@@ -35,6 +36,37 @@ const FINANCIAL_METRICS = [
   { name: "Net", key: "net", type: "dollar" },
 ];
 
+const YEAR_STARTS: { [key: number]: Date } = {
+  2025: new Date(2024, 11, 30), // Dec 30, 2024
+  2026: new Date(2025, 11, 29), // Dec 29, 2025 (Monday)
+  2027: new Date(2026, 11, 28), // Dec 28, 2026 (Monday)
+};
+
+const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
+  const weeks = [];
+  const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
+  const quarterStartWeek = (selectedQuarter.quarter - 1) * 13;
+  
+  for (let i = 0; i < 13; i++) {
+    const weekStart = new Date(yearStart);
+    weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    const startLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
+    const endLabel = `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+    
+    weeks.push({
+      start: weekStart,
+      label: `${startLabel}-${endLabel}`,
+      date: weekStart.toISOString().split('T')[0],
+    });
+  }
+  
+  return weeks;
+};
+
 const getMonthsForQuarter = (quarter: number, year: number) => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -51,7 +83,7 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
-export const PrintView = ({ year, quarter }: PrintViewProps) => {
+export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [departmentData, setDepartmentData] = useState<any>({});
@@ -91,6 +123,7 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
     // Fetch data for each department
     const allData: any = {};
     const months = getMonthsForQuarter(quarter, year);
+    const weeks = getWeekDates({ year, quarter });
 
     for (const dept of depts) {
       // Fetch KPIs
@@ -102,12 +135,13 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
 
       // Fetch scorecard entries
       const monthIds = months.map(m => m.identifier);
+      const weekDates = weeks.map(w => w.date);
+      
       const { data: scorecardEntries } = await supabase
         .from("scorecard_entries")
         .select("*")
         .in("kpi_id", kpis?.map(k => k.id) || [])
-        .eq("entry_type", "monthly")
-        .in("month", monthIds);
+        .or(`week_start_date.in.(${weekDates.join(',')}),month.in.(${monthIds.join(',')})`);
 
       // Fetch financial entries
       const { data: financialEntries } = await supabase
@@ -149,6 +183,8 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
   }
 
   const months = getMonthsForQuarter(quarter, year);
+  const weeks = getWeekDates({ year, quarter });
+  const periods = mode === "weekly" ? weeks : months;
 
   return (
     <div className="print-view">
@@ -173,7 +209,7 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
             {/* Department Header */}
             <div className="print-header">
               <h1>{dept.name}</h1>
-              <p>Q{quarter} {year}</p>
+              <p>Q{quarter} {year} - {mode === "weekly" ? "Weekly" : "Monthly"} View</p>
             </div>
 
             {/* Scorecard Table */}
@@ -182,8 +218,10 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
                 <tr>
                   <th className="metric-col">KPI</th>
                   <th className="target-col">Target</th>
-                  {months.map(month => (
-                    <th key={month.identifier} className="value-col">{month.label}</th>
+                  {periods.map(period => (
+                    <th key={mode === "weekly" ? (period as any).date : (period as any).identifier} className="value-col">
+                      {period.label}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -198,22 +236,26 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
                           <td colSpan={2}>
                             <strong>{owner.full_name}</strong>
                           </td>
-                          <td colSpan={months.length}></td>
+                          <td colSpan={periods.length}></td>
                         </tr>
                       )}
                       {ownerKpis.map(kpi => (
                         <tr key={kpi.id}>
                           <td className="kpi-name">{kpi.name}</td>
                           <td className="target-value">{formatTarget(kpi.target_value, kpi.metric_type)}</td>
-                          {months.map(month => {
-                            const entry = scorecardEntries.find(
-                              e => e.kpi_id === kpi.id && e.month === month.identifier
-                            );
+                          {periods.map(period => {
+                            const entry = mode === "weekly"
+                              ? scorecardEntries.find(
+                                  e => e.kpi_id === kpi.id && e.week_start_date === (period as any).date
+                                )
+                              : scorecardEntries.find(
+                                  e => e.kpi_id === kpi.id && e.month === (period as any).identifier
+                                );
                             const status = entry?.status || null;
                             
                             return (
                               <td 
-                                key={month.identifier} 
+                                key={mode === "weekly" ? (period as any).date : (period as any).identifier}
                                 className={`value-cell ${status === 'green' ? 'status-green' : status === 'yellow' ? 'status-yellow' : status === 'red' ? 'status-red' : ''}`}
                               >
                                 {entry?.actual_value !== null && entry?.actual_value !== undefined
@@ -234,25 +276,46 @@ export const PrintView = ({ year, quarter }: PrintViewProps) => {
 
                 {/* Financial Metrics Section */}
                 <tr className="section-divider">
-                  <td colSpan={2 + months.length}>
-                    <strong>Financial Metrics</strong>
+                  <td colSpan={2 + periods.length}>
+                    <strong>Financial Metrics (Monthly)</strong>
                   </td>
                 </tr>
                 {FINANCIAL_METRICS.map(metric => (
                   <tr key={metric.key} className="financial-row">
                     <td className="kpi-name">{metric.name}</td>
                     <td className="target-value">-</td>
-                    {months.map(month => {
-                      const entry = financialEntries.find(
-                        e => e.metric_name === metric.key && e.month === month.identifier
-                      );
-                      
-                      return (
-                        <td key={month.identifier} className="value-cell">
-                          {formatValue(entry?.value || null, metric.type)}
-                        </td>
-                      );
-                    })}
+                    {mode === "weekly" ? (
+                      // For weekly view, show monthly data but span multiple columns
+                      <>
+                        {months.map((month, idx) => {
+                          const entry = financialEntries.find(
+                            e => e.metric_name === metric.key && e.month === month.identifier
+                          );
+                          const weeksPerMonth = idx === 0 ? 4 : idx === 1 ? 4 : 5;
+                          
+                          return (
+                            <td key={month.identifier} className="value-cell" colSpan={weeksPerMonth}>
+                              {formatValue(entry?.value || null, metric.type)}
+                            </td>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      // For monthly view, normal display
+                      <>
+                        {months.map(month => {
+                          const entry = financialEntries.find(
+                            e => e.metric_name === metric.key && e.month === month.identifier
+                          );
+                          
+                          return (
+                            <td key={month.identifier} className="value-cell">
+                              {formatValue(entry?.value || null, metric.type)}
+                            </td>
+                          );
+                        })}
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
