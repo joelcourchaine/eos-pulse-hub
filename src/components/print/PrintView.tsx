@@ -313,46 +313,25 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
             size: landscape;
             margin: 0.5in;
           }
-
-          body * {
-            visibility: hidden;
-          }
-
-          .print-view,
-          .print-view * {
-            visibility: visible;
-          }
-
-          .print-view {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+          
+          body {
+            margin: 0;
+            padding: 0;
           }
 
           .page-break {
             page-break-after: always;
+            break-after: always;
           }
 
           .page-break:last-child {
             page-break-after: avoid;
+            break-after: avoid;
           }
 
           .break-before {
             page-break-before: always;
-          }
-          
-          .print-table,
-          .print-table *,
-          .print-table thead,
-          .print-table tbody,
-          .print-table tr,
-          .print-table th,
-          .print-table td {
-            display: revert !important;
-            visibility: visible !important;
-            print-color-adjust: exact !important;
-            -webkit-print-color-adjust: exact !important;
+            break-before: always;
           }
         }
 
@@ -468,6 +447,43 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
 
         .financial-row {
           background-color: #f8f9fa;
+        }
+        
+        @media print {
+          .print-table,
+          .print-table thead,
+          .print-table tbody,
+          .print-table tr,
+          .print-table th,
+          .print-table td {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          .print-table th,
+          .print-table td {
+            background-color: transparent !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .status-green {
+            background-color: #d4edda !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .status-yellow {
+            background-color: #fff3cd !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .status-red {
+            background-color: #f8d7da !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
       `}</style>
     </div>
