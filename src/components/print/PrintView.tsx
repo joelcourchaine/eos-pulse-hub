@@ -377,9 +377,10 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         .print-table th,
         .print-table td {
           border: 1px solid #333;
-          padding: 6px;
+          padding: 4px;
           text-align: left;
           color: #000;
+          line-height: 1.2;
         }
 
         .print-table th {
@@ -437,7 +438,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         }
 
         .owner-row td {
-          padding: 8px;
+          padding: 5px;
           font-weight: bold;
         }
 
@@ -447,7 +448,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         }
 
         .section-divider td {
-          padding: 8px;
+          padding: 5px;
           font-weight: bold;
           color: white;
         }
