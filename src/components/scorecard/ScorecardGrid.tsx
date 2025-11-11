@@ -79,9 +79,17 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   for (let i = 0; i < 13; i++) {
     const weekStart = new Date(yearStart);
     weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    // Format as "M/D-M/D" (e.g., "12/30-1/5")
+    const startLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
+    const endLabel = `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+    
     weeks.push({
       start: weekStart,
-      label: `W${i + 1}`,
+      label: `${startLabel}-${endLabel}`,
       type: 'week' as const,
     });
   }
@@ -303,7 +311,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
             </TableHead>
             <TableHead className="text-center font-bold min-w-[100px]">Target</TableHead>
             {weeks.map((week) => (
-              <TableHead key={week.label} className="text-center min-w-[120px]">
+              <TableHead key={week.label} className="text-center min-w-[110px] text-xs">
                 {week.label}
               </TableHead>
             ))}
