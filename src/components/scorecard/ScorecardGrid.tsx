@@ -272,6 +272,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
+      delete saveTimeoutRef.current[key]; // Clear timeout ref after save completes
     }, 800); // Wait 800ms after user stops typing
   };
 
