@@ -16,6 +16,7 @@ import { PrintView } from "@/components/print/PrintView";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Celebrations } from "@/components/celebrations/Celebrations";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -335,6 +336,9 @@ const Dashboard = () => {
 
         {/* Meeting Framework */}
         <MeetingFramework />
+
+        {/* Celebrations */}
+        <Celebrations />
       </main>
     </div>
   );
