@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar } from "lucide-react";
 
 interface KPI {
   id: string;
@@ -35,20 +37,71 @@ interface ScorecardGridProps {
   onKPIsChange: () => void;
 }
 
-const getWeekDates = () => {
+// Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
+const YEAR_STARTS: { [key: number]: Date } = {
+  2025: new Date(2024, 11, 30), // Dec 30, 2024
+  2026: new Date(2025, 11, 29), // Dec 29, 2025 (Monday)
+  2027: new Date(2026, 11, 28), // Dec 28, 2026 (Monday)
+};
+
+const getMondayOfWeek = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // If Sunday (0), go back 6 days, else go to Monday
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getQuarterInfo = (date: Date): { year: number; quarter: number; weekInQuarter: number } => {
+  const monday = getMondayOfWeek(date);
+  
+  // Determine which fiscal year this date belongs to
+  let fiscalYear = monday.getFullYear();
+  if (monday.getMonth() === 11 && monday.getDate() >= 28) {
+    fiscalYear = monday.getFullYear() + 1;
+  }
+  
+  const yearStart = YEAR_STARTS[fiscalYear] || new Date(fiscalYear, 0, 1);
+  const daysSinceYearStart = Math.floor((monday.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24));
+  const weeksSinceYearStart = Math.floor(daysSinceYearStart / 7);
+  
+  const quarter = Math.floor(weeksSinceYearStart / 13) + 1;
+  const weekInQuarter = (weeksSinceYearStart % 13) + 1;
+  
+  return { year: fiscalYear, quarter: Math.min(quarter, 4), weekInQuarter };
+};
+
+const getWeekDates = (viewType: "weekly" | "quarterly", selectedQuarter?: { year: number; quarter: number }) => {
   const weeks = [];
   const today = new Date();
-  const currentDay = today.getDay();
-  const diff = currentDay === 0 ? -6 : 1 - currentDay;
   
-  for (let i = -3; i <= 3; i++) {
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() + diff + (i * 7));
-    weeks.push({
-      start: weekStart,
-      label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`,
-    });
+  if (viewType === "weekly") {
+    const currentMonday = getMondayOfWeek(today);
+    
+    for (let i = -3; i <= 3; i++) {
+      const weekStart = new Date(currentMonday);
+      weekStart.setDate(currentMonday.getDate() + (i * 7));
+      weeks.push({
+        start: weekStart,
+        label: `${weekStart.getMonth() + 1}/${weekStart.getDate()}`,
+      });
+    }
+  } else if (viewType === "quarterly" && selectedQuarter) {
+    const yearStart = YEAR_STARTS[selectedQuarter.year] || new Date(selectedQuarter.year, 0, 1);
+    const quarterStartWeek = (selectedQuarter.quarter - 1) * 13;
+    
+    for (let i = 0; i < 13; i++) {
+      const weekStart = new Date(yearStart);
+      weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
+      const weekInfo = getQuarterInfo(weekStart);
+      weeks.push({
+        start: weekStart,
+        label: `W${weekInfo.weekInQuarter}`,
+      });
+    }
   }
+  
   return weeks;
 };
 
@@ -57,13 +110,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
-  const weeks = getWeekDates();
+  const [viewType, setViewType] = useState<"weekly" | "quarterly">("weekly");
+  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedQuarter, setSelectedQuarter] = useState(1);
   const { toast } = useToast();
+  
+  const currentQuarterInfo = getQuarterInfo(new Date());
+  const weeks = getWeekDates(
+    viewType, 
+    viewType === "quarterly" ? { year: selectedYear, quarter: selectedQuarter } : undefined
+  );
 
   useEffect(() => {
     loadScorecardData();
     fetchProfiles();
-  }, [departmentId, kpis]);
+  }, [departmentId, kpis, viewType, selectedYear, selectedQuarter]);
 
   const fetchProfiles = async () => {
     const { data, error } = await supabase
@@ -191,8 +252,61 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
   }
 
   return (
-    <div className="overflow-x-auto border rounded-lg">
-      <Table>
+    <div className="space-y-4">
+      {/* View Controls */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewType === "weekly" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewType("weekly")}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Weekly View
+          </Button>
+          <Button
+            variant={viewType === "quarterly" ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setViewType("quarterly");
+              setSelectedYear(currentQuarterInfo.year);
+              setSelectedQuarter(currentQuarterInfo.quarter);
+            }}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Quarterly View
+          </Button>
+        </div>
+        
+        {viewType === "quarterly" && (
+          <div className="flex items-center gap-2">
+            <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedQuarter.toString()} onValueChange={(v) => setSelectedQuarter(parseInt(v))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Q1</SelectItem>
+                <SelectItem value="2">Q2</SelectItem>
+                <SelectItem value="3">Q3</SelectItem>
+                <SelectItem value="4">Q4</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <div className="overflow-x-auto border rounded-lg">
+        <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold">
@@ -279,6 +393,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps)
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 };
