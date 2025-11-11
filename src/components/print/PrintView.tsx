@@ -447,17 +447,17 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
 
         .status-green {
           background-color: #d4edda !important;
-          color: #155724 !important;
+          color: #000 !important;
         }
 
         .status-yellow {
           background-color: #fff3cd !important;
-          color: #856404 !important;
+          color: #000 !important;
         }
 
         .status-red {
           background-color: #f8d7da !important;
-          color: #721c24 !important;
+          color: #000 !important;
         }
 
         .owner-row {
