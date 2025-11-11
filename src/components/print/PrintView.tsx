@@ -114,60 +114,55 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     });
     setProfiles(profilesMap);
 
-    // Fetch departments - only selected one if departmentId provided
-    let query = supabase
+    // Fetch ONLY the selected department
+    const { data: depts } = await supabase
       .from("departments")
-      .select("*");
-    
-    if (departmentId) {
-      query = query.eq("id", departmentId);
-    }
-    
-    const { data: depts } = await query.order("name");
+      .select("*")
+      .eq("id", departmentId)
+      .single();
 
     if (!depts) {
       setLoading(false);
       return;
     }
 
-    setDepartments(depts);
+    // Set as array with single department
+    setDepartments([depts]);
 
-    // Fetch data for each department
+    // Fetch data for the single department
     const allData: any = {};
     const months = getMonthsForQuarter(quarter, year);
     const weeks = getWeekDates({ year, quarter });
 
-    for (const dept of depts) {
-      // Fetch KPIs
-      const { data: kpis } = await supabase
-        .from("kpi_definitions")
-        .select("*")
-        .eq("department_id", dept.id)
-        .order("display_order");
+    // Fetch KPIs
+    const { data: kpis } = await supabase
+      .from("kpi_definitions")
+      .select("*")
+      .eq("department_id", depts.id)
+      .order("display_order");
 
-      // Fetch scorecard entries
-      const monthIds = months.map(m => m.identifier);
-      const weekDates = weeks.map(w => w.date);
-      
-      const { data: scorecardEntries } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpis?.map(k => k.id) || [])
-        .or(`week_start_date.in.(${weekDates.join(',')}),month.in.(${monthIds.join(',')})`);
+    // Fetch scorecard entries
+    const monthIds = months.map(m => m.identifier);
+    const weekDates = weeks.map(w => w.date);
+    
+    const { data: scorecardEntries } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpis?.map(k => k.id) || [])
+      .or(`week_start_date.in.(${weekDates.join(',')}),month.in.(${monthIds.join(',')})`);
 
-      // Fetch financial entries
-      const { data: financialEntries } = await supabase
-        .from("financial_entries")
-        .select("*")
-        .eq("department_id", dept.id)
-        .in("month", monthIds);
+    // Fetch financial entries
+    const { data: financialEntries } = await supabase
+      .from("financial_entries")
+      .select("*")
+      .eq("department_id", depts.id)
+      .in("month", monthIds);
 
-      allData[dept.id] = {
-        kpis: kpis || [],
-        scorecardEntries: scorecardEntries || [],
-        financialEntries: financialEntries || [],
-      };
-    }
+    allData[depts.id] = {
+      kpis: kpis || [],
+      scorecardEntries: scorecardEntries || [],
+      financialEntries: financialEntries || [],
+    };
 
     setDepartmentData(allData);
     setLoading(false);
@@ -198,14 +193,9 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
   const weeks = getWeekDates({ year, quarter });
   const periods = mode === "weekly" ? weeks : months;
 
-  // If we have a departmentId filter, only show that one department
-  const filteredDepartments = departmentId 
-    ? departments.filter(d => d.id === departmentId)
-    : departments;
-
   return (
     <div className="print-view">
-      {filteredDepartments.map((dept, deptIndex) => {
+      {departments.map((dept) => {
         const data = departmentData[dept.id];
         if (!data) return null;
 
