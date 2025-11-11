@@ -13,6 +13,10 @@ const authSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   fullName: z.string().min(2, "Full name is required").optional(),
+  birthdayMonth: z.number().min(1).max(12).optional(),
+  birthdayDay: z.number().min(1).max(31).optional(),
+  startMonth: z.number().min(1).max(12).optional(),
+  startDay: z.number().min(1).max(31).optional(),
 });
 
 const Auth = () => {
@@ -25,6 +29,10 @@ const Auth = () => {
     email: "",
     password: "",
     fullName: "",
+    birthdayMonth: "",
+    birthdayDay: "",
+    startMonth: "",
+    startDay: "",
   });
 
   useEffect(() => {
@@ -56,6 +64,10 @@ const Auth = () => {
         email: formData.email,
         password: formData.password,
         fullName: isLogin ? undefined : formData.fullName,
+        birthdayMonth: isLogin ? undefined : (formData.birthdayMonth ? parseInt(formData.birthdayMonth) : undefined),
+        birthdayDay: isLogin ? undefined : (formData.birthdayDay ? parseInt(formData.birthdayDay) : undefined),
+        startMonth: isLogin ? undefined : (formData.startMonth ? parseInt(formData.startMonth) : undefined),
+        startDay: isLogin ? undefined : (formData.startDay ? parseInt(formData.startDay) : undefined),
       });
 
       if (isLogin) {
@@ -77,6 +89,10 @@ const Auth = () => {
           options: {
             data: {
               full_name: validation.fullName,
+              birthday_month: validation.birthdayMonth,
+              birthday_day: validation.birthdayDay,
+              start_month: validation.startMonth,
+              start_day: validation.startDay,
             },
             emailRedirectTo: `${window.location.origin}/`,
           },
@@ -129,19 +145,97 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="John Doe"
-                  value={formData.fullName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fullName: e.target.value })
-                  }
-                  required={!isLogin}
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="John Doe"
+                    value={formData.fullName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, fullName: e.target.value })
+                    }
+                    required={!isLogin}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayMonth">Birthday Month</Label>
+                    <select
+                      id="birthdayMonth"
+                      value={formData.birthdayMonth}
+                      onChange={(e) =>
+                        setFormData({ ...formData, birthdayMonth: e.target.value })
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">Select month</option>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {new Date(2000, i).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthdayDay">Birthday Day</Label>
+                    <select
+                      id="birthdayDay"
+                      value={formData.birthdayDay}
+                      onChange={(e) =>
+                        setFormData({ ...formData, birthdayDay: e.target.value })
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">Select day</option>
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {i + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startMonth">Start Date Month</Label>
+                    <select
+                      id="startMonth"
+                      value={formData.startMonth}
+                      onChange={(e) =>
+                        setFormData({ ...formData, startMonth: e.target.value })
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">Select month</option>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {new Date(2000, i).toLocaleString('default', { month: 'long' })}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="startDay">Start Date Day</Label>
+                    <select
+                      id="startDay"
+                      value={formData.startDay}
+                      onChange={(e) =>
+                        setFormData({ ...formData, startDay: e.target.value })
+                      }
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">Select day</option>
+                      {Array.from({ length: 31 }, (_, i) => (
+                        <option key={i + 1} value={i + 1}>
+                          {i + 1}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
