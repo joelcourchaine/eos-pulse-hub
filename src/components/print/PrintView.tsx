@@ -335,6 +335,16 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             margin: 0;
             padding: 0;
           }
+          
+          body > *:not(.print-view) {
+            display: none !important;
+          }
+          
+          .print-view {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+          }
         }
 
         .print-view {

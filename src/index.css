@@ -148,4 +148,8 @@ All colors MUST be HSL.
   .no-print {
     display: none !important;
   }
+  
+  .print-only {
+    display: block !important;
+  }
 }

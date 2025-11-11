@@ -150,7 +150,20 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <>
+      {/* Hidden Print Container - Only visible during print */}
+      {printDialogOpen && (
+        <div className="print-only" style={{ display: 'none' }}>
+          <PrintView 
+            year={selectedYear} 
+            quarter={selectedQuarter} 
+            mode={printMode} 
+            departmentId={selectedDepartment} 
+          />
+        </div>
+      )}
+      
+      <div className="min-h-screen bg-muted/30">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -186,7 +199,7 @@ const Dashboard = () => {
                     Print PDF
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto" aria-describedby="print-description">
+                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto no-print" aria-describedby="print-description">
                   <DialogTitle className="sr-only">Print Report</DialogTitle>
                   <div id="print-description" className="sr-only">
                     Preview of all department scorecards and financial data for printing
@@ -335,6 +348,7 @@ const Dashboard = () => {
         <MeetingFramework />
       </main>
     </div>
+    </>
   );
 };
 
