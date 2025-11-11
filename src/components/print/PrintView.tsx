@@ -318,6 +318,23 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
             color-adjust: exact !important;
+            visibility: visible !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .print-view,
+          .print-view * {
+            visibility: visible !important;
+          }
+
+          .print-view {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
           }
 
           .page-break {
@@ -336,39 +353,61 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
         .print-view {
           font-family: Arial, sans-serif;
           font-size: 10px;
-          color: #000;
+          color: #000 !important;
         }
 
         .print-header {
           margin-bottom: 12px;
-          border-bottom: 2px solid #333;
+          border-bottom: 2px solid #333 !important;
           padding-bottom: 8px;
+          display: block !important;
+          visibility: visible !important;
         }
 
         .print-header h1 {
           margin: 0;
           font-size: 18px;
           font-weight: bold;
+          color: #000 !important;
+          display: block !important;
         }
 
         .print-header p {
           margin: 4px 0 0 0;
           font-size: 12px;
-          color: #666;
+          color: #333 !important;
+          display: block !important;
         }
 
         .print-table {
           width: 100%;
           border-collapse: collapse;
           margin-bottom: 16px;
+          display: table !important;
+          visibility: visible !important;
+        }
+
+        .print-table thead {
+          display: table-header-group !important;
+        }
+
+        .print-table tbody {
+          display: table-row-group !important;
+        }
+
+        .print-table tr {
+          display: table-row !important;
+          visibility: visible !important;
         }
 
         .print-table th,
         .print-table td {
           border: 1px solid #333 !important;
-          padding: 6px;
+          padding: 6px !important;
           text-align: left;
           color: #000 !important;
+          display: table-cell !important;
+          visibility: visible !important;
         }
 
         .print-table th {
