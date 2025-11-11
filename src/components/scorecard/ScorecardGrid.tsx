@@ -339,7 +339,29 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         </Select>
       </div>
 
-      <div className="overflow-x-auto border rounded-lg [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/50">
+      <div 
+        className="overflow-x-auto border rounded-lg" 
+        style={{ 
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'hsl(var(--muted-foreground) / 0.3) hsl(var(--muted))'
+        }}
+      >
+        <style>{`
+          .overflow-x-auto::-webkit-scrollbar {
+            height: 12px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-track {
+            background: hsl(var(--muted));
+            border-radius: 6px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-thumb {
+            background: hsl(var(--muted-foreground) / 0.3);
+            border-radius: 6px;
+          }
+          .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--muted-foreground) / 0.5);
+          }
+        `}</style>
         <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
