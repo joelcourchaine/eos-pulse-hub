@@ -1,24 +1,33 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface KPI {
   id: string;
   name: string;
-  type: "dollar" | "percentage" | "unit";
-  target: number;
+  metric_type: "dollar" | "percentage" | "unit";
+  target_value: number;
+  display_order: number;
 }
 
-const mockKPIs: KPI[] = [
-  { id: "1", name: "Wholesale Sales", type: "dollar", target: 50000 },
-  { id: "2", name: "Total Gross %", type: "percentage", target: 30 },
-  { id: "3", name: "Tire Sales", type: "dollar", target: 15000 },
-  { id: "4", name: "Accessory Sales", type: "dollar", target: 7000 },
-  { id: "5", name: "CP RO Sales", type: "dollar", target: 12000 },
-  { id: "6", name: "Stock Order Allowance", type: "percentage", target: 85 },
-];
+interface ScorecardEntry {
+  id: string;
+  kpi_id: string;
+  week_start_date: string;
+  actual_value: number | null;
+  variance: number | null;
+  status: string | null;
+}
+
+interface ScorecardGridProps {
+  departmentId: string;
+  kpis: KPI[];
+  onKPIsChange: () => void;
+}
 
 const getWeekDates = () => {
   const weeks = [];
@@ -37,35 +46,124 @@ const getWeekDates = () => {
   return weeks;
 };
 
-const ScorecardGrid = () => {
-  const [weekData, setWeekData] = useState<{ [key: string]: number }>({});
+const ScorecardGrid = ({ departmentId, kpis, onKPIsChange }: ScorecardGridProps) => {
+  const [entries, setEntries] = useState<{ [key: string]: ScorecardEntry }>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const weeks = getWeekDates();
+  const { toast } = useToast();
 
-  const handleValueChange = (kpiId: string, weekLabel: string, value: string) => {
-    const key = `${kpiId}-${weekLabel}`;
-    setWeekData((prev) => ({
-      ...prev,
-      [key]: parseFloat(value) || 0,
-    }));
+  useEffect(() => {
+    loadScorecardData();
+  }, [departmentId, kpis]);
+
+  const loadScorecardData = async () => {
+    if (!departmentId || kpis.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const kpiIds = kpis.map(k => k.id);
+    const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
+
+    const { data, error } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .in("week_start_date", weekDates);
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to load scorecard data", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    const entriesMap: { [key: string]: ScorecardEntry } = {};
+    data?.forEach(entry => {
+      const key = `${entry.kpi_id}-${entry.week_start_date}`;
+      entriesMap[key] = entry;
+    });
+
+    setEntries(entriesMap);
+    setLoading(false);
   };
 
-  const getStatus = (actual: number, target: number, type: string) => {
-    if (!actual) return "default";
+  const handleValueChange = async (kpiId: string, weekDate: string, value: string, target: number, type: string) => {
+    const key = `${kpiId}-${weekDate}`;
+    const actualValue = parseFloat(value) || null;
+
+    if (actualValue === null) return;
+
+    setSaving(prev => ({ ...prev, [key]: true }));
+
     const variance = type === "percentage" 
-      ? actual - target 
-      : ((actual - target) / target) * 100;
-    
-    if (variance >= 0) return "success";
-    if (variance >= -10) return "warning";
+      ? actualValue - target 
+      : ((actualValue - target) / target) * 100;
+
+    const status = variance >= 0 ? "on_track" : variance >= -10 ? "at_risk" : "off_track";
+
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+
+    const { error } = await supabase
+      .from("scorecard_entries")
+      .upsert({
+        kpi_id: kpiId,
+        week_start_date: weekDate,
+        actual_value: actualValue,
+        variance,
+        status,
+        created_by: userId,
+      }, {
+        onConflict: "kpi_id,week_start_date"
+      });
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
+    } else {
+      await loadScorecardData();
+    }
+
+    setSaving(prev => ({ ...prev, [key]: false }));
+  };
+
+  const getStatus = (status: string | null) => {
+    if (!status) return "default";
+    if (status === "on_track") return "success";
+    if (status === "at_risk") return "warning";
     return "destructive";
   };
 
-  const formatValue = (value: number, type: string) => {
-    if (!value) return "-";
+  const formatValue = (value: number | null, type: string) => {
+    if (value === null || value === undefined) return "";
+    if (type === "dollar") return `${value.toLocaleString()}`;
+    if (type === "percentage") return `${value}`;
+    return value.toString();
+  };
+
+  const formatTarget = (value: number, type: string) => {
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
     return value.toString();
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (kpis.length === 0) {
+    return (
+      <div className="border rounded-lg p-8 text-center">
+        <p className="text-muted-foreground mb-4">No KPIs defined for this department yet.</p>
+        <p className="text-sm text-muted-foreground">Click "Manage KPIs" to add your first metric.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto border rounded-lg">
@@ -84,24 +182,25 @@ const ScorecardGrid = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {mockKPIs.map((kpi) => (
+          {kpis.map((kpi) => (
             <TableRow key={kpi.id} className="hover:bg-muted/30">
               <TableCell className="sticky left-0 bg-background z-10 font-medium">
                 {kpi.name}
               </TableCell>
               <TableCell className="text-center text-muted-foreground">
-                {formatValue(kpi.target, kpi.type)}
+                {formatTarget(kpi.target_value, kpi.metric_type)}
               </TableCell>
               {weeks.map((week) => {
-                const key = `${kpi.id}-${week.label}`;
-                const actual = weekData[key] || 0;
-                const status = getStatus(actual, kpi.target, kpi.type);
+                const weekDate = week.start.toISOString().split('T')[0];
+                const key = `${kpi.id}-${weekDate}`;
+                const entry = entries[key];
+                const status = getStatus(entry?.status || null);
                 
                 return (
                   <TableCell
                     key={week.label}
                     className={cn(
-                      "p-1",
+                      "p-1 relative",
                       status === "success" && "bg-success/10",
                       status === "warning" && "bg-warning/10",
                       status === "destructive" && "bg-destructive/10"
@@ -110,9 +209,9 @@ const ScorecardGrid = () => {
                     <Input
                       type="number"
                       step="any"
-                      value={weekData[key] || ""}
+                      value={formatValue(entry?.actual_value || null, kpi.metric_type)}
                       onChange={(e) =>
-                        handleValueChange(kpi.id, week.label, e.target.value)
+                        handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type)
                       }
                       className={cn(
                         "text-center border-0 bg-transparent focus-visible:ring-1",
@@ -121,7 +220,11 @@ const ScorecardGrid = () => {
                         status === "destructive" && "text-destructive font-medium"
                       )}
                       placeholder="-"
+                      disabled={saving[key]}
                     />
+                    {saving[key] && (
+                      <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    )}
                   </TableCell>
                 );
               })}

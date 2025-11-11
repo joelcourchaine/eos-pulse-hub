@@ -1,0 +1,205 @@
+import { useState } from "react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Settings, Trash2, Plus } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
+interface KPI {
+  id: string;
+  name: string;
+  metric_type: "dollar" | "percentage" | "unit";
+  target_value: number;
+  display_order: number;
+}
+
+interface KPIManagementDialogProps {
+  departmentId: string;
+  kpis: KPI[];
+  onKPIsChange: () => void;
+}
+
+export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIManagementDialogProps) => {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [metricType, setMetricType] = useState<"dollar" | "percentage" | "unit">("dollar");
+  const [targetValue, setTargetValue] = useState("");
+  const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleAddKPI = async () => {
+    if (!name || !targetValue) {
+      toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
+      return;
+    }
+
+    const maxOrder = kpis.length > 0 ? Math.max(...kpis.map(k => k.display_order)) : 0;
+
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .insert({
+        name,
+        metric_type: metricType,
+        target_value: parseFloat(targetValue),
+        department_id: departmentId,
+        display_order: maxOrder + 1,
+      });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "KPI added successfully" });
+    setName("");
+    setTargetValue("");
+    onKPIsChange();
+  };
+
+  const handleDeleteKPI = async (id: string) => {
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "KPI deleted successfully" });
+    setDeleteKpiId(null);
+    onKPIsChange();
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <Settings className="h-4 w-4 mr-2" />
+            Manage KPIs
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage KPIs</DialogTitle>
+            <DialogDescription>
+              Add, edit, or remove KPIs for this department. Changes affect the scorecard immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold text-sm">Add New KPI</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="name">KPI Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Wholesale Sales"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="type">Metric Type</Label>
+                  <Select value={metricType} onValueChange={(v: any) => setMetricType(v)}>
+                    <SelectTrigger id="type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dollar">Dollar ($)</SelectItem>
+                      <SelectItem value="percentage">Percentage (%)</SelectItem>
+                      <SelectItem value="unit">Unit Count</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="target">Target Value</Label>
+                  <Input
+                    id="target"
+                    type="number"
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(e.target.value)}
+                    placeholder="10000"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleAddKPI} className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add KPI
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-sm mb-3">Current KPIs ({kpis.length})</h3>
+              {kpis.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No KPIs defined yet. Add your first KPI above.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Target</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {kpis.map((kpi) => (
+                      <TableRow key={kpi.id}>
+                        <TableCell>{kpi.display_order}</TableCell>
+                        <TableCell className="font-medium">{kpi.name}</TableCell>
+                        <TableCell className="capitalize">{kpi.metric_type}</TableCell>
+                        <TableCell>
+                          {kpi.metric_type === "dollar" && "$"}
+                          {kpi.target_value}
+                          {kpi.metric_type === "percentage" && "%"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteKpiId(kpi.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteKpiId} onOpenChange={() => setDeleteKpiId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete KPI?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this KPI and all associated scorecard entries. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteKpiId && handleDeleteKPI(deleteKpiId)}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+};

@@ -4,11 +4,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { LogOut, BarChart3, Target, CheckSquare, Calendar } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
+import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -17,6 +19,9 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+  const [kpis, setKpis] = useState<any[]>([]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -36,11 +41,18 @@ const Dashboard = () => {
         navigate("/auth");
       } else {
         fetchProfile(session.user.id);
+        fetchDepartments();
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      fetchKPIs();
+    }
+  }, [selectedDepartment]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -56,6 +68,40 @@ const Dashboard = () => {
       console.error("Error fetching profile:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+      setDepartments(data || []);
+      if (data && data.length > 0) {
+        setSelectedDepartment(data[0].id);
+      }
+    } catch (error: any) {
+      console.error("Error fetching departments:", error);
+    }
+  };
+
+  const fetchKPIs = async () => {
+    if (!selectedDepartment) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("kpi_definitions")
+        .select("*")
+        .eq("department_id", selectedDepartment)
+        .order("display_order");
+
+      if (error) throw error;
+      setKpis(data || []);
+    } catch (error: any) {
+      console.error("Error fetching KPIs:", error);
     }
   };
 
@@ -103,6 +149,20 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              {departments.length > 0 && (
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium">{profile.full_name}</p>
                 <p className="text-xs text-muted-foreground capitalize">
@@ -167,13 +227,34 @@ const Dashboard = () => {
         {/* Scorecard Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">Weekly Scorecard</CardTitle>
-            <CardDescription>
-              Track your department's key performance indicators
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl">Weekly Scorecard</CardTitle>
+                <CardDescription>
+                  Track your department's key performance indicators
+                </CardDescription>
+              </div>
+              {selectedDepartment && (
+                <KPIManagementDialog 
+                  departmentId={selectedDepartment} 
+                  kpis={kpis}
+                  onKPIsChange={fetchKPIs}
+                />
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <ScorecardGrid />
+            {selectedDepartment ? (
+              <ScorecardGrid 
+                departmentId={selectedDepartment}
+                kpis={kpis}
+                onKPIsChange={fetchKPIs}
+              />
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Select a department to view the scorecard
+              </p>
+            )}
           </CardContent>
         </Card>
 
