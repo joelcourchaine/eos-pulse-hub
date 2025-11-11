@@ -150,20 +150,7 @@ const Dashboard = () => {
   }
 
   return (
-    <>
-      {/* Hidden Print Container - Only visible during print */}
-      {printDialogOpen && (
-        <div className="print-only" style={{ display: 'none' }}>
-          <PrintView 
-            year={selectedYear} 
-            quarter={selectedQuarter} 
-            mode={printMode} 
-            departmentId={selectedDepartment} 
-          />
-        </div>
-      )}
-      
-      <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -348,7 +335,6 @@ const Dashboard = () => {
         <MeetingFramework />
       </main>
     </div>
-    </>
   );
 };
 

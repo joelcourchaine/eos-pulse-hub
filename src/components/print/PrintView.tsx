@@ -331,19 +331,20 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             margin: 0.5in;
           }
           
-          body {
-            margin: 0;
-            padding: 0;
+          * {
+            visibility: hidden;
           }
           
-          body > *:not(.print-view) {
-            display: none !important;
+          .print-view,
+          .print-view * {
+            visibility: visible;
           }
           
           .print-view {
-            display: block !important;
-            position: static !important;
-            width: 100% !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
           }
         }
 
