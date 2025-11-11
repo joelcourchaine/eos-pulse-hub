@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface KPI {
   id: string;
@@ -132,6 +133,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
@@ -295,6 +297,14 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = 400;
+      const newScrollLeft = scrollContainerRef.current.scrollLeft + (direction === 'right' ? scrollAmount : -scrollAmount);
+      scrollContainerRef.current.scrollTo({ left: newScrollLeft, behavior: 'smooth' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -339,8 +349,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         </Select>
       </div>
 
+      {/* Scroll Navigation Buttons */}
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" size="sm" onClick={() => scroll('left')}>
+          <ChevronLeft className="h-4 w-4" />
+          Scroll Left
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => scroll('right')}>
+          Scroll Right
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
       <div 
-        className="overflow-x-scroll border rounded-lg" 
+        ref={scrollContainerRef}
+        className="overflow-x-scroll border rounded-lg"
         style={{ 
           scrollbarWidth: 'auto',
           scrollbarColor: 'hsl(var(--muted-foreground) / 0.5) hsl(var(--muted))',
