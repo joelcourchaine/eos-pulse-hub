@@ -77,7 +77,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
         target_value: parseFloat(targetValue),
         department_id: departmentId,
         display_order: maxOrder + 1,
-        assigned_to: assignedTo || null,
+        assigned_to: assignedTo && assignedTo !== "unassigned" ? assignedTo : null,
       });
 
     if (error) {
@@ -88,7 +88,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     toast({ title: "Success", description: "KPI added successfully" });
     setName("");
     setTargetValue("");
-    setAssignedTo("");
+    setAssignedTo("unassigned");
     onKPIsChange();
   };
 
@@ -168,7 +168,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                       <SelectValue placeholder="Select owner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="unassigned">None</SelectItem>
                       {profiles.map((profile) => (
                         <SelectItem key={profile.id} value={profile.id}>
                           {profile.full_name}
