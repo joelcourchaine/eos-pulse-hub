@@ -313,21 +313,14 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
             size: landscape;
             margin: 0.5in;
           }
-          
-          * {
-            print-color-adjust: exact !important;
-            -webkit-print-color-adjust: exact !important;
-            color-adjust: exact !important;
-            visibility: visible !important;
-          }
 
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
 
           .print-view,
           .print-view * {
-            visibility: visible !important;
+            visibility: visible;
           }
 
           .print-view {
@@ -348,73 +341,66 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
           .break-before {
             page-break-before: always;
           }
+          
+          .print-table,
+          .print-table *,
+          .print-table thead,
+          .print-table tbody,
+          .print-table tr,
+          .print-table th,
+          .print-table td {
+            display: revert !important;
+            visibility: visible !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+          }
         }
 
         .print-view {
           font-family: Arial, sans-serif;
           font-size: 10px;
-          color: #000 !important;
+          color: #000;
         }
 
         .print-header {
           margin-bottom: 12px;
-          border-bottom: 2px solid #333 !important;
+          border-bottom: 2px solid #333;
           padding-bottom: 8px;
-          display: block !important;
-          visibility: visible !important;
         }
 
         .print-header h1 {
           margin: 0;
           font-size: 18px;
           font-weight: bold;
-          color: #000 !important;
-          display: block !important;
+          color: #000;
         }
 
         .print-header p {
           margin: 4px 0 0 0;
           font-size: 12px;
-          color: #333 !important;
-          display: block !important;
+          color: #333;
         }
 
         .print-table {
           width: 100%;
           border-collapse: collapse;
           margin-bottom: 16px;
-          display: table !important;
-          visibility: visible !important;
-        }
-
-        .print-table thead {
-          display: table-header-group !important;
-        }
-
-        .print-table tbody {
-          display: table-row-group !important;
-        }
-
-        .print-table tr {
-          display: table-row !important;
-          visibility: visible !important;
+          table-layout: fixed;
         }
 
         .print-table th,
         .print-table td {
-          border: 1px solid #333 !important;
-          padding: 6px !important;
+          border: 1px solid #333;
+          padding: 6px;
           text-align: left;
-          color: #000 !important;
-          display: table-cell !important;
-          visibility: visible !important;
+          color: #000;
         }
 
         .print-table th {
-          background-color: #e0e0e0 !important;
+          background-color: #e0e0e0;
           font-weight: bold;
           text-align: center;
-          color: #000 !important;
+          color: #000;
         }
 
         .metric-col {
@@ -446,18 +432,18 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
         }
 
         .status-green {
-          background-color: #d4edda !important;
-          color: #000 !important;
+          background-color: #d4edda;
+          color: #000;
         }
 
         .status-yellow {
-          background-color: #fff3cd !important;
-          color: #000 !important;
+          background-color: #fff3cd;
+          color: #000;
         }
 
         .status-red {
-          background-color: #f8d7da !important;
-          color: #000 !important;
+          background-color: #f8d7da;
+          color: #000;
         }
 
         .owner-row {
@@ -477,6 +463,7 @@ export const PrintView = ({ year, quarter, mode }: PrintViewProps) => {
         .section-divider td {
           padding: 8px;
           font-weight: bold;
+          color: white;
         }
 
         .financial-row {
