@@ -340,26 +340,26 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       </div>
 
       <div 
-        className="overflow-x-auto border rounded-lg" 
+        className="overflow-x-scroll border rounded-lg" 
         style={{ 
           scrollbarWidth: 'thin',
           scrollbarColor: 'hsl(var(--muted-foreground) / 0.3) hsl(var(--muted))'
         }}
       >
         <style>{`
-          .overflow-x-auto::-webkit-scrollbar {
+          .overflow-x-scroll::-webkit-scrollbar {
             height: 12px;
           }
-          .overflow-x-auto::-webkit-scrollbar-track {
+          .overflow-x-scroll::-webkit-scrollbar-track {
             background: hsl(var(--muted));
             border-radius: 6px;
           }
-          .overflow-x-auto::-webkit-scrollbar-thumb {
-            background: hsl(var(--muted-foreground) / 0.3);
+          .overflow-x-scroll::-webkit-scrollbar-thumb {
+            background: hsl(var(--muted-foreground) / 0.5);
             border-radius: 6px;
           }
-          .overflow-x-auto::-webkit-scrollbar-thumb:hover {
-            background: hsl(var(--muted-foreground) / 0.5);
+          .overflow-x-scroll::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--muted-foreground) / 0.7);
           }
         `}</style>
         <Table>
