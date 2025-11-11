@@ -285,8 +285,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
   const formatValue = (value: number | null, type: string) => {
     if (value === null || value === undefined) return "";
-    if (type === "dollar") return `${value.toLocaleString()}`;
-    if (type === "percentage") return `${value}`;
+    // Don't format with commas for input fields - number inputs don't accept them
     return value.toString();
   };
 
