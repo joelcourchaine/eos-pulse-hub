@@ -79,10 +79,9 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   for (let i = 0; i < 13; i++) {
     const weekStart = new Date(yearStart);
     weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
-    const weekInfo = getQuarterInfo(weekStart);
     weeks.push({
       start: weekStart,
-      label: `W${weekInfo.weekInQuarter}`,
+      label: `W${i + 1}`,
     });
   }
   
