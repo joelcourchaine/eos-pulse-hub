@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -342,20 +343,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
       <div
         ref={scrollContainerRef}
-        className="relative border rounded-lg"
-        style={{ 
-          overflowX: 'scroll',
-          WebkitOverflowScrolling: 'touch',
-        }}
+        className="relative border rounded-lg overflow-x-auto"
       >
         <div className="min-w-[2400px]">
         <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 z-20 min-w-[200px] font-bold py-2">
+            <TableHead className="sticky left-0 bg-muted/50 z-20 min-w-[200px] font-bold py-2 border-r">
               KPI
             </TableHead>
-            <TableHead className="sticky left-[200px] bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2">Target</TableHead>
+            <TableHead className="sticky left-[200px] bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2 border-r">Target</TableHead>
             {weeks.map((week) => (
               <TableHead key={week.label} className="text-center min-w-[110px] text-xs py-2">
                 {week.label}
@@ -376,10 +373,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             const ownerInitials = owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U";
             
             return (
-              <>
+              <React.Fragment key={kpi.id}>
                 {showOwnerHeader && (
                   <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
-                    <TableCell className="sticky left-0 z-10 bg-muted/50 py-1">
+                    <TableCell className="sticky left-0 z-10 bg-muted/50 py-1 border-r">
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
@@ -389,15 +386,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="sticky left-[200px] z-10 bg-muted/50 py-1" />
+                    <TableCell className="sticky left-[200px] z-10 bg-muted/50 py-1 border-r" />
                     <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
-                <TableRow key={kpi.id} className="hover:bg-muted/30">
-                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8 py-2">
+                <TableRow className="hover:bg-muted/30">
+                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8 py-2 border-r">
                     {kpi.name}
                   </TableCell>
-                  <TableCell className="sticky left-[200px] bg-background z-10 text-center text-muted-foreground py-2">
+                  <TableCell className="sticky left-[200px] bg-background z-10 text-center text-muted-foreground py-2 border-r">
                     {formatTarget(kpi.target_value, kpi.metric_type)}
                   </TableCell>
                   {weeks.map((week) => {
@@ -478,7 +475,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     );
                   })}
                 </TableRow>
-              </>
+              </React.Fragment>
             );
           })}
         </TableBody>
