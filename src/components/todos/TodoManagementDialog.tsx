@@ -123,7 +123,7 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
               <SelectTrigger>
                 <SelectValue placeholder="Select person (optional)" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" sideOffset={5}>
                 {profiles.map((profile) => (
                   <SelectItem key={profile.id} value={profile.id}>
                     {profile.full_name}
