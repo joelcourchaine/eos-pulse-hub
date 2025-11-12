@@ -513,25 +513,35 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
                         )}
                       >
-                        <Input
-                          type="number"
-                          step="any"
-                          value={displayValue}
-                          onChange={(e) =>
-                            handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
-                          }
-                          className={cn(
-                            "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
-                            status === "success" && "text-success font-medium",
-                            status === "warning" && "text-warning font-medium",
-                            status === "destructive" && "text-destructive font-medium"
+                        <div className="relative flex items-center">
+                          {kpi.metric_type === "dollar" && (
+                            <span className="absolute left-2 text-muted-foreground text-sm pointer-events-none z-10">$</span>
                           )}
-                          placeholder="-"
-                          disabled={saving[key]}
-                        />
-                        {saving[key] && (
-                          <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        )}
+                          <Input
+                            type="number"
+                            step="any"
+                            value={displayValue}
+                            onChange={(e) =>
+                              handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
+                            }
+                            className={cn(
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
+                              kpi.metric_type === "dollar" && "pl-6",
+                              kpi.metric_type === "percentage" && "pr-6",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}
+                            placeholder="-"
+                            disabled={saving[key]}
+                          />
+                          {kpi.metric_type === "percentage" && (
+                            <span className="absolute right-2 text-muted-foreground text-sm pointer-events-none z-10">%</span>
+                          )}
+                          {saving[key] && (
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          )}
+                        </div>
                       </TableCell>
                     );
                   })}
@@ -552,25 +562,35 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           status === "destructive" && "bg-destructive/10"
                         )}
                       >
-                        <Input
-                          type="number"
-                          step="any"
-                          value={displayValue}
-                          onChange={(e) =>
-                            handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
-                          }
-                          className={cn(
-                            "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
-                            status === "success" && "text-success font-medium",
-                            status === "warning" && "text-warning font-medium",
-                            status === "destructive" && "text-destructive font-medium"
+                        <div className="relative flex items-center">
+                          {kpi.metric_type === "dollar" && (
+                            <span className="absolute left-2 text-muted-foreground text-sm pointer-events-none z-10">$</span>
                           )}
-                          placeholder="-"
-                          disabled={saving[key]}
-                        />
-                        {saving[key] && (
-                          <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        )}
+                          <Input
+                            type="number"
+                            step="any"
+                            value={displayValue}
+                            onChange={(e) =>
+                              handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                            }
+                            className={cn(
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
+                              kpi.metric_type === "dollar" && "pl-6",
+                              kpi.metric_type === "percentage" && "pr-6",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}
+                            placeholder="-"
+                            disabled={saving[key]}
+                          />
+                          {kpi.metric_type === "percentage" && (
+                            <span className="absolute right-2 text-muted-foreground text-sm pointer-events-none z-10">%</span>
+                          )}
+                          {saving[key] && (
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          )}
+                        </div>
                       </TableCell>
                     );
                   })}

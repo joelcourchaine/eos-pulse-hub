@@ -362,23 +362,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
                             >
-                              <Input
-                                type="number"
-                                step="any"
-                                value={localValues[key] || ""}
-                                onChange={(e) =>
-                                  handleValueChange(metric.key, month.identifier, e.target.value)
-                                }
-                                className={cn(
-                                  "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
-                                  metric.key === "net" && value && value < 0 && "text-destructive font-medium"
+                              <div className="relative flex items-center">
+                                {metric.type === "dollar" && (
+                                  <span className="absolute left-2 text-muted-foreground text-sm pointer-events-none z-10">$</span>
                                 )}
-                                placeholder="-"
-                                disabled={saving[key]}
-                              />
-                              {saving[key] && (
-                                <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                              )}
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  value={localValues[key] || ""}
+                                  onChange={(e) =>
+                                    handleValueChange(metric.key, month.identifier, e.target.value)
+                                  }
+                                  className={cn(
+                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
+                                    metric.type === "dollar" && "pl-6",
+                                    metric.type === "percentage" && "pr-6",
+                                    metric.key === "net" && value && value < 0 && "text-destructive font-medium"
+                                  )}
+                                  placeholder="-"
+                                  disabled={saving[key]}
+                                />
+                                {metric.type === "percentage" && (
+                                  <span className="absolute right-2 text-muted-foreground text-sm pointer-events-none z-10">%</span>
+                                )}
+                                {saving[key] && (
+                                  <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                )}
+                              </div>
                             </TableCell>
                           );
                         })}
