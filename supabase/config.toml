@@ -1,1 +1,4 @@
 project_id = "ihfxzbrnupbufapybjyt"
+
+[functions.send-scorecard-email]
+verify_jwt = true

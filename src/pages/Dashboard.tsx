@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, CircleCheck, AlertCircle, XCircle, CircleDashed } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -38,6 +38,7 @@ const Dashboard = () => {
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
   const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -308,6 +309,46 @@ const Dashboard = () => {
     window.print();
   };
 
+  const handleEmailScorecard = async () => {
+    if (!selectedDepartment) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select a department first",
+      });
+      return;
+    }
+
+    setIsEmailLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-scorecard-email", {
+        body: {
+          year: selectedYear,
+          quarter: selectedQuarter,
+          mode: printMode,
+          departmentId: selectedDepartment,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Email Sent",
+        description: "The scorecard has been emailed to you successfully.",
+      });
+      setPrintDialogOpen(false);
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to send email. Please try again.",
+      });
+    } finally {
+      setIsEmailLoading(false);
+    }
+  };
+
   if (loading || !user || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -395,6 +436,10 @@ const Dashboard = () => {
                   <div className="flex justify-end gap-2 mt-4 no-print">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel
+                    </Button>
+                    <Button variant="outline" onClick={handleEmailScorecard} disabled={isEmailLoading}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      {isEmailLoading ? "Sending..." : "Email"}
                     </Button>
                     <Button onClick={handlePrint}>
                       <Printer className="h-4 w-4 mr-2" />
