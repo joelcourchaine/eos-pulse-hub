@@ -35,6 +35,7 @@ const Dashboard = () => {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
+  const [activeRocksCount, setActiveRocksCount] = useState(0);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -70,6 +71,7 @@ const Dashboard = () => {
     if (selectedDepartment) {
       fetchKPIs();
       fetchKPIStatusCounts();
+      fetchActiveRocksCount();
     }
   }, [selectedDepartment]);
 
@@ -97,6 +99,13 @@ const Dashboard = () => {
       supabase.removeChannel(channel);
     };
   }, [selectedDepartment]);
+
+  // Update rocks count when year or quarter changes
+  useEffect(() => {
+    if (selectedDepartment) {
+      fetchActiveRocksCount();
+    }
+  }, [selectedDepartment, selectedYear, selectedQuarter]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -205,6 +214,24 @@ const Dashboard = () => {
       setKpiStatusCounts(counts);
     } catch (error: any) {
       console.error("Error fetching KPI status counts:", error);
+    }
+  };
+
+  const fetchActiveRocksCount = async () => {
+    if (!selectedDepartment) return;
+
+    try {
+      const { count, error } = await supabase
+        .from("rocks")
+        .select("*", { count: "exact", head: true })
+        .eq("department_id", selectedDepartment)
+        .eq("year", selectedYear)
+        .eq("quarter", selectedQuarter);
+
+      if (error) throw error;
+      setActiveRocksCount(count || 0);
+    } catch (error: any) {
+      console.error("Error fetching active rocks count:", error);
     }
   };
 
@@ -387,8 +414,8 @@ const Dashboard = () => {
               <Target className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
-              <p className="text-xs text-muted-foreground">Q4 2025 priorities</p>
+              <div className="text-2xl font-bold">{activeRocksCount}</div>
+              <p className="text-xs text-muted-foreground">Q{selectedQuarter} {selectedYear} priorities</p>
             </CardContent>
           </Card>
           <Card>
