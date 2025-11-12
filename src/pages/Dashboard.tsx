@@ -134,8 +134,13 @@ const Dashboard = () => {
   };
 
   const handlePrint = () => {
+    console.log('handlePrint called');
     setPrintDialogOpen(true);
     setTimeout(() => {
+      console.log('About to trigger print');
+      const printContent = document.querySelector('.print-view');
+      console.log('Print content element:', printContent);
+      console.log('Print content HTML:', printContent?.innerHTML.substring(0, 200));
       window.print();
     }, 500);
   };
