@@ -167,14 +167,18 @@ const Dashboard = () => {
       }
 
       const kpiIds = kpiData.map(k => k.id);
-      const currentWeekStart = format(weekStart, 'yyyy-MM-dd');
+      
+      // Calculate the previous week (review week) start date
+      const previousWeekStart = new Date(weekStart);
+      previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+      const reviewWeekStart = format(previousWeekStart, 'yyyy-MM-dd');
 
-      // Fetch the most recent entries for the current week
+      // Fetch the most recent entries for the review week (previous week)
       const { data: entries, error: entriesError } = await supabase
         .from("scorecard_entries")
         .select("kpi_id, status")
         .in("kpi_id", kpiIds)
-        .eq("week_start_date", currentWeekStart)
+        .eq("week_start_date", reviewWeekStart)
         .eq("entry_type", "weekly");
 
       if (entriesError) throw entriesError;
