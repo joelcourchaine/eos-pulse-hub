@@ -93,21 +93,21 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
   };
 
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="relative aspect-square flex items-center justify-center bg-muted/30">
+    <Card>
+      <CardContent className="p-6">
+        <div className="relative h-[88px] flex items-center justify-center bg-muted/30 rounded-md">
           {store?.logo_url ? (
             <img 
               src={store.logo_url} 
               alt="Dealership Logo" 
-              className="w-full h-full object-contain p-4"
+              className="max-h-full max-w-full object-contain"
             />
           ) : (
-            <Building2 className="h-16 w-16 text-muted-foreground/50" />
+            <Building2 className="h-12 w-12 text-muted-foreground/50" />
           )}
           
           {isAdmin && (
-            <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-md">
               <label htmlFor="logo-upload" className="cursor-pointer">
                 <Button 
                   variant="secondary" 
@@ -121,7 +121,7 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
                     ) : (
                       <Upload className="h-4 w-4 mr-2" />
                     )}
-                    {store?.logo_url ? 'Change Logo' : 'Upload Logo'}
+                    {store?.logo_url ? 'Change' : 'Upload'}
                   </span>
                 </Button>
                 <input
