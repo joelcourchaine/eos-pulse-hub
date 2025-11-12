@@ -14,20 +14,32 @@ interface Profile {
   full_name: string;
 }
 
+interface Todo {
+  id: string;
+  title: string;
+  description: string | null;
+  assigned_to: string | null;
+  due_date: string | null;
+}
+
 interface TodoManagementDialogProps {
   departmentId: string;
   profiles: Profile[];
   onTodoAdded: () => void;
+  todo?: Todo;
+  trigger?: React.ReactNode;
 }
 
-export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: TodoManagementDialogProps) {
+export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, todo, trigger }: TodoManagementDialogProps) {
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>("");
-  const [dueDate, setDueDate] = useState("");
+  const [title, setTitle] = useState(todo?.title || "");
+  const [description, setDescription] = useState(todo?.description || "");
+  const [assignedTo, setAssignedTo] = useState<string>(todo?.assigned_to || "");
+  const [dueDate, setDueDate] = useState(todo?.due_date || "");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
+  
+  const isEditMode = !!todo;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,32 +55,55 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase
-        .from("todos")
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          department_id: departmentId,
-          assigned_to: assignedTo || null,
-          due_date: dueDate || null,
-          created_by: user?.id,
-          status: "pending"
+      if (isEditMode && todo) {
+        // Update existing todo
+        const { error } = await supabase
+          .from("todos")
+          .update({
+            title: title.trim(),
+            description: description.trim() || null,
+            assigned_to: assignedTo || null,
+            due_date: dueDate || null,
+          })
+          .eq("id", todo.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "To-Do updated successfully",
         });
+      } else {
+        // Create new todo
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { error } = await supabase
+          .from("todos")
+          .insert({
+            title: title.trim(),
+            description: description.trim() || null,
+            department_id: departmentId,
+            assigned_to: assignedTo || null,
+            due_date: dueDate || null,
+            created_by: user?.id,
+            status: "pending"
+          });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "To-Do created successfully",
-      });
+        toast({
+          title: "Success",
+          description: "To-Do created successfully",
+        });
+      }
 
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setAssignedTo("");
-      setDueDate("");
+      // Reset form only if creating new
+      if (!isEditMode) {
+        setTitle("");
+        setDescription("");
+        setAssignedTo("");
+        setDueDate("");
+      }
       setOpen(false);
       onTodoAdded();
     } catch (error: any) {
@@ -85,14 +120,16 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add To-Do
-        </Button>
+        {trigger || (
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add To-Do
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New To-Do</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit To-Do" : "Create New To-Do"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -159,7 +196,7 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Creating..." : "Create To-Do"}
+              {saving ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update To-Do" : "Create To-Do")}
             </Button>
           </div>
         </form>

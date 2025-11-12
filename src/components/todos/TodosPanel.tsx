@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { CheckSquare, Trash2, Calendar, User, Loader2 } from "lucide-react";
+import { CheckSquare, Trash2, Calendar, User, Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { TodoManagementDialog } from "./TodoManagementDialog";
@@ -233,14 +233,31 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
               </div>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeleteTodoId(todo.id)}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <TodoManagementDialog
+                departmentId={departmentId}
+                profiles={profilesList}
+                onTodoAdded={loadTodos}
+                todo={todo}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hover:text-foreground"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteTodoId(todo.id)}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
