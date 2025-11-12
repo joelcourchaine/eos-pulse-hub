@@ -523,13 +523,30 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           {kpi.metric_type === "dollar" && (
                             <span className="text-muted-foreground text-sm">$</span>
                           )}
-                          <Input
+                           <Input
                             type="number"
                             step="any"
                             value={displayValue}
                             onChange={(e) =>
                               handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                             }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
+                                
+                                if (currentKpiIndex < kpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
+                            data-kpi-index={index}
+                            data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
                             className={cn(
                               "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                               status === "success" && "text-success font-medium",
@@ -570,13 +587,30 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           {kpi.metric_type === "dollar" && (
                             <span className="text-muted-foreground text-sm">$</span>
                           )}
-                          <Input
+                           <Input
                             type="number"
                             step="any"
                             value={displayValue}
                             onChange={(e) =>
                               handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
                             }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                const currentPeriodIndex = weeks.length + months.findIndex(m => m.identifier === month.identifier);
+                                
+                                if (currentKpiIndex < kpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
+                            data-kpi-index={index}
+                            data-period-index={weeks.length + months.findIndex(m => m.identifier === month.identifier)}
                             className={cn(
                               "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                               status === "success" && "text-success font-medium",
