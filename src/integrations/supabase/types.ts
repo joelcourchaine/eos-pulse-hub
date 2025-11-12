@@ -14,9 +14,37 @@ export type Database = {
   }
   public: {
     Tables: {
+      department_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           created_at: string
+          department_type_id: string | null
           id: string
           manager_id: string | null
           name: string
@@ -25,6 +53,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          department_type_id?: string | null
           id?: string
           manager_id?: string | null
           name: string
@@ -33,6 +62,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          department_type_id?: string | null
           id?: string
           manager_id?: string | null
           name?: string
@@ -40,6 +70,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "departments_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "departments_manager_id_fkey"
             columns: ["manager_id"]

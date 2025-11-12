@@ -21,8 +21,12 @@ interface Profile {
   reports_to: string | null;
 }
 
-export const UserManagementDialog = () => {
-  const [open, setOpen] = useState(false);
+interface UserManagementDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialogProps) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -82,13 +86,7 @@ export const UserManagementDialog = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Users className="h-4 w-4 mr-2" />
-          Manage Users
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>User Management</DialogTitle>

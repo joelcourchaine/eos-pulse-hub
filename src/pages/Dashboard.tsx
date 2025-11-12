@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -18,6 +18,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Celebrations } from "@/components/celebrations/Celebrations";
 import { UserManagementDialog } from "@/components/users/UserManagementDialog";
+import { StoreManagementDialog } from "@/components/stores/StoreManagementDialog";
+import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSelectionDialog";
 import { TodosPanel } from "@/components/todos/TodosPanel";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
@@ -39,6 +41,9 @@ const Dashboard = () => {
   const [activeRocksCount, setActiveRocksCount] = useState(0);
   const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+  const [showStores, setShowStores] = useState(false);
+  const [showDepartments, setShowDepartments] = useState(false);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -423,6 +428,24 @@ const Dashboard = () => {
                   </SelectContent>
                 </Select>
               )}
+              {profile.role === 'super_admin' && (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setShowStores(true)}>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    Stores
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)}>
+                    <Building className="mr-2 h-4 w-4" />
+                    Departments
+                  </Button>
+                </>
+              )}
+              {(profile.role === 'super_admin' || profile.role === 'store_gm') && (
+                <Button variant="outline" size="sm" onClick={() => setShowUsers(true)}>
+                  <Users className="mr-2 h-4 w-4" />
+                  Users
+                </Button>
+              )}
               <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -470,7 +493,6 @@ const Dashboard = () => {
                   </div>
                 </DialogContent>
               </Dialog>
-              <UserManagementDialog />
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium">{profile.full_name}</p>
                 <p className="text-xs text-muted-foreground capitalize">
@@ -609,6 +631,21 @@ const Dashboard = () => {
         <TodosPanel departmentId={selectedDepartment} userId={user?.id} />
       </main>
     </div>
+
+    {/* Management Dialogs */}
+    <UserManagementDialog
+      open={showUsers}
+      onOpenChange={setShowUsers}
+    />
+    <StoreManagementDialog
+      open={showStores}
+      onOpenChange={setShowStores}
+    />
+    <DepartmentSelectionDialog
+      open={showDepartments}
+      onOpenChange={setShowDepartments}
+      storeId={profile?.store_id || ""}
+    />
     </>
   );
 };
