@@ -432,7 +432,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 <TableHead 
                   key={week.label} 
                   className={cn(
-                    "text-center min-w-[105px] text-xs py-2",
+                    "text-center min-w-[79px] max-w-[79px] text-xs py-2",
                     isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
