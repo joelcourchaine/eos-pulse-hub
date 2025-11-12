@@ -321,16 +321,38 @@ const Dashboard = () => {
 
     setIsEmailLoading(true);
     try {
-      const { error } = await supabase.functions.invoke("send-scorecard-email", {
-        body: {
-          year: selectedYear,
-          quarter: selectedQuarter,
-          mode: printMode,
-          departmentId: selectedDepartment,
-        },
-      });
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
 
-      if (error) throw error;
+      if (!token) {
+        throw new Error("No authentication token found");
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-scorecard-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+            "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            year: selectedYear,
+            quarter: selectedQuarter,
+            mode: printMode,
+            departmentId: selectedDepartment,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("Email sent:", result);
 
       toast({
         title: "Email Sent",
