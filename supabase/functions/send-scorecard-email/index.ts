@@ -84,11 +84,15 @@ function formatValue(value: number | null, metricType: string): string {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  console.log("=== Edge function called ===", { method: req.method, url: req.url });
+  
   if (req.method === "OPTIONS") {
+    console.log("Handling OPTIONS request");
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log("Starting email process...");
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
