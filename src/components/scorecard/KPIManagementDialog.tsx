@@ -41,6 +41,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
+  const [editingTargetValue, setEditingTargetValue] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const { toast } = useToast();
 
@@ -123,8 +124,22 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
       return;
     }
 
-    toast({ title: "Success", description: "KPI updated successfully" });
     onKPIsChange();
+  };
+
+  const handleTargetBlur = async (kpiId: string) => {
+    if (editingKpiId !== kpiId) return;
+    
+    const newValue = parseFloat(editingTargetValue);
+    if (isNaN(newValue)) {
+      toast({ title: "Error", description: "Please enter a valid number", variant: "destructive" });
+      setEditingKpiId(null);
+      return;
+    }
+
+    await handleUpdateKPI(kpiId, "target_value", newValue);
+    toast({ title: "Success", description: "Target updated successfully" });
+    setEditingKpiId(null);
   };
 
   const handleDeleteKPI = async (id: string) => {
@@ -264,9 +279,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                               <Input
                                 type="number"
                                 className="h-8 w-24"
-                                value={kpi.target_value}
-                                onChange={(e) => handleUpdateKPI(kpi.id, "target_value", parseFloat(e.target.value) || 0)}
-                                onBlur={() => toast({ title: "Success", description: "Target updated" })}
+                                value={editingKpiId === kpi.id ? editingTargetValue : kpi.target_value}
+                                onFocus={() => {
+                                  setEditingKpiId(kpi.id);
+                                  setEditingTargetValue(kpi.target_value.toString());
+                                }}
+                                onChange={(e) => setEditingTargetValue(e.target.value)}
+                                onBlur={() => handleTargetBlur(kpi.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.currentTarget.blur();
+                                  }
+                                }}
                               />
                               {kpi.metric_type === "percentage" && <span>%</span>}
                             </div>
