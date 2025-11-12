@@ -418,13 +418,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead 
-                  className="bg-muted/50 z-20 min-w-[200px] font-bold py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  className="bg-muted z-20 min-w-[200px] font-bold py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   style={{ position: 'sticky', left: 0 }}
                 >
                   KPI
                 </TableHead>
                 <TableHead 
-                  className="bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  className="bg-muted z-20 text-center font-bold min-w-[100px] py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   style={{ position: 'sticky', left: '200px' }}
                 >
                   Target
@@ -468,7 +468,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 {showOwnerHeader && (
                   <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
                     <TableCell 
-                      className="z-10 bg-muted/50 py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: 0 }}
                     >
                       <div className="flex items-center gap-2">
@@ -481,7 +481,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                       </div>
                     </TableCell>
                     <TableCell 
-                      className="z-10 bg-muted/50 py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: '200px' }}
                     />
                     <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
