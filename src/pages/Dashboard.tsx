@@ -154,16 +154,23 @@ const Dashboard = () => {
 
       if (entriesError) throw entriesError;
 
-      // Count by status
+      // Create a map of kpi_id to status
+      const entryMap = new Map<string, string>();
+      entries?.forEach(entry => {
+        if (entry.status) {
+          entryMap.set(entry.kpi_id, entry.status);
+        }
+      });
+
+      // Count by status for ALL KPIs (treat missing entries as red)
       const counts = { green: 0, yellow: 0, red: 0 };
       
-      if (entries && entries.length > 0) {
-        entries.forEach(entry => {
-          if (entry.status === "green") counts.green++;
-          else if (entry.status === "yellow") counts.yellow++;
-          else if (entry.status === "red") counts.red++;
-        });
-      }
+      kpiData.forEach(kpi => {
+        const status = entryMap.get(kpi.id);
+        if (status === "green") counts.green++;
+        else if (status === "yellow") counts.yellow++;
+        else counts.red++; // No entry or red status = red
+      });
 
       setKpiStatusCounts(counts);
     } catch (error: any) {
