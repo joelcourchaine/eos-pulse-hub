@@ -259,9 +259,17 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                           <TableCell className="font-medium">{kpi.name}</TableCell>
                           <TableCell className="capitalize">{kpi.metric_type}</TableCell>
                           <TableCell>
-                            {kpi.metric_type === "dollar" && "$"}
-                            {kpi.target_value}
-                            {kpi.metric_type === "percentage" && "%"}
+                            <div className="flex items-center gap-1">
+                              {kpi.metric_type === "dollar" && <span>$</span>}
+                              <Input
+                                type="number"
+                                className="h-8 w-24"
+                                value={kpi.target_value}
+                                onChange={(e) => handleUpdateKPI(kpi.id, "target_value", parseFloat(e.target.value) || 0)}
+                                onBlur={() => toast({ title: "Success", description: "Target updated" })}
+                              />
+                              {kpi.metric_type === "percentage" && <span>%</span>}
+                            </div>
                           </TableCell>
                           <TableCell className="capitalize">
                             <Select
