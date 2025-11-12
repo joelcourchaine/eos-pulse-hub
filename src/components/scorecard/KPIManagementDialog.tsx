@@ -45,6 +45,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [editingName, setEditingName] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
+  const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -157,13 +158,19 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent, kpiId: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    setDragOverKpiId(kpiId);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverKpiId(null);
   };
 
   const handleDrop = async (e: React.DragEvent, targetKpiId: string) => {
     e.preventDefault();
+    setDragOverKpiId(null);
     
     if (!draggedKpiId || draggedKpiId === targetKpiId) {
       setDraggedKpiId(null);
@@ -336,14 +343,16 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                       const owner = profiles.find(p => p.id === kpi.assigned_to);
                       const isEditingThis = editingKpiId === kpi.id;
                       const isDragging = draggedKpiId === kpi.id;
+                      const isDragOver = dragOverKpiId === kpi.id && !isDragging;
                       return (
                         <TableRow 
                           key={kpi.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, kpi.id)}
-                          onDragOver={handleDragOver}
+                          onDragOver={(e) => handleDragOver(e, kpi.id)}
+                          onDragLeave={handleDragLeave}
                           onDrop={(e) => handleDrop(e, kpi.id)}
-                          className={isDragging ? "opacity-50" : "cursor-move"}
+                          className={`${isDragging ? "opacity-50" : "cursor-move"} ${isDragOver ? "border-t-2 border-primary" : ""}`}
                         >
                           <TableCell className="text-center">
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
