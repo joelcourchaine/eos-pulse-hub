@@ -339,6 +339,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
+  const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
+    // If percentage, keep the same target
+    if (metricType === "percentage") {
+      return weeklyTarget;
+    }
+    
+    // If below target direction (lower is better), keep the same target
+    if (targetDirection === "below") {
+      return weeklyTarget;
+    }
+    
+    // If above target direction (higher is better) and not percentage, multiply by 4
+    return weeklyTarget * 4;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -517,6 +532,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
                     const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
+                    const monthlyTarget = getMonthlyTarget(kpi.target_value, kpi.target_direction, kpi.metric_type);
                     
                     return (
                       <TableCell
@@ -533,7 +549,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           step="any"
                           value={displayValue}
                           onChange={(e) =>
-                            handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                            handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
                           }
                           className={cn(
                             "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
