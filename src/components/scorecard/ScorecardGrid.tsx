@@ -139,6 +139,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const weeks = getWeekDates({ year, quarter });
   const months = getMonthsForQuarter({ year, quarter });
   const allPeriods = [...weeks, ...months];
+  
+  // Get current week's Monday to highlight it
+  const today = new Date();
+  const currentWeekMonday = getMondayOfWeek(today);
+  const currentWeekDate = currentWeekMonday.toISOString().split('T')[0];
 
   useEffect(() => {
     loadScorecardData();
@@ -361,11 +366,23 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 >
                   Target
                 </TableHead>
-            {weeks.map((week) => (
-              <TableHead key={week.label} className="text-center min-w-[110px] text-xs py-2">
-                {week.label}
-              </TableHead>
-            ))}
+            {weeks.map((week) => {
+              const weekDate = week.start.toISOString().split('T')[0];
+              const isCurrentWeek = weekDate === currentWeekDate;
+              
+              return (
+                <TableHead 
+                  key={week.label} 
+                  className={cn(
+                    "text-center min-w-[110px] text-xs py-2",
+                    isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary"
+                  )}
+                >
+                  {week.label}
+                  {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
+                </TableHead>
+              );
+            })}
             {months.map((month) => (
               <TableHead key={month.identifier} className="text-center min-w-[140px] bg-primary/10 font-bold border-l-2 py-2">
                 {month.label}
@@ -423,6 +440,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
                     const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
+                    const isCurrentWeek = weekDate === currentWeekDate;
                     
                     return (
                       <TableCell
@@ -431,7 +449,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           "p-1 relative",
                           status === "success" && "bg-success/10",
                           status === "warning" && "bg-warning/10",
-                          status === "destructive" && "bg-destructive/10"
+                          status === "destructive" && "bg-destructive/10",
+                          isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
                         )}
                       >
                         <Input
