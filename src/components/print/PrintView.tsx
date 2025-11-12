@@ -463,20 +463,17 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             margin: 0.5in;
           }
           
-          body * {
-            visibility: hidden;
-          }
-          
-          .print-view,
-          .print-view * {
-            visibility: visible !important;
+          .no-print {
+            display: none !important;
           }
           
           .print-view {
-            position: absolute;
+            position: fixed;
             left: 0;
             top: 0;
             width: 100%;
+            z-index: 9999;
+            background: white;
           }
           
           .status-green {
