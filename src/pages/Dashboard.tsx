@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Celebrations } from "@/components/celebrations/Celebrations";
 import { UserManagementDialog } from "@/components/users/UserManagementDialog";
+import { TodosPanel } from "@/components/todos/TodosPanel";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
 const Dashboard = () => {
@@ -536,6 +537,9 @@ const Dashboard = () => {
 
         {/* Celebrations */}
         <Celebrations />
+
+        {/* To-Dos Section */}
+        <TodosPanel departmentId={selectedDepartment} userId={user?.id} />
       </main>
     </div>
     </>
