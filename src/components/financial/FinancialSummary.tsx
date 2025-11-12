@@ -374,7 +374,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     handleValueChange(metric.key, month.identifier, e.target.value)
                                   }
                                   className={cn(
-                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                     metric.key === "net" && value && value < 0 && "text-destructive font-medium"
                                   )}
                                   placeholder="-"
