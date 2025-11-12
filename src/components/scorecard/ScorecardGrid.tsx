@@ -286,7 +286,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key];
-    }, 300);
+    }, 800);
   };
 
   const getStatus = (status: string | null) => {
