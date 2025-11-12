@@ -329,7 +329,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     </TableHead>
                     <TableHead className="text-center font-bold min-w-[100px] py-2">Target</TableHead>
                     {months.map((month) => (
-                      <TableHead key={month.identifier} className="text-center min-w-[90px] font-bold py-2">
+                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-2">
                         {month.label}
                       </TableHead>
                     ))}
@@ -358,7 +358,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "p-1 relative min-w-[90px]",
+                                "p-1 relative min-w-[125px] max-w-[125px]",
                                 metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
                             >
