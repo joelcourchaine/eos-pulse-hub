@@ -73,10 +73,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const newLocalValues: { [key: string]: string } = {};
     Object.entries(entries).forEach(([key, value]) => {
       if (value !== null && value !== undefined) {
-        const metric = FINANCIAL_METRICS.find(m => key.startsWith(m.key));
-        if (metric) {
-          newLocalValues[key] = formatValue(value, metric.type);
-        }
+        newLocalValues[key] = value.toString();
       }
     });
     setLocalValues(prev => {
