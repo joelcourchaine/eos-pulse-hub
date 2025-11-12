@@ -352,10 +352,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-2">
+            <TableHead className="sticky left-0 bg-muted/50 z-20 min-w-[200px] font-bold py-2">
               KPI
             </TableHead>
-            <TableHead className="text-center font-bold min-w-[100px] py-2">Target</TableHead>
+            <TableHead className="sticky left-[200px] bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2">Target</TableHead>
             {weeks.map((week) => (
               <TableHead key={week.label} className="text-center min-w-[110px] text-xs py-2">
                 {week.label}
@@ -379,7 +379,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               <>
                 {showOwnerHeader && (
                   <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
-                    <TableCell colSpan={2} className="sticky left-0 z-10 bg-muted/50 py-1">
+                    <TableCell className="sticky left-0 z-10 bg-muted/50 py-1">
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
@@ -389,6 +389,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
+                    <TableCell className="sticky left-[200px] z-10 bg-muted/50 py-1" />
                     <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
@@ -396,7 +397,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                   <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8 py-2">
                     {kpi.name}
                   </TableCell>
-                  <TableCell className="text-center text-muted-foreground py-2">
+                  <TableCell className="sticky left-[200px] bg-background z-10 text-center text-muted-foreground py-2">
                     {formatTarget(kpi.target_value, kpi.metric_type)}
                   </TableCell>
                   {weeks.map((week) => {
