@@ -1,8 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
-import { Resend } from "npm:resend@2.0.0";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,7 +91,7 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       {
         global: {
           headers: { Authorization: req.headers.get("Authorization")! },
@@ -203,12 +200,13 @@ const handler = async (req: Request): Promise<Response> => {
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
-            if (mode === "weekly") {
+            if (mode === "weekly" && 'start' in p) {
               return e.kpi_id === kpi.id && 
                      e.week_start_date === p.start.toISOString().split('T')[0];
-            } else {
+            } else if (mode === "monthly" && 'identifier' in p) {
               return e.kpi_id === kpi.id && e.month === p.identifier;
             }
+            return false;
           });
 
           const cellClass = entry?.status === "red" ? "red" : 
@@ -234,9 +232,12 @@ const handler = async (req: Request): Promise<Response> => {
       FINANCIAL_METRICS.forEach(metric => {
         html += `<tr><td>${metric}</td>`;
         periods.forEach(p => {
-          const entry = financialEntries.find(e => 
-            e.metric_name === metric && e.month === p.identifier
-          );
+          const entry = financialEntries.find(e => {
+            if ('identifier' in p) {
+              return e.metric_name === metric && e.month === p.identifier;
+            }
+            return false;
+          });
           html += `<td>${formatValue(entry?.value, "dollar")}</td>`;
         });
         html += `</tr>`;
@@ -246,19 +247,34 @@ const handler = async (req: Request): Promise<Response> => {
 
     html += `</body></html>`;
 
-    // Send email
-    const emailResponse = await resend.emails.send({
-      from: "Scorecard <onboarding@resend.dev>",
-      to: [user.email!],
-      subject: `${department.name} Scorecard - Q${quarter} ${year}`,
-      html,
-    });
-
-    if (emailResponse.error) {
-      throw emailResponse.error;
+    // Send email using Resend API directly
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      throw new Error("RESEND_API_KEY not configured");
     }
 
-    console.log("Email sent successfully:", emailResponse);
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "Scorecard <onboarding@resend.dev>",
+        to: [user.email!],
+        subject: `${department.name} Scorecard - Q${quarter} ${year}`,
+        html,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      console.error("Resend API error:", emailResponse.status, errorText);
+      throw new Error(`Failed to send email: ${errorText}`);
+    }
+
+    const emailData = await emailResponse.json();
+    console.log("Email sent successfully:", emailData);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
