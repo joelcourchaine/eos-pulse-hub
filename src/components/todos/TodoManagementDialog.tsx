@@ -124,7 +124,6 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
                 <SelectValue placeholder="Select person (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Unassigned</SelectItem>
                 {profiles.map((profile) => (
                   <SelectItem key={profile.id} value={profile.id}>
                     {profile.full_name}
@@ -132,6 +131,17 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded }: To
                 ))}
               </SelectContent>
             </Select>
+            {assignedTo && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setAssignedTo("")}
+                className="mt-1 h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear selection
+              </Button>
+            )}
           </div>
 
           <div>
