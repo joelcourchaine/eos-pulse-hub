@@ -148,6 +148,7 @@ export type Database = {
           id: string
           metric_type: string
           name: string
+          target_direction: string
           target_value: number | null
           updated_at: string
         }
@@ -159,6 +160,7 @@ export type Database = {
           id?: string
           metric_type: string
           name: string
+          target_direction?: string
           target_value?: number | null
           updated_at?: string
         }
@@ -170,6 +172,7 @@ export type Database = {
           id?: string
           metric_type?: string
           name?: string
+          target_direction?: string
           target_value?: number | null
           updated_at?: string
         }

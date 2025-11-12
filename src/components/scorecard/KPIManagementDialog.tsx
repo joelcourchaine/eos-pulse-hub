@@ -17,6 +17,7 @@ interface KPI {
   target_value: number;
   display_order: number;
   assigned_to: string | null;
+  target_direction: "above" | "below";
 }
 
 interface Profile {
@@ -36,6 +37,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [name, setName] = useState("");
   const [metricType, setMetricType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [targetValue, setTargetValue] = useState("");
+  const [targetDirection, setTargetDirection] = useState<"above" | "below">("above");
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -75,6 +77,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
         name,
         metric_type: metricType,
         target_value: parseFloat(targetValue),
+        target_direction: targetDirection,
         department_id: departmentId,
         display_order: maxOrder + 1,
         assigned_to: assignedTo && assignedTo !== "unassigned" ? assignedTo : null,
@@ -88,6 +91,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     toast({ title: "Success", description: "KPI added successfully" });
     setName("");
     setTargetValue("");
+    setTargetDirection("above");
     setAssignedTo("unassigned");
     onKPIsChange();
   };
@@ -143,7 +147,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
           <div className="space-y-6">
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold text-sm">Add New KPI</h3>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="name">KPI Name</Label>
                   <Input
@@ -175,6 +179,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                     onChange={(e) => setTargetValue(e.target.value)}
                     placeholder="10000"
                   />
+                </div>
+                <div>
+                  <Label htmlFor="direction">Target Goal</Label>
+                  <Select value={targetDirection} onValueChange={(v: any) => setTargetDirection(v)}>
+                    <SelectTrigger id="direction">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="above">Above Target</SelectItem>
+                      <SelectItem value="below">Below Target</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="owner">Owner (Optional)</Label>
@@ -213,6 +229,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Target</TableHead>
+                      <TableHead>Goal</TableHead>
                       <TableHead>Owner</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -230,6 +247,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                             {kpi.target_value}
                             {kpi.metric_type === "percentage" && "%"}
                           </TableCell>
+                          <TableCell className="capitalize">{kpi.target_direction}</TableCell>
                           <TableCell>
                             <Select
                               value={kpi.assigned_to || "unassigned"}

@@ -15,6 +15,7 @@ interface KPI {
   target_value: number;
   display_order: number;
   assigned_to: string | null;
+  target_direction: "above" | "below";
 }
 
 interface Profile {
@@ -223,7 +224,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setLoading(false);
   };
 
-  const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, isMonthly: boolean, monthId?: string) => {
+  const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, targetDirection: "above" | "below", isMonthly: boolean, monthId?: string) => {
     const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
     
     // Update local state immediately for responsive UI
@@ -246,7 +247,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         ? actualValue - target 
         : ((actualValue - target) / target) * 100;
 
-      const status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+      // Calculate status based on target direction
+      let status: string;
+      if (targetDirection === "above") {
+        // Higher is better
+        status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+      } else {
+        // Lower is better (invert the logic)
+        status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+      }
 
       const { data: session } = await supabase.auth.getSession();
       const userId = session.session?.user?.id;
@@ -464,7 +473,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           step="any"
                           value={displayValue}
                           onChange={(e) =>
-                            handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, false)
+                            handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                           }
                           className={cn(
                             "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
@@ -502,7 +511,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           step="any"
                           value={displayValue}
                           onChange={(e) =>
-                            handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, true, month.identifier)
+                            handleValueChange(kpi.id, '', e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
                           }
                           className={cn(
                             "text-center border-0 bg-transparent focus-visible:ring-1 h-8",
