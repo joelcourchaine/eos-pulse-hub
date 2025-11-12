@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, CircleCheck, AlertCircle, XCircle } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -34,6 +34,7 @@ const Dashboard = () => {
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
+  const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0 });
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -68,6 +69,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (selectedDepartment) {
       fetchKPIs();
+      fetchKPIStatusCounts();
     }
   }, [selectedDepartment]);
 
@@ -119,6 +121,53 @@ const Dashboard = () => {
       setKpis(data || []);
     } catch (error: any) {
       console.error("Error fetching KPIs:", error);
+    }
+  };
+
+  const fetchKPIStatusCounts = async () => {
+    if (!selectedDepartment) return;
+
+    try {
+      // Get all KPIs for this department
+      const { data: kpiData, error: kpiError } = await supabase
+        .from("kpi_definitions")
+        .select("id")
+        .eq("department_id", selectedDepartment);
+
+      if (kpiError) throw kpiError;
+
+      if (!kpiData || kpiData.length === 0) {
+        setKpiStatusCounts({ green: 0, yellow: 0, red: 0 });
+        return;
+      }
+
+      const kpiIds = kpiData.map(k => k.id);
+      const currentWeekStart = format(weekStart, 'yyyy-MM-dd');
+
+      // Fetch the most recent entries for the current week
+      const { data: entries, error: entriesError } = await supabase
+        .from("scorecard_entries")
+        .select("kpi_id, status")
+        .in("kpi_id", kpiIds)
+        .eq("week_start_date", currentWeekStart)
+        .eq("entry_type", "weekly");
+
+      if (entriesError) throw entriesError;
+
+      // Count by status
+      const counts = { green: 0, yellow: 0, red: 0 };
+      
+      if (entries && entries.length > 0) {
+        entries.forEach(entry => {
+          if (entry.status === "green") counts.green++;
+          else if (entry.status === "yellow") counts.yellow++;
+          else if (entry.status === "red") counts.red++;
+        });
+      }
+
+      setKpiStatusCounts(counts);
+    } catch (error: any) {
+      console.error("Error fetching KPI status counts:", error);
     }
   };
 
@@ -270,12 +319,25 @@ const Dashboard = () => {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">KPIs On Track</CardTitle>
-              <BarChart3 className="h-4 w-4 text-success" />
+              <CardTitle className="text-sm font-medium">KPI Status</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">8/12</div>
-              <p className="text-xs text-muted-foreground">67% hitting targets</p>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <CircleCheck className="h-5 w-5 text-success" />
+                  <span className="text-2xl font-bold text-success">{kpiStatusCounts.green}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <AlertCircle className="h-5 w-5 text-warning" />
+                  <span className="text-2xl font-bold text-warning">{kpiStatusCounts.yellow}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <XCircle className="h-5 w-5 text-destructive" />
+                  <span className="text-2xl font-bold text-destructive">{kpiStatusCounts.red}</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Current week performance</p>
             </CardContent>
           </Card>
           <Card>
