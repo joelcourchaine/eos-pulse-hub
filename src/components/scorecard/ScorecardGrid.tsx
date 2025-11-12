@@ -432,7 +432,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 <TableHead 
                   key={week.label} 
                   className={cn(
-                    "text-center min-w-[105px] max-w-[105px] text-xs py-2",
+                    "text-center min-w-[110px] max-w-[110px] text-xs py-2",
                     isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
@@ -506,7 +506,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                       <TableCell
                         key={week.label}
                         className={cn(
-                          "p-1 relative min-w-[105px] max-w-[105px]",
+                          "p-1 relative min-w-[110px] max-w-[110px]",
                           status === "success" && "bg-success/10",
                           status === "warning" && "bg-warning/10",
                           status === "destructive" && "bg-destructive/10",
@@ -525,7 +525,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                               handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                             }
                             className={cn(
-                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[85px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[90px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium"
