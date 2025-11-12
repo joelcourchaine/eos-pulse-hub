@@ -506,7 +506,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                       <TableCell
                         key={week.label}
                         className={cn(
-                          "p-1 relative",
+                          "p-1 relative min-w-[79px] max-w-[79px]",
                           status === "success" && "bg-success/10",
                           status === "warning" && "bg-warning/10",
                           status === "destructive" && "bg-destructive/10",
@@ -525,7 +525,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                               handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                             }
                             className={cn(
-                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[60px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium"
