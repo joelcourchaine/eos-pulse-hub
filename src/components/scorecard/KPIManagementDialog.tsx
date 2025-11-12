@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Settings, Trash2, Plus, User } from "lucide-react";
+import { Settings, Trash2, Plus, GripVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -43,8 +43,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [editingTargetValue, setEditingTargetValue] = useState<string>("");
   const [editingName, setEditingName] = useState<string>("");
-  const [editingOrder, setEditingOrder] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -152,19 +152,60 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     setEditingKpiId(null);
   };
 
-  const handleOrderBlur = async (kpiId: string) => {
-    if (editingKpiId !== kpiId) return;
+  const handleDragStart = (e: React.DragEvent, kpiId: string) => {
+    setDraggedKpiId(kpiId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetKpiId: string) => {
+    e.preventDefault();
     
-    const newOrder = parseInt(editingOrder);
-    if (isNaN(newOrder) || newOrder < 1) {
-      toast({ title: "Error", description: "Please enter a valid order number", variant: "destructive" });
-      setEditingKpiId(null);
+    if (!draggedKpiId || draggedKpiId === targetKpiId) {
+      setDraggedKpiId(null);
       return;
     }
 
-    await handleUpdateKPI(kpiId, "display_order", newOrder);
-    toast({ title: "Success", description: "Order updated successfully" });
-    setEditingKpiId(null);
+    const draggedIndex = kpis.findIndex(k => k.id === draggedKpiId);
+    const targetIndex = kpis.findIndex(k => k.id === targetKpiId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedKpiId(null);
+      return;
+    }
+
+    // Reorder the array
+    const reorderedKpis = [...kpis];
+    const [removed] = reorderedKpis.splice(draggedIndex, 1);
+    reorderedKpis.splice(targetIndex, 0, removed);
+
+    // Update display_order for all affected KPIs
+    const updates = reorderedKpis.map((kpi, index) => ({
+      id: kpi.id,
+      display_order: index + 1
+    }));
+
+    // Update all KPIs in the database
+    for (const update of updates) {
+      const { error } = await supabase
+        .from("kpi_definitions")
+        .update({ display_order: update.display_order })
+        .eq("id", update.id);
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        setDraggedKpiId(null);
+        return;
+      }
+    }
+
+    toast({ title: "Success", description: "KPI order updated successfully" });
+    setDraggedKpiId(null);
+    onKPIsChange();
   };
 
   const handleDeleteKPI = async (id: string) => {
@@ -281,7 +322,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-20">Order</TableHead>
+                      <TableHead className="w-12"></TableHead>
                       <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Target</TableHead>
@@ -294,25 +335,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                      {kpis.map((kpi) => {
                       const owner = profiles.find(p => p.id === kpi.assigned_to);
                       const isEditingThis = editingKpiId === kpi.id;
+                      const isDragging = draggedKpiId === kpi.id;
                       return (
-                        <TableRow key={kpi.id}>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              className="h-8 w-16"
-                              value={isEditingThis && editingOrder ? editingOrder : kpi.display_order}
-                              onFocus={() => {
-                                setEditingKpiId(kpi.id);
-                                setEditingOrder(kpi.display_order.toString());
-                              }}
-                              onChange={(e) => setEditingOrder(e.target.value)}
-                              onBlur={() => handleOrderBlur(kpi.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
+                        <TableRow 
+                          key={kpi.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, kpi.id)}
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, kpi.id)}
+                          className={isDragging ? "opacity-50" : "cursor-move"}
+                        >
+                          <TableCell className="text-center">
+                            <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
                           <TableCell>
                             <Input
