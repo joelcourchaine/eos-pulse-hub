@@ -358,7 +358,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "p-1 relative",
+                                "p-1 relative w-[90px] max-w-[90px]",
                                 metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
                             >
