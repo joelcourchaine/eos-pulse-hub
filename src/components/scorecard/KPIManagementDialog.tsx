@@ -40,6 +40,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [targetDirection, setTargetDirection] = useState<"above" | "below">("above");
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
+  const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const { toast } = useToast();
 
@@ -108,6 +109,21 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     }
 
     toast({ title: "Success", description: "Owner updated successfully" });
+    onKPIsChange();
+  };
+
+  const handleUpdateKPI = async (kpiId: string, field: string, value: any) => {
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .update({ [field]: value })
+      .eq("id", kpiId);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "KPI updated successfully" });
     onKPIsChange();
   };
 
@@ -247,7 +263,20 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                             {kpi.target_value}
                             {kpi.metric_type === "percentage" && "%"}
                           </TableCell>
-                          <TableCell className="capitalize">{kpi.target_direction}</TableCell>
+                          <TableCell className="capitalize">
+                            <Select
+                              value={kpi.target_direction}
+                              onValueChange={(value: "above" | "below") => handleUpdateKPI(kpi.id, "target_direction", value)}
+                            >
+                              <SelectTrigger className="w-[120px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover z-50">
+                                <SelectItem value="above">Above</SelectItem>
+                                <SelectItem value="below">Below</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell>
                             <Select
                               value={kpi.assigned_to || "unassigned"}
