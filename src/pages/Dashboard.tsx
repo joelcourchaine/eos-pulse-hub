@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -406,9 +407,7 @@ const Dashboard = () => {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-primary-foreground" />
-              </div>
+              <img src={goLogo} alt="GO Logo" className="h-10 w-10" />
               <div>
                 <h1 className="text-xl font-bold text-foreground">GO Scorecard</h1>
                 <p className="text-sm text-muted-foreground">Growth Operating System</p>

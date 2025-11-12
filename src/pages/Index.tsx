@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Target, Users, TrendingUp } from "lucide-react";
+import goLogo from "@/assets/go-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -10,9 +11,7 @@ const Index = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center justify-center h-20 w-20 rounded-2xl bg-primary mb-6">
-            <BarChart3 className="h-12 w-12 text-primary-foreground" />
-          </div>
+          <img src={goLogo} alt="GO Logo" className="h-20 w-20 mx-auto mb-6" />
           <h1 className="text-5xl font-bold text-foreground mb-4">
             GO Scorecard Platform
           </h1>
