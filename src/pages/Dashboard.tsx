@@ -341,8 +341,8 @@ const Dashboard = () => {
       console.error("Error sending email:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to send email. Please try again.",
+        title: "Email Error",
+        description: error.message || "Failed to send email. Please check your Resend API key and domain verification.",
       });
     } finally {
       setIsEmailLoading(false);
