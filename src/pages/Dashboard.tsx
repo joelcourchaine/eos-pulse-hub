@@ -134,15 +134,7 @@ const Dashboard = () => {
   };
 
   const handlePrint = () => {
-    console.log('handlePrint called');
-    setPrintDialogOpen(true);
-    setTimeout(() => {
-      console.log('About to trigger print');
-      const printContent = document.querySelector('.print-view');
-      console.log('Print content element:', printContent);
-      console.log('Print content HTML:', printContent?.innerHTML.substring(0, 200));
-      window.print();
-    }, 500);
+    window.print();
   };
 
   if (loading || !user || !profile) {
@@ -157,9 +149,20 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50">
+    <>
+      {/* Hidden Print Content - Rendered at root for proper printing */}
+      <div className="print-only-content" style={{ display: 'none' }}>
+        <PrintView 
+          year={selectedYear} 
+          quarter={selectedQuarter} 
+          mode={printMode} 
+          departmentId={selectedDepartment} 
+        />
+      </div>
+
+      <div className="min-h-screen bg-muted/30">
+        {/* Header */}
+        <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -348,6 +351,7 @@ const Dashboard = () => {
         <Celebrations />
       </main>
     </div>
+    </>
   );
 };
 

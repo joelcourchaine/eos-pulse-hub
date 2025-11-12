@@ -463,39 +463,20 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             margin: 0.5in;
           }
           
-          /* Hide everything by default */
-          body * {
-            visibility: hidden !important;
-          }
-          
-          /* Show only the print content */
-          .print-view,
-          .print-view * {
-            visibility: visible !important;
-          }
-          
-          /* Hide dialog overlay and chrome */
-          [role="dialog"] {
-            border: none !important;
-            box-shadow: none !important;
-            background: white !important;
-          }
-          
-          [data-radix-dialog-overlay],
-          .no-print {
+          /* Hide everything except print content */
+          body > :not(.print-only-content) {
             display: none !important;
-            visibility: hidden !important;
           }
           
-          /* Position print content */
+          .print-only-content {
+            display: block !important;
+          }
+          
           .print-view {
-            position: absolute;
-            left: 0;
-            top: 0;
+            display: block !important;
+            position: relative;
             width: 100%;
             background: white;
-            padding: 0;
-            margin: 0;
           }
           
           .status-green {
