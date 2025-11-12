@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, CircleCheck, AlertCircle, XCircle } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, CircleCheck, AlertCircle, XCircle, CircleDashed } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -34,7 +34,7 @@ const Dashboard = () => {
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
-  const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0 });
+  const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -137,7 +137,7 @@ const Dashboard = () => {
       if (kpiError) throw kpiError;
 
       if (!kpiData || kpiData.length === 0) {
-        setKpiStatusCounts({ green: 0, yellow: 0, red: 0 });
+        setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
         return;
       }
 
@@ -162,14 +162,15 @@ const Dashboard = () => {
         }
       });
 
-      // Count by status for ALL KPIs (treat missing entries as red)
-      const counts = { green: 0, yellow: 0, red: 0 };
+      // Count by status for ALL KPIs (track missing entries separately)
+      const counts = { green: 0, yellow: 0, red: 0, missing: 0 };
       
       kpiData.forEach(kpi => {
         const status = entryMap.get(kpi.id);
         if (status === "green") counts.green++;
         else if (status === "yellow") counts.yellow++;
-        else counts.red++; // No entry or red status = red
+        else if (status === "red") counts.red++;
+        else counts.missing++; // No entry = missing
       });
 
       setKpiStatusCounts(counts);
@@ -342,6 +343,10 @@ const Dashboard = () => {
                 <div className="flex items-center gap-1">
                   <XCircle className="h-5 w-5 text-destructive" />
                   <span className="text-2xl font-bold text-destructive">{kpiStatusCounts.red}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <CircleDashed className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-2xl font-bold text-muted-foreground">{kpiStatusCounts.missing}</span>
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Current week performance</p>
