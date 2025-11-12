@@ -73,6 +73,31 @@ const Dashboard = () => {
     }
   }, [selectedDepartment]);
 
+  // Real-time subscription for KPI status updates
+  useEffect(() => {
+    if (!selectedDepartment) return;
+
+    const channel = supabase
+      .channel('scorecard-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'scorecard_entries'
+        },
+        () => {
+          // Refresh KPI status counts when any entry changes
+          fetchKPIStatusCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedDepartment]);
+
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
