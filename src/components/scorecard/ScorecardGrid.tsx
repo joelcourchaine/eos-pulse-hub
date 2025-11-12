@@ -385,9 +385,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="2025">2025</SelectItem>
-            <SelectItem value="2026">2026</SelectItem>
-            <SelectItem value="2027">2027</SelectItem>
+            <SelectItem value={(new Date().getFullYear() - 1).toString()}>
+              {new Date().getFullYear() - 1}
+            </SelectItem>
+            <SelectItem value={new Date().getFullYear().toString()}>
+              {new Date().getFullYear()}
+            </SelectItem>
+            <SelectItem value={(new Date().getFullYear() + 1).toString()}>
+              {new Date().getFullYear() + 1}
+            </SelectItem>
           </SelectContent>
         </Select>
         <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
