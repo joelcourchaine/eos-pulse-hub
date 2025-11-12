@@ -36,6 +36,7 @@ const Dashboard = () => {
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
+  const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -72,6 +73,7 @@ const Dashboard = () => {
       fetchKPIs();
       fetchKPIStatusCounts();
       fetchActiveRocksCount();
+      fetchMyOpenTodosCount();
     }
   }, [selectedDepartment]);
 
@@ -79,7 +81,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (!selectedDepartment) return;
 
-    const channel = supabase
+    const scorecardChannel = supabase
       .channel('scorecard-changes')
       .on(
         'postgres_changes',
@@ -96,9 +98,35 @@ const Dashboard = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(scorecardChannel);
     };
   }, [selectedDepartment]);
+
+  // Real-time subscription for todos updates
+  useEffect(() => {
+    if (!selectedDepartment || !user) return;
+
+    const todosChannel = supabase
+      .channel('todos-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'todos',
+          filter: `department_id=eq.${selectedDepartment}`
+        },
+        () => {
+          // Refresh todos count when any todo changes
+          fetchMyOpenTodosCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(todosChannel);
+    };
+  }, [selectedDepartment, user]);
 
   // Update rocks count when department changes (uses current calendar quarter)
   useEffect(() => {
@@ -237,6 +265,24 @@ const Dashboard = () => {
       setActiveRocksCount(count || 0);
     } catch (error: any) {
       console.error("Error fetching active rocks count:", error);
+    }
+  };
+
+  const fetchMyOpenTodosCount = async () => {
+    if (!selectedDepartment || !user) return;
+
+    try {
+      const { count, error } = await supabase
+        .from("todos")
+        .select("*", { count: "exact", head: true })
+        .eq("department_id", selectedDepartment)
+        .eq("assigned_to", user.id)
+        .eq("status", "pending");
+
+      if (error) throw error;
+      setMyOpenTodosCount(count || 0);
+    } catch (error: any) {
+      console.error("Error fetching my open todos count:", error);
     }
   };
 
@@ -425,12 +471,12 @@ const Dashboard = () => {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Open To-Dos</CardTitle>
+              <CardTitle className="text-sm font-medium">My Open To-Dos</CardTitle>
               <CheckSquare className="h-4 w-4 text-warning" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
-              <p className="text-xs text-muted-foreground">2 due this week</p>
+              <div className="text-2xl font-bold">{myOpenTodosCount}</div>
+              <p className="text-xs text-muted-foreground">Tasks assigned to me</p>
             </CardContent>
           </Card>
         </div>
