@@ -2,3 +2,6 @@ project_id = "ihfxzbrnupbufapybjyt"
 
 [functions.send-scorecard-email]
 verify_jwt = true
+
+[functions.create-user]
+verify_jwt = true

@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Loader2, Save } from "lucide-react";
+import { Users, Loader2, Save, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { AddUserDialog } from "./AddUserDialog";
 
 interface Profile {
   id: string;
@@ -30,6 +31,7 @@ export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialo
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -86,14 +88,29 @@ export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialo
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>User Management</DialogTitle>
-          <DialogDescription>
-            View and edit user information including birthdays and work anniversaries
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <AddUserDialog 
+        open={addUserOpen} 
+        onOpenChange={setAddUserOpen}
+        onUserCreated={loadProfiles}
+      />
+      
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>User Management</DialogTitle>
+                <DialogDescription>
+                  View and edit user information including birthdays and work anniversaries
+                </DialogDescription>
+              </div>
+              <Button onClick={() => setAddUserOpen(true)} size="sm">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+            </div>
+          </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -235,7 +252,8 @@ export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialo
             </Table>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
