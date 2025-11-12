@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -57,7 +57,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [isOpen, setIsOpen] = useState(true);
   const [targetsDialogOpen, setTargetsDialogOpen] = useState(false);
   const [editTargets, setEditTargets] = useState<{ [key: string]: string }>({});
+  const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
+  const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const months = getMonthsForQuarter(quarter, year);
 
@@ -65,6 +67,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     loadFinancialData();
     loadTargets();
   }, [departmentId, year, quarter]);
+
+  // Update local values when entries change
+  useEffect(() => {
+    const newLocalValues: { [key: string]: string } = {};
+    Object.entries(entries).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        const metric = FINANCIAL_METRICS.find(m => key.startsWith(m.key));
+        if (metric) {
+          newLocalValues[key] = formatValue(value, metric.type);
+        }
+      }
+    });
+    setLocalValues(prev => {
+      // Only update if we don't have pending saves for these keys
+      const updated = { ...prev };
+      Object.keys(newLocalValues).forEach(key => {
+        if (!saveTimeoutRef.current[key]) {
+          updated[key] = newLocalValues[key];
+        }
+      });
+      return updated;
+    });
+  }, [entries]);
 
   const loadTargets = async () => {
     if (!departmentId) return;
@@ -144,36 +169,60 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setLoading(false);
   };
 
-  const handleValueChange = async (metricKey: string, monthId: string, value: string) => {
+  const handleValueChange = (metricKey: string, monthId: string, value: string) => {
     const key = `${metricKey}-${monthId}`;
-    const numValue = parseFloat(value) || null;
+    
+    // Update local state immediately for responsive UI
+    setLocalValues(prev => ({ ...prev, [key]: value }));
 
-    if (numValue === null) return;
-
-    setSaving(prev => ({ ...prev, [key]: true }));
-
-    const { data: session } = await supabase.auth.getSession();
-    const userId = session.session?.user?.id;
-
-    const { error } = await supabase
-      .from("financial_entries")
-      .upsert({
-        department_id: departmentId,
-        month: monthId,
-        metric_name: metricKey,
-        value: numValue,
-        created_by: userId,
-      }, {
-        onConflict: "department_id,month,metric_name"
-      });
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
-    } else {
-      await loadFinancialData();
+    // Clear existing timeout for this field
+    if (saveTimeoutRef.current[key]) {
+      clearTimeout(saveTimeoutRef.current[key]);
     }
 
-    setSaving(prev => ({ ...prev, [key]: false }));
+    // Set new timeout to save after user stops typing
+    saveTimeoutRef.current[key] = setTimeout(async () => {
+      const numValue = parseFloat(value) || null;
+
+      setSaving(prev => ({ ...prev, [key]: true }));
+
+      // If value is empty/null, delete the entry
+      if (numValue === null || value === '') {
+        const { error } = await supabase
+          .from("financial_entries")
+          .delete()
+          .eq("department_id", departmentId)
+          .eq("month", monthId)
+          .eq("metric_name", metricKey);
+
+        if (error) {
+          toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+        }
+      } else {
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session.session?.user?.id;
+
+        const { error } = await supabase
+          .from("financial_entries")
+          .upsert({
+            department_id: departmentId,
+            month: monthId,
+            metric_name: metricKey,
+            value: numValue,
+            created_by: userId,
+          }, {
+            onConflict: "department_id,month,metric_name"
+          });
+
+        if (error) {
+          toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
+        }
+      }
+
+      await loadFinancialData();
+      setSaving(prev => ({ ...prev, [key]: false }));
+      delete saveTimeoutRef.current[key];
+    }, 500);
   };
 
   const formatValue = (value: number | undefined, type: string) => {
@@ -319,7 +368,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               <Input
                                 type="number"
                                 step="any"
-                                value={formatValue(value, metric.type)}
+                                value={localValues[key] || ""}
                                 onChange={(e) =>
                                   handleValueChange(metric.key, month.identifier, e.target.value)
                                 }
