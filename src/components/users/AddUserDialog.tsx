@@ -83,14 +83,13 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDial
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="user@example.com"
+              placeholder="user@example.com (optional - will auto-generate if empty)"
             />
           </div>
 

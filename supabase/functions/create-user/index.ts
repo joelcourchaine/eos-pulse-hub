@@ -35,7 +35,14 @@ Deno.serve(async (req) => {
     });
 
     const requestBody: CreateUserRequest = await req.json();
-    const { email, full_name, role, store_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    let { email, full_name, role, store_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+
+    // Auto-generate email if not provided
+    if (!email || email.trim() === '') {
+      const randomId = crypto.randomUUID().slice(0, 8);
+      email = `user-${randomId}@test.local`;
+      console.log('Auto-generated email:', email);
+    }
 
     console.log('Creating user:', { email, full_name, role });
 
