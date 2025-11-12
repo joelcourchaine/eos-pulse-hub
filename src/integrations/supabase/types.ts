@@ -250,6 +250,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           start_month: number | null
           start_year: number | null
+          store_id: string | null
           updated_at: string
         }
         Insert: {
@@ -263,6 +264,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
+          store_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -276,6 +278,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
+          store_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -284,6 +287,13 @@ export type Database = {
             columns: ["reports_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
             referencedColumns: ["id"]
           },
         ]
