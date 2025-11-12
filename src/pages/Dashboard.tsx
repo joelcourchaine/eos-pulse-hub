@@ -407,7 +407,7 @@ const Dashboard = () => {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img src={goLogo} alt="GO Logo" className="h-10 w-10" />
+              <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
               <div>
                 <h1 className="text-xl font-bold text-foreground">GO Scorecard</h1>
                 <p className="text-sm text-muted-foreground">Growth Operating System</p>

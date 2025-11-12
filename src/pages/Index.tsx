@@ -11,7 +11,7 @@ const Index = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="text-center mb-16">
-          <img src={goLogo} alt="GO Logo" className="h-20 w-20 mx-auto mb-6" />
+          <img src={goLogo} alt="GO Logo" className="h-20 w-20 mx-auto mb-6 rounded-2xl" />
           <h1 className="text-5xl font-bold text-foreground mb-4">
             GO Scorecard Platform
           </h1>
