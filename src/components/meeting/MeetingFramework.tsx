@@ -65,7 +65,7 @@ const MeetingFramework = () => {
                   onChange={(e) =>
                     setNotes({ ...notes, [section.id]: e.target.value })
                   }
-                  className="min-h-[200px]"
+                  className="min-h-[100px]"
                 />
               </div>
             </TabsContent>
