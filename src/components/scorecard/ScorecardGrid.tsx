@@ -145,6 +145,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const today = new Date();
   const currentWeekMonday = getMondayOfWeek(today);
   const currentWeekDate = currentWeekMonday.toISOString().split('T')[0];
+  
+  // Get previous week's Monday (week before current)
+  const previousWeekMonday = new Date(currentWeekMonday);
+  previousWeekMonday.setDate(previousWeekMonday.getDate() - 7);
+  const previousWeekDate = previousWeekMonday.toISOString().split('T')[0];
 
   useEffect(() => {
     loadScorecardData();
@@ -421,17 +426,20 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             {weeks.map((week) => {
               const weekDate = week.start.toISOString().split('T')[0];
               const isCurrentWeek = weekDate === currentWeekDate;
+              const isPreviousWeek = weekDate === previousWeekDate;
               
               return (
                 <TableHead 
                   key={week.label} 
                   className={cn(
                     "text-center min-w-[110px] text-xs py-2",
-                    isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary"
+                    isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
+                    isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
                 >
                   {week.label}
                   {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
+                  {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
                 </TableHead>
               );
             })}
