@@ -100,12 +100,12 @@ const Dashboard = () => {
     };
   }, [selectedDepartment]);
 
-  // Update rocks count when year or quarter changes
+  // Update rocks count when department changes (uses current calendar quarter)
   useEffect(() => {
     if (selectedDepartment) {
       fetchActiveRocksCount();
     }
-  }, [selectedDepartment, selectedYear, selectedQuarter]);
+  }, [selectedDepartment]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -221,12 +221,17 @@ const Dashboard = () => {
     if (!selectedDepartment) return;
 
     try {
+      // Use current calendar quarter (same as RocksPanel)
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentQuarter = Math.ceil((currentDate.getMonth() + 1) / 3);
+      
       const { count, error } = await supabase
         .from("rocks")
         .select("*", { count: "exact", head: true })
         .eq("department_id", selectedDepartment)
-        .eq("year", selectedYear)
-        .eq("quarter", selectedQuarter);
+        .eq("year", currentYear)
+        .eq("quarter", currentQuarter);
 
       if (error) throw error;
       setActiveRocksCount(count || 0);
@@ -415,7 +420,7 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeRocksCount}</div>
-              <p className="text-xs text-muted-foreground">Q{selectedQuarter} {selectedYear} priorities</p>
+              <p className="text-xs text-muted-foreground">Q{Math.ceil((new Date().getMonth() + 1) / 3)} {new Date().getFullYear()} priorities</p>
             </CardContent>
           </Card>
           <Card>
