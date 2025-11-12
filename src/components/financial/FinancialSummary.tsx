@@ -362,9 +362,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
                             >
-                              <div className="relative flex items-center">
+                              <div className="relative flex items-center justify-center gap-0">
                                 {metric.type === "dollar" && (
-                                  <span className="absolute left-1/2 -translate-x-[calc(50%+0.5ch)] text-muted-foreground text-sm pointer-events-none">$</span>
+                                  <span className="text-muted-foreground text-sm">$</span>
                                 )}
                                 <Input
                                   type="number"
@@ -374,18 +374,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     handleValueChange(metric.key, month.identifier, e.target.value)
                                   }
                                   className={cn(
-                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                     metric.key === "net" && value && value < 0 && "text-destructive font-medium"
                                   )}
-                                  style={{ 
-                                    paddingLeft: metric.type === "dollar" ? "1ch" : undefined,
-                                    paddingRight: metric.type === "percentage" ? "1ch" : undefined
-                                  }}
                                   placeholder="-"
                                   disabled={saving[key]}
                                 />
                                 {metric.type === "percentage" && (
-                                  <span className="absolute left-1/2 translate-x-[calc(50%-0.5ch)] text-muted-foreground text-sm pointer-events-none">%</span>
+                                  <span className="text-muted-foreground text-sm">%</span>
                                 )}
                                 {saving[key] && (
                                   <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
