@@ -341,13 +341,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     
                     return (
                       <TableRow key={metric.key} className="hover:bg-muted/30">
-                        <TableCell className="sticky left-0 bg-background z-10 py-2">
+                        <TableCell className="sticky left-0 bg-background z-10 py-2 min-w-[200px]">
                           <div>
                             <p className="font-medium text-sm">{metric.name}</p>
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                         </TableCell>
-                        <TableCell className="text-center text-muted-foreground py-2">
+                        <TableCell className="text-center text-muted-foreground py-2 min-w-[100px]">
                           {formatTarget(target, metric.type)}
                         </TableCell>
                         {months.map((month) => {
@@ -358,7 +358,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "p-1 relative w-[90px] max-w-[90px]",
+                                "p-1 relative min-w-[90px]",
                                 metric.key === "net" && value && value < 0 && "bg-destructive/10"
                               )}
                             >
