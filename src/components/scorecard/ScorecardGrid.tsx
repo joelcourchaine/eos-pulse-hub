@@ -188,11 +188,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setProfiles(profilesMap);
   };
 
-  const loadScorecardData = async () => {
+  const loadScorecardData = async (preserveScroll = false) => {
     if (!departmentId || kpis.length === 0) {
       setLoading(false);
       return;
     }
+
+    // Save scroll position if requested
+    const scrollPosition = preserveScroll && scrollContainerRef.current 
+      ? scrollContainerRef.current.scrollLeft 
+      : null;
 
     setLoading(true);
     const kpiIds = kpis.map(k => k.id);
@@ -221,6 +226,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
     setEntries(entriesMap);
     setLoading(false);
+
+    // Restore scroll position
+    if (scrollPosition !== null && scrollContainerRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollLeft = scrollPosition;
+        }
+      });
+    }
   };
 
   const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, isMonthly: boolean, monthId?: string) => {
@@ -275,12 +289,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (error) {
         toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
       } else {
-        await loadScorecardData();
+        await loadScorecardData(true); // Preserve scroll position
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key]; // Clear timeout ref after save completes
-    }, 800); // Wait 800ms after user stops typing
+    }, 400); // Wait 400ms after user stops typing for faster saves
   };
 
   const getStatus = (status: string | null) => {
