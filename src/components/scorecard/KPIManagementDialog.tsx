@@ -281,8 +281,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Order</TableHead>
-                      <TableHead>Name</TableHead>
+                      <TableHead className="w-20">Order</TableHead>
+                      <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Target</TableHead>
                       <TableHead>Goal</TableHead>
@@ -316,7 +316,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                           </TableCell>
                           <TableCell>
                             <Input
-                              className="h-8 font-medium"
+                              className="h-8 font-medium min-w-[250px]"
                               value={isEditingThis && editingName ? editingName : kpi.name}
                               onFocus={() => {
                                 setEditingKpiId(kpi.id);
