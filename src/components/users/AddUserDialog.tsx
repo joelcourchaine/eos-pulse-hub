@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDial
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("department_manager");
   const [storeId, setStoreId] = useState<string>("");
+  const [sendPasswordEmail, setSendPasswordEmail] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,6 +35,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDial
           full_name: fullName,
           role,
           store_id: storeId || null,
+          send_password_email: sendPasswordEmail,
         },
       });
 
@@ -52,6 +55,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDial
       setFullName("");
       setRole("department_manager");
       setStoreId("");
+      setSendPasswordEmail(false);
       
       onUserCreated();
       onOpenChange(false);
@@ -115,6 +119,20 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDial
                 <SelectItem value="read_only">Read Only</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox 
+              id="sendPasswordEmail" 
+              checked={sendPasswordEmail}
+              onCheckedChange={(checked) => setSendPasswordEmail(checked as boolean)}
+            />
+            <Label 
+              htmlFor="sendPasswordEmail"
+              className="text-sm font-normal cursor-pointer"
+            >
+              Send password setup email to user
+            </Label>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

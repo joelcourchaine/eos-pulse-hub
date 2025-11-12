@@ -14,6 +14,7 @@ interface CreateUserRequest {
   birthday_day?: number;
   start_month?: number;
   start_year?: number;
+  send_password_email?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
     });
 
     const requestBody: CreateUserRequest = await req.json();
-    const { email, full_name, role, store_id, birthday_month, birthday_day, start_month, start_year } = requestBody;
+    const { email, full_name, role, store_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
 
     console.log('Creating user:', { email, full_name, role });
 
@@ -78,14 +79,18 @@ Deno.serve(async (req) => {
 
     console.log('Profile updated successfully');
 
-    // Send password reset email so user can set their own password
-    const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-    });
+    // Send password reset email so user can set their own password (if requested)
+    if (send_password_email) {
+      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+      });
 
-    if (resetError) {
-      console.warn('Error sending password reset email:', resetError);
+      if (resetError) {
+        console.warn('Error sending password reset email:', resetError);
+      } else {
+        console.log('Password reset email sent successfully');
+      }
     }
 
     return new Response(
