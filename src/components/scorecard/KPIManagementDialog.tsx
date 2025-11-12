@@ -42,6 +42,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [editingTargetValue, setEditingTargetValue] = useState<string>("");
+  const [editingName, setEditingName] = useState<string>("");
+  const [editingOrder, setEditingOrder] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const { toast } = useToast();
 
@@ -139,6 +141,29 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
 
     await handleUpdateKPI(kpiId, "target_value", newValue);
     toast({ title: "Success", description: "Target updated successfully" });
+    setEditingKpiId(null);
+  };
+
+  const handleNameBlur = async (kpiId: string) => {
+    if (editingKpiId !== kpiId || !editingName.trim()) return;
+    
+    await handleUpdateKPI(kpiId, "name", editingName.trim());
+    toast({ title: "Success", description: "Name updated successfully" });
+    setEditingKpiId(null);
+  };
+
+  const handleOrderBlur = async (kpiId: string) => {
+    if (editingKpiId !== kpiId) return;
+    
+    const newOrder = parseInt(editingOrder);
+    if (isNaN(newOrder) || newOrder < 1) {
+      toast({ title: "Error", description: "Please enter a valid order number", variant: "destructive" });
+      setEditingKpiId(null);
+      return;
+    }
+
+    await handleUpdateKPI(kpiId, "display_order", newOrder);
+    toast({ title: "Success", description: "Order updated successfully" });
     setEditingKpiId(null);
   };
 
@@ -266,13 +291,64 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {kpis.map((kpi) => {
+                     {kpis.map((kpi) => {
                       const owner = profiles.find(p => p.id === kpi.assigned_to);
+                      const isEditingThis = editingKpiId === kpi.id;
                       return (
                         <TableRow key={kpi.id}>
-                          <TableCell>{kpi.display_order}</TableCell>
-                          <TableCell className="font-medium">{kpi.name}</TableCell>
-                          <TableCell className="capitalize">{kpi.metric_type}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              className="h-8 w-16"
+                              value={isEditingThis && editingOrder ? editingOrder : kpi.display_order}
+                              onFocus={() => {
+                                setEditingKpiId(kpi.id);
+                                setEditingOrder(kpi.display_order.toString());
+                              }}
+                              onChange={(e) => setEditingOrder(e.target.value)}
+                              onBlur={() => handleOrderBlur(kpi.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              className="h-8 font-medium"
+                              value={isEditingThis && editingName ? editingName : kpi.name}
+                              onFocus={() => {
+                                setEditingKpiId(kpi.id);
+                                setEditingName(kpi.name);
+                              }}
+                              onChange={(e) => setEditingName(e.target.value)}
+                              onBlur={() => handleNameBlur(kpi.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={kpi.metric_type}
+                              onValueChange={(value: "dollar" | "percentage" | "unit") => {
+                                handleUpdateKPI(kpi.id, "metric_type", value);
+                                toast({ title: "Success", description: "Type updated successfully" });
+                              }}
+                            >
+                              <SelectTrigger className="w-[130px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover z-50">
+                                <SelectItem value="dollar">Dollar ($)</SelectItem>
+                                <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                <SelectItem value="unit">Unit</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
                               {kpi.metric_type === "dollar" && <span>$</span>}
