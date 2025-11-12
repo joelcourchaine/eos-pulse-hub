@@ -239,9 +239,31 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     saveTimeoutRef.current[key] = setTimeout(async () => {
       const actualValue = parseFloat(value) || null;
 
-      if (actualValue === null) return;
-
       setSaving(prev => ({ ...prev, [key]: true }));
+
+      // If value is empty/null, delete the entry
+      if (actualValue === null || value === '') {
+        const { error } = await supabase
+          .from("scorecard_entries")
+          .delete()
+          .eq("kpi_id", kpiId)
+          .eq(isMonthly ? "month" : "week_start_date", isMonthly ? monthId : periodKey);
+
+        if (error) {
+          toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+        } else {
+          // Remove from local state
+          setEntries(prev => {
+            const newEntries = { ...prev };
+            delete newEntries[key];
+            return newEntries;
+          });
+        }
+
+        setSaving(prev => ({ ...prev, [key]: false }));
+        delete saveTimeoutRef.current[key];
+        return;
+      }
 
       const variance = type === "percentage" 
         ? actualValue - target 
