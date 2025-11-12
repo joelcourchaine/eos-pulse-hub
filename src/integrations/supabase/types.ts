@@ -374,7 +374,7 @@ export type Database = {
           status: string | null
           updated_at: string
           variance: number | null
-          week_start_date: string
+          week_start_date: string | null
         }
         Insert: {
           actual_value?: number | null
@@ -388,7 +388,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           variance?: number | null
-          week_start_date: string
+          week_start_date?: string | null
         }
         Update: {
           actual_value?: number | null
@@ -402,7 +402,7 @@ export type Database = {
           status?: string | null
           updated_at?: string
           variance?: number | null
-          week_start_date?: string
+          week_start_date?: string | null
         }
         Relationships: [
           {
