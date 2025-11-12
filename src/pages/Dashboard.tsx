@@ -21,6 +21,7 @@ import { UserManagementDialog } from "@/components/users/UserManagementDialog";
 import { StoreManagementDialog } from "@/components/stores/StoreManagementDialog";
 import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSelectionDialog";
 import { TodosPanel } from "@/components/todos/TodosPanel";
+import { LogoUpload } from "@/components/stores/LogoUpload";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
 const Dashboard = () => {
@@ -511,7 +512,9 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Dealership Logo */}
+          <LogoUpload storeId={profile?.store_id || null} userRole={profile?.role} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">This Week</CardTitle>
