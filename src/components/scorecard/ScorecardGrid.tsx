@@ -432,7 +432,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 <TableHead 
                   key={week.label} 
                   className={cn(
-                    "text-center min-w-[110px] text-xs py-2",
+                    "text-center min-w-[85px] text-xs py-2",
                     isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
@@ -444,7 +444,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               );
             })}
             {months.map((month) => (
-              <TableHead key={month.identifier} className="text-center min-w-[140px] bg-primary/10 font-bold border-l-2 py-2">
+              <TableHead key={month.identifier} className="text-center min-w-[90px] bg-primary/10 font-bold border-l-2 py-2">
                 {month.label}
               </TableHead>
             ))}
