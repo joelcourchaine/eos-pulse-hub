@@ -341,18 +341,26 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         </Select>
       </div>
 
-      <div
-        ref={scrollContainerRef}
-        className="relative border rounded-lg overflow-x-auto"
-      >
-        <div className="min-w-[2400px]">
-        <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead className="sticky left-0 bg-muted/50 z-20 min-w-[200px] font-bold py-2 border-r">
-              KPI
-            </TableHead>
-            <TableHead className="sticky left-[200px] bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2 border-r">Target</TableHead>
+      <div className="relative">
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-x-auto border rounded-lg"
+        >
+          <Table className="relative" style={{ tableLayout: 'fixed', width: 'max-content' }}>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead 
+                  className="bg-muted/50 z-20 min-w-[200px] font-bold py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  style={{ position: 'sticky', left: 0 }}
+                >
+                  KPI
+                </TableHead>
+                <TableHead 
+                  className="bg-muted/50 z-20 text-center font-bold min-w-[100px] py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  style={{ position: 'sticky', left: '200px' }}
+                >
+                  Target
+                </TableHead>
             {weeks.map((week) => (
               <TableHead key={week.label} className="text-center min-w-[110px] text-xs py-2">
                 {week.label}
@@ -376,7 +384,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               <React.Fragment key={kpi.id}>
                 {showOwnerHeader && (
                   <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
-                    <TableCell className="sticky left-0 z-10 bg-muted/50 py-1 border-r">
+                    <TableCell 
+                      className="z-10 bg-muted/50 py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      style={{ position: 'sticky', left: 0 }}
+                    >
                       <div className="flex items-center gap-2">
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
@@ -386,15 +397,24 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="sticky left-[200px] z-10 bg-muted/50 py-1 border-r" />
+                    <TableCell 
+                      className="z-10 bg-muted/50 py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      style={{ position: 'sticky', left: '200px' }}
+                    />
                     <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
-                  <TableCell className="sticky left-0 bg-background z-10 font-medium pl-8 py-2 border-r">
+                  <TableCell 
+                    className="bg-background z-10 font-medium pl-8 py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    style={{ position: 'sticky', left: 0 }}
+                  >
                     {kpi.name}
                   </TableCell>
-                  <TableCell className="sticky left-[200px] bg-background z-10 text-center text-muted-foreground py-2 border-r">
+                  <TableCell 
+                    className="bg-background z-10 text-center text-muted-foreground py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    style={{ position: 'sticky', left: '200px' }}
+                  >
                     {formatTarget(kpi.target_value, kpi.metric_type)}
                   </TableCell>
                   {weeks.map((week) => {
@@ -479,9 +499,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             );
           })}
         </TableBody>
-        </Table>
-        </div>
-      </div>
+      </Table>
+    </div>
+  </div>
     </div>
   );
 };
