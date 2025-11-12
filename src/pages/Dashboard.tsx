@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Celebrations } from "@/components/celebrations/Celebrations";
 import { UserManagementDialog } from "@/components/users/UserManagementDialog";
+import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -33,6 +34,11 @@ const Dashboard = () => {
   const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
+  
+  const currentWeek = getWeek(new Date());
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+  const weekDateRange = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}`;
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -258,8 +264,8 @@ const Dashboard = () => {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Week 46</div>
-              <p className="text-xs text-muted-foreground">Nov 11 - Nov 17</p>
+              <div className="text-2xl font-bold">Week {currentWeek}</div>
+              <p className="text-xs text-muted-foreground">{weekDateRange}</p>
             </CardContent>
           </Card>
           <Card>
