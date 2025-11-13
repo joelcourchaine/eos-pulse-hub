@@ -377,7 +377,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         }
 
         .print-table {
-          width: max-content;
+          width: 100%;
           border-collapse: collapse;
           margin-bottom: 16px;
           table-layout: fixed;
@@ -387,9 +387,10 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         .print-table td {
           border: 1px solid #333;
           padding: 4px;
-          text-align: left;
           color: #000;
           line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .print-table th {
@@ -400,34 +401,33 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           font-size: 10px;
         }
 
-        .metric-col {
+        .print-table col:nth-child(1) {
           width: 200px;
-          min-width: 200px;
         }
 
-        .target-col {
+        .print-table col:nth-child(2) {
           width: 100px;
-          min-width: 100px;
-          text-align: center;
-        }
-
-        .value-col {
-          text-align: center;
-          font-size: 10px;
         }
 
         .kpi-name {
           font-weight: 500;
+          text-align: left;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .target-value {
           text-align: center;
           color: #666;
+          white-space: nowrap;
         }
 
         .value-cell {
           text-align: center;
           font-weight: 500;
+          font-size: 10px;
+          white-space: nowrap;
         }
 
         .status-green {
