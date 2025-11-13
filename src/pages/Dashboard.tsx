@@ -7,7 +7,7 @@ import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Printer, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -449,17 +449,17 @@ const Dashboard = () => {
               <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print PDF
+                    <Mail className="h-4 w-4 mr-2" />
+                    Email Report
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto no-print" aria-describedby="print-description">
-                  <DialogTitle className="sr-only">Print Report</DialogTitle>
-                  <div id="print-description" className="sr-only">
-                    Preview of all department scorecards and financial data for printing
+                <DialogContent className="no-print" aria-describedby="email-description">
+                  <DialogTitle>Email Scorecard Report</DialogTitle>
+                  <div id="email-description" className="sr-only">
+                    Send scorecard report via email
                   </div>
-                  <div className="no-print mb-4 p-4 border rounded-lg bg-muted/30">
-                    <Label className="text-sm font-semibold mb-3 block">Print Format</Label>
+                  <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+                    <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
                     <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly") => setPrintMode(value)}>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="weekly" id="weekly" />
@@ -475,20 +475,13 @@ const Dashboard = () => {
                       </div>
                     </RadioGroup>
                   </div>
-                  <div className="print-preview-area">
-                    <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode} departmentId={selectedDepartment} />
-                  </div>
-                  <div className="flex justify-end gap-2 mt-4 no-print">
+                  <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel
                     </Button>
-                    <Button variant="outline" onClick={handleEmailScorecard} disabled={isEmailLoading}>
+                    <Button onClick={handleEmailScorecard} disabled={isEmailLoading}>
                       <Mail className="h-4 w-4 mr-2" />
-                      {isEmailLoading ? "Sending..." : "Email"}
-                    </Button>
-                    <Button onClick={handlePrint}>
-                      <Printer className="h-4 w-4 mr-2" />
-                      Print
+                      {isEmailLoading ? "Sending..." : "Send Email"}
                     </Button>
                   </div>
                 </DialogContent>
