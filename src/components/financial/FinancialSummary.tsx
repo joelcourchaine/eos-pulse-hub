@@ -56,6 +56,23 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
+const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
+  const quarters = [];
+  let q = currentQuarter;
+  let y = currentYear;
+  
+  for (let i = 0; i < count; i++) {
+    q--;
+    if (q < 1) {
+      q = 4;
+      y--;
+    }
+    quarters.push({ quarter: q, year: y, label: `Q${q} ${y}` });
+  }
+  
+  return quarters.reverse();
+};
+
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
@@ -67,14 +84,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [editTargets, setEditTargets] = useState<{ [key: string]: string }>({});
   const [editTargetDirections, setEditTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
+  const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const months = getMonthsForQuarter(quarter, year);
+  const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
 
   useEffect(() => {
     loadFinancialData();
     loadTargets();
+    loadPrecedingQuartersData();
   }, [departmentId, year, quarter]);
 
   // Update local values when entries change
@@ -162,6 +182,50 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     toast({ title: "Success", description: "Targets saved successfully" });
     setTargetsDialogOpen(false);
     loadTargets();
+  };
+
+  const loadPrecedingQuartersData = async () => {
+    if (!departmentId) return;
+
+    const allMonthIds: string[] = [];
+    precedingQuarters.forEach(pq => {
+      const months = getMonthsForQuarter(pq.quarter, pq.year);
+      allMonthIds.push(...months.map(m => m.identifier));
+    });
+
+    const { data, error } = await supabase
+      .from("financial_entries")
+      .select("*")
+      .eq("department_id", departmentId)
+      .in("month", allMonthIds);
+
+    if (error) {
+      console.error("Error loading preceding quarters data:", error);
+      return;
+    }
+
+    // Calculate averages per metric per quarter
+    const averages: { [key: string]: number } = {};
+    precedingQuarters.forEach(pq => {
+      const quarterMonths = getMonthsForQuarter(pq.quarter, pq.year);
+      const quarterMonthIds = quarterMonths.map(m => m.identifier);
+      
+      FINANCIAL_METRICS.forEach(metric => {
+        const values = data
+          ?.filter(entry => 
+            entry.metric_name === metric.key && 
+            quarterMonthIds.includes(entry.month)
+          )
+          .map(entry => entry.value || 0) || [];
+        
+        if (values.length > 0) {
+          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+          averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
+        }
+      });
+    });
+
+    setPrecedingQuartersData(averages);
   };
 
   const loadFinancialData = async () => {
@@ -373,6 +437,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-2">
                       Financial Metric
                     </TableHead>
+                    {precedingQuarters.map((pq) => (
+                      <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-2">
+                        {pq.label}
+                      </TableHead>
+                    ))}
                     <TableHead className="text-center font-bold min-w-[100px] py-2">Q{quarter} Target</TableHead>
                     {months.map((month) => (
                       <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-2">
@@ -394,6 +463,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                         </TableCell>
+                        {precedingQuarters.map((pq) => {
+                          const qKey = `${metric.key}-Q${pq.quarter}-${pq.year}`;
+                          const qValue = precedingQuartersData[qKey];
+                          
+                          return (
+                            <TableCell key={`${pq.quarter}-${pq.year}`} className="text-center text-muted-foreground py-2 min-w-[100px]">
+                              {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                            </TableCell>
+                          );
+                        })}
                         <TableCell className="text-center text-muted-foreground py-2 min-w-[100px]">
                           {formatTarget(target, metric.type)}
                         </TableCell>
