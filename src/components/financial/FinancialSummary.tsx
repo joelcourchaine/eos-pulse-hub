@@ -417,7 +417,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       Set Targets
                     </Button>
                   </DialogTrigger>
-                  <DialogContent onClick={(e) => e.stopPropagation()}>
+                  <DialogContent className="max-w-3xl" onClick={(e) => e.stopPropagation()}>
                     <DialogHeader>
                       <DialogTitle>Set Financial Targets</DialogTitle>
                       <DialogDescription>
