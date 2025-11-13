@@ -28,6 +28,7 @@ const FINANCIAL_METRICS: FinancialMetric[] = [
   { name: "Total Sales", key: "total_sales", type: "dollar", description: "Total revenue for the period" },
   { name: "GP Net", key: "gp_net", type: "dollar", description: "Gross profit after costs" },
   { name: "GP%", key: "gp_percent", type: "percentage", description: "Gross profit margin" },
+  { name: "Personnel Expense", key: "personnel_expense", type: "dollar", description: "Total labor costs" },
   { name: "Personnel Expense %", key: "personnel_expense_percent", type: "percentage", description: "Labor costs as % of sales" },
   { name: "Parts Transfer", key: "parts_transfer", type: "dollar", description: "Internal parts transfers" },
   { name: "Net", key: "net", type: "dollar", description: "Net profit/loss" },
