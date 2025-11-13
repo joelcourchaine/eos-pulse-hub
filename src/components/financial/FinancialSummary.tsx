@@ -74,16 +74,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const FINANCIAL_METRICS = getMetricsForBrand(storeBrand);
 
   useEffect(() => {
-    loadStoreBrand();
-  }, [departmentId]);
-
-  useEffect(() => {
-    if (storeBrand !== null) {
+    const loadData = async () => {
+      await loadStoreBrand();
       loadFinancialData();
       loadTargets();
       loadPrecedingQuartersData();
-    }
-  }, [departmentId, year, quarter, storeBrand]);
+    };
+    loadData();
+  }, [departmentId, year, quarter]);
 
   const loadStoreBrand = async () => {
     if (!departmentId) return;
