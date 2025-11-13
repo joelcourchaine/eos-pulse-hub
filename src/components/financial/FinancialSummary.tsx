@@ -320,6 +320,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
         if (error) {
           toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+        } else {
+          // Update local state directly without reloading
+          setEntries(prev => {
+            const newEntries = { ...prev };
+            delete newEntries[key];
+            return newEntries;
+          });
         }
       } else {
         const { data: session } = await supabase.auth.getSession();
@@ -339,11 +346,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
         if (error) {
           toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
+        } else {
+          // Update local state directly without reloading
+          setEntries(prev => ({
+            ...prev,
+            [key]: numValue
+          }));
         }
       }
 
-      await loadFinancialData();
-      await loadPrecedingQuartersData();
+      // Reload preceding quarters data in background without blocking
+      loadPrecedingQuartersData();
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key];
     }, 500);
