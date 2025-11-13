@@ -48,11 +48,11 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     name: "Personnel Expense %", 
     key: "personnel_expense_percent", 
     type: "percentage", 
-    description: "Labor costs as % of sales", 
+    description: "Labor costs as % of GP Net", 
     targetDirection: "below",
     calculation: {
       numerator: "personnel_expense",
-      denominator: "total_sales"
+      denominator: "gp_net"
     }
   },
   { 
@@ -66,11 +66,11 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     name: "Total Semi-Fixed Expense %", 
     key: "total_semi_fixed_expense_percent", 
     type: "percentage", 
-    description: "Semi-fixed expenses as % of sales", 
+    description: "Semi-fixed expenses as % of GP Net", 
     targetDirection: "below",
     calculation: {
       numerator: "total_semi_fixed_expense",
-      denominator: "total_sales"
+      denominator: "gp_net"
     }
   },
   { 
