@@ -3,10 +3,11 @@ import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Calendar, CalendarDays } from "lucide-react";
 
 interface KPI {
   id: string;
@@ -138,6 +139,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
+  const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -417,34 +419,55 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   return (
     <div className="space-y-4">
       {/* Quarter Controls */}
-      <div className="flex items-center gap-2">
-        <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
-          <SelectTrigger className="w-[100px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={(new Date().getFullYear() - 1).toString()}>
-              {new Date().getFullYear() - 1}
-            </SelectItem>
-            <SelectItem value={new Date().getFullYear().toString()}>
-              {new Date().getFullYear()}
-            </SelectItem>
-            <SelectItem value={(new Date().getFullYear() + 1).toString()}>
-              {new Date().getFullYear() + 1}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
-          <SelectTrigger className="w-[100px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1">Q1</SelectItem>
-            <SelectItem value="2">Q2</SelectItem>
-            <SelectItem value="3">Q3</SelectItem>
-            <SelectItem value="4">Q4</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={(new Date().getFullYear() - 1).toString()}>
+                {new Date().getFullYear() - 1}
+              </SelectItem>
+              <SelectItem value={new Date().getFullYear().toString()}>
+                {new Date().getFullYear()}
+              </SelectItem>
+              <SelectItem value={(new Date().getFullYear() + 1).toString()}>
+                {new Date().getFullYear() + 1}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Q1</SelectItem>
+              <SelectItem value="2">Q2</SelectItem>
+              <SelectItem value="3">Q3</SelectItem>
+              <SelectItem value="4">Q4</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
+          className="gap-2"
+        >
+          {viewMode === "weekly" ? (
+            <>
+              <Calendar className="h-4 w-4" />
+              View Monthly
+            </>
+          ) : (
+            <>
+              <CalendarDays className="h-4 w-4" />
+              View Weekly
+            </>
+          )}
+        </Button>
       </div>
 
       <div className="relative">
@@ -467,7 +490,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 >
                   Q{quarter} Target
                 </TableHead>
-            {weeks.map((week) => {
+            {viewMode === "weekly" ? weeks.map((week) => {
               const weekDate = week.start.toISOString().split('T')[0];
               const isCurrentWeek = weekDate === currentWeekDate;
               const isPreviousWeek = weekDate === previousWeekDate;
@@ -509,9 +532,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                   {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
                 </TableHead>
               );
-            })}
-            {months.map((month) => (
-              <TableHead key={month.identifier} className="text-center min-w-[105px] bg-primary/10 font-bold border-l-2 py-2">
+            }) : months.map((month) => (
+              <TableHead 
+                key={month.label} 
+                className="text-center min-w-[150px] max-w-[150px] text-sm py-2 font-bold"
+              >
                 {month.label}
               </TableHead>
             ))}
@@ -561,7 +586,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                   >
                     {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
                   </TableCell>
-                  {weeks.map((week) => {
+                  {viewMode === "weekly" ? weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
                     const key = `${kpi.id}-${weekDate}`;
                     const entry = entries[key];
@@ -626,68 +651,58 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                         </div>
                       </TableCell>
                     );
-                  })}
-                  {months.map((month) => {
-                    const key = `${kpi.id}-month-${month.identifier}`;
-                    const entry = entries[key];
-                    const status = getStatus(entry?.status || null);
-                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
-                    const monthlyTarget = getMonthlyTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.target_direction, kpi.metric_type);
+                  }) : months.map((month) => {
+                    // Aggregate weekly data for this month
+                    const monthWeeks = weeks.filter(week => {
+                      const weekMonth = `${week.start.getFullYear()}-${String(week.start.getMonth() + 1).padStart(2, '0')}`;
+                      return weekMonth === month.identifier;
+                    });
+                    
+                    const monthValues = monthWeeks.map(week => {
+                      const weekDate = week.start.toISOString().split('T')[0];
+                      const key = `${kpi.id}-${weekDate}`;
+                      return entries[key]?.actual_value;
+                    }).filter(v => v !== null && v !== undefined) as number[];
+                    
+                    let monthValue: number | null = null;
+                    let status: "default" | "success" | "warning" | "destructive" = "default";
+                    
+                    if (monthValues.length > 0) {
+                      // For dollar and unit metrics, sum the values
+                      // For percentage metrics, average the values
+                      if (kpi.metric_type === "percentage") {
+                        monthValue = monthValues.reduce((a, b) => a + b, 0) / monthValues.length;
+                      } else {
+                        monthValue = monthValues.reduce((a, b) => a + b, 0);
+                      }
+                      
+                      // Calculate status based on target
+                      const target = kpiTargets[kpi.id] || kpi.target_value;
+                      const variance = monthValue - target;
+                      const percentVariance = target !== 0 ? (variance / target) * 100 : 0;
+                      
+                      if (kpi.target_direction === "above") {
+                        if (percentVariance >= 0) status = "success";
+                        else if (percentVariance >= -10) status = "warning";
+                        else status = "destructive";
+                      } else {
+                        if (percentVariance <= 0) status = "success";
+                        else if (percentVariance <= 10) status = "warning";
+                        else status = "destructive";
+                      }
+                    }
                     
                     return (
                       <TableCell
-                        key={month.identifier}
+                        key={month.label}
                         className={cn(
-                          "p-1 relative border-l-2",
-                          status === "success" && "bg-success/10",
-                          status === "warning" && "bg-warning/10",
-                          status === "destructive" && "bg-destructive/10"
+                          "p-2 text-center min-w-[150px] max-w-[150px]",
+                          status === "success" && "bg-success/10 text-success font-medium",
+                          status === "warning" && "bg-warning/10 text-warning font-medium",
+                          status === "destructive" && "bg-destructive/10 text-destructive font-medium"
                         )}
                       >
-                        <div className="relative flex items-center justify-center gap-0">
-                          {kpi.metric_type === "dollar" && (
-                            <span className="text-muted-foreground text-sm">$</span>
-                          )}
-                           <Input
-                            type="number"
-                            step="any"
-                            value={displayValue}
-                            onChange={(e) =>
-                              handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
-                                const currentPeriodIndex = weeks.length + months.findIndex(m => m.identifier === month.identifier);
-                                
-                                if (currentKpiIndex < kpis.length - 1) {
-                                  const nextInput = document.querySelector(
-                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                  ) as HTMLInputElement;
-                                  nextInput?.focus();
-                                  nextInput?.select();
-                                }
-                              }
-                            }}
-                            data-kpi-index={index}
-                            data-period-index={weeks.length + months.findIndex(m => m.identifier === month.identifier)}
-                            className={cn(
-                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                              status === "success" && "text-success font-medium",
-                              status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium"
-                            )}
-                            placeholder="-"
-                            disabled={saving[key]}
-                          />
-                          {kpi.metric_type === "percentage" && (
-                            <span className="text-muted-foreground text-sm">%</span>
-                          )}
-                          {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                          )}
-                        </div>
+                         {monthValue !== null ? formatValue(monthValue, kpi.metric_type) : "-"}
                       </TableCell>
                     );
                   })}
@@ -702,5 +717,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     </div>
   );
 };
+
 
 export default ScorecardGrid;
