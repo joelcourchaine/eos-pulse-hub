@@ -260,11 +260,40 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
                   <tr>
                     <th className="metric-col">KPI</th>
                     <th className="target-col">Target</th>
-                    {periods.map(period => (
-                      <th key={mode === "weekly" ? (period as any).date : (period as any).identifier} className="value-col">
-                        {period.label}
-                      </th>
-                    ))}
+                    {periods.map((period, idx) => {
+                      const periodKey = mode === "weekly" ? (period as any).date : (period as any).identifier;
+                      const periodDate = mode === "weekly" ? new Date((period as any).date) : new Date((period as any).identifier);
+                      const isCurrentOrPast = periodDate <= new Date();
+                      
+                      // Calculate status counts for this period
+                      const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 };
+                      if (isCurrentOrPast) {
+                        kpis.forEach(kpi => {
+                          const entry = mode === "weekly"
+                            ? scorecardEntries.find(e => e.kpi_id === kpi.id && e.week_start_date === periodKey)
+                            : scorecardEntries.find(e => e.kpi_id === kpi.id && e.month === periodKey);
+                          
+                          if (entry?.status === 'green') statusCounts.green++;
+                          else if (entry?.status === 'yellow') statusCounts.yellow++;
+                          else if (entry?.status === 'red') statusCounts.red++;
+                          else statusCounts.gray++;
+                        });
+                      }
+                      
+                      return (
+                        <th key={periodKey} className="value-col">
+                          {isCurrentOrPast && (
+                            <div className="status-gauge">
+                              <span className="gauge-green">{statusCounts.green}</span>
+                              <span className="gauge-yellow">{statusCounts.yellow}</span>
+                              <span className="gauge-red">{statusCounts.red}</span>
+                              <span className="gauge-gray">{statusCounts.gray}</span>
+                            </div>
+                          )}
+                          <div className="period-label">{period.label}</div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -468,6 +497,42 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         .financial-row {
           background-color: #f8f9fa;
         }
+
+        .status-gauge {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          margin-bottom: 4px;
+          font-size: 9px;
+          font-weight: 600;
+        }
+
+        .status-gauge span {
+          padding: 1px 4px;
+          border-radius: 2px;
+          color: #000;
+        }
+
+        .gauge-green {
+          background-color: #d4edda;
+        }
+
+        .gauge-yellow {
+          background-color: #fff3cd;
+        }
+
+        .gauge-red {
+          background-color: #f8d7da;
+        }
+
+        .gauge-gray {
+          background-color: #e9ecef;
+        }
+
+        .period-label {
+          font-size: 10px;
+          margin-top: 2px;
+        }
         
         @media print {
           @page {
@@ -529,6 +594,30 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           
           .financial-row {
             background-color: #f8f9fa !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .gauge-green {
+            background-color: #d4edda !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .gauge-yellow {
+            background-color: #fff3cd !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .gauge-red {
+            background-color: #f8d7da !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+
+          .gauge-gray {
+            background-color: #e9ecef !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
