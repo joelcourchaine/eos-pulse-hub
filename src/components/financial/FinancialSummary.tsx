@@ -272,7 +272,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     // Set new timeout to save after user stops typing
     saveTimeoutRef.current[key] = setTimeout(async () => {
-      const numValue = parseFloat(value) || null;
+      let numValue = parseFloat(value) || null;
+      
+      // Round dollar values to nearest whole number
+      const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+      if (numValue !== null && metric?.type === "dollar") {
+        numValue = Math.round(numValue);
+      }
 
       setSaving(prev => ({ ...prev, [key]: true }));
 
@@ -310,6 +316,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       }
 
       await loadFinancialData();
+      await loadPrecedingQuartersData();
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key];
     }, 500);
@@ -317,14 +324,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const formatValue = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "";
-    if (type === "dollar") return value.toLocaleString();
+    if (type === "dollar") return Math.round(value).toLocaleString();
     if (type === "percentage") return value.toString();
     return value.toString();
   };
 
   const formatTarget = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "-";
-    if (type === "dollar") return `$${value.toLocaleString()}`;
+    if (type === "dollar") return `$${Math.round(value).toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
     return value.toString();
   };
