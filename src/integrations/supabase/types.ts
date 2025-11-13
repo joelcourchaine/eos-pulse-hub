@@ -148,6 +148,7 @@ export type Database = {
           id: string
           metric_name: string
           quarter: number
+          target_direction: string
           target_value: number
           updated_at: string
           year: number
@@ -158,6 +159,7 @@ export type Database = {
           id?: string
           metric_name: string
           quarter?: number
+          target_direction?: string
           target_value: number
           updated_at?: string
           year?: number
@@ -168,6 +170,7 @@ export type Database = {
           id?: string
           metric_name?: string
           quarter?: number
+          target_direction?: string
           target_value?: number
           updated_at?: string
           year?: number

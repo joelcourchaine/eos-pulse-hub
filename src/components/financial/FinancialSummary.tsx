@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,20 +23,21 @@ interface FinancialMetric {
   key: string;
   type: "dollar" | "percentage";
   description: string;
+  targetDirection: "above" | "below";
 }
 
 const FINANCIAL_METRICS: FinancialMetric[] = [
-  { name: "Total Sales", key: "total_sales", type: "dollar", description: "Total revenue for the period" },
-  { name: "GP Net", key: "gp_net", type: "dollar", description: "Gross profit after costs" },
-  { name: "GP%", key: "gp_percent", type: "percentage", description: "Gross profit margin" },
-  { name: "Personnel Expense", key: "personnel_expense", type: "dollar", description: "Total labor costs" },
-  { name: "Personnel Expense %", key: "personnel_expense_percent", type: "percentage", description: "Labor costs as % of sales" },
-  { name: "Total Semi-Fixed Expense", key: "total_semi_fixed_expense", type: "dollar", description: "Total semi-fixed expenses" },
-  { name: "Total Semi-Fixed Expense %", key: "total_semi_fixed_expense_percent", type: "percentage", description: "Semi-fixed expenses as % of sales" },
-  { name: "Total Fixed Expense", key: "total_fixed_expense", type: "dollar", description: "Total fixed expenses" },
-  { name: "Department Profit", key: "department_profit", type: "dollar", description: "Department profit after all expenses" },
-  { name: "Parts Transfer", key: "parts_transfer", type: "dollar", description: "Internal parts transfers" },
-  { name: "Net", key: "net", type: "dollar", description: "Net profit/loss" },
+  { name: "Total Sales", key: "total_sales", type: "dollar", description: "Total revenue for the period", targetDirection: "above" },
+  { name: "GP Net", key: "gp_net", type: "dollar", description: "Gross profit after costs", targetDirection: "above" },
+  { name: "GP%", key: "gp_percent", type: "percentage", description: "Gross profit margin", targetDirection: "above" },
+  { name: "Personnel Expense", key: "personnel_expense", type: "dollar", description: "Total labor costs", targetDirection: "below" },
+  { name: "Personnel Expense %", key: "personnel_expense_percent", type: "percentage", description: "Labor costs as % of sales", targetDirection: "below" },
+  { name: "Total Semi-Fixed Expense", key: "total_semi_fixed_expense", type: "dollar", description: "Total semi-fixed expenses", targetDirection: "below" },
+  { name: "Total Semi-Fixed Expense %", key: "total_semi_fixed_expense_percent", type: "percentage", description: "Semi-fixed expenses as % of sales", targetDirection: "below" },
+  { name: "Total Fixed Expense", key: "total_fixed_expense", type: "dollar", description: "Total fixed expenses", targetDirection: "below" },
+  { name: "Department Profit", key: "department_profit", type: "dollar", description: "Department profit after all expenses", targetDirection: "above" },
+  { name: "Parts Transfer", key: "parts_transfer", type: "dollar", description: "Internal parts transfers", targetDirection: "above" },
+  { name: "Net", key: "net", type: "dollar", description: "Net profit/loss", targetDirection: "above" },
 ];
 
 const getMonthsForQuarter = (quarter: number, year: number) => {
@@ -57,11 +59,13 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
+  const [targetDirections, setTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [isOpen, setIsOpen] = useState(true);
   const [targetsDialogOpen, setTargetsDialogOpen] = useState(false);
   const [editTargets, setEditTargets] = useState<{ [key: string]: string }>({});
+  const [editTargetDirections, setEditTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -110,13 +114,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     const targetsMap: { [key: string]: number } = {};
     const editMap: { [key: string]: string } = {};
+    const directionsMap: { [key: string]: "above" | "below" } = {};
+    const editDirectionsMap: { [key: string]: "above" | "below" } = {};
+    
     data?.forEach(target => {
       targetsMap[target.metric_name] = target.target_value || 0;
       editMap[target.metric_name] = target.target_value?.toString() || "";
+      directionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
+      editDirectionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
+    });
+
+    // Fill in default directions for metrics without saved targets
+    FINANCIAL_METRICS.forEach(metric => {
+      if (!directionsMap[metric.key]) {
+        directionsMap[metric.key] = metric.targetDirection;
+        editDirectionsMap[metric.key] = metric.targetDirection;
+      }
     });
 
     setTargets(targetsMap);
     setEditTargets(editMap);
+    setTargetDirections(directionsMap);
+    setEditTargetDirections(editDirectionsMap);
   };
 
   const handleSaveTargets = async () => {
@@ -124,6 +143,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       department_id: departmentId,
       metric_name: metric.key,
       target_value: parseFloat(editTargets[metric.key] || "0"),
+      target_direction: editTargetDirections[metric.key] || metric.targetDirection,
       quarter,
       year,
     }));
@@ -297,16 +317,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       {FINANCIAL_METRICS.map((metric) => (
                         <div key={metric.key} className="space-y-2">
                           <Label htmlFor={metric.key}>{metric.name}</Label>
-                          <Input
-                            id={metric.key}
-                            type="number"
-                            step="any"
-                            value={editTargets[metric.key] || ""}
-                            onChange={(e) =>
-                              setEditTargets(prev => ({ ...prev, [metric.key]: e.target.value }))
-                            }
-                            placeholder={`Enter ${metric.name} target`}
-                          />
+                          <div className="flex gap-2">
+                            <Input
+                              id={metric.key}
+                              type="number"
+                              step="any"
+                              value={editTargets[metric.key] || ""}
+                              onChange={(e) =>
+                                setEditTargets(prev => ({ ...prev, [metric.key]: e.target.value }))
+                              }
+                              placeholder={`Enter ${metric.name} target`}
+                              className="flex-1"
+                            />
+                            <Select
+                              value={editTargetDirections[metric.key] || metric.targetDirection}
+                              onValueChange={(value: "above" | "below") =>
+                                setEditTargetDirections(prev => ({ ...prev, [metric.key]: value }))
+                              }
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="above">Higher is Better</SelectItem>
+                                <SelectItem value="below">Lower is Better</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -347,6 +384,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 <TableBody>
                   {FINANCIAL_METRICS.map((metric) => {
                     const target = targets[metric.key];
+                    const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     
                     return (
                       <TableRow key={metric.key} className="hover:bg-muted/30">
@@ -364,12 +402,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const value = entries[key];
                           const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
+                          // Calculate status based on target and value
+                          let status = "default";
+                          if (value !== null && value !== undefined && target) {
+                            const variance = metric.type === "percentage" 
+                              ? value - target 
+                              : ((value - target) / target) * 100;
+                            
+                            if (targetDirection === "above") {
+                              // Higher is better
+                              status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                            } else {
+                              // Lower is better (invert the logic)
+                              status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                            }
+                          }
+                          
                           return (
                             <TableCell
                               key={month.identifier}
                               className={cn(
                                 "p-1 relative min-w-[125px] max-w-[125px]",
-                                metric.key === "net" && value && value < 0 && "bg-destructive/10"
+                                status === "success" && "bg-success/10",
+                                status === "warning" && "bg-warning/10",
+                                status === "destructive" && "bg-destructive/10"
                               )}
                             >
                               <div className="relative flex items-center justify-center gap-0">
@@ -400,7 +456,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   data-month-index={monthIndex}
                                   className={cn(
                                     "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                    metric.key === "net" && value && value < 0 && "text-destructive font-medium"
+                                    status === "success" && "text-success font-medium",
+                                    status === "warning" && "text-warning font-medium",
+                                    status === "destructive" && "text-destructive font-medium"
                                   )}
                                   placeholder="-"
                                   disabled={saving[key]}
