@@ -99,7 +99,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const { data, error } = await supabase
       .from("financial_targets")
       .select("*")
-      .eq("department_id", departmentId);
+      .eq("department_id", departmentId)
+      .eq("quarter", quarter)
+      .eq("year", year);
 
     if (error) {
       console.error("Error loading targets:", error);
@@ -122,12 +124,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       department_id: departmentId,
       metric_name: metric.key,
       target_value: parseFloat(editTargets[metric.key] || "0"),
+      quarter,
+      year,
     }));
 
     const { error } = await supabase
       .from("financial_targets")
       .upsert(updates, {
-        onConflict: "department_id,metric_name"
+        onConflict: "department_id,metric_name,quarter,year"
       });
 
     if (error) {
@@ -332,7 +336,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-2">
                       Financial Metric
                     </TableHead>
-                    <TableHead className="text-center font-bold min-w-[100px] py-2">Target</TableHead>
+                    <TableHead className="text-center font-bold min-w-[100px] py-2">Q{quarter} Target</TableHead>
                     {months.map((month) => (
                       <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-2">
                         {month.label}

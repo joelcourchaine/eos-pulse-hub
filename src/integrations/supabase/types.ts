@@ -147,24 +147,30 @@ export type Database = {
           department_id: string
           id: string
           metric_name: string
+          quarter: number
           target_value: number
           updated_at: string
+          year: number
         }
         Insert: {
           created_at?: string
           department_id: string
           id?: string
           metric_name: string
+          quarter?: number
           target_value: number
           updated_at?: string
+          year?: number
         }
         Update: {
           created_at?: string
           department_id?: string
           id?: string
           metric_name?: string
+          quarter?: number
           target_value?: number
           updated_at?: string
+          year?: number
         }
         Relationships: [
           {
@@ -226,6 +232,44 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpi_targets: {
+        Row: {
+          created_at: string
+          id: string
+          kpi_id: string
+          quarter: number
+          target_value: number | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kpi_id: string
+          quarter: number
+          target_value?: number | null
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kpi_id?: string
+          quarter?: number
+          target_value?: number | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_targets_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
             referencedColumns: ["id"]
           },
         ]

@@ -18,6 +18,11 @@ interface KPI {
   target_direction: "above" | "below";
 }
 
+interface KPITarget {
+  kpi_id: string;
+  target_value: number;
+}
+
 interface Profile {
   id: string;
   full_name: string;
@@ -132,6 +137,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
+  const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -154,6 +160,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   useEffect(() => {
     loadScorecardData();
     fetchProfiles();
+    loadKPITargets();
   }, [departmentId, kpis, year, quarter]);
 
   // Update local values when entries change
@@ -192,6 +199,37 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       profilesMap[profile.id] = profile;
     });
     setProfiles(profilesMap);
+  };
+
+  const loadKPITargets = async () => {
+    if (!kpis.length) return;
+
+    const kpiIds = kpis.map(k => k.id);
+    const { data, error } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .eq("quarter", quarter)
+      .eq("year", year);
+
+    if (error) {
+      console.error("Error loading KPI targets:", error);
+      return;
+    }
+
+    const targetsMap: { [key: string]: number } = {};
+    data?.forEach(target => {
+      targetsMap[target.kpi_id] = target.target_value || 0;
+    });
+
+    // For KPIs without quarterly targets, fall back to default target_value
+    kpis.forEach(kpi => {
+      if (!targetsMap[kpi.id]) {
+        targetsMap[kpi.id] = kpi.target_value;
+      }
+    });
+
+    setKpiTargets(targetsMap);
   };
 
   const loadScorecardData = async () => {
@@ -427,7 +465,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                   className="bg-muted z-20 text-center font-bold min-w-[100px] py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   style={{ position: 'sticky', left: '200px' }}
                 >
-                  Target
+                  Q{quarter} Target
                 </TableHead>
             {weeks.map((week) => {
               const weekDate = week.start.toISOString().split('T')[0];
@@ -521,7 +559,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     className="bg-background z-10 text-center text-muted-foreground py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     style={{ position: 'sticky', left: '200px' }}
                   >
-                    {formatTarget(kpi.target_value, kpi.metric_type)}
+                    {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
                   </TableCell>
                   {weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
@@ -551,7 +589,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                             step="any"
                             value={displayValue}
                             onChange={(e) =>
-                              handleValueChange(kpi.id, weekDate, e.target.value, kpi.target_value, kpi.metric_type, kpi.target_direction, false)
+                              handleValueChange(kpi.id, weekDate, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                             }
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
@@ -594,7 +632,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
                     const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
-                    const monthlyTarget = getMonthlyTarget(kpi.target_value, kpi.target_direction, kpi.metric_type);
+                    const monthlyTarget = getMonthlyTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.target_direction, kpi.metric_type);
                     
                     return (
                       <TableCell

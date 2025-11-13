@@ -581,6 +581,8 @@ const Dashboard = () => {
                   departmentId={selectedDepartment} 
                   kpis={kpis}
                   onKPIsChange={fetchKPIs}
+                  year={selectedYear}
+                  quarter={selectedQuarter}
                 />
               )}
             </div>

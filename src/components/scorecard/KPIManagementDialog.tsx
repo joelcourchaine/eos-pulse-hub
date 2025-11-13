@@ -30,9 +30,11 @@ interface KPIManagementDialogProps {
   departmentId: string;
   kpis: KPI[];
   onKPIsChange: () => void;
+  year: number;
+  quarter: number;
 }
 
-export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIManagementDialogProps) => {
+export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, quarter }: KPIManagementDialogProps) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [metricType, setMetricType] = useState<"dollar" | "percentage" | "unit">("dollar");
@@ -46,13 +48,15 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
+  const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       fetchProfiles();
+      loadKPITargets();
     }
-  }, [open]);
+  }, [open, kpis, quarter, year]);
 
   const fetchProfiles = async () => {
     const { data, error } = await supabase
@@ -66,6 +70,37 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
     }
 
     setProfiles(data || []);
+  };
+
+  const loadKPITargets = async () => {
+    if (!kpis.length) return;
+
+    const kpiIds = kpis.map(k => k.id);
+    const { data, error } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .eq("quarter", quarter)
+      .eq("year", year);
+
+    if (error) {
+      console.error("Error loading KPI targets:", error);
+      return;
+    }
+
+    const targetsMap: { [key: string]: number } = {};
+    data?.forEach(target => {
+      targetsMap[target.kpi_id] = target.target_value || 0;
+    });
+
+    // For KPIs without quarterly targets, fall back to default target_value
+    kpis.forEach(kpi => {
+      if (!targetsMap[kpi.id]) {
+        targetsMap[kpi.id] = kpi.target_value;
+      }
+    });
+
+    setKpiTargets(targetsMap);
   };
 
   const handleAddKPI = async () => {
@@ -140,9 +175,27 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
       return;
     }
 
-    await handleUpdateKPI(kpiId, "target_value", newValue);
+    // Save to kpi_targets table for the current quarter
+    const { error } = await supabase
+      .from("kpi_targets")
+      .upsert({
+        kpi_id: kpiId,
+        quarter,
+        year,
+        target_value: newValue,
+      }, {
+        onConflict: "kpi_id,quarter,year"
+      });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setEditingKpiId(null);
+      return;
+    }
+
     toast({ title: "Success", description: "Target updated successfully" });
     setEditingKpiId(null);
+    loadKPITargets();
   };
 
   const handleNameBlur = async (kpiId: string) => {
@@ -332,7 +385,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Target</TableHead>
+                      <TableHead>Q{quarter} Target</TableHead>
                       <TableHead>Goal</TableHead>
                       <TableHead>Owner</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -398,10 +451,10 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange }: KPIMan
                               <Input
                                 type="number"
                                 className="h-8 w-24"
-                                value={editingKpiId === kpi.id ? editingTargetValue : kpi.target_value}
+                                value={editingKpiId === kpi.id ? editingTargetValue : (kpiTargets[kpi.id] || kpi.target_value)}
                                 onFocus={() => {
                                   setEditingKpiId(kpi.id);
-                                  setEditingTargetValue(kpi.target_value.toString());
+                                  setEditingTargetValue((kpiTargets[kpi.id] || kpi.target_value).toString());
                                 }}
                                 onChange={(e) => setEditingTargetValue(e.target.value)}
                                 onBlur={() => handleTargetBlur(kpi.id)}
