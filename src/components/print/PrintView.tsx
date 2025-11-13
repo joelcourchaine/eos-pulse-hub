@@ -247,96 +247,105 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
             </div>
 
             {/* Scorecard Table */}
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th className="metric-col">KPI</th>
-                  <th className="target-col">Target</th>
-                  {periods.map(period => (
-                    <th key={mode === "weekly" ? (period as any).date : (period as any).identifier} className="value-col">
-                      {period.label}
-                    </th>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="print-table">
+                <colgroup>
+                  <col style={{ width: '200px', minWidth: '200px' }} />
+                  <col style={{ width: '100px', minWidth: '100px' }} />
+                  {periods.map((_, idx) => (
+                    <col key={idx} style={{ width: mode === 'weekly' ? '125px' : '105px', minWidth: mode === 'weekly' ? '125px' : '105px' }} />
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(groupedKpis).map(([ownerId, ownerKpis]) => {
-                  const owner = ownerId !== "unassigned" ? profiles[ownerId] : null;
-                  
-                  return (
-                    <React.Fragment key={ownerId}>
-                      {owner && (
-                        <tr className="owner-row">
-                          <td colSpan={2}>
-                            <strong>{owner.full_name}</strong>
-                          </td>
-                          <td colSpan={periods.length}></td>
-                        </tr>
-                      )}
-                      {ownerKpis.map(kpi => (
-                        <tr key={kpi.id}>
-                          <td className="kpi-name">{kpi.name}</td>
-                          <td className="target-value">{formatTarget(kpi.target_value, kpi.metric_type)}</td>
-                          {periods.map(period => {
-                            const entry = mode === "weekly"
-                              ? scorecardEntries.find(
-                                  e => e.kpi_id === kpi.id && e.week_start_date === (period as any).date
-                                )
-                              : scorecardEntries.find(
-                                  e => e.kpi_id === kpi.id && e.month === (period as any).identifier
-                                );
-                            const status = entry?.status || null;
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="metric-col">KPI</th>
+                    <th className="target-col">Target</th>
+                    {periods.map(period => (
+                      <th key={mode === "weekly" ? (period as any).date : (period as any).identifier} className="value-col">
+                        {period.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(groupedKpis).map(([ownerId, ownerKpis]) => {
+                    const owner = ownerId !== "unassigned" ? profiles[ownerId] : null;
+                    
+                    return (
+                      <React.Fragment key={ownerId}>
+                        {owner && (
+                          <tr className="owner-row">
+                            <td colSpan={2}>
+                              <strong>{owner.full_name}</strong>
+                            </td>
+                            <td colSpan={periods.length}></td>
+                          </tr>
+                        )}
+                        {ownerKpis.map(kpi => (
+                          <tr key={kpi.id}>
+                            <td className="kpi-name">{kpi.name}</td>
+                            <td className="target-value">{formatTarget(kpi.target_value, kpi.metric_type)}</td>
+                            {periods.map(period => {
+                              const entry = mode === "weekly"
+                                ? scorecardEntries.find(
+                                    e => e.kpi_id === kpi.id && e.week_start_date === (period as any).date
+                                  )
+                                : scorecardEntries.find(
+                                    e => e.kpi_id === kpi.id && e.month === (period as any).identifier
+                                  );
+                              const status = entry?.status || null;
+                              
+                              return (
+                                <td 
+                                  key={mode === "weekly" ? (period as any).date : (period as any).identifier}
+                                  className={`value-cell ${status === 'green' ? 'status-green' : status === 'yellow' ? 'status-yellow' : status === 'red' ? 'status-red' : ''}`}
+                                >
+                                  {entry?.actual_value !== null && entry?.actual_value !== undefined
+                                    ? kpi.metric_type === "dollar" 
+                                      ? `$${entry.actual_value.toLocaleString()}`
+                                      : kpi.metric_type === "percentage"
+                                      ? `${entry.actual_value}%`
+                                      : entry.actual_value.toString()
+                                    : "-"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {/* Financial Metrics Section - Only show in monthly mode */}
+                  {mode === "monthly" && (
+                    <>
+                      <tr className="section-divider">
+                        <td colSpan={2 + periods.length}>
+                          <strong>Financial Metrics</strong>
+                        </td>
+                      </tr>
+                      {FINANCIAL_METRICS.map(metric => (
+                        <tr key={metric.key} className="financial-row">
+                          <td className="kpi-name">{metric.name}</td>
+                          <td className="target-value">-</td>
+                          {months.map(month => {
+                            const entry = financialEntries.find(
+                              e => e.metric_name === metric.key && e.month === month.identifier
+                            );
                             
                             return (
-                              <td 
-                                key={mode === "weekly" ? (period as any).date : (period as any).identifier}
-                                className={`value-cell ${status === 'green' ? 'status-green' : status === 'yellow' ? 'status-yellow' : status === 'red' ? 'status-red' : ''}`}
-                              >
-                                {entry?.actual_value !== null && entry?.actual_value !== undefined
-                                  ? kpi.metric_type === "dollar" 
-                                    ? `$${entry.actual_value.toLocaleString()}`
-                                    : kpi.metric_type === "percentage"
-                                    ? `${entry.actual_value}%`
-                                    : entry.actual_value.toString()
-                                  : "-"}
+                              <td key={month.identifier} className="value-cell">
+                                {formatValue(entry?.value || null, metric.type)}
                               </td>
                             );
                           })}
                         </tr>
                       ))}
-                    </React.Fragment>
-                  );
-                })}
-
-                {/* Financial Metrics Section - Only show in monthly mode */}
-                {mode === "monthly" && (
-                  <>
-                    <tr className="section-divider">
-                      <td colSpan={2 + periods.length}>
-                        <strong>Financial Metrics</strong>
-                      </td>
-                    </tr>
-                    {FINANCIAL_METRICS.map(metric => (
-                      <tr key={metric.key} className="financial-row">
-                        <td className="kpi-name">{metric.name}</td>
-                        <td className="target-value">-</td>
-                        {months.map(month => {
-                          const entry = financialEntries.find(
-                            e => e.metric_name === metric.key && e.month === month.identifier
-                          );
-                          
-                          return (
-                            <td key={month.identifier} className="value-cell">
-                              {formatValue(entry?.value || null, metric.type)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </>
-                )}
-              </tbody>
-            </table>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         );
       })}
@@ -368,7 +377,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
         }
 
         .print-table {
-          width: 100%;
+          width: max-content;
           border-collapse: collapse;
           margin-bottom: 16px;
           table-layout: fixed;
@@ -381,9 +390,6 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           text-align: left;
           color: #000;
           line-height: 1.2;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
         }
 
         .print-table th {
@@ -391,28 +397,23 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           font-weight: bold;
           text-align: center;
           color: #000;
-          font-size: 9px;
+          font-size: 10px;
         }
 
         .metric-col {
           width: 200px;
           min-width: 200px;
-          max-width: 200px;
         }
 
         .target-col {
-          width: 80px;
-          min-width: 80px;
-          max-width: 80px;
+          width: 100px;
+          min-width: 100px;
           text-align: center;
         }
 
         .value-col {
-          width: 70px;
-          min-width: 70px;
-          max-width: 70px;
           text-align: center;
-          font-size: 9px;
+          font-size: 10px;
         }
 
         .kpi-name {
