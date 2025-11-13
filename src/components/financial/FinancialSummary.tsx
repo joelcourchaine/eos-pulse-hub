@@ -224,30 +224,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           )
           .map(entry => entry.value || 0) || [];
         
-        if (values.length > 0) {
-          // For percentage metrics, recalculate from underlying dollar amounts
-          if (metric.type === "percentage" && metric.calculation) {
-            const { numerator, denominator } = metric.calculation;
-            
-            const numeratorValues = data
-              ?.filter(entry => entry.metric_name === numerator && quarterMonthIds.includes(entry.month))
-              .map(entry => entry.value || 0) || [];
-            const denominatorValues = data
-              ?.filter(entry => entry.metric_name === denominator && quarterMonthIds.includes(entry.month))
-              .map(entry => entry.value || 0) || [];
-            
-            const totalNumerator = numeratorValues.reduce((sum, val) => sum + val, 0);
-            const totalDenominator = denominatorValues.reduce((sum, val) => sum + val, 0);
-            
-            if (totalDenominator > 0) {
-              const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
-              averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
-            }
-          } else {
-            // For dollar metrics, use simple average
-            const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-            averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
+        // For percentage metrics, recalculate from underlying dollar amounts
+        if (metric.type === "percentage" && metric.calculation) {
+          const { numerator, denominator } = metric.calculation;
+          
+          const numeratorValues = data
+            ?.filter(entry => entry.metric_name === numerator && quarterMonthIds.includes(entry.month))
+            .map(entry => entry.value || 0) || [];
+          const denominatorValues = data
+            ?.filter(entry => entry.metric_name === denominator && quarterMonthIds.includes(entry.month))
+            .map(entry => entry.value || 0) || [];
+          
+          const totalNumerator = numeratorValues.reduce((sum, val) => sum + val, 0);
+          const totalDenominator = denominatorValues.reduce((sum, val) => sum + val, 0);
+          
+          if (totalDenominator > 0 && numeratorValues.length > 0 && denominatorValues.length > 0) {
+            const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
+            averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
           }
+        } else if (values.length > 0) {
+          // For dollar metrics, use simple average
+          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+          averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
         }
       });
     });
