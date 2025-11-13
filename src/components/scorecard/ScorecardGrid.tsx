@@ -433,6 +433,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               const weekDate = week.start.toISOString().split('T')[0];
               const isCurrentWeek = weekDate === currentWeekDate;
               const isPreviousWeek = weekDate === previousWeekDate;
+              const isCurrentOrPast = week.start <= today;
+              
+              // Calculate status counts for this week
+              const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 };
+              if (isCurrentOrPast) {
+                kpis.forEach(kpi => {
+                  const key = `${kpi.id}-${weekDate}`;
+                  const entry = entries[key];
+                  
+                  if (entry?.status === 'green') statusCounts.green++;
+                  else if (entry?.status === 'yellow') statusCounts.yellow++;
+                  else if (entry?.status === 'red') statusCounts.red++;
+                  else statusCounts.gray++;
+                });
+              }
               
               return (
                 <TableHead 
@@ -443,7 +458,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
                 >
-                  {week.label}
+                  {isCurrentOrPast && (
+                    <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
+                      <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">{statusCounts.green}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">{statusCounts.yellow}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">{statusCounts.red}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">{statusCounts.gray}</span>
+                    </div>
+                  )}
+                  <div className="text-xs font-semibold">{week.label}</div>
                   {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
                   {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
                 </TableHead>
