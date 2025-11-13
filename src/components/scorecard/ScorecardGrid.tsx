@@ -109,22 +109,26 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   return weeks;
 };
 
-const getMonthsForQuarter = (selectedQuarter: { year: number; quarter: number }) => {
+const getLast13Months = () => {
   const months = [];
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
   
-  // Q1: Jan, Feb, Mar (months 0, 1, 2)
-  // Q2: Apr, May, Jun (months 3, 4, 5)
-  // Q3: Jul, Aug, Sep (months 6, 7, 8)
-  // Q4: Oct, Nov, Dec (months 9, 10, 11)
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-11
   
-  for (let i = 0; i < 3; i++) {
-    const monthIndex = (selectedQuarter.quarter - 1) * 3 + i;
+  // Generate 13 months ending with current month
+  for (let i = 12; i >= 0; i--) {
+    const monthDate = new Date(currentYear, currentMonth - i, 1);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
     
     months.push({
-      label: monthNames[monthIndex],
-      identifier: `${selectedQuarter.year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      label: monthNames[month],
+      identifier: `${year}-${String(month + 1).padStart(2, '0')}`,
+      year: year,
+      month: month + 1,
       type: 'month' as const,
     });
   }
@@ -146,8 +150,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
-  const months = getMonthsForQuarter({ year, quarter });
-  const allPeriods = [...weeks, ...months];
+  const months = getLast13Months();
+  const allPeriods = viewMode === "weekly" ? weeks : months;
   
   // Get current week's Monday to highlight it
   const today = new Date();
@@ -163,7 +167,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     loadScorecardData();
     fetchProfiles();
     loadKPITargets();
-  }, [departmentId, kpis, year, quarter]);
+  }, [departmentId, kpis, year, quarter, viewMode]);
 
   // Update local values when entries change
   useEffect(() => {
@@ -241,31 +245,65 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     }
 
     setLoading(true);
-    const kpiIds = kpis.map(k => k.id);
-    const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
-    const monthIds = months.map(m => m.identifier);
+    const kpiIds = kpis.map((k) => k.id);
+    
+    if (viewMode === "weekly") {
+      // For weeks: fetch weekly entries for this quarter
+      const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
+      
+      const { data: weeklyData, error: weeklyError } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "weekly")
+        .in("week_start_date", weekDates);
 
-    const { data, error } = await supabase
-      .from("scorecard_entries")
-      .select("*")
-      .in("kpi_id", kpiIds)
-      .or(`week_start_date.in.(${weekDates.join(',')}),month.in.(${monthIds.join(',')})`);
+      if (weeklyError) {
+        console.error("Error loading weekly data:", weeklyError);
+        toast({
+          title: "Error",
+          description: "Failed to load weekly scorecard data",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to load scorecard data", variant: "destructive" });
-      setLoading(false);
-      return;
+      const newEntries: { [key: string]: ScorecardEntry } = {};
+      weeklyData?.forEach((entry) => {
+        const key = `${entry.kpi_id}-${entry.week_start_date}`;
+        newEntries[key] = entry;
+      });
+      setEntries(newEntries);
+    } else {
+      // For months: fetch monthly entries for last 13 months
+      const monthIdentifiers = months.map(m => m.identifier);
+      const { data: monthlyData, error: monthlyError } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "monthly")
+        .in("month", monthIdentifiers);
+
+      if (monthlyError) {
+        console.error("Error loading monthly data:", monthlyError);
+        toast({
+          title: "Error",
+          description: "Failed to load monthly scorecard data",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const newEntries: { [key: string]: ScorecardEntry } = {};
+      monthlyData?.forEach((entry) => {
+        const key = `${entry.kpi_id}-month-${entry.month}`;
+        newEntries[key] = entry;
+      });
+      setEntries(newEntries);
     }
 
-    const entriesMap: { [key: string]: ScorecardEntry } = {};
-    data?.forEach(entry => {
-      const key = entry.entry_type === 'monthly' 
-        ? `${entry.kpi_id}-month-${entry.month}`
-        : `${entry.kpi_id}-${entry.week_start_date}`;
-      entriesMap[key] = entry;
-    });
-
-    setEntries(entriesMap);
     setLoading(false);
   };
 
@@ -534,10 +572,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               );
             }) : months.map((month) => (
               <TableHead 
-                key={month.label} 
-                className="text-center min-w-[150px] max-w-[150px] text-sm py-2 font-bold"
+                key={month.identifier} 
+                className="text-center min-w-[120px] max-w-[120px] text-xs py-2 font-bold"
               >
-                {month.label}
+                <div className="text-xs font-semibold">{month.label}</div>
+                <div className="text-[10px] text-muted-foreground">{month.year}</div>
               </TableHead>
             ))}
           </TableRow>
@@ -652,57 +691,65 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                       </TableCell>
                     );
                   }) : months.map((month) => {
-                    // Aggregate weekly data for this month
-                    const monthWeeks = weeks.filter(week => {
-                      const weekMonth = `${week.start.getFullYear()}-${String(week.start.getMonth() + 1).padStart(2, '0')}`;
-                      return weekMonth === month.identifier;
-                    });
-                    
-                    const monthValues = monthWeeks.map(week => {
-                      const weekDate = week.start.toISOString().split('T')[0];
-                      const key = `${kpi.id}-${weekDate}`;
-                      return entries[key]?.actual_value;
-                    }).filter(v => v !== null && v !== undefined) as number[];
-                    
-                    let monthValue: number | null = null;
-                    let status: "default" | "success" | "warning" | "destructive" = "default";
-                    
-                    if (monthValues.length > 0) {
-                      // For dollar and unit metrics, sum the values
-                      // For percentage metrics, average the values
-                      if (kpi.metric_type === "percentage") {
-                        monthValue = monthValues.reduce((a, b) => a + b, 0) / monthValues.length;
-                      } else {
-                        monthValue = monthValues.reduce((a, b) => a + b, 0);
-                      }
-                      
-                      // Calculate status based on target
-                      const target = kpiTargets[kpi.id] || kpi.target_value;
-                      const variance = monthValue - target;
-                      const percentVariance = target !== 0 ? (variance / target) * 100 : 0;
-                      
-                      if (kpi.target_direction === "above") {
-                        if (percentVariance >= 0) status = "success";
-                        else if (percentVariance >= -10) status = "warning";
-                        else status = "destructive";
-                      } else {
-                        if (percentVariance <= 0) status = "success";
-                        else if (percentVariance <= 10) status = "warning";
-                        else status = "destructive";
-                      }
-                    }
+                    const key = `${kpi.id}-month-${month.identifier}`;
+                    const entry = entries[key];
+                    const status = getStatus(entry?.status || null);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
                     
                     return (
                       <TableCell
-                        key={month.label}
+                        key={month.identifier}
                         className={cn(
-                          "p-2 text-center min-w-[150px] max-w-[150px]",
-                          status === "success" && "bg-success/10 text-success font-medium",
-                          status === "warning" && "bg-warning/10 text-warning font-medium",
-                          status === "destructive" && "bg-destructive/10 text-destructive font-medium"
+                          "p-1 relative min-w-[120px] max-w-[120px]",
+                          status === "success" && "bg-success/10",
+                          status === "warning" && "bg-warning/10",
+                          status === "destructive" && "bg-destructive/10"
                         )}
                       >
-                         {monthValue !== null ? formatValue(monthValue, kpi.metric_type) : "-"}
+                        <div className="relative flex items-center justify-center gap-0">
+                          {kpi.metric_type === "dollar" && (
+                            <span className="text-muted-foreground text-sm">$</span>
+                          )}
+                           <Input
+                            type="number"
+                            step="any"
+                            value={displayValue}
+                            onChange={(e) =>
+                              handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
+                                
+                                if (currentKpiIndex < kpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
+                            data-kpi-index={index}
+                            data-period-index={months.findIndex(m => m.identifier === month.identifier)}
+                            className={cn(
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[100px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}
+                            placeholder="-"
+                            disabled={saving[key]}
+                          />
+                          {kpi.metric_type === "percentage" && (
+                            <span className="text-muted-foreground text-sm">%</span>
+                          )}
+                          {saving[key] && (
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          )}
+                        </div>
                       </TableCell>
                     );
                   })}
