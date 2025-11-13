@@ -32,6 +32,8 @@ const FINANCIAL_METRICS: FinancialMetric[] = [
   { name: "Personnel Expense %", key: "personnel_expense_percent", type: "percentage", description: "Labor costs as % of sales" },
   { name: "Total Semi-Fixed Expense", key: "total_semi_fixed_expense", type: "dollar", description: "Total semi-fixed expenses" },
   { name: "Total Semi-Fixed Expense %", key: "total_semi_fixed_expense_percent", type: "percentage", description: "Semi-fixed expenses as % of sales" },
+  { name: "Total Fixed Expense", key: "total_fixed_expense", type: "dollar", description: "Total fixed expenses" },
+  { name: "Department Profit", key: "department_profit", type: "dollar", description: "Department profit after all expenses" },
   { name: "Parts Transfer", key: "parts_transfer", type: "dollar", description: "Internal parts transfers" },
   { name: "Net", key: "net", type: "dollar", description: "Net profit/loss" },
 ];
