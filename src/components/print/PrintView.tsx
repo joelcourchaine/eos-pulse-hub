@@ -381,6 +381,9 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           text-align: left;
           color: #000;
           line-height: 1.2;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .print-table th {
@@ -388,20 +391,28 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
           font-weight: bold;
           text-align: center;
           color: #000;
+          font-size: 9px;
         }
 
         .metric-col {
-          width: 35%;
+          width: 200px;
+          min-width: 200px;
+          max-width: 200px;
         }
 
         .target-col {
-          width: 12%;
+          width: 80px;
+          min-width: 80px;
+          max-width: 80px;
           text-align: center;
         }
 
         .value-col {
-          width: 18%;
+          width: 70px;
+          min-width: 70px;
+          max-width: 70px;
           text-align: center;
+          font-size: 9px;
         }
 
         .kpi-name {
