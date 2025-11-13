@@ -507,6 +507,7 @@ export type Database = {
       }
       stores: {
         Row: {
+          brand: string | null
           created_at: string
           id: string
           location: string | null
@@ -515,6 +516,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand?: string | null
           created_at?: string
           id?: string
           location?: string | null
@@ -523,6 +525,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand?: string | null
           created_at?: string
           id?: string
           location?: string | null

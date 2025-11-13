@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -18,27 +19,6 @@ interface FinancialSummaryProps {
   quarter: number;
 }
 
-interface FinancialMetric {
-  name: string;
-  key: string;
-  type: "dollar" | "percentage";
-  description: string;
-  targetDirection: "above" | "below";
-}
-
-const FINANCIAL_METRICS: FinancialMetric[] = [
-  { name: "Total Sales", key: "total_sales", type: "dollar", description: "Total revenue for the period", targetDirection: "above" },
-  { name: "GP Net", key: "gp_net", type: "dollar", description: "Gross profit after costs", targetDirection: "above" },
-  { name: "GP%", key: "gp_percent", type: "percentage", description: "Gross profit margin", targetDirection: "above" },
-  { name: "Personnel Expense", key: "personnel_expense", type: "dollar", description: "Total labor costs", targetDirection: "below" },
-  { name: "Personnel Expense %", key: "personnel_expense_percent", type: "percentage", description: "Labor costs as % of sales", targetDirection: "below" },
-  { name: "Total Semi-Fixed Expense", key: "total_semi_fixed_expense", type: "dollar", description: "Total semi-fixed expenses", targetDirection: "below" },
-  { name: "Total Semi-Fixed Expense %", key: "total_semi_fixed_expense_percent", type: "percentage", description: "Semi-fixed expenses as % of sales", targetDirection: "below" },
-  { name: "Total Fixed Expense", key: "total_fixed_expense", type: "dollar", description: "Total fixed expenses", targetDirection: "below" },
-  { name: "Department Profit", key: "department_profit", type: "dollar", description: "Department profit after all expenses", targetDirection: "above" },
-  { name: "Parts Transfer", key: "parts_transfer", type: "dollar", description: "Internal parts transfers", targetDirection: "above" },
-  { name: "Net", key: "net", type: "dollar", description: "Net profit/loss", targetDirection: "above" },
-];
 
 const getMonthsForQuarter = (quarter: number, year: number) => {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
@@ -85,17 +65,45 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [editTargetDirections, setEditTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
+  const [storeBrand, setStoreBrand] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const months = getMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
+  const FINANCIAL_METRICS = getMetricsForBrand(storeBrand);
 
   useEffect(() => {
-    loadFinancialData();
-    loadTargets();
-    loadPrecedingQuartersData();
-  }, [departmentId, year, quarter]);
+    loadStoreBrand();
+  }, [departmentId]);
+
+  useEffect(() => {
+    if (storeBrand !== null) {
+      loadFinancialData();
+      loadTargets();
+      loadPrecedingQuartersData();
+    }
+  }, [departmentId, year, quarter, storeBrand]);
+
+  const loadStoreBrand = async () => {
+    if (!departmentId) return;
+
+    const { data: department } = await supabase
+      .from("departments")
+      .select("store_id")
+      .eq("id", departmentId)
+      .single();
+
+    if (department?.store_id) {
+      const { data: store } = await supabase
+        .from("stores")
+        .select("brand")
+        .eq("id", department.store_id)
+        .single();
+
+      setStoreBrand(store?.brand || null);
+    }
+  };
 
   // Update local values when entries change
   useEffect(() => {
@@ -220,59 +228,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         
         if (values.length > 0) {
           // For percentage metrics, recalculate from underlying dollar amounts
-          if (metric.type === "percentage") {
-            let calculatedPercentage: number | null = null;
+          if (metric.type === "percentage" && metric.calculation) {
+            const { numerator, denominator } = metric.calculation;
             
-            // GP% = GP Net / Total Sales * 100
-            if (metric.key === "gp_percent") {
-              const gpNetValues = data
-                ?.filter(entry => entry.metric_name === "gp_net" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              const salesValues = data
-                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              
-              const totalGpNet = gpNetValues.reduce((sum, val) => sum + val, 0);
-              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
-              
-              if (totalSales > 0) {
-                calculatedPercentage = (totalGpNet / totalSales) * 100;
-              }
-            }
-            // Personnel Expense % = Personnel Expense / Total Sales * 100
-            else if (metric.key === "personnel_expense_percent") {
-              const expenseValues = data
-                ?.filter(entry => entry.metric_name === "personnel_expense" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              const salesValues = data
-                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              
-              const totalExpense = expenseValues.reduce((sum, val) => sum + val, 0);
-              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
-              
-              if (totalSales > 0) {
-                calculatedPercentage = (totalExpense / totalSales) * 100;
-              }
-            }
-            // Total Semi-Fixed Expense % = Total Semi-Fixed Expense / Total Sales * 100
-            else if (metric.key === "total_semi_fixed_expense_percent") {
-              const expenseValues = data
-                ?.filter(entry => entry.metric_name === "total_semi_fixed_expense" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              const salesValues = data
-                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
-                .map(entry => entry.value || 0) || [];
-              
-              const totalExpense = expenseValues.reduce((sum, val) => sum + val, 0);
-              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
-              
-              if (totalSales > 0) {
-                calculatedPercentage = (totalExpense / totalSales) * 100;
-              }
-            }
+            const numeratorValues = data
+              ?.filter(entry => entry.metric_name === numerator && quarterMonthIds.includes(entry.month))
+              .map(entry => entry.value || 0) || [];
+            const denominatorValues = data
+              ?.filter(entry => entry.metric_name === denominator && quarterMonthIds.includes(entry.month))
+              .map(entry => entry.value || 0) || [];
             
-            if (calculatedPercentage !== null) {
+            const totalNumerator = numeratorValues.reduce((sum, val) => sum + val, 0);
+            const totalDenominator = denominatorValues.reduce((sum, val) => sum + val, 0);
+            
+            if (totalDenominator > 0) {
+              const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
               averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
             }
           } else {

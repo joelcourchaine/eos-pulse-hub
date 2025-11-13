@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2 } from "lucide-react";
@@ -16,6 +17,7 @@ interface StoreManagementDialogProps {
 export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDialogProps) {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [brand, setBrand] = useState<string>("GMC");
   const queryClient = useQueryClient();
 
   const { data: stores, isLoading } = useQuery({
@@ -34,13 +36,14 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
     mutationFn: async () => {
       const { error } = await supabase
         .from('stores')
-        .insert({ name, location });
+        .insert({ name, location, brand });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Store created successfully");
       setName("");
       setLocation("");
+      setBrand("GMC");
       queryClient.invalidateQueries({ queryKey: ['stores'] });
     },
     onError: (error: Error) => {
@@ -100,6 +103,19 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
               placeholder="e.g., 123 Main St, City, State"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="store-brand">Brand</Label>
+            <Select value={brand} onValueChange={setBrand}>
+              <SelectTrigger id="store-brand">
+                <SelectValue placeholder="Select brand" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GMC">GMC</SelectItem>
+                <SelectItem value="Chevrolet">Chevrolet</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button type="submit" disabled={createMutation.isPending}>
             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             <Plus className="mr-2 h-4 w-4" />
@@ -120,6 +136,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                   <div>
                     <div className="font-medium">{store.name}</div>
                     {store.location && <div className="text-sm text-muted-foreground">{store.location}</div>}
+                    {store.brand && <div className="text-sm text-muted-foreground">Brand: {store.brand}</div>}
                   </div>
                   <Button
                     variant="ghost"
