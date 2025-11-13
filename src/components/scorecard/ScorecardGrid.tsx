@@ -108,16 +108,22 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   return weeks;
 };
 
-const getAllMonths = (selectedYear: { year: number }) => {
+const getMonthsForQuarter = (selectedQuarter: { year: number; quarter: number }) => {
   const months = [];
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
   
-  // Return all 12 months for the year
-  for (let i = 0; i < 12; i++) {
+  // Q1: Jan, Feb, Mar (months 0, 1, 2)
+  // Q2: Apr, May, Jun (months 3, 4, 5)
+  // Q3: Jul, Aug, Sep (months 6, 7, 8)
+  // Q4: Oct, Nov, Dec (months 9, 10, 11)
+  
+  for (let i = 0; i < 3; i++) {
+    const monthIndex = (selectedQuarter.quarter - 1) * 3 + i;
+    
     months.push({
-      label: monthNames[i],
-      identifier: `${selectedYear.year}-${String(i + 1).padStart(2, '0')}`,
+      label: monthNames[monthIndex],
+      identifier: `${selectedQuarter.year}-${String(monthIndex + 1).padStart(2, '0')}`,
       type: 'month' as const,
     });
   }
@@ -138,7 +144,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
-  const months = getAllMonths({ year });
+  const months = getMonthsForQuarter({ year, quarter });
+  const allPeriods = [...weeks, ...months];
   
   // Get current week's Monday to highlight it
   const today = new Date();
@@ -375,34 +382,19 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
-  const getWeeklyTarget = (quarterlyTarget: number, targetDirection: "above" | "below", metricType: string) => {
+  const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
     // If percentage, keep the same target
     if (metricType === "percentage") {
-      return quarterlyTarget;
+      return weeklyTarget;
     }
     
     // If below target direction (lower is better), keep the same target
     if (targetDirection === "below") {
-      return quarterlyTarget;
+      return weeklyTarget;
     }
     
-    // If above target direction (higher is better) and not percentage, divide by 13 weeks
-    return quarterlyTarget / 13;
-  };
-
-  const getMonthlyTarget = (quarterlyTarget: number, targetDirection: "above" | "below", metricType: string) => {
-    // If percentage, keep the same target
-    if (metricType === "percentage") {
-      return quarterlyTarget;
-    }
-    
-    // If below target direction (lower is better), keep the same target
-    if (targetDirection === "below") {
-      return quarterlyTarget;
-    }
-    
-    // If above target direction (higher is better) and not percentage, divide by 3 months
-    return quarterlyTarget / 3;
+    // If above target direction (higher is better) and not percentage, multiply by 4
+    return weeklyTarget * 4;
   };
 
   if (loading) {
@@ -455,295 +447,258 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         </Select>
       </div>
 
-      <div className="relative border rounded-lg overflow-hidden">
-        <div className="flex">
-          {/* Fixed Left Column - KPI Names and Targets */}
-          <div className="flex-shrink-0 border-r bg-background">
-            <Table style={{ tableLayout: 'fixed', width: '300px' }}>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="bg-muted font-bold py-2 min-w-[200px]">
-                    KPI
-                  </TableHead>
-                  <TableHead className="bg-muted text-center font-bold min-w-[100px] py-2">
-                    Q{quarter} Target
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {kpis.map((kpi, index) => {
-                  const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
-                  const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
-                  const ownerName = owner?.full_name || "Unassigned";
-                  const ownerInitials = owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U";
+      <div className="relative">
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-x-auto border rounded-lg"
+        >
+          <Table className="relative" style={{ tableLayout: 'fixed', width: 'max-content' }}>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead 
+                  className="bg-muted z-20 min-w-[200px] font-bold py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  style={{ position: 'sticky', left: 0 }}
+                >
+                  KPI
+                </TableHead>
+                <TableHead 
+                  className="bg-muted z-20 text-center font-bold min-w-[100px] py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  style={{ position: 'sticky', left: '200px' }}
+                >
+                  Q{quarter} Target
+                </TableHead>
+            {weeks.map((week) => {
+              const weekDate = week.start.toISOString().split('T')[0];
+              const isCurrentWeek = weekDate === currentWeekDate;
+              const isPreviousWeek = weekDate === previousWeekDate;
+              const isCurrentOrPast = week.start <= today;
+              
+              // Calculate status counts for this week
+              const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 };
+              if (isCurrentOrPast) {
+                kpis.forEach(kpi => {
+                  const key = `${kpi.id}-${weekDate}`;
+                  const entry = entries[key];
                   
-                  return (
-                    <React.Fragment key={kpi.id}>
-                      {showOwnerHeader && (
-                        <TableRow className="bg-muted/50">
-                          <TableCell className="bg-muted py-1">
-                            <div className="flex items-center gap-2">
-                              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                                <span className="text-xs font-semibold text-primary">
-                                  {ownerInitials}
-                                </span>
-                              </div>
-                              <span className="font-semibold text-sm">{ownerName}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="bg-muted py-1" />
-                        </TableRow>
-                      )}
-                      <TableRow className="hover:bg-muted/30">
-                        <TableCell className="bg-background font-medium pl-8 py-2">
-                          {kpi.name}
-                        </TableCell>
-                        <TableCell className="bg-background text-center text-muted-foreground py-2">
-                          {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
-                        </TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Scrollable Weeks Section */}
-          <div className="flex-shrink-0 border-r overflow-x-auto" style={{ maxWidth: 'calc(100vw - 650px)' }}>
-            <Table style={{ tableLayout: 'fixed', width: 'max-content' }}>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
+                  if (entry?.status === 'green') statusCounts.green++;
+                  else if (entry?.status === 'yellow') statusCounts.yellow++;
+                  else if (entry?.status === 'red') statusCounts.red++;
+                  else statusCounts.gray++;
+                });
+              }
+              
+              return (
+                <TableHead 
+                  key={week.label} 
+                  className={cn(
+                    "text-center min-w-[125px] max-w-[125px] text-xs py-2",
+                    isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
+                    isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
+                  )}
+                >
+                  {isCurrentOrPast && (
+                    <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
+                      <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">{statusCounts.green}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">{statusCounts.yellow}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">{statusCounts.red}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">{statusCounts.gray}</span>
+                    </div>
+                  )}
+                  <div className="text-xs font-semibold">{week.label}</div>
+                  {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
+                  {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
+                </TableHead>
+              );
+            })}
+            {months.map((month) => (
+              <TableHead key={month.identifier} className="text-center min-w-[105px] bg-primary/10 font-bold border-l-2 py-2">
+                {month.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {kpis.map((kpi, index) => {
+            const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
+            const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+            const ownerName = owner?.full_name || "Unassigned";
+            const ownerInitials = owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U";
+            
+            return (
+              <React.Fragment key={kpi.id}>
+                {showOwnerHeader && (
+                  <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
+                    <TableCell 
+                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      style={{ position: 'sticky', left: 0 }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-semibold text-primary">
+                            {ownerInitials}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-sm">{ownerName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell 
+                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      style={{ position: 'sticky', left: '200px' }}
+                    />
+                    <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
+                  </TableRow>
+                )}
+                <TableRow className="hover:bg-muted/30">
+                  <TableCell 
+                    className="bg-background z-10 font-medium pl-8 py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    style={{ position: 'sticky', left: 0 }}
+                  >
+                    {kpi.name}
+                  </TableCell>
+                  <TableCell 
+                    className="bg-background z-10 text-center text-muted-foreground py-2 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    style={{ position: 'sticky', left: '200px' }}
+                  >
+                    {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
+                  </TableCell>
                   {weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
+                    const key = `${kpi.id}-${weekDate}`;
+                    const entry = entries[key];
+                    const status = getStatus(entry?.status || null);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
                     const isCurrentWeek = weekDate === currentWeekDate;
-                    const isPreviousWeek = weekDate === previousWeekDate;
-                    const isCurrentOrPast = week.start <= today;
-                    
-                    const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 };
-                    if (isCurrentOrPast) {
-                      kpis.forEach(kpi => {
-                        const key = `${kpi.id}-${weekDate}`;
-                        const entry = entries[key];
-                        
-                        if (entry?.status === 'green') statusCounts.green++;
-                        else if (entry?.status === 'yellow') statusCounts.yellow++;
-                        else if (entry?.status === 'red') statusCounts.red++;
-                        else statusCounts.gray++;
-                      });
-                    }
                     
                     return (
-                      <TableHead 
-                        key={week.label} 
+                      <TableCell
+                        key={week.label}
                         className={cn(
-                          "text-center min-w-[125px] max-w-[125px] text-xs py-2",
-                          isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
-                          isPreviousWeek && "bg-accent/20"
+                          "p-1 relative min-w-[125px] max-w-[125px]",
+                          status === "success" && "bg-success/10",
+                          status === "warning" && "bg-warning/10",
+                          status === "destructive" && "bg-destructive/10",
+                          isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
                         )}
                       >
-                        {isCurrentOrPast && (
-                          <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
-                            <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">{statusCounts.green}</span>
-                            <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">{statusCounts.yellow}</span>
-                            <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">{statusCounts.red}</span>
-                            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">{statusCounts.gray}</span>
-                          </div>
+                        <div className="relative flex items-center justify-center gap-0">
+                          {kpi.metric_type === "dollar" && (
+                            <span className="text-muted-foreground text-sm">$</span>
+                          )}
+                           <Input
+                            type="number"
+                            step="any"
+                            value={displayValue}
+                            onChange={(e) =>
+                              handleValueChange(kpi.id, weekDate, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
+                                
+                                if (currentKpiIndex < kpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
+                            data-kpi-index={index}
+                            data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
+                            className={cn(
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}
+                            placeholder="-"
+                            disabled={saving[key]}
+                          />
+                          {kpi.metric_type === "percentage" && (
+                            <span className="text-muted-foreground text-sm">%</span>
+                          )}
+                          {saving[key] && (
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
+                    );
+                  })}
+                  {months.map((month) => {
+                    const key = `${kpi.id}-month-${month.identifier}`;
+                    const entry = entries[key];
+                    const status = getStatus(entry?.status || null);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
+                    const monthlyTarget = getMonthlyTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.target_direction, kpi.metric_type);
+                    
+                    return (
+                      <TableCell
+                        key={month.identifier}
+                        className={cn(
+                          "p-1 relative border-l-2",
+                          status === "success" && "bg-success/10",
+                          status === "warning" && "bg-warning/10",
+                          status === "destructive" && "bg-destructive/10"
                         )}
-                        <div className="text-xs font-semibold">{week.label}</div>
-                        {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
-                        {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
-                      </TableHead>
+                      >
+                        <div className="relative flex items-center justify-center gap-0">
+                          {kpi.metric_type === "dollar" && (
+                            <span className="text-muted-foreground text-sm">$</span>
+                          )}
+                           <Input
+                            type="number"
+                            step="any"
+                            value={displayValue}
+                            onChange={(e) =>
+                              handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                const currentPeriodIndex = weeks.length + months.findIndex(m => m.identifier === month.identifier);
+                                
+                                if (currentKpiIndex < kpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
+                            data-kpi-index={index}
+                            data-period-index={weeks.length + months.findIndex(m => m.identifier === month.identifier)}
+                            className={cn(
+                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}
+                            placeholder="-"
+                            disabled={saving[key]}
+                          />
+                          {kpi.metric_type === "percentage" && (
+                            <span className="text-muted-foreground text-sm">%</span>
+                          )}
+                          {saving[key] && (
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
                     );
                   })}
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {kpis.map((kpi, index) => {
-                  const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
-                  
-                  return (
-                    <React.Fragment key={kpi.id}>
-                      {showOwnerHeader && (
-                        <TableRow className="bg-muted/50">
-                          <TableCell colSpan={weeks.length} className="bg-muted/50 py-1" />
-                        </TableRow>
-                      )}
-                      <TableRow className="hover:bg-muted/30">
-                        {weeks.map((week) => {
-                          const weekDate = week.start.toISOString().split('T')[0];
-                          const key = `${kpi.id}-${weekDate}`;
-                          const entry = entries[key];
-                          const status = getStatus(entry?.status || null);
-                          const isCurrentWeek = weekDate === currentWeekDate;
-                          const isPreviousWeek = weekDate === previousWeekDate;
-                          const weeklyTarget = getWeeklyTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.target_direction, kpi.metric_type);
-                          const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
-                          
-                          return (
-                            <TableCell
-                              key={weekDate}
-                              className={cn(
-                                "p-1 relative",
-                                status === "success" && "bg-success/10",
-                                status === "warning" && "bg-warning/10",
-                                status === "destructive" && "bg-destructive/10",
-                                isCurrentWeek && "border-l-2 border-r-2 border-primary",
-                                isPreviousWeek && "bg-accent/5"
-                              )}
-                            >
-                              <div className="relative flex items-center justify-center gap-0">
-                                {kpi.metric_type === "dollar" && (
-                                  <span className="text-muted-foreground text-sm">$</span>
-                                )}
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  value={displayValue}
-                                  onChange={(e) =>
-                                    handleValueChange(kpi.id, weekDate, e.target.value, weeklyTarget, kpi.metric_type, kpi.target_direction, false)
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
-                                      const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
-                                      
-                                      if (currentKpiIndex < kpis.length - 1) {
-                                        const nextInput = document.querySelector(
-                                          `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                        ) as HTMLInputElement;
-                                        nextInput?.focus();
-                                        nextInput?.select();
-                                      }
-                                    }
-                                  }}
-                                  data-kpi-index={index}
-                                  data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
-                                  className={cn(
-                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                    status === "success" && "text-success font-medium",
-                                    status === "warning" && "text-warning font-medium",
-                                    status === "destructive" && "text-destructive font-medium"
-                                  )}
-                                  placeholder="-"
-                                  disabled={saving[key]}
-                                />
-                                {kpi.metric_type === "percentage" && (
-                                  <span className="text-muted-foreground text-sm">%</span>
-                                )}
-                                {saving[key] && (
-                                  <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                )}
-                              </div>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Scrollable Months Section */}
-          <div className="flex-1 overflow-x-auto">
-            <Table style={{ tableLayout: 'fixed', width: 'max-content' }}>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  {months.map((month) => (
-                    <TableHead key={month.identifier} className="text-center min-w-[105px] bg-primary/10 font-bold py-2">
-                      {month.label}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {kpis.map((kpi, index) => {
-                  const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
-                  
-                  return (
-                    <React.Fragment key={kpi.id}>
-                      {showOwnerHeader && (
-                        <TableRow className="bg-muted/50">
-                          <TableCell colSpan={months.length} className="bg-muted/50 py-1" />
-                        </TableRow>
-                      )}
-                      <TableRow className="hover:bg-muted/30">
-                        {months.map((month) => {
-                          const key = `${kpi.id}-month-${month.identifier}`;
-                          const entry = entries[key];
-                          const status = getStatus(entry?.status || null);
-                          const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
-                          const monthlyTarget = getMonthlyTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.target_direction, kpi.metric_type);
-                          
-                          return (
-                            <TableCell
-                              key={month.identifier}
-                              className={cn(
-                                "p-1 relative",
-                                status === "success" && "bg-success/10",
-                                status === "warning" && "bg-warning/10",
-                                status === "destructive" && "bg-destructive/10"
-                              )}
-                            >
-                              <div className="relative flex items-center justify-center gap-0">
-                                {kpi.metric_type === "dollar" && (
-                                  <span className="text-muted-foreground text-sm">$</span>
-                                )}
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  value={displayValue}
-                                  onChange={(e) =>
-                                    handleValueChange(kpi.id, '', e.target.value, monthlyTarget, kpi.metric_type, kpi.target_direction, true, month.identifier)
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
-                                      const currentPeriodIndex = weeks.length + months.findIndex(m => m.identifier === month.identifier);
-                                      
-                                      if (currentKpiIndex < kpis.length - 1) {
-                                        const nextInput = document.querySelector(
-                                          `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                        ) as HTMLInputElement;
-                                        nextInput?.focus();
-                                        nextInput?.select();
-                                      }
-                                    }
-                                  }}
-                                  data-kpi-index={index}
-                                  data-period-index={weeks.length + months.findIndex(m => m.identifier === month.identifier)}
-                                  className={cn(
-                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                    status === "success" && "text-success font-medium",
-                                    status === "warning" && "text-warning font-medium",
-                                    status === "destructive" && "text-destructive font-medium"
-                                  )}
-                                  placeholder="-"
-                                  disabled={saving[key]}
-                                />
-                                {kpi.metric_type === "percentage" && (
-                                  <span className="text-muted-foreground text-sm">%</span>
-                                )}
-                                {saving[key] && (
-                                  <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                )}
-                              </div>
-                            </TableCell>
-                          );
-                        })}
-                      </TableRow>
-                    </React.Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </div>
+              </React.Fragment>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  </div>
     </div>
   );
 };
