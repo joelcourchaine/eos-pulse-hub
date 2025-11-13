@@ -359,9 +359,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         <TableCell className="text-center text-muted-foreground py-2 min-w-[100px]">
                           {formatTarget(target, metric.type)}
                         </TableCell>
-                        {months.map((month) => {
+                        {months.map((month, monthIndex) => {
                           const key = `${metric.key}-${month.identifier}`;
                           const value = entries[key];
+                          const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
                           return (
                             <TableCell
@@ -382,6 +383,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   onChange={(e) =>
                                     handleValueChange(metric.key, month.identifier, e.target.value)
                                   }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      
+                                      if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                        const nextInput = document.querySelector(
+                                          `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
+                                        ) as HTMLInputElement;
+                                        nextInput?.focus();
+                                        nextInput?.select();
+                                      }
+                                    }
+                                  }}
+                                  data-metric-index={metricIndex}
+                                  data-month-index={monthIndex}
                                   className={cn(
                                     "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                     metric.key === "net" && value && value < 0 && "text-destructive font-medium"
