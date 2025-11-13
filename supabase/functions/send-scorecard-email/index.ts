@@ -36,9 +36,17 @@ function getWeekDates({ year, quarter }: { year: number; quarter: number }) {
     const weekNum = startWeek + i;
     const weekStart = new Date(yearStart);
     weekStart.setDate(yearStart.getDate() + (weekNum - 1) * 7);
+    
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    // Format as "M/D-M/D" (e.g., "12/30-1/5")
+    const startLabel = `${weekStart.getMonth() + 1}/${weekStart.getDate()}`;
+    const endLabel = `${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+    
     weeks.push({
       start: weekStart,
-      label: `Wk ${weekNum}`,
+      label: `${startLabel}-${endLabel}`,
       type: "week" as const,
     });
   }
