@@ -274,9 +274,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     saveTimeoutRef.current[key] = setTimeout(async () => {
       let numValue = parseFloat(value) || null;
       
-      // Round dollar values to nearest whole number
+      // Round all values to nearest whole number
       const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-      if (numValue !== null && metric?.type === "dollar") {
+      if (numValue !== null) {
         numValue = Math.round(numValue);
       }
 
@@ -325,14 +325,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const formatValue = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "";
     if (type === "dollar") return Math.round(value).toLocaleString();
-    if (type === "percentage") return value.toString();
+    if (type === "percentage") return Math.round(value).toString();
     return value.toString();
   };
 
   const formatTarget = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "-";
     if (type === "dollar") return `$${Math.round(value).toLocaleString()}`;
-    if (type === "percentage") return `${value}%`;
+    if (type === "percentage") return `${Math.round(value)}%`;
     return value.toString();
   };
 
