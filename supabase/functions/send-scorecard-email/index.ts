@@ -15,7 +15,9 @@ interface EmailRequest {
 }
 
 const YEAR_STARTS: Record<number, string> = {
-  2025: "2024-10-28",
+  2025: "2024-12-30", // Dec 30, 2024 (Monday)
+  2026: "2025-12-29", // Dec 29, 2025 (Monday)
+  2027: "2026-12-28", // Dec 28, 2026 (Monday)
 };
 
 function getQuarterInfo(date: Date) {
@@ -30,12 +32,12 @@ function getQuarterInfo(date: Date) {
 
 function getWeekDates({ year, quarter }: { year: number; quarter: number }) {
   const yearStart = new Date(YEAR_STARTS[year] || `${year}-01-01`);
-  const startWeek = (quarter - 1) * 13 + 1;
+  const quarterStartWeek = (quarter - 1) * 13;
   const weeks = [];
+  
   for (let i = 0; i < 13; i++) {
-    const weekNum = startWeek + i;
     const weekStart = new Date(yearStart);
-    weekStart.setDate(yearStart.getDate() + (weekNum - 1) * 7);
+    weekStart.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
     
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
@@ -54,32 +56,23 @@ function getWeekDates({ year, quarter }: { year: number; quarter: number }) {
 }
 
 function getMonthsForQuarter({ year, quarter }: { year: number; quarter: number }) {
-  const yearStart = new Date(YEAR_STARTS[year] || `${year}-01-01`);
-  const startWeek = (quarter - 1) * 13 + 1;
-  const endWeek = startWeek + 12;
-  
-  const quarterStartDate = new Date(yearStart);
-  quarterStartDate.setDate(yearStart.getDate() + (startWeek - 1) * 7);
-  
-  const quarterEndDate = new Date(yearStart);
-  quarterEndDate.setDate(yearStart.getDate() + endWeek * 7 - 1);
-  
   const months = [];
-  let currentDate = new Date(quarterStartDate);
-  const seenMonths = new Set<string>();
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
   
-  while (currentDate <= quarterEndDate) {
-    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-    if (!seenMonths.has(monthKey)) {
-      seenMonths.add(monthKey);
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      months.push({
-        label: monthNames[currentDate.getMonth()],
-        identifier: monthKey,
-        type: "month" as const,
-      });
-    }
-    currentDate.setDate(currentDate.getDate() + 7);
+  // Q1: Jan, Feb, Mar (months 0, 1, 2)
+  // Q2: Apr, May, Jun (months 3, 4, 5)
+  // Q3: Jul, Aug, Sep (months 6, 7, 8)
+  // Q4: Oct, Nov, Dec (months 9, 10, 11)
+  
+  for (let i = 0; i < 3; i++) {
+    const monthIndex = (quarter - 1) * 3 + i;
+    
+    months.push({
+      label: monthNames[monthIndex],
+      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      type: "month" as const,
+    });
   }
   
   return months;
