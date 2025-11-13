@@ -359,7 +359,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       loadPrecedingQuartersData();
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key];
-    }, 500);
+    }, 1000);
   };
 
   const formatValue = (value: number | undefined, type: string) => {
