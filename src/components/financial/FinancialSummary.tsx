@@ -219,8 +219,67 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           .map(entry => entry.value || 0) || [];
         
         if (values.length > 0) {
-          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-          averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
+          // For percentage metrics, recalculate from underlying dollar amounts
+          if (metric.type === "percentage") {
+            let calculatedPercentage: number | null = null;
+            
+            // GP% = GP Net / Total Sales * 100
+            if (metric.key === "gp_percent") {
+              const gpNetValues = data
+                ?.filter(entry => entry.metric_name === "gp_net" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              const salesValues = data
+                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              
+              const totalGpNet = gpNetValues.reduce((sum, val) => sum + val, 0);
+              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
+              
+              if (totalSales > 0) {
+                calculatedPercentage = (totalGpNet / totalSales) * 100;
+              }
+            }
+            // Personnel Expense % = Personnel Expense / Total Sales * 100
+            else if (metric.key === "personnel_expense_percent") {
+              const expenseValues = data
+                ?.filter(entry => entry.metric_name === "personnel_expense" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              const salesValues = data
+                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              
+              const totalExpense = expenseValues.reduce((sum, val) => sum + val, 0);
+              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
+              
+              if (totalSales > 0) {
+                calculatedPercentage = (totalExpense / totalSales) * 100;
+              }
+            }
+            // Total Semi-Fixed Expense % = Total Semi-Fixed Expense / Total Sales * 100
+            else if (metric.key === "total_semi_fixed_expense_percent") {
+              const expenseValues = data
+                ?.filter(entry => entry.metric_name === "total_semi_fixed_expense" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              const salesValues = data
+                ?.filter(entry => entry.metric_name === "total_sales" && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              
+              const totalExpense = expenseValues.reduce((sum, val) => sum + val, 0);
+              const totalSales = salesValues.reduce((sum, val) => sum + val, 0);
+              
+              if (totalSales > 0) {
+                calculatedPercentage = (totalExpense / totalSales) * 100;
+              }
+            }
+            
+            if (calculatedPercentage !== null) {
+              averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
+            }
+          } else {
+            // For dollar metrics, use simple average
+            const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+            averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
+          }
         }
       });
     });
