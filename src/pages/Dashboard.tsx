@@ -718,6 +718,7 @@ const Dashboard = () => {
     <UserManagementDialog
       open={showUsers}
       onOpenChange={setShowUsers}
+      currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id}
     />
     <StoreManagementDialog
       open={showStores}
