@@ -25,9 +25,10 @@ interface Profile {
 interface UserManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  currentStoreId?: string | null;
 }
 
-export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialogProps) => {
+export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: UserManagementDialogProps) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -38,14 +39,22 @@ export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialo
     if (open) {
       loadProfiles();
     }
-  }, [open]);
+  }, [open, currentStoreId]);
 
   const loadProfiles = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    let query = supabase
       .from("profiles")
-      .select("*")
-      .order("full_name");
+      .select("*");
+    
+    // Filter by current store if provided
+    // Show users with no store_id (multi-store access) or users from the current store
+    if (currentStoreId) {
+      query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
+    }
+    
+    const { data, error } = await query.order("full_name");
 
     if (error) {
       console.error("Error loading profiles:", error);
@@ -93,6 +102,7 @@ export const UserManagementDialog = ({ open, onOpenChange }: UserManagementDialo
         open={addUserOpen} 
         onOpenChange={setAddUserOpen}
         onUserCreated={loadProfiles}
+        currentStoreId={currentStoreId}
       />
       
       <Dialog open={open} onOpenChange={onOpenChange}>

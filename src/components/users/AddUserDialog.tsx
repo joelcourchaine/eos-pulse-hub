@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,16 +13,24 @@ interface AddUserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUserCreated: () => void;
+  currentStoreId?: string | null;
 }
 
-export const AddUserDialog = ({ open, onOpenChange, onUserCreated }: AddUserDialogProps) => {
+export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreId }: AddUserDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("department_manager");
-  const [storeId, setStoreId] = useState<string>("");
+  const [storeId, setStoreId] = useState<string>(currentStoreId || "");
   const [sendPasswordEmail, setSendPasswordEmail] = useState(false);
   const { toast } = useToast();
+
+  // Update storeId when currentStoreId changes
+  useEffect(() => {
+    if (currentStoreId) {
+      setStoreId(currentStoreId);
+    }
+  }, [currentStoreId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
