@@ -27,7 +27,7 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     targetDirection: "above" 
   },
   { 
-    name: "GP%", 
+    name: "GP %", 
     key: "gp_percent", 
     type: "percentage", 
     description: "Gross profit margin", 
@@ -38,38 +38,38 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     }
   },
   { 
-    name: "Personnel Expense", 
-    key: "personnel_expense", 
+    name: "Sales Expense", 
+    key: "sales_expense", 
     type: "dollar", 
-    description: "Total labor costs", 
+    description: "Total sales expenses", 
     targetDirection: "below" 
   },
   { 
-    name: "Personnel Expense %", 
-    key: "personnel_expense_percent", 
+    name: "Sales Expense %", 
+    key: "sales_expense_percent", 
     type: "percentage", 
-    description: "Labor costs as % of GP Net", 
+    description: "Sales expenses as % of GP Net", 
     targetDirection: "below",
     calculation: {
-      numerator: "personnel_expense",
+      numerator: "sales_expense",
       denominator: "gp_net"
     }
   },
   { 
-    name: "Total Semi-Fixed Expense", 
-    key: "total_semi_fixed_expense", 
+    name: "Semi Fixed Expense", 
+    key: "semi_fixed_expense", 
     type: "dollar", 
-    description: "Total semi-fixed expenses", 
+    description: "Semi-fixed expenses", 
     targetDirection: "below" 
   },
   { 
-    name: "Total Semi-Fixed Expense %", 
-    key: "total_semi_fixed_expense_percent", 
+    name: "Semi Fixed Expense %", 
+    key: "semi_fixed_expense_percent", 
     type: "percentage", 
     description: "Semi-fixed expenses as % of GP Net", 
     targetDirection: "below",
     calculation: {
-      numerator: "total_semi_fixed_expense",
+      numerator: "semi_fixed_expense",
       denominator: "gp_net"
     }
   },
@@ -101,6 +101,17 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     description: "Net profit/loss", 
     targetDirection: "above" 
   },
+  { 
+    name: "Return on Gross", 
+    key: "return_on_gross", 
+    type: "percentage", 
+    description: "Return on gross profit", 
+    targetDirection: "above",
+    calculation: {
+      numerator: "department_profit",
+      denominator: "gp_net"
+    }
+  },
 ];
 
 // You can add additional brand configurations here
@@ -115,6 +126,7 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   switch (brand.toUpperCase()) {
     case 'GMC':
     case 'CHEVROLET':
+    case 'MAIN DEALERSHIP':
       return GMC_CHEVROLET_METRICS;
     case 'OTHER':
       return OTHER_METRICS;
