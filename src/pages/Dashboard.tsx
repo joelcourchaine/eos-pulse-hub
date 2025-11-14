@@ -735,7 +735,7 @@ const Dashboard = () => {
     <DepartmentSelectionDialog
       open={showDepartments}
       onOpenChange={setShowDepartments}
-      storeId={profile?.store_id || ""}
+      storeId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id || ""}
     />
     </>
   );
