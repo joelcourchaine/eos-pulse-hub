@@ -18,14 +18,33 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [brand, setBrand] = useState<string>("GMC");
+  const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
+
+  const { data: storeGroups } = useQuery({
+    queryKey: ['store-groups'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('store_groups')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: stores, isLoading } = useQuery({
     queryKey: ['stores'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('stores')
-        .select('*')
+        .select(`
+          *,
+          store_groups (
+            id,
+            name
+          )
+        `)
         .order('name');
       if (error) throw error;
       return data;
@@ -36,7 +55,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
     mutationFn: async () => {
       const { error } = await supabase
         .from('stores')
-        .insert({ name, location, brand });
+        .insert({ name, location, brand, group_id: groupId || null });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -44,6 +63,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
       setName("");
       setLocation("");
       setBrand("GMC");
+      setGroupId(undefined);
       queryClient.invalidateQueries({ queryKey: ['stores'] });
     },
     onError: (error: Error) => {
@@ -121,6 +141,21 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="store-group">Store Group (Optional)</Label>
+            <Select value={groupId} onValueChange={setGroupId}>
+              <SelectTrigger id="store-group">
+                <SelectValue placeholder="Select group" />
+              </SelectTrigger>
+              <SelectContent>
+                {storeGroups?.map((group) => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button type="submit" disabled={createMutation.isPending}>
             {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             <Plus className="mr-2 h-4 w-4" />
@@ -142,6 +177,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                     <div className="font-medium">{store.name}</div>
                     {store.location && <div className="text-sm text-muted-foreground">{store.location}</div>}
                     {store.brand && <div className="text-sm text-muted-foreground">Brand: {store.brand}</div>}
+                    {store.store_groups && <div className="text-sm text-muted-foreground">Group: {store.store_groups.name}</div>}
                   </div>
                   <Button
                     variant="ghost"
