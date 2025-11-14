@@ -110,8 +110,12 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
     createMutation.mutate();
   };
 
+  // Filter out department types that are already used (by type_id or by name to prevent duplicates)
   const usedTypeIds = departments?.map(d => d.department_type_id).filter(Boolean) || [];
-  const availableTypes = departmentTypes?.filter(type => !usedTypeIds.includes(type.id)) || [];
+  const usedNames = departments?.map(d => d.name.toLowerCase()) || [];
+  const availableTypes = departmentTypes?.filter(type => 
+    !usedTypeIds.includes(type.id) && !usedNames.includes(type.name.toLowerCase())
+  ) || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
