@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
     // Create admin client
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -35,8 +36,63 @@ Deno.serve(async (req) => {
       },
     });
 
+    // SECURITY: Verify caller has super_admin role
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: Missing authorization header' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      console.error('Auth error:', authError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized: Invalid token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // Check if caller has super_admin role
+    const { data: callerRoles, error: roleError } = await userClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'super_admin');
+
+    if (roleError || !callerRoles || callerRoles.length === 0) {
+      console.error('Role check failed:', roleError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Forbidden: Only super admins can create users' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
+
+    console.log('Authorization successful for user:', user.id);
+
     const requestBody: CreateUserRequest = await req.json();
     let { email, full_name, role, store_id, store_group_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+
+    // SECURITY: Validate role
+    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only'];
+    if (!validRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Invalid role. Must be one of: ${validRoles.join(', ')}` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
 
     // Auto-generate email if not provided
     if (!email || email.trim() === '') {
@@ -71,11 +127,24 @@ Deno.serve(async (req) => {
 
     console.log('User created in auth:', userData.user.id);
 
-    // Update the profile with role, store_id, and store_group_id
+    // Insert into user_roles table (primary source of truth for roles)
+    const { error: userRoleError } = await supabaseAdmin
+      .from('user_roles')
+      .insert({
+        user_id: userData.user.id,
+        role: role,
+        assigned_by: user.id,
+      });
+
+    if (userRoleError) {
+      console.error('Error creating user role:', userRoleError);
+      throw userRoleError;
+    }
+
+    // Update the profile with store_id and store_group_id
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
-        role,
         store_id: store_id || null,
         store_group_id: store_group_id || null,
       })
@@ -86,7 +155,7 @@ Deno.serve(async (req) => {
       throw profileError;
     }
 
-    console.log('Profile updated successfully');
+    console.log('User role and profile updated successfully');
 
     // Send password reset email so user can set their own password (if requested)
     if (send_password_email) {
