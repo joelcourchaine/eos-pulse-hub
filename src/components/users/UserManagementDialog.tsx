@@ -20,6 +20,8 @@ interface Profile {
   start_year: number | null;
   role: string;
   reports_to: string | null;
+  store_id: string | null;
+  store_group_id: string | null;
 }
 
 interface UserManagementDialogProps {
@@ -30,6 +32,8 @@ interface UserManagementDialogProps {
 
 export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: UserManagementDialogProps) => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [stores, setStores] = useState<any[]>([]);
+  const [storeGroups, setStoreGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
@@ -38,8 +42,32 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   useEffect(() => {
     if (open) {
       loadProfiles();
+      loadStores();
+      loadStoreGroups();
     }
   }, [open, currentStoreId]);
+
+  const loadStores = async () => {
+    const { data } = await supabase
+      .from("stores")
+      .select("*")
+      .order("name");
+    
+    if (data) {
+      setStores(data);
+    }
+  };
+
+  const loadStoreGroups = async () => {
+    const { data } = await supabase
+      .from("store_groups")
+      .select("*")
+      .order("name");
+    
+    if (data) {
+      setStoreGroups(data);
+    }
+  };
 
   const loadProfiles = async () => {
     setLoading(true);
@@ -49,9 +77,21 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       .select("*");
     
     // Filter by current store if provided
-    // Show users with no store_id (multi-store access) or users from the current store
+    // Show users from the current store or users in a store group that contains this store
     if (currentStoreId) {
-      query = query.or(`store_id.eq.${currentStoreId},store_id.is.null`);
+      // Get the store's group_id
+      const { data: storeData } = await supabase
+        .from("stores")
+        .select("group_id")
+        .eq("id", currentStoreId)
+        .single();
+      
+      // Build filter: users from this store OR users from this store's group
+      if (storeData?.group_id) {
+        query = query.or(`store_id.eq.${currentStoreId},store_group_id.eq.${storeData.group_id}`);
+      } else {
+        query = query.eq("store_id", currentStoreId);
+      }
     }
     
     const { data, error } = await query.order("full_name");
@@ -133,6 +173,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                 <TableRow>
                   <TableHead className="min-w-[150px]">Name</TableHead>
                   <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[150px]">Store / Group</TableHead>
                   <TableHead className="min-w-[120px]">Birthday Month</TableHead>
                   <TableHead className="min-w-[100px]">Birthday Day</TableHead>
                   <TableHead className="min-w-[120px]">Start Month</TableHead>
@@ -153,6 +194,19 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {profile.email}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {profile.store_group_id ? (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          Group: {storeGroups.find(g => g.id === profile.store_group_id)?.name || 'Unknown'}
+                        </span>
+                      ) : profile.store_id ? (
+                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded">
+                          {stores.find(s => s.id === profile.store_id)?.name || 'Unknown'}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <select

@@ -340,6 +340,7 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
           start_month: number | null
           start_year: number | null
+          store_group_id: string | null
           store_id: string | null
           updated_at: string
         }
@@ -354,6 +355,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
+          store_group_id?: string | null
           store_id?: string | null
           updated_at?: string
         }
@@ -368,6 +370,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
           start_year?: number | null
+          store_group_id?: string | null
           store_id?: string | null
           updated_at?: string
         }
@@ -377,6 +380,13 @@ export type Database = {
             columns: ["reports_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_store_group_id_fkey"
+            columns: ["store_group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
             referencedColumns: ["id"]
           },
           {
@@ -638,6 +648,12 @@ export type Database = {
     Functions: {
       get_user_department: { Args: { _user_id: string }; Returns: string }
       get_user_store: { Args: { _user_id: string }; Returns: string }
+      get_user_stores: {
+        Args: { _user_id: string }
+        Returns: {
+          store_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

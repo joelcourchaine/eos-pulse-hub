@@ -22,6 +22,9 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("department_manager");
   const [storeId, setStoreId] = useState<string>(currentStoreId || "");
+  const [storeGroupId, setStoreGroupId] = useState<string>("");
+  const [stores, setStores] = useState<any[]>([]);
+  const [storeGroups, setStoreGroups] = useState<any[]>([]);
   const [sendPasswordEmail, setSendPasswordEmail] = useState(false);
   const { toast } = useToast();
 
@@ -31,6 +34,36 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setStoreId(currentStoreId);
     }
   }, [currentStoreId]);
+
+  // Load stores and store groups when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadStores();
+      loadStoreGroups();
+    }
+  }, [open]);
+
+  const loadStores = async () => {
+    const { data, error } = await supabase
+      .from("stores")
+      .select("*")
+      .order("name");
+    
+    if (!error && data) {
+      setStores(data);
+    }
+  };
+
+  const loadStoreGroups = async () => {
+    const { data, error } = await supabase
+      .from("store_groups")
+      .select("*")
+      .order("name");
+    
+    if (!error && data) {
+      setStoreGroups(data);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +76,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           full_name: fullName,
           role,
           store_id: storeId || null,
+          store_group_id: storeGroupId || null,
           send_password_email: sendPasswordEmail,
         },
       });
@@ -63,6 +97,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setFullName("");
       setRole("department_manager");
       setStoreId("");
+      setStoreGroupId("");
       setSendPasswordEmail(false);
       
       onUserCreated();
@@ -126,6 +161,54 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 <SelectItem value="read_only">Read Only</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="accessType">Store Access</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
+                <Select value={storeId} onValueChange={(value) => {
+                  setStoreId(value);
+                  if (value) setStoreGroupId(""); // Clear group if store selected
+                }}>
+                  <SelectTrigger id="store">
+                    <SelectValue placeholder="Select store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
+                <Select value={storeGroupId} onValueChange={(value) => {
+                  setStoreGroupId(value);
+                  if (value) setStoreId(""); // Clear store if group selected
+                }}>
+                  <SelectTrigger id="storeGroup">
+                    <SelectValue placeholder="Select group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {storeGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Assign to either a single store OR a store group for multi-store access
+            </p>
           </div>
 
           <div className="flex items-center space-x-2">
