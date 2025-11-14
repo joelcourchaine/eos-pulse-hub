@@ -101,6 +101,7 @@ export type Database = {
           id: string
           metric_name: string
           month: string
+          notes: string | null
           updated_at: string
           value: number | null
         }
@@ -111,6 +112,7 @@ export type Database = {
           id?: string
           metric_name: string
           month: string
+          notes?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -121,6 +123,7 @@ export type Database = {
           id?: string
           metric_name?: string
           month?: string
+          notes?: string | null
           updated_at?: string
           value?: number | null
         }
