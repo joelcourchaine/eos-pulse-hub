@@ -87,23 +87,31 @@ const Dashboard = () => {
   }, [profile]);
 
   useEffect(() => {
-    if (selectedStore) {
+    if (selectedStore && profile) {
       // Clear all data when switching stores
       setSelectedDepartment("");
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
       setActiveRocksCount(0);
       setMyOpenTodosCount(0);
+      
+      // Fetch departments for the new store
       fetchDepartments();
     }
-  }, [selectedStore]);
+  }, [selectedStore, profile]);
 
   useEffect(() => {
     if (selectedDepartment) {
-      fetchKPIs();
-      fetchKPIStatusCounts();
-      fetchActiveRocksCount();
-      fetchMyOpenTodosCount();
+      // Ensure we fetch all data when department changes
+      const fetchAllDepartmentData = async () => {
+        await Promise.all([
+          fetchKPIs(),
+          fetchKPIStatusCounts(),
+          fetchActiveRocksCount(),
+          fetchMyOpenTodosCount()
+        ]);
+      };
+      fetchAllDepartmentData();
     }
   }, [selectedDepartment]);
 
