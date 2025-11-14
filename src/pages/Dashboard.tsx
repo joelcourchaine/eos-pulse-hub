@@ -715,7 +715,7 @@ const Dashboard = () => {
         <MeetingFramework />
 
         {/* Celebrations */}
-        <Celebrations />
+        <Celebrations currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id} />
 
         {/* To-Dos Section */}
         <TodosPanel departmentId={selectedDepartment} userId={user?.id} />

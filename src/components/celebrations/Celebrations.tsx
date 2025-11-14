@@ -21,18 +21,41 @@ interface Celebration {
   yearsOfService?: number;
 }
 
-export const Celebrations = () => {
+interface CelebrationsProps {
+  currentStoreId?: string | null;
+}
+
+export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
   const [celebrations, setCelebrations] = useState<Celebration[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadCelebrations();
-  }, []);
+  }, [currentStoreId]);
 
   const loadCelebrations = async () => {
-    const { data: profiles, error } = await supabase
+    let query = supabase
       .from("profiles")
       .select("id, full_name, birthday_month, birthday_day, start_month, start_year");
+
+    // Filter by current store if provided
+    if (currentStoreId) {
+      // Get the store's group_id
+      const { data: storeData } = await supabase
+        .from("stores")
+        .select("group_id")
+        .eq("id", currentStoreId)
+        .single();
+      
+      // Show users from this store OR users from this store's group
+      if (storeData?.group_id) {
+        query = query.or(`store_id.eq.${currentStoreId},store_group_id.eq.${storeData.group_id}`);
+      } else {
+        query = query.eq("store_id", currentStoreId);
+      }
+    }
+    
+    const { data: profiles, error } = await query;
 
     if (error) {
       console.error("Error loading profiles:", error);
