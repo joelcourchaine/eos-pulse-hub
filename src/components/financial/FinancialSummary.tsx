@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +71,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(year);
+  const [notes, setNotes] = useState<{ [key: string]: string }>({});
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [currentNoteCell, setCurrentNoteCell] = useState<{ metricKey: string; monthId: string } | null>(null);
+  const [currentNote, setCurrentNote] = useState("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -310,12 +317,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
 
     const entriesMap: { [key: string]: number } = {};
+    const notesMap: { [key: string]: string } = {};
     data?.forEach(entry => {
       const key = `${entry.metric_name}-${entry.month}`;
       entriesMap[key] = entry.value || 0;
+      if (entry.notes) {
+        notesMap[key] = entry.notes;
+      }
     });
 
     setEntries(entriesMap);
+    setNotes(notesMap);
     setLoading(false);
   };
 
@@ -407,6 +419,66 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (type === "dollar") return `$${Math.round(value).toLocaleString()}`;
     if (type === "percentage") return `${Math.round(value)}%`;
     return value.toString();
+  };
+
+  const handleOpenNoteDialog = (metricKey: string, monthId: string) => {
+    const key = `${metricKey}-${monthId}`;
+    setCurrentNoteCell({ metricKey, monthId });
+    setCurrentNote(notes[key] || "");
+    setNoteDialogOpen(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!currentNoteCell) return;
+
+    const { metricKey, monthId } = currentNoteCell;
+    const key = `${metricKey}-${monthId}`;
+
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+
+    // Get current entry to preserve value
+    const { data: existingEntry } = await supabase
+      .from("financial_entries")
+      .select("*")
+      .eq("department_id", departmentId)
+      .eq("month", monthId)
+      .eq("metric_name", metricKey)
+      .maybeSingle();
+
+    const { error } = await supabase
+      .from("financial_entries")
+      .upsert({
+        department_id: departmentId,
+        month: monthId,
+        metric_name: metricKey,
+        value: existingEntry?.value || null,
+        notes: currentNote || null,
+        created_by: userId,
+      }, {
+        onConflict: "department_id,month,metric_name"
+      });
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to save note", variant: "destructive" });
+      return;
+    }
+
+    // Update local state
+    setNotes(prev => {
+      const newNotes = { ...prev };
+      if (currentNote) {
+        newNotes[key] = currentNote;
+      } else {
+        delete newNotes[key];
+      }
+      return newNotes;
+    });
+
+    toast({ title: "Success", description: "Note saved successfully" });
+    setNoteDialogOpen(false);
+    setCurrentNoteCell(null);
+    setCurrentNote("");
   };
 
   if (loading) {
@@ -610,58 +682,82 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           
                           return (
-                            <TableCell
-                              key={month.identifier}
-                              className={cn(
-                                "p-1 relative min-w-[125px] max-w-[125px]",
-                                status === "success" && "bg-success/10",
-                                status === "warning" && "bg-warning/10",
-                                status === "destructive" && "bg-destructive/10"
-                              )}
-                            >
-                              <div className="relative flex items-center justify-center gap-0">
-                                {metric.type === "dollar" && (
-                                  <span className="text-muted-foreground text-sm">$</span>
-                                )}
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  value={localValues[key] || ""}
-                                  onChange={(e) =>
-                                    handleValueChange(metric.key, month.identifier, e.target.value)
-                                  }
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      
-                                      if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                        const nextInput = document.querySelector(
-                                          `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
-                                        ) as HTMLInputElement;
-                                        nextInput?.focus();
-                                        nextInput?.select();
-                                      }
-                                    }
-                                  }}
-                                  data-metric-index={metricIndex}
-                                  data-month-index={monthIndex}
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <TableCell
+                                  key={month.identifier}
                                   className={cn(
-                                    "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                    status === "success" && "text-success font-medium",
-                                    status === "warning" && "text-warning font-medium",
-                                    status === "destructive" && "text-destructive font-medium"
+                                    "p-1 relative min-w-[125px] max-w-[125px]",
+                                    status === "success" && "bg-success/10",
+                                    status === "warning" && "bg-warning/10",
+                                    status === "destructive" && "bg-destructive/10"
                                   )}
-                                  placeholder="-"
-                                  disabled={saving[key]}
-                                />
-                                {metric.type === "percentage" && (
-                                  <span className="text-muted-foreground text-sm">%</span>
-                                )}
-                                {saving[key] && (
-                                  <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                )}
-                              </div>
-                            </TableCell>
+                                >
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="relative flex items-center justify-center gap-0">
+                                          {metric.type === "dollar" && (
+                                            <span className="text-muted-foreground text-sm">$</span>
+                                          )}
+                                          <Input
+                                            type="number"
+                                            step="any"
+                                            value={localValues[key] || ""}
+                                            onChange={(e) =>
+                                              handleValueChange(metric.key, month.identifier, e.target.value)
+                                            }
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                
+                                                if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                                  const nextInput = document.querySelector(
+                                                    `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
+                                                  ) as HTMLInputElement;
+                                                  nextInput?.focus();
+                                                  nextInput?.select();
+                                                }
+                                              }
+                                            }}
+                                            data-metric-index={metricIndex}
+                                            data-month-index={monthIndex}
+                                            className={cn(
+                                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                              status === "success" && "text-success font-medium",
+                                              status === "warning" && "text-warning font-medium",
+                                              status === "destructive" && "text-destructive font-medium"
+                                            )}
+                                            placeholder="-"
+                                            disabled={saving[key]}
+                                          />
+                                          {metric.type === "percentage" && (
+                                            <span className="text-muted-foreground text-sm">%</span>
+                                          )}
+                                          {saving[key] && (
+                                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                          )}
+                                          {notes[key] && (
+                                            <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary" />
+                                          )}
+                                        </div>
+                                      </TooltipTrigger>
+                                      {notes[key] && (
+                                        <TooltipContent className="max-w-xs bg-popover text-popover-foreground z-50">
+                                          <p className="text-sm">{notes[key]}</p>
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </TableCell>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="w-48 bg-popover z-50">
+                                <ContextMenuItem onClick={() => handleOpenNoteDialog(metric.key, month.identifier)}>
+                                  <StickyNote className="h-4 w-4 mr-2" />
+                                  {notes[key] ? "Edit Note" : "Add Note"}
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                            </ContextMenu>
                           );
                         })}
                       </TableRow>
@@ -673,6 +769,39 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+      
+      {/* Note Dialog */}
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent className="max-w-md bg-popover z-50">
+          <DialogHeader>
+            <DialogTitle>Add Note</DialogTitle>
+            <DialogDescription>
+              Add a note to this cell. It will appear when you hover over it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="note">Note</Label>
+              <Textarea
+                id="note"
+                value={currentNote}
+                onChange={(e) => setCurrentNote(e.target.value)}
+                placeholder="Enter your note here..."
+                rows={4}
+                className="mt-2"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveNote}>
+                Save Note
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
