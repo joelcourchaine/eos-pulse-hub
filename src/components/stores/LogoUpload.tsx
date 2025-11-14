@@ -78,6 +78,36 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!storeId) throw new Error("No store selected");
+      if (!store?.logo_url) throw new Error("No logo to delete");
+
+      // Delete from storage
+      const fileName = store.logo_url.split('/').pop();
+      if (fileName) {
+        await supabase.storage
+          .from('store-logos')
+          .remove([fileName]);
+      }
+
+      // Update store record
+      const { error: updateError } = await supabase
+        .from('stores')
+        .update({ logo_url: null })
+        .eq('id', storeId);
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      toast.success("Logo deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ['store', storeId] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete logo: ${error.message}`);
+    },
+  });
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,12 +147,12 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
           )}
           
           {isAdmin && (
-            <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-md">
+            <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-md">
               <label htmlFor="logo-upload" className="cursor-pointer">
                 <Button 
                   variant="secondary" 
                   size="sm"
-                  disabled={uploading}
+                  disabled={uploading || deleteMutation.isPending}
                   asChild
                 >
                   <span>
@@ -140,9 +170,23 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
                   accept="image/*"
                   onChange={handleFileChange}
                   className="hidden"
-                  disabled={uploading}
+                  disabled={uploading || deleteMutation.isPending}
                 />
               </label>
+              {store?.logo_url && (
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={uploading || deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Delete"
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </div>
