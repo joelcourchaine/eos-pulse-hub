@@ -35,12 +35,22 @@ export function LogoUpload({ storeId, userRole }: LogoUploadProps) {
     mutationFn: async (file: File) => {
       if (!storeId) throw new Error("No store selected");
 
-      // Upload to storage
+      // Delete old logo if exists
+      if (store?.logo_url) {
+        const oldFileName = store.logo_url.split('/').pop();
+        if (oldFileName) {
+          await supabase.storage
+            .from('store-logos')
+            .remove([oldFileName]);
+        }
+      }
+
+      // Upload to storage with unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${storeId}-${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('store-logos')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
