@@ -46,6 +46,8 @@ const Dashboard = () => {
   const [showUsers, setShowUsers] = useState(false);
   const [showStores, setShowStores] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
+  const [stores, setStores] = useState<any[]>([]);
+  const [selectedStore, setSelectedStore] = useState<string>("");
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -70,12 +72,25 @@ const Dashboard = () => {
         navigate("/auth");
       } else {
         fetchProfile(session.user.id);
-        fetchDepartments();
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  useEffect(() => {
+    if (profile?.role === 'super_admin') {
+      fetchStores();
+    } else if (profile) {
+      fetchDepartments();
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (selectedStore) {
+      fetchDepartments();
+    }
+  }, [selectedStore]);
 
   useEffect(() => {
     if (selectedDepartment) {
@@ -161,12 +176,41 @@ const Dashboard = () => {
     }
   };
 
-  const fetchDepartments = async () => {
+  const fetchStores = async () => {
     try {
       const { data, error } = await supabase
+        .from("stores")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setStores(data);
+        setSelectedStore(data[0].id);
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching stores",
+        description: error.message,
+      });
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      let query = supabase
         .from("departments")
         .select("*")
         .order("name");
+
+      // Filter by selected store for super_admin
+      if (profile?.role === 'super_admin' && selectedStore) {
+        query = query.eq("store_id", selectedStore);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setDepartments(data || []);
@@ -414,6 +458,20 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              {profile?.role === 'super_admin' && stores.length > 0 && (
+                <Select value={selectedStore} onValueChange={setSelectedStore}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select Store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {departments.length > 0 && (
                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
                   <SelectTrigger className="w-[180px]">
