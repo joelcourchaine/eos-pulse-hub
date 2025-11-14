@@ -626,7 +626,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         {pq.label}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center font-bold min-w-[100px] py-2">Q{quarter} Target</TableHead>
+                    <TableHead className="text-center font-bold min-w-[100px] py-2 bg-primary/10 border-x-2 border-primary/30">
+                      Q{quarter} Target
+                    </TableHead>
                     {months.map((month) => (
                       <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-2">
                         {month.label}
@@ -657,7 +659,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </TableCell>
                           );
                         })}
-                        <TableCell className="text-center text-muted-foreground py-2 min-w-[100px]">
+                        <TableCell className="text-center font-semibold py-2 min-w-[100px] bg-primary/5 border-x-2 border-primary/30">
                           {formatTarget(target, metric.type)}
                         </TableCell>
                         {months.map((month, monthIndex) => {
