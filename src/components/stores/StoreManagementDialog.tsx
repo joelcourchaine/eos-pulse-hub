@@ -67,7 +67,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
     mutationFn: async () => {
       const { error } = await supabase
         .from('stores')
-        .insert({ name, location, brand_id: brandId || null, group_id: groupId || null });
+        .insert({ name, location, brand_id: brandId || null, group_id: groupId || null, logo_url: null });
       if (error) throw error;
     },
     onSuccess: () => {
