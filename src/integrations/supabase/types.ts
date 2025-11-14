@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      brands: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       department_types: {
         Row: {
           created_at: string
@@ -542,6 +563,7 @@ export type Database = {
       stores: {
         Row: {
           brand: string | null
+          brand_id: string | null
           created_at: string
           group_id: string | null
           id: string
@@ -552,6 +574,7 @@ export type Database = {
         }
         Insert: {
           brand?: string | null
+          brand_id?: string | null
           created_at?: string
           group_id?: string | null
           id?: string
@@ -562,6 +585,7 @@ export type Database = {
         }
         Update: {
           brand?: string | null
+          brand_id?: string | null
           created_at?: string
           group_id?: string | null
           id?: string
@@ -571,6 +595,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stores_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stores_group_id_fkey"
             columns: ["group_id"]
