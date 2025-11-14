@@ -112,6 +112,11 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
               <SelectContent>
                 <SelectItem value="GMC">GMC</SelectItem>
                 <SelectItem value="Chevrolet">Chevrolet</SelectItem>
+                <SelectItem value="Stellantis">Stellantis</SelectItem>
+                <SelectItem value="Nissan">Nissan</SelectItem>
+                <SelectItem value="Ford">Ford</SelectItem>
+                <SelectItem value="Mazda">Mazda</SelectItem>
+                <SelectItem value="Honda">Honda</SelectItem>
                 <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
