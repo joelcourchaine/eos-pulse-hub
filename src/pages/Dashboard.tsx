@@ -211,9 +211,17 @@ const Dashboard = () => {
         .select("*")
         .order("name");
 
-      // Filter by selected store for super_admin
-      if (profile?.role === 'super_admin' && selectedStore) {
-        query = query.eq("store_id", selectedStore);
+      // Filter departments by store
+      if (profile?.role === 'super_admin') {
+        // Super admin: filter by selected store
+        if (selectedStore) {
+          query = query.eq("store_id", selectedStore);
+        }
+      } else {
+        // Other users: filter by their profile's store
+        if (profile?.store_id) {
+          query = query.eq("store_id", profile.store_id);
+        }
       }
 
       const { data, error } = await query;
