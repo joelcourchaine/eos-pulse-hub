@@ -618,19 +618,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-1.5">
+                    <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-[7.2px]">
                       Financial Metric
                     </TableHead>
                     {precedingQuarters.map((pq) => (
-                      <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-1.5">
+                      <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-[7.2px]">
                         {pq.label}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center font-bold min-w-[100px] py-1.5 bg-primary/10 border-x-2 border-primary/30">
+                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30">
                       Q{quarter} Target
                     </TableHead>
                     {months.map((month) => (
-                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-1.5">
+                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px]">
                         {month.label}
                       </TableHead>
                     ))}
@@ -643,7 +643,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     
                     return (
                       <TableRow key={metric.key} className="hover:bg-muted/30">
-                        <TableCell className="sticky left-0 bg-background z-10 py-1.5 min-w-[200px]">
+                        <TableCell className="sticky left-0 bg-background z-10 py-[7.2px] min-w-[200px]">
                           <div>
                             <p className="font-medium text-sm">{metric.name}</p>
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
@@ -654,12 +654,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const qValue = precedingQuartersData[qKey];
                           
                           return (
-                            <TableCell key={`${pq.quarter}-${pq.year}`} className="text-center text-muted-foreground py-1.5 min-w-[100px]">
+                            <TableCell key={`${pq.quarter}-${pq.year}`} className="text-center text-muted-foreground py-[7.2px] min-w-[100px]">
                               {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                             </TableCell>
                           );
                         })}
-                        <TableCell className="text-center font-semibold py-1.5 min-w-[100px] bg-primary/5 border-x-2 border-primary/30">
+                        <TableCell className="text-center font-semibold py-[7.2px] min-w-[100px] bg-primary/5 border-x-2 border-primary/30">
                           {formatTarget(target, metric.type)}
                         </TableCell>
                         {months.map((month, monthIndex) => {

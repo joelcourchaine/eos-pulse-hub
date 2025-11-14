@@ -517,13 +517,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead 
-                  className="bg-muted z-20 min-w-[200px] font-bold py-1.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  className="bg-muted z-20 min-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   style={{ position: 'sticky', left: 0 }}
                 >
                   KPI
                 </TableHead>
                 <TableHead 
-                  className="bg-muted z-20 text-center font-bold min-w-[100px] py-1.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
+                  className="bg-muted z-20 text-center font-bold min-w-[100px] py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                   style={{ position: 'sticky', left: '200px' }}
                 >
                   Q{quarter} Target
@@ -552,7 +552,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 <TableHead 
                   key={week.label} 
                   className={cn(
-                    "text-center min-w-[125px] max-w-[125px] text-xs py-1.5",
+                    "text-center min-w-[125px] max-w-[125px] text-xs py-[7.2px]",
                     isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
@@ -573,7 +573,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             }) : months.map((month) => (
               <TableHead 
                 key={month.identifier} 
-                className="text-center min-w-[120px] max-w-[120px] text-xs py-1.5 font-bold"
+                className="text-center min-w-[120px] max-w-[120px] text-xs py-[7.2px] font-bold"
               >
                 <div className="text-xs font-semibold">{month.label}</div>
                 <div className="text-[10px] text-muted-foreground">{month.year}</div>
@@ -614,13 +614,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                 )}
                 <TableRow className="hover:bg-muted/30">
                   <TableCell 
-                    className="bg-background z-10 font-medium pl-8 py-1.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    className="bg-background z-10 font-medium pl-8 py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     style={{ position: 'sticky', left: 0 }}
                   >
                     {kpi.name}
                   </TableCell>
                   <TableCell 
-                    className="bg-background z-10 text-center text-muted-foreground py-1.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    className="bg-background z-10 text-center text-muted-foreground py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     style={{ position: 'sticky', left: '200px' }}
                   >
                     {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
