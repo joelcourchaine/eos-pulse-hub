@@ -88,6 +88,12 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedStore) {
+      // Clear all data when switching stores
+      setSelectedDepartment("");
+      setKpis([]);
+      setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+      setActiveRocksCount(0);
+      setMyOpenTodosCount(0);
       fetchDepartments();
     }
   }, [selectedStore]);
@@ -216,6 +222,11 @@ const Dashboard = () => {
       setDepartments(data || []);
       if (data && data.length > 0) {
         setSelectedDepartment(data[0].id);
+      } else {
+        // No departments in this store - clear everything
+        setSelectedDepartment("");
+        setKpis([]);
+        setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
       }
     } catch (error: any) {
       console.error("Error fetching departments:", error);
