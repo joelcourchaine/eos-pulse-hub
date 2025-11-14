@@ -35,8 +35,16 @@ const Dashboard = () => {
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [kpis, setKpis] = useState<any[]>([]);
-  const [selectedYear, setSelectedYear] = useState(2025);
-  const [selectedQuarter, setSelectedQuarter] = useState(1);
+  
+  // Calculate current quarter and year
+  const getCurrentQuarter = () => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-11
+    return Math.floor(month / 3) + 1; // Returns 1-4
+  };
+  
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
