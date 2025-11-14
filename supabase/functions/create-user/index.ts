@@ -10,6 +10,7 @@ interface CreateUserRequest {
   full_name: string;
   role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only';
   store_id?: string;
+  store_group_id?: string;
   birthday_month?: number;
   birthday_day?: number;
   start_month?: number;
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
     });
 
     const requestBody: CreateUserRequest = await req.json();
-    let { email, full_name, role, store_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    let { email, full_name, role, store_id, store_group_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
 
     // Auto-generate email if not provided
     if (!email || email.trim() === '') {
@@ -70,12 +71,13 @@ Deno.serve(async (req) => {
 
     console.log('User created in auth:', userData.user.id);
 
-    // Update the profile with role and store_id
+    // Update the profile with role, store_id, and store_group_id
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         role,
         store_id: store_id || null,
+        store_group_id: store_group_id || null,
       })
       .eq('id', userData.user.id);
 
