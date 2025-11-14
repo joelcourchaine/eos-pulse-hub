@@ -67,6 +67,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
+  const [targetYear, setTargetYear] = useState(year);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -83,6 +84,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     };
     loadData();
   }, [departmentId, year, quarter]);
+
+  useEffect(() => {
+    loadTargets();
+  }, [targetYear]);
 
   const loadStoreBrand = async () => {
     if (!departmentId) return;
@@ -127,7 +132,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadTargets = async () => {
     if (!departmentId) return;
 
-    // Load targets for all quarters of the current year
+    // Load targets for current year display
     const { data, error } = await supabase
       .from("financial_targets")
       .select("*")
@@ -143,17 +148,31 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const targetsMap: { [key: string]: number } = {};
     const directionsMap: { [key: string]: "above" | "below" } = {};
     
-    // Targets organized by quarter for editing
-    const editMapByQuarter: { [quarter: number]: { [key: string]: string } } = { 1: {}, 2: {}, 3: {}, 4: {} };
-    const editDirectionsMapByQuarter: { [quarter: number]: { [key: string]: "above" | "below" } } = { 1: {}, 2: {}, 3: {}, 4: {} };
-    
     data?.forEach(target => {
       // Set current quarter targets for display
       if (target.quarter === quarter) {
         targetsMap[target.metric_name] = target.target_value || 0;
         directionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
       }
-      
+    });
+
+    // Load targets for target year editing
+    const { data: targetYearData, error: targetYearError } = await supabase
+      .from("financial_targets")
+      .select("*")
+      .eq("department_id", departmentId)
+      .eq("year", targetYear);
+
+    if (targetYearError) {
+      console.error("Error loading target year data:", targetYearError);
+      return;
+    }
+
+    // Targets organized by quarter for editing
+    const editMapByQuarter: { [quarter: number]: { [key: string]: string } } = { 1: {}, 2: {}, 3: {}, 4: {} };
+    const editDirectionsMapByQuarter: { [quarter: number]: { [key: string]: "above" | "below" } } = { 1: {}, 2: {}, 3: {}, 4: {} };
+    
+    targetYearData?.forEach(target => {
       // Set all quarters' targets for editing
       editMapByQuarter[target.quarter][target.metric_name] = target.target_value?.toString() || "";
       editDirectionsMapByQuarter[target.quarter][target.metric_name] = (target.target_direction as "above" | "below") || "above";
@@ -178,7 +197,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   };
 
   const handleSaveTargets = async () => {
-    // Save targets for all quarters
+    // Save targets for all quarters of the selected target year
     const updates = [1, 2, 3, 4].flatMap(q => 
       FINANCIAL_METRICS.map(metric => ({
         department_id: departmentId,
@@ -186,7 +205,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         target_value: parseFloat(editTargets[q]?.[metric.key] || "0"),
         target_direction: editTargetDirections[q]?.[metric.key] || metric.targetDirection,
         quarter: q,
-        year,
+        year: targetYear,
       }))
     );
 
@@ -435,9 +454,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <DialogHeader>
                       <DialogTitle>Set Financial Targets</DialogTitle>
                       <DialogDescription>
-                        Define target values for each financial metric by quarter for {year}
+                        Define target values for each financial metric by quarter
                       </DialogDescription>
                     </DialogHeader>
+                    <div className="mb-4">
+                      <Label htmlFor="target-year">Target Year</Label>
+                      <Select
+                        value={targetYear.toString()}
+                        onValueChange={(value) => setTargetYear(parseInt(value))}
+                      >
+                        <SelectTrigger id="target-year" className="w-[200px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={(year - 1).toString()}>{year - 1} (Last Year)</SelectItem>
+                          <SelectItem value={year.toString()}>{year} (Current Year)</SelectItem>
+                          <SelectItem value={(year + 1).toString()}>{year + 1} (Next Year)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Tabs defaultValue="1" className="w-full">
                       <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="1">Q1</TabsTrigger>
