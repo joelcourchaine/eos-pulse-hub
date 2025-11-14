@@ -505,10 +505,32 @@ export type Database = {
           },
         ]
       }
+      store_groups: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stores: {
         Row: {
           brand: string | null
           created_at: string
+          group_id: string | null
           id: string
           location: string | null
           logo_url: string | null
@@ -518,6 +540,7 @@ export type Database = {
         Insert: {
           brand?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           location?: string | null
           logo_url?: string | null
@@ -527,13 +550,22 @@ export type Database = {
         Update: {
           brand?: string | null
           created_at?: string
+          group_id?: string | null
           id?: string
           location?: string | null
           logo_url?: string | null
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "stores_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       todos: {
         Row: {
