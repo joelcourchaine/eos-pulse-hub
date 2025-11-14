@@ -17,9 +17,21 @@ interface StoreManagementDialogProps {
 export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDialogProps) {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
-  const [brand, setBrand] = useState<string>("GMC");
+  const [brandId, setBrandId] = useState<string>("");
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const queryClient = useQueryClient();
+
+  const { data: brands } = useQuery({
+    queryKey: ['brands'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('brands')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: storeGroups } = useQuery({
     queryKey: ['store-groups'],
@@ -55,14 +67,14 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
     mutationFn: async () => {
       const { error } = await supabase
         .from('stores')
-        .insert({ name, location, brand, group_id: groupId || null });
+        .insert({ name, location, brand_id: brandId || null, group_id: groupId || null });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Store created successfully");
       setName("");
       setLocation("");
-      setBrand("GMC");
+      setBrandId("");
       setGroupId(undefined);
       queryClient.invalidateQueries({ queryKey: ['stores'] });
     },
@@ -125,19 +137,16 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
           </div>
           <div className="space-y-2">
             <Label htmlFor="store-brand">Brand</Label>
-            <Select value={brand} onValueChange={setBrand}>
+            <Select value={brandId} onValueChange={setBrandId}>
               <SelectTrigger id="store-brand">
                 <SelectValue placeholder="Select brand" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="GMC">GMC</SelectItem>
-                <SelectItem value="Chevrolet">Chevrolet</SelectItem>
-                <SelectItem value="Stellantis">Stellantis</SelectItem>
-                <SelectItem value="Nissan">Nissan</SelectItem>
-                <SelectItem value="Ford">Ford</SelectItem>
-                <SelectItem value="Mazda">Mazda</SelectItem>
-                <SelectItem value="Honda">Honda</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
+                {brands?.map((brand) => (
+                  <SelectItem key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
