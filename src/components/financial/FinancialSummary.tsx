@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,8 +62,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [isOpen, setIsOpen] = useState(true);
   const [targetsDialogOpen, setTargetsDialogOpen] = useState(false);
-  const [editTargets, setEditTargets] = useState<{ [key: string]: string }>({});
-  const [editTargetDirections, setEditTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
+  const [editTargets, setEditTargets] = useState<{ [quarter: number]: { [key: string]: string } }>({ 1: {}, 2: {}, 3: {}, 4: {} });
+  const [editTargetDirections, setEditTargetDirections] = useState<{ [quarter: number]: { [key: string]: "above" | "below" } }>({ 1: {}, 2: {}, 3: {}, 4: {} });
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
@@ -126,11 +127,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadTargets = async () => {
     if (!departmentId) return;
 
+    // Load targets for all quarters of the current year
     const { data, error } = await supabase
       .from("financial_targets")
       .select("*")
       .eq("department_id", departmentId)
-      .eq("quarter", quarter)
       .eq("year", year);
 
     if (error) {
@@ -138,41 +139,56 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       return;
     }
 
+    // Targets for current quarter display
     const targetsMap: { [key: string]: number } = {};
-    const editMap: { [key: string]: string } = {};
     const directionsMap: { [key: string]: "above" | "below" } = {};
-    const editDirectionsMap: { [key: string]: "above" | "below" } = {};
+    
+    // Targets organized by quarter for editing
+    const editMapByQuarter: { [quarter: number]: { [key: string]: string } } = { 1: {}, 2: {}, 3: {}, 4: {} };
+    const editDirectionsMapByQuarter: { [quarter: number]: { [key: string]: "above" | "below" } } = { 1: {}, 2: {}, 3: {}, 4: {} };
     
     data?.forEach(target => {
-      targetsMap[target.metric_name] = target.target_value || 0;
-      editMap[target.metric_name] = target.target_value?.toString() || "";
-      directionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
-      editDirectionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
+      // Set current quarter targets for display
+      if (target.quarter === quarter) {
+        targetsMap[target.metric_name] = target.target_value || 0;
+        directionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
+      }
+      
+      // Set all quarters' targets for editing
+      editMapByQuarter[target.quarter][target.metric_name] = target.target_value?.toString() || "";
+      editDirectionsMapByQuarter[target.quarter][target.metric_name] = (target.target_direction as "above" | "below") || "above";
     });
 
     // Fill in default directions for metrics without saved targets
-    FINANCIAL_METRICS.forEach(metric => {
-      if (!directionsMap[metric.key]) {
-        directionsMap[metric.key] = metric.targetDirection;
-        editDirectionsMap[metric.key] = metric.targetDirection;
-      }
+    [1, 2, 3, 4].forEach(q => {
+      FINANCIAL_METRICS.forEach(metric => {
+        if (!editDirectionsMapByQuarter[q][metric.key]) {
+          editDirectionsMapByQuarter[q][metric.key] = metric.targetDirection;
+        }
+        if (q === quarter && !directionsMap[metric.key]) {
+          directionsMap[metric.key] = metric.targetDirection;
+        }
+      });
     });
 
     setTargets(targetsMap);
-    setEditTargets(editMap);
+    setEditTargets(editMapByQuarter);
     setTargetDirections(directionsMap);
-    setEditTargetDirections(editDirectionsMap);
+    setEditTargetDirections(editDirectionsMapByQuarter);
   };
 
   const handleSaveTargets = async () => {
-    const updates = FINANCIAL_METRICS.map(metric => ({
-      department_id: departmentId,
-      metric_name: metric.key,
-      target_value: parseFloat(editTargets[metric.key] || "0"),
-      target_direction: editTargetDirections[metric.key] || metric.targetDirection,
-      quarter,
-      year,
-    }));
+    // Save targets for all quarters
+    const updates = [1, 2, 3, 4].flatMap(q => 
+      FINANCIAL_METRICS.map(metric => ({
+        department_id: departmentId,
+        metric_name: metric.key,
+        target_value: parseFloat(editTargets[q]?.[metric.key] || "0"),
+        target_direction: editTargetDirections[q]?.[metric.key] || metric.targetDirection,
+        quarter: q,
+        year,
+      }))
+    );
 
     const { error } = await supabase
       .from("financial_targets")
@@ -415,53 +431,69 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       Set Targets
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl" onClick={(e) => e.stopPropagation()}>
+                  <DialogContent className="max-w-4xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
                     <DialogHeader>
                       <DialogTitle>Set Financial Targets</DialogTitle>
                       <DialogDescription>
-                        Define target values for each financial metric
+                        Define target values for each financial metric by quarter for {year}
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-                      {FINANCIAL_METRICS.map((metric) => (
-                        <div key={metric.key} className="space-y-2">
-                          <Label htmlFor={metric.key}>{metric.name}</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id={metric.key}
-                              type="number"
-                              step="any"
-                              value={editTargets[metric.key] || ""}
-                              onChange={(e) =>
-                                setEditTargets(prev => ({ ...prev, [metric.key]: e.target.value }))
-                              }
-                              placeholder={`Enter ${metric.name} target`}
-                              className="flex-1"
-                            />
-                            <Select
-                              value={editTargetDirections[metric.key] || metric.targetDirection}
-                              onValueChange={(value: "above" | "below") =>
-                                setEditTargetDirections(prev => ({ ...prev, [metric.key]: value }))
-                              }
-                            >
-                              <SelectTrigger className="w-[140px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="above">Higher is Better</SelectItem>
-                                <SelectItem value="below">Lower is Better</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
+                    <Tabs defaultValue="1" className="w-full">
+                      <TabsList className="grid w-full grid-cols-4">
+                        <TabsTrigger value="1">Q1</TabsTrigger>
+                        <TabsTrigger value="2">Q2</TabsTrigger>
+                        <TabsTrigger value="3">Q3</TabsTrigger>
+                        <TabsTrigger value="4">Q4</TabsTrigger>
+                      </TabsList>
+                      {[1, 2, 3, 4].map((q) => (
+                        <TabsContent key={q} value={q.toString()} className="space-y-4 max-h-[50vh] overflow-y-auto">
+                          {FINANCIAL_METRICS.map((metric) => (
+                            <div key={metric.key} className="space-y-2">
+                              <Label htmlFor={`${metric.key}-q${q}`}>{metric.name}</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  id={`${metric.key}-q${q}`}
+                                  type="number"
+                                  step="any"
+                                  value={editTargets[q]?.[metric.key] || ""}
+                                  onChange={(e) =>
+                                    setEditTargets(prev => ({ 
+                                      ...prev, 
+                                      [q]: { ...prev[q], [metric.key]: e.target.value }
+                                    }))
+                                  }
+                                  placeholder={`Enter ${metric.name} target`}
+                                  className="flex-1"
+                                />
+                                <Select
+                                  value={editTargetDirections[q]?.[metric.key] || metric.targetDirection}
+                                  onValueChange={(value: "above" | "below") =>
+                                    setEditTargetDirections(prev => ({ 
+                                      ...prev, 
+                                      [q]: { ...prev[q], [metric.key]: value }
+                                    }))
+                                  }
+                                >
+                                  <SelectTrigger className="w-[140px]">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="above">Higher is Better</SelectItem>
+                                    <SelectItem value="below">Lower is Better</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          ))}
+                        </TabsContent>
                       ))}
-                    </div>
+                    </Tabs>
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" onClick={() => setTargetsDialogOpen(false)}>
                         Cancel
                       </Button>
                       <Button onClick={handleSaveTargets}>
-                        Save Targets
+                        Save All Targets
                       </Button>
                     </div>
                   </DialogContent>
