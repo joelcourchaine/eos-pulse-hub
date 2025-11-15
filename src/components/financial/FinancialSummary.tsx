@@ -211,11 +211,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const handleSaveTargets = async () => {
     // Save targets for all quarters of the selected target year
-    // Only include metrics that have a value entered (not empty string)
+    // Only include metrics that have a non-zero value entered
     const updates = [1, 2, 3, 4].flatMap(q => 
       FINANCIAL_METRICS.filter(metric => {
         const value = editTargets[q]?.[metric.key];
-        return value !== undefined && value !== null && value !== "";
+        // Only save if value exists, is not empty string, and is not zero
+        return value !== undefined && value !== null && value !== "" && parseFloat(value) !== 0;
       }).map(metric => ({
         department_id: departmentId,
         metric_name: metric.key,
@@ -225,6 +226,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         year: targetYear,
       }))
     );
+
+    console.log("Saving targets:", updates);
 
     const { error } = await supabase
       .from("financial_targets")
