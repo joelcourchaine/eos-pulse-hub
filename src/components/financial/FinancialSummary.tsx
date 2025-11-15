@@ -205,11 +205,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const handleSaveTargets = async () => {
     // Save targets for all quarters of the selected target year
+    // Only include metrics that have a value entered (not empty string)
     const updates = [1, 2, 3, 4].flatMap(q => 
-      FINANCIAL_METRICS.map(metric => ({
+      FINANCIAL_METRICS.filter(metric => {
+        const value = editTargets[q]?.[metric.key];
+        return value !== undefined && value !== null && value !== "";
+      }).map(metric => ({
         department_id: departmentId,
         metric_name: metric.key,
-        target_value: parseFloat(editTargets[q]?.[metric.key] || "0"),
+        target_value: parseFloat(editTargets[q]?.[metric.key]),
         target_direction: editTargetDirections[q]?.[metric.key] || metric.targetDirection,
         quarter: q,
         year: targetYear,
