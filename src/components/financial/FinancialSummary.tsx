@@ -557,7 +557,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       </TabsList>
                       {[1, 2, 3, 4].map((q) => (
                         <TabsContent key={q} value={q.toString()} className="space-y-4 max-h-[50vh] overflow-y-auto">
-                          {FINANCIAL_METRICS.map((metric) => (
+                          {FINANCIAL_METRICS.filter(metric => !metric.calculation).map((metric) => (
                             <div key={metric.key} className="space-y-2">
                               <Label htmlFor={`${metric.key}-q${q}`}>{metric.name}</Label>
                               <div className="flex gap-2">
@@ -595,6 +595,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               </div>
                             </div>
                           ))}
+                          {FINANCIAL_METRICS.filter(metric => metric.calculation).length > 0 && (
+                            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                              <p className="text-sm font-medium mb-2">Calculated Metrics (Auto-computed)</p>
+                              <p className="text-xs text-muted-foreground mb-3">
+                                These targets are automatically calculated from the base metrics above:
+                              </p>
+                              {FINANCIAL_METRICS.filter(metric => metric.calculation).map((metric) => {
+                                const numeratorTarget = parseFloat(editTargets[q]?.[metric.calculation!.numerator] || "0");
+                                const denominatorTarget = parseFloat(editTargets[q]?.[metric.calculation!.denominator] || "0");
+                                const calculatedTarget = denominatorTarget !== 0 
+                                  ? ((numeratorTarget / denominatorTarget) * 100).toFixed(2)
+                                  : "-";
+                                
+                                return (
+                                  <div key={metric.key} className="flex justify-between items-center py-1 text-sm">
+                                    <span>{metric.name}:</span>
+                                    <span className="font-medium">{calculatedTarget}%</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </TabsContent>
                       ))}
                     </Tabs>
@@ -645,7 +667,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     
                     // Calculate target for percentage metrics with formulas
-                    if (metric.type === "percentage" && metric.calculation && !target) {
+                    if (metric.type === "percentage" && metric.calculation) {
                       const numeratorTarget = targets[metric.calculation.numerator];
                       const denominatorTarget = targets[metric.calculation.denominator];
                       
@@ -653,6 +675,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           denominatorTarget !== null && denominatorTarget !== undefined && 
                           denominatorTarget !== 0) {
                         target = (numeratorTarget / denominatorTarget) * 100;
+                      } else {
+                        target = undefined;
                       }
                     }
                     
