@@ -10,6 +10,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
+const PRESET_KPIS = [
+  { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Total Service Gross", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Total Service Gross %", metricType: "percentage" as const, targetDirection: "above" as const },
+  { name: "CP Hours", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const },
+];
+
 interface KPI {
   id: string;
   name: string;
@@ -49,7 +62,26 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
   const { toast } = useToast();
+
+  const handlePresetSelect = (presetName: string) => {
+    if (presetName === "custom") {
+      setName("");
+      setMetricType("dollar");
+      setTargetDirection("above");
+      setSelectedPreset("");
+      return;
+    }
+
+    const preset = PRESET_KPIS.find(p => p.name === presetName);
+    if (preset) {
+      setName(preset.name);
+      setMetricType(preset.metricType);
+      setTargetDirection(preset.targetDirection);
+      setSelectedPreset(presetName);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -304,16 +336,33 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           <div className="space-y-6">
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold text-sm">Add New KPI</h3>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="name">KPI Name</Label>
-                  <Input
-                    id="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Wholesale Sales"
-                  />
+                  <Label htmlFor="preset">Select Preset KPI</Label>
+                  <Select value={selectedPreset} onValueChange={handlePresetSelect}>
+                    <SelectTrigger id="preset">
+                      <SelectValue placeholder="Choose preset or custom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Custom KPI</SelectItem>
+                      {PRESET_KPIS.map((preset) => (
+                        <SelectItem key={preset.name} value={preset.name}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                  <div>
+                    <Label htmlFor="name">KPI Name</Label>
+                    <Input
+                      id="name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g., Wholesale Sales"
+                    />
+                  </div>
                 <div>
                   <Label htmlFor="type">Metric Type</Label>
                   <Select value={metricType} onValueChange={(v: any) => setMetricType(v)}>
@@ -370,6 +419,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     <Plus className="h-4 w-4 mr-2" />
                     Add KPI
                   </Button>
+                </div>
                 </div>
               </div>
             </div>
