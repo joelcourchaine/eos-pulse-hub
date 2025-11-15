@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface StoreManagementDialogProps {
@@ -19,6 +19,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
   const [location, setLocation] = useState("");
   const [brandId, setBrandId] = useState<string>("");
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
+  const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: brands } = useQuery({
@@ -65,21 +66,30 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('stores')
-        .insert({ name, location, brand_id: brandId || null, group_id: groupId || null, logo_url: null });
-      if (error) throw error;
+      if (editingStoreId) {
+        const { error } = await supabase
+          .from('stores')
+          .update({ name, location, brand_id: brandId || null, group_id: groupId || null })
+          .eq('id', editingStoreId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('stores')
+          .insert({ name, location, brand_id: brandId || null, group_id: groupId || null, logo_url: null });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      toast.success("Store created successfully");
+      toast.success(editingStoreId ? "Store updated successfully" : "Store created successfully");
       setName("");
       setLocation("");
       setBrandId("");
       setGroupId(undefined);
+      setEditingStoreId(null);
       queryClient.invalidateQueries({ queryKey: ['stores'] });
     },
     onError: (error: Error) => {
-      toast.error(`Failed to create store: ${error.message}`);
+      toast.error(`Failed to ${editingStoreId ? 'update' : 'create'} store: ${error.message}`);
     },
   });
 
@@ -107,6 +117,22 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
       return;
     }
     createMutation.mutate();
+  };
+
+  const handleEdit = (store: any) => {
+    setName(store.name);
+    setLocation(store.location || "");
+    setBrandId(store.brand_id || "");
+    setGroupId(store.group_id || undefined);
+    setEditingStoreId(store.id);
+  };
+
+  const handleCancelEdit = () => {
+    setName("");
+    setLocation("");
+    setBrandId("");
+    setGroupId(undefined);
+    setEditingStoreId(null);
   };
 
   return (
@@ -165,11 +191,28 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit" disabled={createMutation.isPending}>
-            {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            <Plus className="mr-2 h-4 w-4" />
-            Add Store
-          </Button>
+          <div className="flex gap-2">
+            {editingStoreId && (
+              <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            )}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {editingStoreId ? (
+                <>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Update Store
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Store
+                </>
+              )}
+            </Button>
+          </div>
         </form>
 
         <div className="mt-6 space-y-2">
@@ -188,14 +231,24 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                     {store.brand && <div className="text-sm text-muted-foreground">Brand: {store.brand}</div>}
                     {store.store_groups && <div className="text-sm text-muted-foreground">Group: {store.store_groups.name}</div>}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteMutation.mutate(store.id)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(store)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteMutation.mutate(store.id)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
