@@ -11,16 +11,16 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const PRESET_KPIS = [
-  { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
-  { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
-  { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
-  { name: "Total Service Gross", metricType: "dollar" as const, targetDirection: "above" as const },
-  { name: "Total Service Gross %", metricType: "percentage" as const, targetDirection: "above" as const },
-  { name: "CP Hours", metricType: "unit" as const, targetDirection: "above" as const },
-  { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const },
-  { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const },
-  { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const },
-  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "Total Service Gross", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "Total Service Gross %", metricType: "percentage" as const, targetDirection: "above" as const, dependencies: ["Total Service Gross"] },
+  { name: "CP Hours", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: ["CP Labour Sales", "CP RO's"] },
+  { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const, dependencies: ["CP Hours", "CP RO's"] },
+  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
 ];
 
 interface KPI {
@@ -347,7 +347,14 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       <SelectItem value="custom">Custom KPI</SelectItem>
                       {PRESET_KPIS.map((preset) => (
                         <SelectItem key={preset.name} value={preset.name}>
-                          {preset.name}
+                          <div className="flex flex-col">
+                            <span>{preset.name}</span>
+                            {preset.dependencies.length > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                Requires: {preset.dependencies.join(", ")}
+                              </span>
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
