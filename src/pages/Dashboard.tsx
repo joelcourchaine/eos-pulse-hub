@@ -599,7 +599,7 @@ const Dashboard = () => {
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Dealership Logo */}
-          <LogoUpload storeId={profile?.store_id || null} userRole={profile?.role} />
+          <LogoUpload storeId={selectedStore || profile?.store_id || null} userRole={profile?.role} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">This Week</CardTitle>
