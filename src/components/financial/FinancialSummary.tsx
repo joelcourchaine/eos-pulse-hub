@@ -60,6 +60,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
   const [targetDirections, setTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
+  const [precedingQuarterTargets, setPrecedingQuarterTargets] = useState<{ [key: string]: { value: number; direction: "above" | "below" } }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
   const [isOpen, setIsOpen] = useState(true);
@@ -167,6 +168,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     });
     
     console.log(`Targets for Q${quarter}:`, targetsMap);
+
+    // Load targets for preceding quarters
+    const precedingYears = Array.from(new Set(precedingQuarters.map(pq => pq.year)));
+    const { data: precedingData, error: precedingError } = await supabase
+      .from("financial_targets")
+      .select("*")
+      .eq("department_id", departmentId)
+      .in("year", precedingYears);
+
+    if (precedingError) {
+      console.error("Error loading preceding quarter targets:", precedingError);
+    }
+
+    const precedingTargetsMap: { [key: string]: { value: number; direction: "above" | "below" } } = {};
+    precedingData?.forEach(target => {
+      const key = `${target.metric_name}-Q${target.quarter}-${target.year}`;
+      precedingTargetsMap[key] = {
+        value: target.target_value || 0,
+        direction: (target.target_direction as "above" | "below") || "above"
+      };
+    });
+
+    setPrecedingQuarterTargets(precedingTargetsMap);
 
     // Load targets for target year editing
     const { data: targetYearData, error: targetYearError } = await supabase
@@ -683,9 +707,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         {precedingQuarters.map((pq) => {
                           const qKey = `${metric.key}-Q${pq.quarter}-${pq.year}`;
                           const qValue = precedingQuartersData[qKey];
+                          const targetInfo = precedingQuarterTargets[qKey];
+                          
+                          let status: "success" | "warning" | "destructive" | null = null;
+                          
+                          if (qValue !== null && qValue !== undefined && targetInfo?.value) {
+                            const target = targetInfo.value;
+                            const targetDirection = targetInfo.direction || metric.targetDirection;
+                            
+                            const variance = metric.type === "percentage" 
+                              ? qValue - target 
+                              : ((qValue - target) / target) * 100;
+                            
+                            if (targetDirection === "above") {
+                              status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                            } else {
+                              status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                            }
+                          }
                           
                           return (
-                            <TableCell key={`${pq.quarter}-${pq.year}`} className="text-center text-muted-foreground py-[7.2px] min-w-[100px]">
+                            <TableCell 
+                              key={`${pq.quarter}-${pq.year}`} 
+                              className={cn(
+                                "text-center py-[7.2px] min-w-[100px]",
+                                status === "success" && "bg-success/10 text-success font-medium",
+                                status === "warning" && "bg-warning/10 text-warning font-medium",
+                                status === "destructive" && "bg-destructive/10 text-destructive font-medium",
+                                !status && "text-muted-foreground"
+                              )}
+                            >
                               {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                             </TableCell>
                           );
