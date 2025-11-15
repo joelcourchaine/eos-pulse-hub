@@ -641,8 +641,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 </TableHeader>
                 <TableBody>
                   {FINANCIAL_METRICS.map((metric) => {
-                    const target = targets[metric.key];
+                    let target = targets[metric.key];
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
+                    
+                    // Calculate target for percentage metrics with formulas
+                    if (metric.type === "percentage" && metric.calculation && !target) {
+                      const numeratorTarget = targets[metric.calculation.numerator];
+                      const denominatorTarget = targets[metric.calculation.denominator];
+                      
+                      if (numeratorTarget !== null && numeratorTarget !== undefined && 
+                          denominatorTarget !== null && denominatorTarget !== undefined && 
+                          denominatorTarget !== 0) {
+                        target = (numeratorTarget / denominatorTarget) * 100;
+                      }
+                    }
                     
                     return (
                       <TableRow key={metric.key} className="hover:bg-muted/30">
