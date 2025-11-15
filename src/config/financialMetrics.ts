@@ -105,7 +105,7 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     name: "Return on Gross", 
     key: "return_on_gross", 
     type: "percentage", 
-    description: "Return on gross profit", 
+    description: "Department Profit divided by GP Net", 
     targetDirection: "above",
     calculation: {
       numerator: "department_profit",
