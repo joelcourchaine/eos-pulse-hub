@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -536,7 +535,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       Set Targets
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+                  <DialogContent className="max-w-6xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
                     <DialogHeader>
                       <DialogTitle>Set Financial Targets</DialogTitle>
                       <DialogDescription>
@@ -559,41 +558,59 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         </SelectContent>
                       </Select>
                     </div>
-                    <Tabs defaultValue="1" className="w-full">
-                      <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="1">Q1</TabsTrigger>
-                        <TabsTrigger value="2">Q2</TabsTrigger>
-                        <TabsTrigger value="3">Q3</TabsTrigger>
-                        <TabsTrigger value="4">Q4</TabsTrigger>
-                      </TabsList>
-                      {[1, 2, 3, 4].map((q) => (
-                        <TabsContent key={q} value={q.toString()} className="space-y-4 max-h-[50vh] overflow-y-auto">
+                    <div className="max-h-[50vh] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[200px]">Metric</TableHead>
+                            <TableHead className="text-center">Q1</TableHead>
+                            <TableHead className="text-center">Q2</TableHead>
+                            <TableHead className="text-center">Q3</TableHead>
+                            <TableHead className="text-center">Q4</TableHead>
+                            <TableHead className="w-[140px]">Direction</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {FINANCIAL_METRICS.map((metric) => (
-                            <div key={metric.key} className="space-y-2">
-                              <Label htmlFor={`${metric.key}-q${q}`}>{metric.name}</Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  id={`${metric.key}-q${q}`}
-                                  type="number"
-                                  step="any"
-                                  value={editTargets[q]?.[metric.key] || ""}
-                                  onChange={(e) =>
-                                    setEditTargets(prev => ({ 
-                                      ...prev, 
-                                      [q]: { ...prev[q], [metric.key]: e.target.value }
-                                    }))
-                                  }
-                                  placeholder={`Enter ${metric.name} target`}
-                                  className="flex-1"
-                                />
+                            <TableRow key={metric.key}>
+                              <TableCell className="font-medium">{metric.name}</TableCell>
+                              {[1, 2, 3, 4].map((q) => (
+                                <TableCell key={q}>
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    value={editTargets[q]?.[metric.key] || ""}
+                                    onChange={(e) => {
+                                      setEditTargets(prev => ({ 
+                                        ...prev, 
+                                        [q]: { ...prev[q], [metric.key]: e.target.value }
+                                      }));
+                                      // Keep direction consistent across all quarters
+                                      const direction = editTargetDirections[q]?.[metric.key] || metric.targetDirection;
+                                      [1, 2, 3, 4].forEach(quarter => {
+                                        setEditTargetDirections(prev => ({ 
+                                          ...prev, 
+                                          [quarter]: { ...prev[quarter], [metric.key]: direction }
+                                        }));
+                                      });
+                                    }}
+                                    placeholder="-"
+                                    className="text-center"
+                                  />
+                                </TableCell>
+                              ))}
+                              <TableCell>
                                 <Select
-                                  value={editTargetDirections[q]?.[metric.key] || metric.targetDirection}
-                                  onValueChange={(value: "above" | "below") =>
-                                    setEditTargetDirections(prev => ({ 
-                                      ...prev, 
-                                      [q]: { ...prev[q], [metric.key]: value }
-                                    }))
-                                  }
+                                  value={editTargetDirections[1]?.[metric.key] || metric.targetDirection}
+                                  onValueChange={(value: "above" | "below") => {
+                                    // Apply direction to all quarters
+                                    [1, 2, 3, 4].forEach(q => {
+                                      setEditTargetDirections(prev => ({ 
+                                        ...prev, 
+                                        [q]: { ...prev[q], [metric.key]: value }
+                                      }));
+                                    });
+                                  }}
                                 >
                                   <SelectTrigger className="w-[140px]">
                                     <SelectValue />
@@ -603,12 +620,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     <SelectItem value="below">Lower is Better</SelectItem>
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            </div>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </TabsContent>
-                      ))}
-                    </Tabs>
+                        </TableBody>
+                      </Table>
+                    </div>
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" onClick={() => setTargetsDialogOpen(false)}>
                         Cancel
