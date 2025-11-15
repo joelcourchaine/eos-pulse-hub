@@ -205,15 +205,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const handleSaveTargets = async () => {
     // Save targets for all quarters of the selected target year
+    // Filter out calculated metrics (those with a calculation property)
     const updates = [1, 2, 3, 4].flatMap(q => 
-      FINANCIAL_METRICS.map(metric => ({
-        department_id: departmentId,
-        metric_name: metric.key,
-        target_value: parseFloat(editTargets[q]?.[metric.key] || "0"),
-        target_direction: editTargetDirections[q]?.[metric.key] || metric.targetDirection,
-        quarter: q,
-        year: targetYear,
-      }))
+      FINANCIAL_METRICS
+        .filter(metric => !metric.calculation) // Only save non-calculated metrics
+        .map(metric => ({
+          department_id: departmentId,
+          metric_name: metric.key,
+          target_value: parseFloat(editTargets[q]?.[metric.key] || "0"),
+          target_direction: editTargetDirections[q]?.[metric.key] || metric.targetDirection,
+          quarter: q,
+          year: targetYear,
+        }))
     );
 
     const { error } = await supabase
