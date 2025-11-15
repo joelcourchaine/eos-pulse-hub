@@ -139,12 +139,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadTargets = async () => {
     if (!departmentId) return;
 
+    console.log(`Loading targets for department ${departmentId}, year ${year}, quarter ${quarter}`);
+
     // Load targets for current year display
     const { data, error } = await supabase
       .from("financial_targets")
       .select("*")
       .eq("department_id", departmentId)
       .eq("year", year);
+    
+    console.log("Loaded targets data:", data);
 
     if (error) {
       console.error("Error loading targets:", error);
@@ -162,6 +166,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         directionsMap[target.metric_name] = (target.target_direction as "above" | "below") || "above";
       }
     });
+    
+    console.log(`Targets for Q${quarter}:`, targetsMap);
 
     // Load targets for target year editing
     const { data: targetYearData, error: targetYearError } = await supabase
@@ -233,7 +239,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     toast({ title: "Success", description: "Targets saved successfully" });
     setTargetsDialogOpen(false);
-    loadTargets();
+    // Reload targets to refresh the display
+    await loadTargets();
   };
 
   const loadPrecedingQuartersData = async () => {
