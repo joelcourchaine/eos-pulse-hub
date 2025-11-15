@@ -233,8 +233,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   };
 
   const handleSaveTargets = async () => {
-    // Save targets for all quarters of the selected target year
-    // Only include metrics that have a non-zero value entered
+    // First, delete all existing targets for this department and year
+    const { error: deleteError } = await supabase
+      .from("financial_targets")
+      .delete()
+      .eq("department_id", departmentId)
+      .eq("year", targetYear);
+
+    if (deleteError) {
+      toast({ title: "Error", description: "Failed to clear existing targets", variant: "destructive" });
+      return;
+    }
+
+    // Then insert only the non-zero targets
     const updates = [1, 2, 3, 4].flatMap(q => 
       FINANCIAL_METRICS.filter(metric => {
         const value = editTargets[q]?.[metric.key];
@@ -252,21 +263,22 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     console.log("Saving targets:", updates);
 
-    const { error } = await supabase
-      .from("financial_targets")
-      .upsert(updates, {
-        onConflict: "department_id,metric_name,quarter,year"
-      });
+    if (updates.length > 0) {
+      const { error } = await supabase
+        .from("financial_targets")
+        .insert(updates);
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to save targets", variant: "destructive" });
-      return;
+      if (error) {
+        toast({ title: "Error", description: "Failed to save targets", variant: "destructive" });
+        return;
+      }
     }
 
     toast({ title: "Success", description: "Targets saved successfully" });
     setTargetsDialogOpen(false);
-    // Reload targets to refresh the display
+    // Reload targets and preceding quarter data to refresh the display
     await loadTargets();
+    await loadPrecedingQuartersData();
   };
 
   const loadPrecedingQuartersData = async () => {
