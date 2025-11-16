@@ -449,18 +449,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     );
   }
 
-  if (kpis.length === 0) {
-    return (
-      <div className="border rounded-lg p-8 text-center">
-        <p className="text-muted-foreground mb-4">No KPIs defined for this department yet.</p>
-        <p className="text-sm text-muted-foreground">Click "Manage KPIs" to add your first metric.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {/* Quarter Controls */}
+      {/* Quarter Controls - Always visible */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
@@ -492,27 +483,34 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           </Select>
         </div>
         
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
-          className="gap-2"
-        >
-          {viewMode === "weekly" ? (
-            <>
-              <Calendar className="h-4 w-4" />
-              View Monthly
-            </>
-          ) : (
-            <>
-              <CalendarDays className="h-4 w-4" />
-              View Weekly
-            </>
-          )}
-        </Button>
+        {kpis.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
+            className="gap-2"
+          >
+            {viewMode === "weekly" ? (
+              <>
+                <Calendar className="h-4 w-4" />
+                View Monthly
+              </>
+            ) : (
+              <>
+                <CalendarDays className="h-4 w-4" />
+                View Weekly
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
-      <div className="relative">
+      {kpis.length === 0 ? (
+        <div className="border rounded-lg p-8 text-center">
+          <p className="text-muted-foreground mb-4">No KPIs defined for this department yet.</p>
+          <p className="text-sm text-muted-foreground">Click "Manage KPIs" to add your first metric.</p>
+        </div>
+      ) : (
         <div 
           ref={scrollContainerRef}
           className="overflow-x-auto border rounded-lg"
@@ -764,7 +762,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         </TableBody>
       </Table>
     </div>
-  </div>
+      )}
     </div>
   );
 };
