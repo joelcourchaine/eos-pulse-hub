@@ -837,10 +837,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let calculatedValue = baseValue;
                               for (const deduction of sourceMetric.calculation.deductions) {
                                 const deductionValue = getValueForMetric(deduction);
-                                if (deductionValue === null || deductionValue === undefined) {
-                                  return undefined;
-                                }
-                                calculatedValue -= deductionValue;
+                                // Treat missing deductions as 0 (no expense = 0)
+                                calculatedValue -= (deductionValue || 0);
                               }
                               return calculatedValue;
                             }
@@ -872,12 +870,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
                                 const deductionValue = getValueForMetric(deduction);
-                                if (deductionValue !== null && deductionValue !== undefined) {
-                                  calculatedValue -= deductionValue;
-                                } else {
-                                  calculatedValue = undefined as any;
-                                  break;
-                                }
+                                // Treat missing deductions as 0 (no expense = 0)
+                                calculatedValue -= (deductionValue || 0);
                               }
                               value = calculatedValue;
                             } else {
