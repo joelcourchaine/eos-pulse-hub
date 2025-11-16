@@ -85,7 +85,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       return;
     }
 
-    setProfiles(data || []);
+    // Filter out any profiles with invalid IDs
+    setProfiles((data || []).filter(p => p.id && p.id.trim() !== ""));
   };
 
   const loadKPITargets = async () => {
@@ -598,7 +599,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unassigned">None</SelectItem>
-                                {profiles.map((profile) => (
+                                {profiles.filter(p => p.id && p.id.trim() !== "").map((profile) => (
                                   <SelectItem key={profile.id} value={profile.id}>
                                     {profile.full_name}
                                   </SelectItem>
