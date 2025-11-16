@@ -507,11 +507,16 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                     {kpis.map((kpi) => {
+                     {kpis.filter(kpi => kpi.metric_type && kpi.metric_type.trim() !== "" && kpi.target_direction && kpi.target_direction.trim() !== "").map((kpi) => {
                       const owner = profiles.find(p => p.id === kpi.assigned_to);
                       const isEditingThis = editingKpiId === kpi.id;
                       const isDragging = draggedKpiId === kpi.id;
                       const isDragOver = dragOverKpiId === kpi.id && !isDragging;
+                      
+                      // Ensure we have valid values with fallbacks
+                      const safeMetricType = kpi.metric_type && kpi.metric_type.trim() !== "" ? kpi.metric_type : "dollar";
+                      const safeTargetDirection = kpi.target_direction && kpi.target_direction.trim() !== "" ? kpi.target_direction : "above";
+                      
                       return (
                         <TableRow 
                           key={kpi.id}
@@ -544,7 +549,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           </TableCell>
                           <TableCell>
                             <Select
-                              value={kpi.metric_type || "dollar"}
+                              value={safeMetricType}
                               onValueChange={(v) => handleUpdateKPI(kpi.id, "metric_type", v)}
                             >
                               <SelectTrigger className="h-8 w-[110px]">
@@ -577,7 +582,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           </TableCell>
                           <TableCell>
                             <Select
-                              value={kpi.target_direction || "above"}
+                              value={safeTargetDirection}
                               onValueChange={(v) => handleUpdateKPI(kpi.id, "target_direction", v)}
                             >
                               <SelectTrigger className="h-8 w-[120px]">
