@@ -80,7 +80,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const months = getMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
-  const FINANCIAL_METRICS = useMemo(() => getMetricsForBrand(storeBrand), [storeBrand]);
+  const FINANCIAL_METRICS = useMemo(() => {
+    console.log('Store brand:', storeBrand);
+    const metrics = getMetricsForBrand(storeBrand);
+    console.log('Financial metrics count:', metrics.length, 'Has dealer_salary:', metrics.some(m => m.key === 'dealer_salary'));
+    return metrics;
+  }, [storeBrand]);
 
   useEffect(() => {
     const loadData = async () => {
