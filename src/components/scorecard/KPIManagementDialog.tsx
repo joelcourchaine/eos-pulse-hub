@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Settings, Trash2, GripVertical } from "lucide-react";
+import { Settings, Trash2, GripVertical, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -59,6 +59,9 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
+  const [customKPIName, setCustomKPIName] = useState("");
+  const [customKPIType, setCustomKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
+  const [customKPIDirection, setCustomKPIDirection] = useState<"above" | "below">("above");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -186,6 +189,45 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       title: "Success", 
       description: `Updated KPIs: ${kpisToAdd.length} added, ${kpisToRemove.length} removed` 
     });
+    onKPIsChange();
+  };
+
+  const handleAddCustomKPI = async () => {
+    if (!customKPIName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a KPI name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .insert({
+        name: customKPIName.trim(),
+        metric_type: customKPIType,
+        target_value: 0,
+        target_direction: customKPIDirection,
+        department_id: departmentId,
+        display_order: kpis.length + 1
+      });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ 
+      title: "Success", 
+      description: "Custom KPI added successfully" 
+    });
+    
+    // Reset form
+    setCustomKPIName("");
+    setCustomKPIType("dollar");
+    setCustomKPIDirection("above");
+    
     onKPIsChange();
   };
 
@@ -395,6 +437,53 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Custom KPI Section */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold text-sm">Add Custom KPI</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="custom-name">KPI Name</Label>
+                  <Input
+                    id="custom-name"
+                    value={customKPIName}
+                    onChange={(e) => setCustomKPIName(e.target.value)}
+                    placeholder="e.g., Customer Satisfaction"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="custom-type">Metric Type</Label>
+                  <Select value={customKPIType} onValueChange={(v: any) => setCustomKPIType(v)}>
+                    <SelectTrigger id="custom-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="dollar">Dollar ($)</SelectItem>
+                      <SelectItem value="percentage">Percentage (%)</SelectItem>
+                      <SelectItem value="unit">Unit Count</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="custom-direction">Target Goal</Label>
+                  <Select value={customKPIDirection} onValueChange={(v: any) => setCustomKPIDirection(v)}>
+                    <SelectTrigger id="custom-direction">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="above">Above Target</SelectItem>
+                      <SelectItem value="below">Below Target</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleAddCustomKPI} className="w-full">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Custom KPI
+                  </Button>
+                </div>
               </div>
             </div>
 
