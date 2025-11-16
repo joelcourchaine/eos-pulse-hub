@@ -65,6 +65,9 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
     if (!departmentId) return;
     
     setLoading(true);
+    // Clear existing data to prevent stale data from showing
+    setRocks([]);
+    
     const { data, error } = await supabase
       .from("rocks")
       .select("*")

@@ -94,6 +94,9 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     if (!departmentId) return;
 
     setLoading(true);
+    // Clear existing data to prevent stale data from showing
+    setTodos([]);
+    
     try {
       const { data, error } = await supabase
         .from("todos")

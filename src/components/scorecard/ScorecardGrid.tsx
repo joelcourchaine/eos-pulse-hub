@@ -245,6 +245,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     }
 
     setLoading(true);
+    // Clear existing data to prevent stale data from showing
+    setEntries({});
+    setLocalValues({});
+    
     const kpiIds = kpis.map((k) => k.id);
     
     if (viewMode === "weekly") {
