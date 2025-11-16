@@ -371,6 +371,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
 
     setLoading(true);
+    // Clear existing data to prevent stale data from showing
+    setEntries({});
+    setNotes({});
+    setLocalValues({});
+    
     const monthIds = months.map(m => m.identifier);
 
     const { data, error } = await supabase

@@ -702,6 +702,7 @@ const Dashboard = () => {
         {/* Financial Summary Section */}
         {selectedDepartment && (
           <FinancialSummary 
+            key={`financial-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
             departmentId={selectedDepartment}
             year={selectedYear}
             quarter={selectedQuarter}
