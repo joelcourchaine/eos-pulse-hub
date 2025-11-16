@@ -100,8 +100,13 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     name: "Department Profit", 
     key: "department_profit", 
     type: "dollar", 
-    description: "Department profit after all expenses", 
-    targetDirection: "above" 
+    description: "GP Net less Sales Expense less Semi Fixed Expense less Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense", "total_fixed_expense"]
+    }
   },
   { 
     name: "Parts Transfer", 
