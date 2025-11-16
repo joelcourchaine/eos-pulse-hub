@@ -543,7 +543,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           </TableCell>
                           <TableCell>
                             <Select
-                              value={kpi.metric_type}
+                              value={kpi.metric_type || "dollar"}
                               onValueChange={(v) => handleUpdateKPI(kpi.id, "metric_type", v)}
                             >
                               <SelectTrigger className="h-8 w-[110px]">
@@ -576,7 +576,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           </TableCell>
                           <TableCell>
                             <Select
-                              value={kpi.target_direction}
+                              value={kpi.target_direction || "above"}
                               onValueChange={(v) => handleUpdateKPI(kpi.id, "target_direction", v)}
                             >
                               <SelectTrigger className="h-8 w-[120px]">
