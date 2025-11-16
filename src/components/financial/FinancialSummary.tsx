@@ -936,8 +936,31 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               )}
                                             </>
                                           ) : (
-                                            // Manual input for non-calculated metrics - display as formatted text
+                                            // Manual input for non-calculated metrics
                                             <>
+                                              {value !== null && value !== undefined ? (
+                                                // Display formatted value when data exists
+                                                <div 
+                                                  className={cn(
+                                                    "h-8 flex items-center justify-center cursor-text",
+                                                    status === "success" && "text-success font-medium",
+                                                    status === "warning" && "text-warning font-medium",
+                                                    status === "destructive" && "text-destructive font-medium"
+                                                  )}
+                                                  onClick={(e) => {
+                                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                    input?.focus();
+                                                    input?.select();
+                                                  }}
+                                                >
+                                                  {formatTarget(value, metric.type)}
+                                                </div>
+                                              ) : (
+                                                // Empty state - just show symbols
+                                                <div className="h-8 flex items-center justify-center text-muted-foreground">
+                                                  {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                                </div>
+                                              )}
                                               <Input
                                                 type="number"
                                                 step="any"
@@ -958,33 +981,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                     }
                                                   }
                                                 }}
+                                                onFocus={(e) => {
+                                                  e.target.previousElementSibling?.classList.add('hidden');
+                                                }}
+                                                onBlur={(e) => {
+                                                  e.target.previousElementSibling?.classList.remove('hidden');
+                                                }}
                                                 data-metric-index={metricIndex}
                                                 data-month-index={monthIndex}
-                                                style={{
-                                                  textIndent: value !== null && value !== undefined && metric.type === "dollar" ? "0.5rem" : "0",
-                                                }}
                                                 className={cn(
-                                                  "h-8 text-center border-0 bg-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                                  "h-8 text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100",
                                                   status === "success" && "text-success font-medium",
                                                   status === "warning" && "text-warning font-medium",
                                                   status === "destructive" && "text-destructive font-medium",
                                                   saving[key] && "opacity-50"
                                                 )}
-                                                placeholder={metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : ""}
                                                 disabled={saving[key]}
                                               />
-                                              {value !== null && value !== undefined && (
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                  <span className={cn(
-                                                    "text-center",
-                                                    status === "success" && "text-success font-medium",
-                                                    status === "warning" && "text-warning font-medium",
-                                                    status === "destructive" && "text-destructive font-medium"
-                                                  )}>
-                                                    {formatTarget(value, metric.type)}
-                                                  </span>
-                                                </div>
-                                              )}
                                               {saving[key] && (
                                                 <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                               )}
