@@ -33,7 +33,9 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
+    return localStorage.getItem('selectedDepartment') || "";
+  });
   const [kpis, setKpis] = useState<any[]>([]);
   
   // Calculate current quarter and year
@@ -55,7 +57,9 @@ const Dashboard = () => {
   const [showStores, setShowStores] = useState(false);
   const [showDepartments, setShowDepartments] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
-  const [selectedStore, setSelectedStore] = useState<string>("");
+  const [selectedStore, setSelectedStore] = useState<string>(() => {
+    return localStorage.getItem('selectedStore') || "";
+  });
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -103,6 +107,9 @@ const Dashboard = () => {
       setActiveRocksCount(0);
       setMyOpenTodosCount(0);
       
+      // Persist selected store
+      localStorage.setItem('selectedStore', selectedStore);
+      
       // Fetch departments for the new store
       fetchDepartments();
     }
@@ -110,6 +117,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedDepartment) {
+      // Persist selected department
+      localStorage.setItem('selectedDepartment', selectedDepartment);
+      
       // Ensure we fetch all data when department changes
       const fetchAllDepartmentData = async () => {
         await Promise.all([
@@ -259,7 +269,15 @@ const Dashboard = () => {
 
       if (data && data.length > 0) {
         setStores(data);
-        setSelectedStore(data[0].id);
+        // Only set default if no store is selected
+        const savedStore = localStorage.getItem('selectedStore');
+        if (savedStore && data.find(s => s.id === savedStore)) {
+          setSelectedStore(savedStore);
+        } else if (!selectedStore) {
+          const firstStore = data[0].id;
+          setSelectedStore(firstStore);
+          localStorage.setItem('selectedStore', firstStore);
+        }
       }
     } catch (error: any) {
       toast({
@@ -295,10 +313,19 @@ const Dashboard = () => {
       if (error) throw error;
       setDepartments(data || []);
       if (data && data.length > 0) {
-        setSelectedDepartment(data[0].id);
+        // Only set default if no department is selected
+        const savedDept = localStorage.getItem('selectedDepartment');
+        if (savedDept && data.find(d => d.id === savedDept)) {
+          setSelectedDepartment(savedDept);
+        } else if (!selectedDepartment) {
+          const firstDept = data[0].id;
+          setSelectedDepartment(firstDept);
+          localStorage.setItem('selectedDepartment', firstDept);
+        }
       } else {
         // No departments in this store - clear everything
         setSelectedDepartment("");
+        localStorage.removeItem('selectedDepartment');
         setKpis([]);
         setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
       }
