@@ -870,7 +870,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 status === "destructive" && "text-destructive font-medium",
                                                 "text-muted-foreground"
                                               )}>
-                                                {value !== null && value !== undefined ? value.toFixed(2) : "-"}
+                                                {value !== null && value !== undefined ? Math.round(value).toLocaleString() : "-"}
                                               </div>
                                               {metric.type === "percentage" && (
                                                 <span className="text-muted-foreground text-sm">%</span>
