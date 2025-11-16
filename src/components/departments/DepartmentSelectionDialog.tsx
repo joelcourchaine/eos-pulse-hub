@@ -38,7 +38,8 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
         .from('departments')
         .select(`
           *,
-          department_types (name, description)
+          department_types (name, description),
+          profiles!departments_manager_id_fkey (id, full_name)
         `)
         .eq('store_id', storeId)
         .order('created_at');
@@ -184,6 +185,11 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                       {dept.department_types && (
                         <div className="text-xs text-muted-foreground">
                           {dept.department_types.description}
+                        </div>
+                      )}
+                      {dept.profiles && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Manager: {dept.profiles.full_name}
                         </div>
                       )}
                     </div>
