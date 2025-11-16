@@ -174,6 +174,56 @@ const Dashboard = () => {
     };
   }, [selectedDepartment, user]);
 
+  // Real-time subscription for stores updates
+  useEffect(() => {
+    if (!user) return;
+
+    const storesChannel = supabase
+      .channel('stores-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'stores'
+        },
+        () => {
+          // Refresh stores list when stores change
+          fetchStores();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(storesChannel);
+    };
+  }, [user]);
+
+  // Real-time subscription for departments updates
+  useEffect(() => {
+    if (!selectedStore && !profile?.store_id) return;
+
+    const departmentsChannel = supabase
+      .channel('departments-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'departments'
+        },
+        () => {
+          // Refresh departments list when departments change
+          fetchDepartments();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(departmentsChannel);
+    };
+  }, [selectedStore, profile?.store_id]);
+
   // Update rocks count when department changes (uses current calendar quarter)
   useEffect(() => {
     if (selectedDepartment) {
