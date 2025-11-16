@@ -499,7 +499,7 @@ const Dashboard = () => {
                     <SelectValue placeholder="Select Store" />
                   </SelectTrigger>
                   <SelectContent>
-                    {stores.map((store) => (
+                    {stores.filter(store => store.id && store.id.trim() !== "").map((store) => (
                       <SelectItem key={store.id} value={store.id}>
                         {store.name}
                       </SelectItem>
@@ -513,7 +513,7 @@ const Dashboard = () => {
                     <SelectValue placeholder="Select Department" />
                   </SelectTrigger>
                   <SelectContent>
-                    {departments.map((dept) => (
+                    {departments.filter(dept => dept.id && dept.id.trim() !== "").map((dept) => (
                       <SelectItem key={dept.id} value={dept.id}>
                         {dept.name}
                       </SelectItem>
