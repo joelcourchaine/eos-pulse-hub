@@ -8,6 +8,10 @@ export interface FinancialMetric {
   calculation?: {
     numerator: string;
     denominator: string;
+  } | {
+    type: "subtract";
+    base: string;
+    deductions: string[];
   };
 }
 
@@ -71,6 +75,18 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     calculation: {
       numerator: "semi_fixed_expense",
       denominator: "gp_net"
+    }
+  },
+  { 
+    name: "Net Selling Gross", 
+    key: "net_selling_gross", 
+    type: "dollar", 
+    description: "GP Net less Sales Expense less Semi Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense"]
     }
   },
   { 
