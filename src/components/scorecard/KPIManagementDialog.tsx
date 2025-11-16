@@ -21,7 +21,7 @@ const PRESET_KPIS = [
   { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
   { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: ["CP Labour Sales", "CP RO's"] },
   { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const, dependencies: ["CP Hours", "CP RO's"] },
-  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: ["CP Labour Sales", "CP Hours"] },
 ];
 
 interface KPI {
