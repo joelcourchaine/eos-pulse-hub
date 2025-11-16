@@ -137,16 +137,5 @@ export const OTHER_METRICS: FinancialMetric[] = [
 ];
 
 export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
-  if (!brand) return GMC_CHEVROLET_METRICS;
-  
-  switch (brand.toUpperCase()) {
-    case 'GMC':
-    case 'CHEVROLET':
-    case 'MAIN DEALERSHIP':
-      return GMC_CHEVROLET_METRICS;
-    case 'OTHER':
-      return OTHER_METRICS;
-    default:
-      return GMC_CHEVROLET_METRICS;
-  }
+  return GMC_CHEVROLET_METRICS;
 };
