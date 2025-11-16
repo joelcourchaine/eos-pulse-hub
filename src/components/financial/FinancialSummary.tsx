@@ -918,7 +918,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <div className="relative flex items-center justify-center gap-0">
+                                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
                                           {isCalculated ? (
                                             // Display calculated values as read-only
                                             <>
@@ -942,7 +942,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 // Display formatted value when data exists
                                                 <div 
                                                   className={cn(
-                                                    "h-8 flex items-center justify-center cursor-text",
+                                                    "h-full w-full flex items-center justify-center cursor-text",
                                                     status === "success" && "text-success font-medium",
                                                     status === "warning" && "text-warning font-medium",
                                                     status === "destructive" && "text-destructive font-medium"
@@ -957,7 +957,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 </div>
                                               ) : (
                                                 // Empty state - just show symbols
-                                                <div className="h-8 flex items-center justify-center text-muted-foreground">
+                                                <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                  onClick={(e) => {
+                                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                    input?.focus();
+                                                  }}
+                                                >
                                                   {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
                                                 </div>
                                               )}
@@ -982,15 +987,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   }
                                                 }}
                                                 onFocus={(e) => {
-                                                  e.target.previousElementSibling?.classList.add('hidden');
+                                                  const parent = e.target.parentElement;
+                                                  if (parent) {
+                                                    const display = parent.querySelector('div') as HTMLElement;
+                                                    if (display) display.style.display = 'none';
+                                                  }
                                                 }}
                                                 onBlur={(e) => {
-                                                  e.target.previousElementSibling?.classList.remove('hidden');
+                                                  const parent = e.target.parentElement;
+                                                  if (parent) {
+                                                    const display = parent.querySelector('div') as HTMLElement;
+                                                    if (display) display.style.display = '';
+                                                  }
                                                 }}
                                                 data-metric-index={metricIndex}
                                                 data-month-index={monthIndex}
                                                 className={cn(
-                                                  "h-8 text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100",
+                                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
                                                   status === "success" && "text-success font-medium",
                                                   status === "warning" && "text-warning font-medium",
                                                   status === "destructive" && "text-destructive font-medium",
@@ -999,10 +1012,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 disabled={saving[key]}
                                               />
                                               {saving[key] && (
-                                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                                               )}
                                               {notes[key] && (
-                                                <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary" />
+                                                <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary z-20" />
                                               )}
                                             </>
                                           )}
