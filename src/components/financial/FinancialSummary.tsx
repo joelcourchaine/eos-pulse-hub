@@ -632,9 +632,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {FINANCIAL_METRICS.map((metric) => (
-                            <TableRow key={metric.key}>
-                              <TableCell className="font-medium">{metric.name}</TableCell>
+                          {FINANCIAL_METRICS.map((metric) => {
+                            const isDepartmentProfit = metric.key === 'department_profit';
+                            return (
+                              <TableRow 
+                                key={metric.key}
+                                className={cn(
+                                  isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5"
+                                )}
+                              >
+                                <TableCell className={cn(
+                                  isDepartmentProfit ? "font-bold" : "font-medium"
+                                )}>
+                                  {metric.name}
+                                </TableCell>
                               {[1, 2, 3, 4].map((q) => (
                                 <TableCell key={q}>
                                   <Input
@@ -683,7 +694,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 </Select>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -732,12 +744,27 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                   {FINANCIAL_METRICS.map((metric) => {
                     const target = targets[metric.key];
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
+                    const isDepartmentProfit = metric.key === 'department_profit';
                     
                     return (
-                      <TableRow key={metric.key} className="hover:bg-muted/30">
-                        <TableCell className="sticky left-0 bg-background z-10 py-[7.2px] min-w-[200px]">
+                      <TableRow 
+                        key={metric.key} 
+                        className={cn(
+                          "hover:bg-muted/30",
+                          isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5"
+                        )}
+                      >
+                        <TableCell className={cn(
+                          "sticky left-0 z-10 py-[7.2px] min-w-[200px]",
+                          isDepartmentProfit ? "bg-primary/5" : "bg-background"
+                        )}>
                           <div>
-                            <p className="font-medium text-sm">{metric.name}</p>
+                            <p className={cn(
+                              "text-sm",
+                              isDepartmentProfit ? "font-bold text-base" : "font-medium"
+                            )}>
+                              {metric.name}
+                            </p>
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                         </TableCell>
