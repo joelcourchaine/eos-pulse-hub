@@ -781,13 +781,46 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           let value = entries[key];
                           const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
+                          // Helper function to get value for a metric (handles calculated fields)
+                          const getValueForMetric = (metricKey: string): number | undefined => {
+                            const entryKey = `${metricKey}-${month.identifier}`;
+                            const existingValue = entries[entryKey];
+                            
+                            // If value exists in entries, return it
+                            if (existingValue !== null && existingValue !== undefined) {
+                              return existingValue;
+                            }
+                            
+                            // Check if this metric is calculated
+                            const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+                            if (!sourceMetric || !sourceMetric.calculation) {
+                              return undefined;
+                            }
+                            
+                            // Handle dollar subtraction calculations
+                            if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && sourceMetric.calculation.type === 'subtract') {
+                              const baseValue = getValueForMetric(sourceMetric.calculation.base);
+                              if (baseValue === null || baseValue === undefined) return undefined;
+                              
+                              let calculatedValue = baseValue;
+                              for (const deduction of sourceMetric.calculation.deductions) {
+                                const deductionValue = getValueForMetric(deduction);
+                                if (deductionValue === null || deductionValue === undefined) {
+                                  return undefined;
+                                }
+                                calculatedValue -= deductionValue;
+                              }
+                              return calculatedValue;
+                            }
+                            
+                            return undefined;
+                          };
+                          
                           // Calculate percentage metrics automatically if calculation is defined
                           const isPercentageCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
                           if (isPercentageCalculated && metric.calculation && 'numerator' in metric.calculation) {
-                            const numeratorKey = `${metric.calculation.numerator}-${month.identifier}`;
-                            const denominatorKey = `${metric.calculation.denominator}-${month.identifier}`;
-                            const numeratorValue = entries[numeratorKey];
-                            const denominatorValue = entries[denominatorKey];
+                            const numeratorValue = getValueForMetric(metric.calculation.numerator);
+                            const denominatorValue = getValueForMetric(metric.calculation.denominator);
                             
                             if (numeratorValue !== null && numeratorValue !== undefined && 
                                 denominatorValue !== null && denominatorValue !== undefined && 
@@ -801,14 +834,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           // Calculate dollar subtraction metrics automatically if calculation is defined
                           const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && metric.calculation.type === 'subtract';
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
-                            const baseKey = `${metric.calculation.base}-${month.identifier}`;
-                            const baseValue = entries[baseKey];
+                            const baseValue = getValueForMetric(metric.calculation.base);
                             
                             if (baseValue !== null && baseValue !== undefined) {
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
-                                const deductionKey = `${deduction}-${month.identifier}`;
-                                const deductionValue = entries[deductionKey];
+                                const deductionValue = getValueForMetric(deduction);
                                 if (deductionValue !== null && deductionValue !== undefined) {
                                   calculatedValue -= deductionValue;
                                 } else {
