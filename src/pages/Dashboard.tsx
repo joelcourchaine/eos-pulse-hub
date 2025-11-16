@@ -683,6 +683,7 @@ const Dashboard = () => {
           <CardContent>
             {selectedDepartment ? (
               <ScorecardGrid 
+                key={`scorecard-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
                 departmentId={selectedDepartment}
                 kpis={kpis}
                 onKPIsChange={fetchKPIs}
@@ -710,7 +711,10 @@ const Dashboard = () => {
         )}
 
         {/* Rocks Section */}
-        <RocksPanel departmentId={selectedDepartment} />
+        <RocksPanel 
+          key={`rocks-${selectedDepartment}`}
+          departmentId={selectedDepartment} 
+        />
 
         {/* Meeting Framework */}
         <MeetingFramework />
@@ -719,7 +723,11 @@ const Dashboard = () => {
         <Celebrations currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id} />
 
         {/* To-Dos Section */}
-        <TodosPanel departmentId={selectedDepartment} userId={user?.id} />
+        <TodosPanel 
+          key={`todos-${selectedDepartment}`}
+          departmentId={selectedDepartment} 
+          userId={user?.id} 
+        />
       </main>
     </div>
 
