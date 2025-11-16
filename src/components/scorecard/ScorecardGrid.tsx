@@ -756,11 +756,36 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
                         )}
                       >
-                        <div className="relative flex items-center justify-center gap-0">
-                          {kpi.metric_type === "dollar" && (
-                            <span className="text-muted-foreground text-sm">$</span>
+                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                          {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
+                            // Display formatted value when data exists
+                            <div 
+                              className={cn(
+                                "h-full w-full flex items-center justify-center cursor-text",
+                                status === "success" && "text-success font-medium",
+                                status === "warning" && "text-warning font-medium",
+                                status === "destructive" && "text-destructive font-medium"
+                              )}
+                              onClick={(e) => {
+                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                input?.focus();
+                                input?.select();
+                              }}
+                            >
+                              {formatTarget(entry.actual_value, kpi.metric_type)}
+                            </div>
+                          ) : (
+                            // Empty state - just show symbols
+                            <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                              onClick={(e) => {
+                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                input?.focus();
+                              }}
+                            >
+                              {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                            </div>
                           )}
-                           <Input
+                          <Input
                             type="number"
                             step="any"
                             value={displayValue}
@@ -782,10 +807,24 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                                 }
                               }
                             }}
+                            onFocus={(e) => {
+                              const parent = e.target.parentElement;
+                              if (parent) {
+                                const display = parent.querySelector('div') as HTMLElement;
+                                if (display) display.style.display = 'none';
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const parent = e.target.parentElement;
+                              if (parent) {
+                                const display = parent.querySelector('div') as HTMLElement;
+                                if (display) display.style.display = '';
+                              }
+                            }}
                             data-kpi-index={index}
                             data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
                             className={cn(
-                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium"
@@ -793,11 +832,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                             placeholder="-"
                             disabled={saving[key]}
                           />
-                          {kpi.metric_type === "percentage" && (
-                            <span className="text-muted-foreground text-sm">%</span>
-                          )}
                           {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                           )}
                         </div>
                       </TableCell>
@@ -818,11 +854,36 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                           status === "destructive" && "bg-destructive/10"
                         )}
                       >
-                        <div className="relative flex items-center justify-center gap-0">
-                          {kpi.metric_type === "dollar" && (
-                            <span className="text-muted-foreground text-sm">$</span>
+                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                          {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
+                            // Display formatted value when data exists
+                            <div 
+                              className={cn(
+                                "h-full w-full flex items-center justify-center cursor-text",
+                                status === "success" && "text-success font-medium",
+                                status === "warning" && "text-warning font-medium",
+                                status === "destructive" && "text-destructive font-medium"
+                              )}
+                              onClick={(e) => {
+                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                input?.focus();
+                                input?.select();
+                              }}
+                            >
+                              {formatTarget(entry.actual_value, kpi.metric_type)}
+                            </div>
+                          ) : (
+                            // Empty state - just show symbols
+                            <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                              onClick={(e) => {
+                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                input?.focus();
+                              }}
+                            >
+                              {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                            </div>
                           )}
-                           <Input
+                          <Input
                             type="number"
                             step="any"
                             value={displayValue}
@@ -844,10 +905,24 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                                 }
                               }
                             }}
+                            onFocus={(e) => {
+                              const parent = e.target.parentElement;
+                              if (parent) {
+                                const display = parent.querySelector('div') as HTMLElement;
+                                if (display) display.style.display = 'none';
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const parent = e.target.parentElement;
+                              if (parent) {
+                                const display = parent.querySelector('div') as HTMLElement;
+                                if (display) display.style.display = '';
+                              }
+                            }}
                             data-kpi-index={index}
                             data-period-index={months.findIndex(m => m.identifier === month.identifier)}
                             className={cn(
-                              "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[100px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium"
@@ -855,11 +930,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                             placeholder="-"
                             disabled={saving[key]}
                           />
-                          {kpi.metric_type === "percentage" && (
-                            <span className="text-muted-foreground text-sm">%</span>
-                          )}
                           {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                           )}
                         </div>
                       </TableCell>
