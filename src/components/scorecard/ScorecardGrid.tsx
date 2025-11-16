@@ -311,6 +311,98 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setLoading(false);
   };
 
+  const calculateDependentKPIs = async (changedKpiId: string, periodKey: string, isMonthly: boolean, monthId?: string) => {
+    const changedKpi = kpis.find(k => k.id === changedKpiId);
+    if (!changedKpi) return;
+
+    // Define calculation rules
+    const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
+      "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" },
+      "CP Hours Per RO": { numerator: "CP Hours", denominator: "CP RO's" },
+      "CP ELR": { numerator: "CP Labour Sales", denominator: "CP Hours" },
+    };
+
+    // Find KPIs that need to be calculated based on the changed KPI
+    for (const kpi of kpis) {
+      const rule = calculationRules[kpi.name];
+      if (!rule) continue;
+
+      // Check if the changed KPI is part of this calculation
+      if (rule.numerator !== changedKpi.name && rule.denominator !== changedKpi.name) continue;
+
+      // Find the numerator and denominator KPIs
+      const numeratorKpi = kpis.find(k => k.name === rule.numerator);
+      const denominatorKpi = kpis.find(k => k.name === rule.denominator);
+
+      if (!numeratorKpi || !denominatorKpi) continue;
+
+      // Get the values for this period
+      const numeratorKey = isMonthly ? `${numeratorKpi.id}-month-${monthId}` : `${numeratorKpi.id}-${periodKey}`;
+      const denominatorKey = isMonthly ? `${denominatorKpi.id}-month-${monthId}` : `${denominatorKpi.id}-${periodKey}`;
+
+      const numeratorEntry = entries[numeratorKey];
+      const denominatorEntry = entries[denominatorKey];
+
+      const numeratorValue = numeratorEntry?.actual_value;
+      const denominatorValue = denominatorEntry?.actual_value;
+
+      // Only calculate if both values exist and denominator is not zero
+      if (numeratorValue && denominatorValue && denominatorValue !== 0) {
+        const calculatedValue = numeratorValue / denominatorValue;
+        const target = kpiTargets[kpi.id] || kpi.target_value;
+        
+        const variance = kpi.metric_type === "percentage" 
+          ? calculatedValue - target 
+          : ((calculatedValue - target) / target) * 100;
+
+        let status: string;
+        if (kpi.target_direction === "above") {
+          status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+        } else {
+          status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+        }
+
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session.session?.user?.id;
+
+        const entryData: any = {
+          kpi_id: kpi.id,
+          actual_value: calculatedValue,
+          variance,
+          status,
+          created_by: userId,
+          entry_type: isMonthly ? 'monthly' : 'weekly',
+        };
+
+        if (isMonthly) {
+          entryData.month = monthId;
+        } else {
+          entryData.week_start_date = periodKey;
+        }
+
+        const { data, error } = await supabase
+          .from("scorecard_entries")
+          .upsert(entryData, {
+            onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          const calculatedKey = isMonthly ? `${kpi.id}-month-${monthId}` : `${kpi.id}-${periodKey}`;
+          setEntries(prev => ({
+            ...prev,
+            [calculatedKey]: data as ScorecardEntry
+          }));
+          setLocalValues(prev => ({
+            ...prev,
+            [calculatedKey]: calculatedValue.toString()
+          }));
+        }
+      }
+    }
+  };
+
   const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, targetDirection: "above" | "below", isMonthly: boolean, monthId?: string) => {
     const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
     
@@ -400,6 +492,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           ...prev,
           [key]: data as ScorecardEntry
         }));
+
+        // Auto-calculate dependent KPIs
+        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId);
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
