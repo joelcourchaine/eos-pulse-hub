@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -80,7 +80,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const months = getMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
-  const FINANCIAL_METRICS = getMetricsForBrand(storeBrand);
+  const FINANCIAL_METRICS = useMemo(() => getMetricsForBrand(storeBrand), [storeBrand]);
 
   useEffect(() => {
     const loadData = async () => {
