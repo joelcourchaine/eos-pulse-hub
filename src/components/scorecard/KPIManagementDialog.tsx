@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Settings, Trash2, Plus, GripVertical } from "lucide-react";
+import { Settings, Trash2, GripVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const PRESET_KPIS = [
   { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
@@ -49,11 +50,7 @@ interface KPIManagementDialogProps {
 
 export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, quarter }: KPIManagementDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [metricType, setMetricType] = useState<"dollar" | "percentage" | "unit">("dollar");
-  const [targetValue, setTargetValue] = useState("");
-  const [targetDirection, setTargetDirection] = useState<"above" | "below">("above");
-  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set());
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [editingTargetValue, setEditingTargetValue] = useState<string>("");
@@ -62,42 +59,26 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
   const { toast } = useToast();
-
-  const handlePresetSelect = (presetName: string) => {
-    if (presetName === "custom") {
-      setName("");
-      setMetricType("dollar");
-      setTargetDirection("above");
-      setSelectedPreset("");
-      return;
-    }
-
-    const preset = PRESET_KPIS.find(p => p.name === presetName);
-    if (preset) {
-      setName(preset.name);
-      setMetricType(preset.metricType);
-      setTargetDirection(preset.targetDirection);
-      setSelectedPreset(presetName);
-    }
-  };
 
   useEffect(() => {
     if (open) {
-      fetchProfiles();
+      loadProfiles();
       loadKPITargets();
+      // Initialize selected KPIs based on existing KPIs
+      const existingKPINames = new Set(kpis.map(k => k.name));
+      setSelectedKPIs(existingKPINames);
     }
-  }, [open, kpis, quarter, year]);
+  }, [open, kpis]);
 
-  const fetchProfiles = async () => {
+  const loadProfiles = async () => {
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, email")
       .order("full_name");
 
     if (error) {
-      console.error("Error fetching profiles:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
     }
 
@@ -105,18 +86,15 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   };
 
   const loadKPITargets = async () => {
-    if (!kpis.length) return;
-
-    const kpiIds = kpis.map(k => k.id);
     const { data, error } = await supabase
       .from("kpi_targets")
-      .select("*")
-      .in("kpi_id", kpiIds)
+      .select("kpi_id, target_value")
+      .in("kpi_id", kpis.map(k => k.id))
       .eq("quarter", quarter)
       .eq("year", year);
 
     if (error) {
-      console.error("Error loading KPI targets:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
       return;
     }
 
@@ -124,70 +102,98 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     data?.forEach(target => {
       targetsMap[target.kpi_id] = target.target_value || 0;
     });
-
-    // For KPIs without quarterly targets, fall back to default target_value
-    kpis.forEach(kpi => {
-      if (!targetsMap[kpi.id]) {
-        targetsMap[kpi.id] = kpi.target_value;
-      }
-    });
-
     setKpiTargets(targetsMap);
   };
 
-  const handleAddKPI = async () => {
-    if (!name || !targetValue) {
-      toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
-      return;
+  const handleKPIToggle = (kpiName: string, checked: boolean) => {
+    const preset = PRESET_KPIS.find(p => p.name === kpiName);
+    if (!preset) return;
+
+    const newSelected = new Set(selectedKPIs);
+
+    if (checked) {
+      // Add the KPI
+      newSelected.add(kpiName);
+      // Auto-add dependencies
+      preset.dependencies.forEach(dep => newSelected.add(dep));
+    } else {
+      // Check if any selected KPIs depend on this one
+      const dependentKPIs = PRESET_KPIS.filter(p => 
+        selectedKPIs.has(p.name) && p.dependencies.includes(kpiName)
+      );
+
+      if (dependentKPIs.length > 0) {
+        toast({
+          title: "Cannot remove KPI",
+          description: `"${kpiName}" is required by: ${dependentKPIs.map(k => k.name).join(", ")}`,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      newSelected.delete(kpiName);
     }
 
-    const maxOrder = kpis.length > 0 ? Math.max(...kpis.map(k => k.display_order)) : 0;
+    setSelectedKPIs(newSelected);
+  };
 
-    const { error } = await supabase
-      .from("kpi_definitions")
-      .insert({
-        name,
-        metric_type: metricType,
-        target_value: parseFloat(targetValue),
-        target_direction: targetDirection,
-        department_id: departmentId,
-        display_order: maxOrder + 1,
-        assigned_to: assignedTo && assignedTo !== "unassigned" ? assignedTo : null,
-      });
+  const handleApplyKPIs = async () => {
+    // Get currently active KPI names
+    const existingKPINames = new Set(kpis.map(k => k.name));
+    
+    // Find KPIs to add
+    const kpisToAdd = Array.from(selectedKPIs).filter(name => !existingKPINames.has(name));
+    
+    // Find KPIs to remove
+    const kpisToRemove = kpis.filter(k => !selectedKPIs.has(k.name));
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
+    // Remove unchecked KPIs
+    for (const kpi of kpisToRemove) {
+      const { error } = await supabase
+        .from("kpi_definitions")
+        .delete()
+        .eq("id", kpi.id);
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        return;
+      }
     }
 
-    toast({ title: "Success", description: "KPI added successfully" });
-    setName("");
-    setTargetValue("");
-    setTargetDirection("above");
-    setAssignedTo("unassigned");
+    // Add new KPIs
+    for (const kpiName of kpisToAdd) {
+      const preset = PRESET_KPIS.find(p => p.name === kpiName);
+      if (!preset) continue;
+
+      const { error } = await supabase
+        .from("kpi_definitions")
+        .insert({
+          name: preset.name,
+          metric_type: preset.metricType,
+          target_value: 0,
+          target_direction: preset.targetDirection,
+          department_id: departmentId,
+          display_order: kpis.length + kpisToAdd.indexOf(kpiName) + 1
+        });
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+        return;
+      }
+    }
+
+    toast({ 
+      title: "Success", 
+      description: `Updated KPIs: ${kpisToAdd.length} added, ${kpisToRemove.length} removed` 
+    });
     onKPIsChange();
   };
 
-  const handleUpdateOwner = async (kpiId: string, newOwnerId: string | null) => {
-    const { error } = await supabase
-      .from("kpi_definitions")
-      .update({ assigned_to: newOwnerId })
-      .eq("id", kpiId);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    toast({ title: "Success", description: "Owner updated successfully" });
-    onKPIsChange();
-  };
-
-  const handleUpdateKPI = async (kpiId: string, field: string, value: any) => {
+  const handleUpdateKPI = async (id: string, field: string, value: any) => {
     const { error } = await supabase
       .from("kpi_definitions")
       .update({ [field]: value })
-      .eq("id", kpiId);
+      .eq("id", id);
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -207,7 +213,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       return;
     }
 
-    // Save to kpi_targets table for the current quarter
     const { error } = await supabase
       .from("kpi_targets")
       .upsert({
@@ -270,18 +275,15 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       return;
     }
 
-    // Reorder the array
     const reorderedKpis = [...kpis];
     const [removed] = reorderedKpis.splice(draggedIndex, 1);
     reorderedKpis.splice(targetIndex, 0, removed);
 
-    // Update display_order for all affected KPIs
     const updates = reorderedKpis.map((kpi, index) => ({
       id: kpi.id,
       display_order: index + 1
     }));
 
-    // Update all KPIs in the database
     for (const update of updates) {
       const { error } = await supabase
         .from("kpi_definitions")
@@ -316,6 +318,12 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     onKPIsChange();
   };
 
+  const isKPIDependency = (kpiName: string) => {
+    return PRESET_KPIS.some(p => 
+      selectedKPIs.has(p.name) && p.dependencies.includes(kpiName)
+    );
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -329,112 +337,72 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           <DialogHeader>
             <DialogTitle>Manage KPIs</DialogTitle>
             <DialogDescription>
-              Add, edit, or remove KPIs for this department. Changes affect the scorecard immediately.
+              Select KPIs to track for this department. Dependencies will be automatically selected.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* KPI Selection */}
             <div className="border rounded-lg p-4 space-y-4">
-              <h3 className="font-semibold text-sm">Add New KPI</h3>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="preset">Select Preset KPI</Label>
-                  <Select value={selectedPreset} onValueChange={handlePresetSelect}>
-                    <SelectTrigger id="preset">
-                      <SelectValue placeholder="Choose preset or custom" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="custom">Custom KPI</SelectItem>
-                      {PRESET_KPIS.map((preset) => (
-                        <SelectItem key={preset.name} value={preset.name}>
-                          <div className="flex flex-col">
-                            <span>{preset.name}</span>
-                            {preset.dependencies.length > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                Requires: {preset.dependencies.join(", ")}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                  <div>
-                    <Label htmlFor="name">KPI Name</Label>
-                    <Input
-                      id="name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g., Wholesale Sales"
-                    />
-                  </div>
-                <div>
-                  <Label htmlFor="type">Metric Type</Label>
-                  <Select value={metricType} onValueChange={(v: any) => setMetricType(v)}>
-                    <SelectTrigger id="type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dollar">Dollar ($)</SelectItem>
-                      <SelectItem value="percentage">Percentage (%)</SelectItem>
-                      <SelectItem value="unit">Unit Count</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="target">Target Value</Label>
-                  <Input
-                    id="target"
-                    type="number"
-                    value={targetValue}
-                    onChange={(e) => setTargetValue(e.target.value)}
-                    placeholder="10000"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="direction">Target Goal</Label>
-                  <Select value={targetDirection} onValueChange={(v: any) => setTargetDirection(v)}>
-                    <SelectTrigger id="direction">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="above">Above Target</SelectItem>
-                      <SelectItem value="below">Below Target</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="owner">Owner (Optional)</Label>
-                  <Select value={assignedTo} onValueChange={setAssignedTo}>
-                    <SelectTrigger id="owner">
-                      <SelectValue placeholder="Select owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">None</SelectItem>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-end">
-                  <Button onClick={handleAddKPI} className="w-full">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add KPI
-                  </Button>
-                </div>
-                </div>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Select KPIs</h3>
+                <Button onClick={handleApplyKPIs} size="sm">
+                  Apply Changes
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {PRESET_KPIS.map((preset) => {
+                  const isSelected = selectedKPIs.has(preset.name);
+                  const isDependency = isKPIDependency(preset.name);
+                  
+                  return (
+                    <div 
+                      key={preset.name}
+                      className={`flex items-start space-x-3 p-3 rounded-lg border ${
+                        isDependency ? 'bg-muted/50 border-primary/30' : 'hover:bg-muted/30'
+                      }`}
+                    >
+                      <Checkbox
+                        id={preset.name}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => handleKPIToggle(preset.name, checked as boolean)}
+                        disabled={isDependency}
+                      />
+                      <div className="flex-1">
+                        <Label 
+                          htmlFor={preset.name}
+                          className={`text-sm font-medium cursor-pointer ${
+                            isDependency ? 'text-muted-foreground' : ''
+                          }`}
+                        >
+                          {preset.name}
+                        </Label>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Type: {preset.metricType === "dollar" ? "$" : preset.metricType === "percentage" ? "%" : "units"}
+                          {preset.dependencies.length > 0 && (
+                            <span className="ml-2">
+                              • Requires: {preset.dependencies.join(", ")}
+                            </span>
+                          )}
+                          {isDependency && (
+                            <span className="ml-2 text-primary">
+                              • Required by other KPI
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
+            {/* Current KPIs Table */}
             <div>
               <h3 className="font-semibold text-sm mb-3">Current KPIs ({kpis.length})</h3>
               {kpis.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No KPIs defined yet. Add your first KPI above.</p>
+                <p className="text-sm text-muted-foreground">No KPIs selected. Choose KPIs above to get started.</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -487,67 +455,60 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           <TableCell>
                             <Select
                               value={kpi.metric_type}
-                              onValueChange={(value: "dollar" | "percentage" | "unit") => {
-                                handleUpdateKPI(kpi.id, "metric_type", value);
-                                toast({ title: "Success", description: "Type updated successfully" });
-                              }}
+                              onValueChange={(v) => handleUpdateKPI(kpi.id, "metric_type", v)}
                             >
-                              <SelectTrigger className="w-[130px] h-8">
+                              <SelectTrigger className="h-8 w-[110px]">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
+                              <SelectContent>
                                 <SelectItem value="dollar">Dollar ($)</SelectItem>
                                 <SelectItem value="percentage">Percentage (%)</SelectItem>
-                                <SelectItem value="unit">Unit</SelectItem>
+                                <SelectItem value="unit">Unit Count</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1">
-                              {kpi.metric_type === "dollar" && <span>$</span>}
-                              <Input
-                                type="number"
-                                className="h-8 w-24"
-                                value={editingKpiId === kpi.id ? editingTargetValue : (kpiTargets[kpi.id] || kpi.target_value)}
-                                onFocus={() => {
-                                  setEditingKpiId(kpi.id);
-                                  setEditingTargetValue((kpiTargets[kpi.id] || kpi.target_value).toString());
-                                }}
-                                onChange={(e) => setEditingTargetValue(e.target.value)}
-                                onBlur={() => handleTargetBlur(kpi.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.currentTarget.blur();
-                                  }
-                                }}
-                              />
-                              {kpi.metric_type === "percentage" && <span>%</span>}
-                            </div>
+                            <Input
+                              type="number"
+                              className="h-8 w-24"
+                              value={isEditingThis ? editingTargetValue : (kpiTargets[kpi.id] ?? kpi.target_value)}
+                              onFocus={() => {
+                                setEditingKpiId(kpi.id);
+                                setEditingTargetValue(String(kpiTargets[kpi.id] ?? kpi.target_value));
+                              }}
+                              onChange={(e) => setEditingTargetValue(e.target.value)}
+                              onBlur={() => handleTargetBlur(kpi.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                            />
                           </TableCell>
-                          <TableCell className="capitalize">
+                          <TableCell>
                             <Select
                               value={kpi.target_direction}
-                              onValueChange={(value: "above" | "below") => handleUpdateKPI(kpi.id, "target_direction", value)}
+                              onValueChange={(v) => handleUpdateKPI(kpi.id, "target_direction", v)}
                             >
-                              <SelectTrigger className="w-[120px] h-8">
+                              <SelectTrigger className="h-8 w-[120px]">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
-                                <SelectItem value="above">Above</SelectItem>
-                                <SelectItem value="below">Below</SelectItem>
+                              <SelectContent>
+                                <SelectItem value="above">Above Target</SelectItem>
+                                <SelectItem value="below">Below Target</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
                           <TableCell>
                             <Select
                               value={kpi.assigned_to || "unassigned"}
-                              onValueChange={(value) => handleUpdateOwner(kpi.id, value === "unassigned" ? null : value)}
+                              onValueChange={(v) => handleUpdateKPI(kpi.id, "assigned_to", v === "unassigned" ? null : v)}
                             >
-                              <SelectTrigger className="w-[180px] h-8">
-                                <SelectValue placeholder="Select owner" />
+                              <SelectTrigger className="h-8 w-[140px]">
+                                <SelectValue placeholder="None" />
                               </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
-                                <SelectItem value="unassigned">Unassigned</SelectItem>
+                              <SelectContent>
+                                <SelectItem value="unassigned">None</SelectItem>
                                 {profiles.map((profile) => (
                                   <SelectItem key={profile.id} value={profile.id}>
                                     {profile.full_name}
@@ -562,7 +523,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                               size="sm"
                               onClick={() => setDeleteKpiId(kpi.id)}
                             >
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -579,9 +540,9 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       <AlertDialog open={!!deleteKpiId} onOpenChange={() => setDeleteKpiId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete KPI?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this KPI and all associated scorecard entries. This action cannot be undone.
+              This will permanently delete this KPI and all associated scorecard data. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
