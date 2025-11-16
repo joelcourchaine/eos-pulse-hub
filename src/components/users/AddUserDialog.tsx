@@ -168,16 +168,16 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
-                <Select value={storeId} onValueChange={(value) => {
-                  setStoreId(value);
-                  if (value) setStoreGroupId(""); // Clear group if store selected
+                <Select value={storeId || "none"} onValueChange={(value) => {
+                  setStoreId(value === "none" ? "" : value);
+                  if (value !== "none") setStoreGroupId(""); // Clear group if store selected
                 }}>
                   <SelectTrigger id="store">
                     <SelectValue placeholder="Select store" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {stores.map((store) => (
+                    <SelectItem value="none">None</SelectItem>
+                    {stores.filter(s => s.id && s.id.trim() !== "").map((store) => (
                       <SelectItem key={store.id} value={store.id}>
                         {store.name}
                       </SelectItem>
@@ -188,16 +188,16 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
               
               <div>
                 <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
-                <Select value={storeGroupId} onValueChange={(value) => {
-                  setStoreGroupId(value);
-                  if (value) setStoreId(""); // Clear store if group selected
+                <Select value={storeGroupId || "none"} onValueChange={(value) => {
+                  setStoreGroupId(value === "none" ? "" : value);
+                  if (value !== "none") setStoreId(""); // Clear store if group selected
                 }}>
                   <SelectTrigger id="storeGroup">
                     <SelectValue placeholder="Select group" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {storeGroups.map((group) => (
+                    <SelectItem value="none">None</SelectItem>
+                    {storeGroups.filter(g => g.id && g.id.trim() !== "").map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
                       </SelectItem>

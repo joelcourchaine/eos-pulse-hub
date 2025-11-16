@@ -174,7 +174,7 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="unassigned">Unassigned</SelectItem>
-                  {profiles.map((profile) => (
+                  {profiles.filter(p => p.id && p.id.trim() !== "").map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
                       {profile.full_name}
                     </SelectItem>
