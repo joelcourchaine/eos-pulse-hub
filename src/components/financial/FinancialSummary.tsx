@@ -922,9 +922,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           {isCalculated ? (
                                             // Display calculated values as read-only
                                             <>
-                                              {metric.type === "dollar" && (
-                                                <span className="text-muted-foreground text-sm">$</span>
-                                              )}
                                               <div className={cn(
                                                 "text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px]",
                                                 status === "success" && "text-success font-medium",
@@ -932,11 +929,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 status === "destructive" && "text-destructive font-medium",
                                                 "text-muted-foreground"
                                               )}>
-                                                {value !== null && value !== undefined ? Math.round(value).toLocaleString() : "-"}
+                                                {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
                                               </div>
-                                              {metric.type === "percentage" && (
-                                                <span className="text-muted-foreground text-sm">%</span>
-                                              )}
                                               {notes[key] && (
                                                 <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary" />
                                               )}
@@ -944,43 +938,47 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           ) : (
                                             // Manual input for non-calculated metrics
                                             <>
-                                              {metric.type === "dollar" && (
-                                                <span className="text-muted-foreground text-sm">$</span>
-                                              )}
-                                              <Input
-                                                type="number"
-                                                step="any"
-                                                value={localValues[key] || ""}
-                                                onChange={(e) =>
-                                                  handleValueChange(metric.key, month.identifier, e.target.value)
-                                                }
-                                                onKeyDown={(e) => {
-                                                  if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    
-                                                    if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                                      const nextInput = document.querySelector(
-                                                        `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
-                                                      ) as HTMLInputElement;
-                                                      nextInput?.focus();
-                                                      nextInput?.select();
-                                                    }
-                                                  }
-                                                }}
-                                                data-metric-index={metricIndex}
-                                                data-month-index={monthIndex}
-                                                className={cn(
-                                                  "text-center border-0 bg-transparent focus-visible:ring-1 h-8 flex-1 min-w-0 max-w-[105px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                                                  status === "success" && "text-success font-medium",
-                                                  status === "warning" && "text-warning font-medium",
-                                                  status === "destructive" && "text-destructive font-medium"
+                                              <div className="relative flex items-center w-full">
+                                                {metric.type === "dollar" && (
+                                                  <span className="absolute left-2 text-muted-foreground text-sm pointer-events-none">$</span>
                                                 )}
-                                                placeholder="-"
-                                                disabled={saving[key]}
-                                              />
-                                              {metric.type === "percentage" && (
-                                                <span className="text-muted-foreground text-sm">%</span>
-                                              )}
+                                                <Input
+                                                  type="number"
+                                                  step="any"
+                                                  value={localValues[key] || ""}
+                                                  onChange={(e) =>
+                                                    handleValueChange(metric.key, month.identifier, e.target.value)
+                                                  }
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      
+                                                      if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                                        const nextInput = document.querySelector(
+                                                          `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
+                                                        ) as HTMLInputElement;
+                                                        nextInput?.focus();
+                                                        nextInput?.select();
+                                                      }
+                                                    }
+                                                  }}
+                                                  data-metric-index={metricIndex}
+                                                  data-month-index={monthIndex}
+                                                  className={cn(
+                                                    "h-8 text-center border-0 bg-transparent",
+                                                    status === "success" && "text-success font-medium",
+                                                    status === "warning" && "text-warning font-medium",
+                                                    status === "destructive" && "text-destructive font-medium",
+                                                    saving[key] && "opacity-50",
+                                                    metric.type === "dollar" && "pl-5",
+                                                    metric.type === "percentage" && "pr-5"
+                                                  )}
+                                                  disabled={saving[key]}
+                                                />
+                                                {metric.type === "percentage" && (
+                                                  <span className="absolute right-2 text-muted-foreground text-sm pointer-events-none">%</span>
+                                                )}
+                                              </div>
                                               {saving[key] && (
                                                 <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                               )}
