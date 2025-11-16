@@ -116,10 +116,10 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     targetDirection: "above" 
   },
   { 
-    name: "Net", 
+    name: "Net Operating Profit", 
     key: "net", 
     type: "dollar", 
-    description: "Net profit/loss", 
+    description: "Net profit/loss after adjustments", 
     targetDirection: "above" 
   },
   { 
