@@ -782,8 +782,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
                           // Calculate percentage metrics automatically if calculation is defined
-                          const isCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
-                          if (isCalculated && metric.calculation && 'numerator' in metric.calculation) {
+                          const isPercentageCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
+                          if (isPercentageCalculated && metric.calculation && 'numerator' in metric.calculation) {
                             const numeratorKey = `${metric.calculation.numerator}-${month.identifier}`;
                             const denominatorKey = `${metric.calculation.denominator}-${month.identifier}`;
                             const numeratorValue = entries[numeratorKey];
@@ -799,8 +799,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           
                           // Calculate dollar subtraction metrics automatically if calculation is defined
-                          const isSubtractCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && metric.calculation.type === 'subtract';
-                          if (isSubtractCalculated && metric.calculation && 'type' in metric.calculation) {
+                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && metric.calculation.type === 'subtract';
+                          if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseKey = `${metric.calculation.base}-${month.identifier}`;
                             const baseValue = entries[baseKey];
                             
@@ -821,6 +821,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               value = undefined;
                             }
                           }
+                          
+                          // Determine if this is a calculated field (both percentage and dollar calculations)
+                          const isCalculated = isPercentageCalculated || isDollarCalculated;
                           
                           // Calculate status based on target and value
                           let status = "default";
