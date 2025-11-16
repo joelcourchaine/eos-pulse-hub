@@ -53,12 +53,10 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set());
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
-  const [editingTargetValue, setEditingTargetValue] = useState<string>("");
   const [editingName, setEditingName] = useState<string>("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [draggedKpiId, setDraggedKpiId] = useState<string | null>(null);
   const [dragOverKpiId, setDragOverKpiId] = useState<string | null>(null);
-  const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const [customKPIName, setCustomKPIName] = useState("");
   const [customKPIType, setCustomKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [customKPIDirection, setCustomKPIDirection] = useState<"above" | "below">("above");
@@ -67,7 +65,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   useEffect(() => {
     if (open) {
       loadProfiles();
-      loadKPITargets();
       // Initialize selected KPIs based on existing KPIs
       const existingKPINames = new Set(kpis.map(k => k.name));
       setSelectedKPIs(existingKPINames);
@@ -87,26 +84,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
 
     // Filter out any profiles with invalid IDs
     setProfiles((data || []).filter(p => p.id && p.id.trim() !== ""));
-  };
-
-  const loadKPITargets = async () => {
-    const { data, error } = await supabase
-      .from("kpi_targets")
-      .select("kpi_id, target_value")
-      .in("kpi_id", kpis.map(k => k.id))
-      .eq("quarter", quarter)
-      .eq("year", year);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      return;
-    }
-
-    const targetsMap: { [key: string]: number } = {};
-    data?.forEach(target => {
-      targetsMap[target.kpi_id] = target.target_value || 0;
-    });
-    setKpiTargets(targetsMap);
   };
 
   const handleKPIToggle = (kpiName: string, checked: boolean) => {
@@ -244,38 +221,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     }
 
     onKPIsChange();
-  };
-
-  const handleTargetBlur = async (kpiId: string) => {
-    if (editingKpiId !== kpiId) return;
-    
-    const newValue = parseFloat(editingTargetValue);
-    if (isNaN(newValue)) {
-      toast({ title: "Error", description: "Please enter a valid number", variant: "destructive" });
-      setEditingKpiId(null);
-      return;
-    }
-
-    const { error } = await supabase
-      .from("kpi_targets")
-      .upsert({
-        kpi_id: kpiId,
-        quarter,
-        year,
-        target_value: newValue,
-      }, {
-        onConflict: "kpi_id,quarter,year"
-      });
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-      setEditingKpiId(null);
-      return;
-    }
-
-    toast({ title: "Success", description: "Target updated successfully" });
-    setEditingKpiId(null);
-    loadKPITargets();
   };
 
   const handleNameBlur = async (kpiId: string) => {
@@ -500,7 +445,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Q{quarter} Target</TableHead>
                       <TableHead>Goal</TableHead>
                       <TableHead>Owner</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -561,24 +505,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                                 <SelectItem value="unit">Unit Count</SelectItem>
                               </SelectContent>
                             </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              className="h-8 w-24"
-                              value={isEditingThis ? editingTargetValue : (kpiTargets[kpi.id] ?? kpi.target_value)}
-                              onFocus={() => {
-                                setEditingKpiId(kpi.id);
-                                setEditingTargetValue(String(kpiTargets[kpi.id] ?? kpi.target_value));
-                              }}
-                              onChange={(e) => setEditingTargetValue(e.target.value)}
-                              onBlur={() => handleTargetBlur(kpi.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
                           </TableCell>
                           <TableCell>
                             <Select

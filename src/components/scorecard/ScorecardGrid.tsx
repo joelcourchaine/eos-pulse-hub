@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Calendar, CalendarDays } from "lucide-react";
+import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 
 interface KPI {
   id: string;
@@ -578,26 +579,40 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           </Select>
         </div>
         
-        {kpis.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
-            className="gap-2"
-          >
-            {viewMode === "weekly" ? (
-              <>
-                <Calendar className="h-4 w-4" />
-                View Monthly
-              </>
-            ) : (
-              <>
-                <CalendarDays className="h-4 w-4" />
-                View Weekly
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {kpis.length > 0 && (
+            <>
+              <SetKPITargetsDialog
+                departmentId={departmentId}
+                kpis={kpis}
+                currentYear={year}
+                currentQuarter={quarter}
+                onTargetsChange={() => {
+                  loadKPITargets();
+                  loadScorecardData();
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
+                className="gap-2"
+              >
+                {viewMode === "weekly" ? (
+                  <>
+                    <Calendar className="h-4 w-4" />
+                    View Monthly
+                  </>
+                ) : (
+                  <>
+                    <CalendarDays className="h-4 w-4" />
+                    View Weekly
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {kpis.length === 0 ? (
