@@ -127,10 +127,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       await loadStoreBrand();
       loadFinancialData();
       loadTargets();
-      loadPrecedingQuartersData();
     };
     loadData();
   }, [departmentId, year, quarter]);
+
+  // Load preceding quarters data after FINANCIAL_METRICS is available
+  useEffect(() => {
+    if (storeBrand !== null) {
+      loadPrecedingQuartersData();
+    }
+  }, [departmentId, year, quarter, storeBrand, FINANCIAL_METRICS]);
 
   useEffect(() => {
     loadTargets();
