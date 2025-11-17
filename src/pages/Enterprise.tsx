@@ -415,12 +415,26 @@ export default function Enterprise() {
           <div className="lg:col-span-3">
             <Card>
               <CardHeader>
-                <CardTitle>
-                  Dealer Comparison
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
-                    ({filteredStores.length} stores, {selectedMetrics.length} metrics)
-                  </span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>
+                    Dealer Comparison
+                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                      ({filteredStores.length} stores, {selectedMetrics.length} metrics)
+                    </span>
+                  </CardTitle>
+                  <Button
+                    onClick={() => navigate("/dealer-comparison", {
+                      state: {
+                        data: comparisonData,
+                        metricType,
+                        selectedMetrics,
+                      }
+                    })}
+                    disabled={comparisonData.length === 0}
+                  >
+                    View Dashboard
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <MetricComparisonTable
