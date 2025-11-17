@@ -112,8 +112,10 @@ export default function DealerComparison() {
                   <TableRow>
                     <TableHead className="font-bold sticky left-0 bg-background z-10">Metric</TableHead>
                     {stores.map(([storeId, store]) => (
-                      <TableHead key={storeId} className="text-center font-bold min-w-[200px]">
-                        {store.storeName}
+                      <TableHead key={storeId} className="text-center min-w-[200px]">
+                        <div className="text-lg font-bold text-foreground">
+                          {store.storeName}
+                        </div>
                       </TableHead>
                     ))}
                   </TableRow>
