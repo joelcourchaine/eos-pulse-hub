@@ -93,9 +93,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const months = getMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
   const FINANCIAL_METRICS = useMemo(() => {
-    console.log('Store brand:', storeBrand);
+    console.log('Store brand for metrics:', storeBrand);
     const metrics = getMetricsForBrand(storeBrand);
-    console.log('Financial metrics count:', metrics.length, 'Has dealer_salary:', metrics.some(m => m.key === 'dealer_salary'));
+    console.log('Selected metrics template:', 
+      storeBrand?.toLowerCase().includes('nissan') ? 'NISSAN' :
+      storeBrand?.toLowerCase().includes('ford') ? 'FORD' : 
+      'GMC_CHEVROLET (default)',
+      'Metric count:', metrics.length
+    );
     return metrics;
   }, [storeBrand]);
 
