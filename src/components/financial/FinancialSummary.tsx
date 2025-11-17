@@ -51,6 +51,24 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
+// Helper function to get only the 3 months for a quarter (for average calculations)
+const getQuarterMonthsForCalculation = (quarter: number, year: number) => {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  const months = [];
+  // Always return exactly 3 months for the quarter
+  for (let i = 0; i < 3; i++) {
+    const monthIndex = (quarter - 1) * 3 + i;
+    months.push({
+      label: monthNames[monthIndex],
+      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+    });
+  }
+  
+  return months;
+};
+
 const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
   const quarters = [];
   let q = currentQuarter;
@@ -316,7 +334,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     const allMonthIds: string[] = [];
     precedingQuarters.forEach(pq => {
-      const months = getMonthsForQuarter(pq.quarter, pq.year);
+      // Use calculation helper to get only the 3 months for this quarter
+      const months = getQuarterMonthsForCalculation(pq.quarter, pq.year);
       allMonthIds.push(...months.map(m => m.identifier));
     });
 
@@ -334,7 +353,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // Calculate averages per metric per quarter
     const averages: { [key: string]: number } = {};
     precedingQuarters.forEach(pq => {
-      const quarterMonths = getMonthsForQuarter(pq.quarter, pq.year);
+      // Use calculation helper to get only the 3 months for this quarter
+      const quarterMonths = getQuarterMonthsForCalculation(pq.quarter, pq.year);
       const quarterMonthIds = quarterMonths.map(m => m.identifier);
       
       FINANCIAL_METRICS.forEach(metric => {
