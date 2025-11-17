@@ -28,12 +28,24 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
                      'July', 'August', 'September', 'October', 'November', 'December'];
   
   const months = [];
-  for (let i = 0; i < 3; i++) {
-    const monthIndex = (quarter - 1) * 3 + i;
-    months.push({
-      label: monthNames[monthIndex],
-      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
-    });
+  
+  // For Q1, show all 12 months to allow full year data entry
+  if (quarter === 1) {
+    for (let i = 0; i < 12; i++) {
+      months.push({
+        label: monthNames[i],
+        identifier: `${year}-${String(i + 1).padStart(2, '0')}`,
+      });
+    }
+  } else {
+    // For Q2, Q3, Q4, show only the quarter's 3 months
+    for (let i = 0; i < 3; i++) {
+      const monthIndex = (quarter - 1) * 3 + i;
+      months.push({
+        label: monthNames[monthIndex],
+        identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      });
+    }
   }
   
   return months;
