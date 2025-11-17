@@ -189,14 +189,13 @@ export default function Enterprise() {
       console.log("Financial entries filtered:", filtered.length, "Selected keys:", selectedKeys);
       
       return filtered.map(entry => {
-        const dept = departments.find(d => d.id === entry.department_id);
         // Find the display name for this metric key
         const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
         return {
-          storeId: dept?.store_id || "",
-          storeName: (dept as any)?.stores?.name || "",
-          departmentId: dept?.id,
-          departmentName: dept?.name,
+          storeId: (entry as any)?.departments?.store_id || "",
+          storeName: (entry as any)?.departments?.stores?.name || "",
+          departmentId: (entry as any)?.departments?.id,
+          departmentName: (entry as any)?.departments?.name,
           metricName: metricDisplayName,
           value: entry.value ? Number(entry.value) : null,
           target: null,
