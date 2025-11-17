@@ -369,17 +369,39 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
           const { numerator, denominator } = metric.calculation;
           
-          const numeratorValues = data
-            ?.filter(entry => entry.metric_name === numerator && quarterMonthIds.includes(entry.month))
-            .map(entry => entry.value || 0) || [];
+          // Check if numerator is a calculated metric
+          const numeratorMetric = FINANCIAL_METRICS.find(m => m.key === numerator);
+          let totalNumerator = 0;
+          
+          if (numeratorMetric?.calculation && 'type' in numeratorMetric.calculation && numeratorMetric.calculation.type === 'subtract') {
+            // Calculate numerator from its components
+            const calc = numeratorMetric.calculation;
+            const baseValues = data
+              ?.filter(entry => entry.metric_name === calc.base && quarterMonthIds.includes(entry.month))
+              .map(entry => entry.value || 0) || [];
+            totalNumerator = baseValues.reduce((sum, val) => sum + val, 0);
+            
+            for (const deduction of calc.deductions) {
+              const deductionValues = data
+                ?.filter(entry => entry.metric_name === deduction && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              totalNumerator -= deductionValues.reduce((sum, val) => sum + val, 0);
+            }
+          } else {
+            // Use direct values from database
+            const numeratorValues = data
+              ?.filter(entry => entry.metric_name === numerator && quarterMonthIds.includes(entry.month))
+              .map(entry => entry.value || 0) || [];
+            totalNumerator = numeratorValues.reduce((sum, val) => sum + val, 0);
+          }
+          
           const denominatorValues = data
             ?.filter(entry => entry.metric_name === denominator && quarterMonthIds.includes(entry.month))
             .map(entry => entry.value || 0) || [];
           
-          const totalNumerator = numeratorValues.reduce((sum, val) => sum + val, 0);
           const totalDenominator = denominatorValues.reduce((sum, val) => sum + val, 0);
           
-          if (totalDenominator > 0 && numeratorValues.length > 0 && denominatorValues.length > 0) {
+          if (totalDenominator > 0) {
             const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
             averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
           }
