@@ -130,11 +130,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (department?.store_id) {
       const { data: store } = await supabase
         .from("stores")
-        .select("brand")
+        .select(`
+          brand,
+          brands:brand_id (
+            name
+          )
+        `)
         .eq("id", department.store_id)
         .single();
 
-      setStoreBrand(store?.brand || null);
+      // Use brand from relationship if available, fallback to text field
+      const brandName = store?.brands?.name || store?.brand || null;
+      console.log('Loaded brand name:', brandName);
+      setStoreBrand(brandName);
     }
   };
 
