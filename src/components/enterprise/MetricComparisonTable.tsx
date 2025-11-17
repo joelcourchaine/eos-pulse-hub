@@ -24,10 +24,20 @@ export default function MetricComparisonTable({
   metricType,
   selectedMetrics,
 }: MetricComparisonTableProps) {
+  console.log("MetricComparisonTable render:", {
+    dataLength: data.length,
+    selectedMetricsCount: selectedMetrics.length,
+    metricType,
+    sampleData: data.slice(0, 2),
+  });
+
   if (selectedMetrics.length === 0 || data.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         Select metrics and stores to view comparison
+        <div className="text-xs mt-2">
+          (Data: {data.length}, Metrics: {selectedMetrics.length})
+        </div>
       </div>
     );
   }

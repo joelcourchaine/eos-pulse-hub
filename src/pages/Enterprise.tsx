@@ -163,24 +163,35 @@ export default function Enterprise() {
 
   // Prepare comparison data
   const comparisonData = useMemo(() => {
+    console.log("Preparing comparison data:", {
+      metricType,
+      selectedMetrics,
+      financialEntriesCount: financialEntries?.length,
+      kpiDefinitionsCount: kpiDefinitions?.length,
+      scorecardEntriesCount: scorecardEntries?.length,
+      departmentsCount: departments?.length,
+    });
+
     if (metricType === "financial" && financialEntries && departments) {
-      return financialEntries
-        .filter(entry => selectedMetrics.includes(entry.metric_name))
-        .map(entry => {
-          const dept = departments.find(d => d.id === entry.department_id);
-          return {
-            storeId: dept?.store_id || "",
-            storeName: (dept as any)?.stores?.name || "",
-            departmentId: dept?.id,
-            departmentName: dept?.name,
-            metricName: entry.metric_name,
-            value: entry.value ? Number(entry.value) : null,
-            target: null,
-            variance: null,
-          };
-        });
+      const filtered = financialEntries.filter(entry => selectedMetrics.includes(entry.metric_name));
+      console.log("Financial entries filtered:", filtered.length);
+      
+      return filtered.map(entry => {
+        const dept = departments.find(d => d.id === entry.department_id);
+        return {
+          storeId: dept?.store_id || "",
+          storeName: (dept as any)?.stores?.name || "",
+          departmentId: dept?.id,
+          departmentName: dept?.name,
+          metricName: entry.metric_name,
+          value: entry.value ? Number(entry.value) : null,
+          target: null,
+          variance: null,
+        };
+      });
     } else if (kpiDefinitions && scorecardEntries) {
-      return scorecardEntries
+      console.log("Processing KPI data");
+      const mapped = scorecardEntries
         .map(entry => {
           const kpi = kpiDefinitions.find(k => k.id === entry.kpi_id);
           if (!kpi || !selectedMetrics.includes(kpi.name)) return null;
@@ -197,7 +208,10 @@ export default function Enterprise() {
           };
         })
         .filter(Boolean) as any[];
+      console.log("KPI entries mapped:", mapped.length);
+      return mapped;
     }
+    console.log("No data matched conditions");
     return [];
   }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics]);
 
