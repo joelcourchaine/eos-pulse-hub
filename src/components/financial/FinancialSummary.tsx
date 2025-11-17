@@ -400,12 +400,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           }
           
           if (baseValues.length > 0) {
-            const avg = totalCalculated / baseValues.length;
+            // Divide by 3 (number of months in quarter), not by number of values
+            const avg = totalCalculated / 3;
             averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
           }
         } else if (values.length > 0) {
-          // For dollar metrics, use simple average
-          const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+          // For dollar metrics, sum all values and divide by 3 (months in quarter)
+          const total = values.reduce((sum, val) => sum + val, 0);
+          const avg = total / 3;
           averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = avg;
         }
       });
