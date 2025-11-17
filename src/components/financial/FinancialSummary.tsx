@@ -352,10 +352,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     // Calculate averages per metric per quarter
     const averages: { [key: string]: number } = {};
+    console.log('Calculating preceding quarter averages for:', precedingQuarters);
+    console.log('Available data entries:', data?.length);
+    
     precedingQuarters.forEach(pq => {
       // Use calculation helper to get only the 3 months for this quarter
       const quarterMonths = getQuarterMonthsForCalculation(pq.quarter, pq.year);
       const quarterMonthIds = quarterMonths.map(m => m.identifier);
+      console.log(`Processing Q${pq.quarter} ${pq.year}, months:`, quarterMonthIds);
       
       FINANCIAL_METRICS.forEach(metric => {
         const values = data
@@ -435,6 +439,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       });
     });
 
+    console.log('Calculated averages:', averages);
     setPrecedingQuartersData(averages);
   };
 
