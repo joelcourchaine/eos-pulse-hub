@@ -154,12 +154,22 @@ export default function Enterprise() {
     if (metricType === "financial") {
       const firstStore = filteredStores[0];
       const brand = firstStore?.brand || firstStore?.brands?.name || null;
-      return getMetricsForBrand(brand).map(m => m.name);
+      return getMetricsForBrand(brand);
     } else if (kpiDefinitions) {
-      return Array.from(new Set(kpiDefinitions.map(k => k.name)));
+      return Array.from(new Set(kpiDefinitions.map(k => ({ name: k.name, key: k.name }))));
     }
     return [];
   }, [metricType, kpiDefinitions, filteredStores]);
+
+  // Create a map of metric names to keys for financial metrics
+  const metricKeyMap = useMemo(() => {
+    if (metricType === "financial") {
+      const map = new Map<string, string>();
+      availableMetrics.forEach((m: any) => map.set(m.name, m.key));
+      return map;
+    }
+    return new Map<string, string>();
+  }, [metricType, availableMetrics]);
 
   // Prepare comparison data
   const comparisonData = useMemo(() => {
@@ -173,17 +183,21 @@ export default function Enterprise() {
     });
 
     if (metricType === "financial" && financialEntries && departments) {
-      const filtered = financialEntries.filter(entry => selectedMetrics.includes(entry.metric_name));
-      console.log("Financial entries filtered:", filtered.length);
+      // Convert selected metric names to database keys
+      const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
+      const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
+      console.log("Financial entries filtered:", filtered.length, "Selected keys:", selectedKeys);
       
       return filtered.map(entry => {
         const dept = departments.find(d => d.id === entry.department_id);
+        // Find the display name for this metric key
+        const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
         return {
           storeId: dept?.store_id || "",
           storeName: (dept as any)?.stores?.name || "",
           departmentId: dept?.id,
           departmentName: dept?.name,
-          metricName: entry.metric_name,
+          metricName: metricDisplayName,
           value: entry.value ? Number(entry.value) : null,
           target: null,
           variance: null,
@@ -213,7 +227,7 @@ export default function Enterprise() {
     }
     console.log("No data matched conditions");
     return [];
-  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics]);
+  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap]);
 
   const toggleStoreSelection = (storeId: string) => {
     setSelectedStoreIds(prev =>
@@ -374,21 +388,24 @@ export default function Enterprise() {
                 </label>
                 <ScrollArea className="h-[300px] pr-4">
                   <div className="space-y-3">
-                    {availableMetrics.map((metric) => (
-                      <div key={metric} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`metric-${metric}`}
-                          checked={selectedMetrics.includes(metric)}
-                          onCheckedChange={() => toggleMetricSelection(metric)}
-                        />
-                        <label
-                          htmlFor={`metric-${metric}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                        >
-                          {metric}
-                        </label>
-                      </div>
-                    ))}
+                    {availableMetrics.map((metric: any) => {
+                      const metricName = typeof metric === 'string' ? metric : metric.name;
+                      return (
+                        <div key={metricName} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`metric-${metricName}`}
+                            checked={selectedMetrics.includes(metricName)}
+                            onCheckedChange={() => toggleMetricSelection(metricName)}
+                          />
+                          <label
+                            htmlFor={`metric-${metricName}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {metricName}
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                 </ScrollArea>
               </div>
