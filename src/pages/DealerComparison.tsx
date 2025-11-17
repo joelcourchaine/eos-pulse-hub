@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -19,6 +20,19 @@ interface ComparisonData {
 export default function DealerComparison() {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Check if state exists, redirect if not
+  useEffect(() => {
+    if (!location.state) {
+      navigate("/enterprise", { replace: true });
+    }
+  }, [location.state, navigate]);
+
+  // Return null while redirecting
+  if (!location.state) {
+    return null;
+  }
+
   const { data, metricType, selectedMetrics } = location.state as {
     data: ComparisonData[];
     metricType: string;
