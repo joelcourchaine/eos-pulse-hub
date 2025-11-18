@@ -668,9 +668,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   };
 
   const handleCopyToQuarters = async (metricKey: string) => {
+    console.log('Copy to quarters clicked for:', metricKey);
     const currentTarget = targets[metricKey];
+    console.log('Current target value:', currentTarget);
     const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-    if (currentTarget === undefined || currentTarget === null || !metric) return;
+    console.log('Metric found:', metric);
+    
+    if (currentTarget === undefined || currentTarget === null || !metric) {
+      console.log('Validation failed - returning early');
+      return;
+    }
 
     const updates = [1, 2, 3, 4]
       .filter(q => q !== quarter)
@@ -683,6 +690,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         target_direction: targetDirections[metricKey] || metric.targetDirection,
       }));
 
+    console.log('Updates to be sent:', updates);
+
     const { error } = await supabase
       .from("financial_targets")
       .upsert(updates, {
@@ -690,6 +699,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       });
 
     if (error) {
+      console.error('Copy error:', error);
       toast({
         title: "Error",
         description: "Failed to copy targets",
@@ -698,6 +708,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       return;
     }
 
+    console.log('Copy successful');
+    await loadTargets();
     toast({
       title: "Success",
       description: `Target copied to all quarters in ${year}`,
