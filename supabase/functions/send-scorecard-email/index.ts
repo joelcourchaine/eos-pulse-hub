@@ -163,10 +163,17 @@ const handler = async (req: Request): Promise<Response> => {
     // Fetch financial entries for monthly
     let financialEntries: any[] = [];
     if (mode === "monthly") {
+      // Get the month identifiers for this quarter
+      const monthIdentifiers = periods.map(p => 'identifier' in p ? p.identifier : '').filter(Boolean);
+      console.log("Fetching financial entries for months:", monthIdentifiers);
+      
       const { data: finData } = await supabaseClient
         .from("financial_entries")
         .select("*")
-        .eq("department_id", departmentId);
+        .eq("department_id", departmentId)
+        .in("month", monthIdentifiers);
+      
+      console.log("Financial entries fetched:", finData?.length || 0);
       financialEntries = finData || [];
     }
 
