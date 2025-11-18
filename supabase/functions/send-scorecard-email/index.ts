@@ -180,9 +180,28 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("department_id", departmentId)
       .order("display_order");
 
-    // Fetch KPI targets for the specific quarter (for monthly/weekly modes)
+    // Fetch KPI targets for the specific quarter (for monthly/weekly modes) or all quarters (for yearly mode)
     let kpiTargetsMap = new Map<string, number>();
-    if (mode !== "yearly" && quarter) {
+    let kpiTargetsByQuarter = new Map<string, Map<number, number>>(); // kpi_id -> quarter -> target_value
+    
+    if (mode === "yearly") {
+      // Fetch targets for all 4 quarters
+      const { data: kpiTargets } = await supabaseClient
+        .from("kpi_targets")
+        .select("*")
+        .eq("year", year)
+        .in("kpi_id", kpis?.map(k => k.id) || []);
+      
+      kpiTargets?.forEach(t => {
+        if (!kpiTargetsByQuarter.has(t.kpi_id)) {
+          kpiTargetsByQuarter.set(t.kpi_id, new Map());
+        }
+        kpiTargetsByQuarter.get(t.kpi_id)!.set(t.quarter, t.target_value || 0);
+      });
+      
+      console.log(`Fetched ${kpiTargets?.length || 0} KPI targets for all quarters of ${year}`);
+    } else if (quarter) {
+      // Fetch targets for specific quarter
       const { data: kpiTargets } = await supabaseClient
         .from("kpi_targets")
         .select("*")
@@ -274,12 +293,13 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach(kpi => {
-        // Use quarterly target if available, otherwise fall back to base target
-        const targetValue = (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) 
-          ? kpiTargetsMap.get(kpi.id)! 
-          : kpi.target_value;
+        // For non-yearly modes, show single target in header
+        let displayTarget = kpi.target_value;
+        if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
+          displayTarget = kpiTargetsMap.get(kpi.id)!;
+        }
         
-        html += `<tr><td>${kpi.name}</td><td>${formatValue(targetValue, kpi.metric_type, kpi.name)}</td>`;
+        html += `<tr><td>${kpi.name}</td><td>${mode !== "yearly" ? formatValue(displayTarget, kpi.metric_type, kpi.name) : 'See cells'}</td>`;
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
@@ -291,6 +311,20 @@ const handler = async (req: Request): Promise<Response> => {
             }
             return false;
           });
+
+          // Determine target value based on mode
+          let targetValue = kpi.target_value;
+          if (mode === "yearly" && 'identifier' in p) {
+            // Get quarter from month identifier
+            const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
+            const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+            
+            if (kpiTargetsByQuarter.has(kpi.id)) {
+              targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
+            }
+          } else if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
+            targetValue = kpiTargetsMap.get(kpi.id)!;
+          }
 
           // Calculate status if we have an entry with a value
           let cellClass = "";
