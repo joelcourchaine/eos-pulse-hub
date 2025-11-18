@@ -331,9 +331,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       // Check if the changed KPI is part of this calculation
       if (rule.numerator !== changedKpi.name && rule.denominator !== changedKpi.name) continue;
 
-      // Find the numerator and denominator KPIs
-      const numeratorKpi = kpis.find(k => k.name === rule.numerator);
-      const denominatorKpi = kpis.find(k => k.name === rule.denominator);
+      // CRITICAL: Find the numerator and denominator KPIs that belong to the SAME OWNER as the calculated KPI
+      // This prevents mixing data from different users who have KPIs with the same name
+      const numeratorKpi = kpis.find(k => k.name === rule.numerator && k.assigned_to === kpi.assigned_to);
+      const denominatorKpi = kpis.find(k => k.name === rule.denominator && k.assigned_to === kpi.assigned_to);
 
       if (!numeratorKpi || !denominatorKpi) continue;
 
