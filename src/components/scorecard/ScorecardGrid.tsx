@@ -412,14 +412,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             [calculatedKey]: data as ScorecardEntry
           }));
           
-          // Wait for next tick to clear local value, ensuring entries state is updated
-          setTimeout(() => {
-            setLocalValues(prev => {
-              const newLocalValues = { ...prev };
-              delete newLocalValues[calculatedKey];
-              return newLocalValues;
-            });
-          }, 0);
+          // Don't clear localValues for calculated values - let display logic handle it
         } else if (error) {
           console.error('❌ Failed to save calculated value:', error);
         }
@@ -523,14 +516,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           return latestEntries;
         });
         
-        // Wait for next tick to clear local value, ensuring entries state is updated
-        setTimeout(() => {
-          setLocalValues(prev => {
-            const newLocalValues = { ...prev };
-            delete newLocalValues[key];
-            return newLocalValues;
-          });
-        }, 0);
+        // Don't clear localValues - let it stay until user focuses away or value changes
+        // The display logic will prefer localValues but fall back to entries
 
         // Auto-calculate dependent KPIs with the updated entries
         await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, latestEntries);
@@ -871,8 +858,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             }}
                              onFocus={() => setFocusedInput(key)}
                              onBlur={() => {
-                               // Don't clear focusedInput immediately to avoid clearing during save
-                               setTimeout(() => setFocusedInput(null), 50);
+                               // Clear local value on blur so display shows saved value
+                               setTimeout(() => {
+                                 setFocusedInput(null);
+                                 setLocalValues(prev => {
+                                   const newLocalValues = { ...prev };
+                                   delete newLocalValues[key];
+                                   return newLocalValues;
+                                 });
+                               }, 100);
                              }}
                             data-kpi-index={index}
                             data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
@@ -968,8 +962,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             }}
                              onFocus={() => setFocusedInput(key)}
                              onBlur={() => {
-                               // Don't clear focusedInput immediately to avoid clearing during save
-                               setTimeout(() => setFocusedInput(null), 50);
+                               // Clear local value on blur so display shows saved value
+                               setTimeout(() => {
+                                 setFocusedInput(null);
+                                 setLocalValues(prev => {
+                                   const newLocalValues = { ...prev };
+                                   delete newLocalValues[key];
+                                   return newLocalValues;
+                                 });
+                               }, 100);
                              }}
                             data-kpi-index={index}
                             data-period-index={months.findIndex(m => m.identifier === month.identifier)}
