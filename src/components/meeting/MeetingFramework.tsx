@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 interface MeetingSection {
   id: string;
@@ -22,8 +25,108 @@ const meetingSections: MeetingSection[] = [
   { id: "conclude", title: "Conclude", duration: "5 min", description: "Recap and ratings" },
 ];
 
-const MeetingFramework = () => {
+interface MeetingFrameworkProps {
+  departmentId: string;
+}
+
+const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
+  const { toast } = useToast();
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
+  const [loading, setLoading] = useState(true);
+  const meetingDate = format(new Date(), 'yyyy-MM-dd');
+
+  // Load existing notes from database
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (!departmentId) return;
+      
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('meeting_notes')
+        .select('*')
+        .eq('department_id', departmentId)
+        .eq('meeting_date', meetingDate);
+
+      if (error) {
+        console.error('Error loading meeting notes:', error);
+        toast({
+          title: "Error loading notes",
+          description: "Failed to load meeting notes",
+          variant: "destructive"
+        });
+      } else if (data) {
+        const notesMap: { [key: string]: string } = {};
+        data.forEach(note => {
+          notesMap[note.section] = note.notes || '';
+        });
+        setNotes(notesMap);
+      }
+      setLoading(false);
+    };
+
+    loadNotes();
+  }, [departmentId, meetingDate]);
+
+  // Save notes to database with debouncing
+  const saveNote = async (section: string, content: string) => {
+    if (!departmentId) return;
+
+    const { data: existing } = await supabase
+      .from('meeting_notes')
+      .select('id')
+      .eq('department_id', departmentId)
+      .eq('meeting_date', meetingDate)
+      .eq('section', section)
+      .single();
+
+    if (existing) {
+      // Update existing note
+      const { error } = await supabase
+        .from('meeting_notes')
+        .update({ notes: content })
+        .eq('id', existing.id);
+
+      if (error) {
+        console.error('Error updating note:', error);
+        toast({
+          title: "Error saving note",
+          description: "Failed to save meeting note",
+          variant: "destructive"
+        });
+      }
+    } else {
+      // Insert new note
+      const { error } = await supabase
+        .from('meeting_notes')
+        .insert({
+          department_id: departmentId,
+          meeting_date: meetingDate,
+          section: section,
+          notes: content
+        });
+
+      if (error) {
+        console.error('Error inserting note:', error);
+        toast({
+          title: "Error saving note",
+          description: "Failed to save meeting note",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  // Debounced save handler
+  const handleNoteChange = (section: string, content: string) => {
+    setNotes(prev => ({ ...prev, [section]: content }));
+    
+    // Debounce the save
+    const timeoutId = setTimeout(() => {
+      saveNote(section, content);
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  };
 
   return (
     <Card>
@@ -62,10 +165,9 @@ const MeetingFramework = () => {
                 <Textarea
                   placeholder={`Add notes for ${section.title.toLowerCase()}...`}
                   value={notes[section.id] || ""}
-                  onChange={(e) =>
-                    setNotes({ ...notes, [section.id]: e.target.value })
-                  }
+                  onChange={(e) => handleNoteChange(section.id, e.target.value)}
                   className="min-h-[100px]"
+                  disabled={loading || !departmentId}
                 />
               </div>
             </TabsContent>

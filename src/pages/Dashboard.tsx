@@ -794,7 +794,10 @@ const Dashboard = () => {
         />
 
         {/* Meeting Framework */}
-        <MeetingFramework />
+        <MeetingFramework 
+          key={`meeting-${selectedDepartment}`}
+          departmentId={selectedDepartment} 
+        />
 
         {/* Celebrations */}
         <Celebrations currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id} />
