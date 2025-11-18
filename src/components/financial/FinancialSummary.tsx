@@ -612,7 +612,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   };
 
   const handleTargetSave = async (metricKey: string) => {
-    const newValue = parseFloat(targetEditValue);
+    const trimmedValue = targetEditValue.trim();
+    if (trimmedValue === "") {
+      toast({
+        title: "Invalid Value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const newValue = parseFloat(trimmedValue);
     if (isNaN(newValue)) {
       toast({
         title: "Invalid Value",
