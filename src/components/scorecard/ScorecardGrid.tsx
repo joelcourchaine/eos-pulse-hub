@@ -809,20 +809,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         )}
                       >
                         <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {!isCalculatedKPI(kpi.name) && focusedInput !== key && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
-                            // Display formatted value when data exists and not focused
+                          {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                            // Display formatted value when data exists (always for calculated, when not focused for others)
                             <div 
                               data-display-value
                               className={cn(
                                 "h-full w-full flex items-center justify-center cursor-text",
                                 status === "success" && "text-success font-medium",
                                 status === "warning" && "text-warning font-medium",
-                                status === "destructive" && "text-destructive font-medium"
+                                status === "destructive" && "text-destructive font-medium",
+                                isCalculatedKPI(kpi.name) && "cursor-default"
                               )}
                               onClick={(e) => {
-                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                input?.focus();
-                                input?.select();
+                                if (!isCalculatedKPI(kpi.name)) {
+                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                  input?.focus();
+                                  input?.select();
+                                }
                               }}
                             >
                               {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
@@ -900,20 +903,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         )}
                       >
                         <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {!isCalculatedKPI(kpi.name) && focusedInput !== key && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
-                            // Display formatted value when data exists and not focused
+                          {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                            // Display formatted value when data exists (always for calculated, when not focused for others)
                             <div 
                               data-display-value
                               className={cn(
                                 "h-full w-full flex items-center justify-center cursor-text",
                                 status === "success" && "text-success font-medium",
                                 status === "warning" && "text-warning font-medium",
-                                status === "destructive" && "text-destructive font-medium"
+                                status === "destructive" && "text-destructive font-medium",
+                                isCalculatedKPI(kpi.name) && "cursor-default"
                               )}
                               onClick={(e) => {
-                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                input?.focus();
-                                input?.select();
+                                if (!isCalculatedKPI(kpi.name)) {
+                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                  input?.focus();
+                                  input?.select();
+                                }
                               }}
                             >
                               {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
