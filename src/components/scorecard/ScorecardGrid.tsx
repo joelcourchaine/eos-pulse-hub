@@ -852,7 +852,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium",
-                              isCalculatedKPI(kpi.name) && "cursor-not-allowed"
+                              isCalculatedKPI(kpi.name) && "hidden"
                             )}
                             placeholder="-"
                             disabled={saving[key] || isCalculatedKPI(kpi.name)}
@@ -952,7 +952,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium",
-                              isCalculatedKPI(kpi.name) && "cursor-not-allowed"
+                              isCalculatedKPI(kpi.name) && "hidden"
                             )}
                             placeholder="-"
                             disabled={saving[key] || isCalculatedKPI(kpi.name)}
