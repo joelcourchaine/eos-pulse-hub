@@ -252,13 +252,21 @@ const handler = async (req: Request): Promise<Response> => {
       });
       html += `</tr></thead><tbody>`;
 
-      const FINANCIAL_METRICS = ["Revenue", "COGS", "Gross Profit", "Labor", "Operating Expenses"];
+      // Map display names to actual database metric names
+      const FINANCIAL_METRICS = [
+        { display: "Total Sales", dbName: "total_sales" },
+        { display: "GP Net", dbName: "gp_net" },
+        { display: "Sales Expense", dbName: "sales_expense" },
+        { display: "Semi Fixed Expense", dbName: "semi_fixed_expense" },
+        { display: "Total Fixed Expense", dbName: "total_fixed_expense" }
+      ];
+      
       FINANCIAL_METRICS.forEach(metric => {
-        html += `<tr><td>${metric}</td>`;
+        html += `<tr><td>${metric.display}</td>`;
         periods.forEach(p => {
           const entry = financialEntries.find(e => {
             if ('identifier' in p) {
-              return e.metric_name === metric && e.month === p.identifier;
+              return e.metric_name === metric.dbName && e.month === p.identifier;
             }
             return false;
           });
