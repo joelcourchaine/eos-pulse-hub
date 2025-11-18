@@ -72,9 +72,23 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   }, [open, kpis]);
 
   const loadProfiles = async () => {
+    // First get the store_id from the department
+    const { data: departmentData, error: deptError } = await supabase
+      .from("departments")
+      .select("store_id")
+      .eq("id", departmentId)
+      .single();
+
+    if (deptError) {
+      toast({ title: "Error", description: deptError.message, variant: "destructive" });
+      return;
+    }
+
+    // Then get profiles for that store only
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name, email")
+      .eq("store_id", departmentData.store_id)
       .order("full_name");
 
     if (error) {
