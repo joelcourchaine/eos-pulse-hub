@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Calculator } from "lucide-react";
+import { Loader2, Calendar, CalendarDays } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 
 interface KPI {
@@ -312,14 +312,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setLoading(false);
   };
 
-  const calculateDependentKPIs = async (changedKpiId: string, periodKey: string, isMonthly: boolean, monthId?: string) => {
+  const calculateDependentKPIs = async (changedKpiId: string, periodKey: string, isMonthly: boolean, monthId?: string, updatedEntries?: { [key: string]: ScorecardEntry }) => {
     const changedKpi = kpis.find(k => k.id === changedKpiId);
-    if (!changedKpi) {
-      console.log('❌ Changed KPI not found:', changedKpiId);
-      return;
-    }
+    if (!changedKpi) return;
 
-    console.log('🔄 Calculate triggered for:', changedKpi.name, 'Owner:', changedKpi.assigned_to);
+    // Use the updated entries if provided, otherwise use state
+    const currentEntries = updatedEntries || entries;
 
     // Define calculation rules
     const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
@@ -336,26 +334,18 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       // Check if the changed KPI is part of this calculation
       if (rule.numerator !== changedKpi.name && rule.denominator !== changedKpi.name) continue;
 
-      console.log('📊 Found dependent KPI:', kpi.name, 'Owner:', kpi.assigned_to);
-
       // CRITICAL: Find the numerator and denominator KPIs that belong to the SAME OWNER as the calculated KPI
-      // This prevents mixing data from different users who have KPIs with the same name
       const numeratorKpi = kpis.find(k => k.name === rule.numerator && k.assigned_to === kpi.assigned_to);
       const denominatorKpi = kpis.find(k => k.name === rule.denominator && k.assigned_to === kpi.assigned_to);
 
-      if (!numeratorKpi || !denominatorKpi) {
-        console.log('⚠️ Missing source KPIs for:', kpi.name, { numeratorKpi: !!numeratorKpi, denominatorKpi: !!denominatorKpi });
-        continue;
-      }
-
-      console.log('✓ Found source KPIs:', rule.numerator, 'and', rule.denominator);
+      if (!numeratorKpi || !denominatorKpi) continue;
 
       // Get the values for this period
       const numeratorKey = isMonthly ? `${numeratorKpi.id}-month-${monthId}` : `${numeratorKpi.id}-${periodKey}`;
       const denominatorKey = isMonthly ? `${denominatorKpi.id}-month-${monthId}` : `${denominatorKpi.id}-${periodKey}`;
 
-      const numeratorEntry = entries[numeratorKey];
-      const denominatorEntry = entries[denominatorKey];
+      const numeratorEntry = currentEntries[numeratorKey];
+      const denominatorEntry = currentEntries[denominatorKey];
 
       const numeratorValue = numeratorEntry?.actual_value;
       const denominatorValue = denominatorEntry?.actual_value;
@@ -509,14 +499,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (error) {
         toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
       } else if (data) {
-        // Update local state directly without reloading
-        setEntries(prev => ({
-          ...prev,
+        // Create updated entries map with the new data
+        const updatedEntries = {
+          ...entries,
           [key]: data as ScorecardEntry
-        }));
+        };
+        
+        // Update local state
+        setEntries(updatedEntries);
 
-        // Auto-calculate dependent KPIs
-        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId);
+        // Auto-calculate dependent KPIs with the updated entries
+        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, updatedEntries);
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
@@ -556,100 +549,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     // If above target direction (higher is better) and not percentage, multiply by 4
     return weeklyTarget * 4;
-  };
-
-  const recalculateAll = async () => {
-    console.log('🔄 Starting recalculate all for', kpis.length, 'KPIs');
-    
-    const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
-      "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" },
-      "CP Hours Per RO": { numerator: "CP Hours", denominator: "CP RO's" },
-      "CP ELR": { numerator: "CP Labour Sales", denominator: "CP Hours" },
-    };
-
-    // Get all periods to check
-    const periods = viewMode === "weekly" ? weeks.map(w => w.start.toISOString().split('T')[0]) : months.map(m => m.identifier);
-    
-    for (const kpi of kpis) {
-      const rule = calculationRules[kpi.name];
-      if (!rule) continue;
-
-      const numeratorKpi = kpis.find(k => k.name === rule.numerator && k.assigned_to === kpi.assigned_to);
-      const denominatorKpi = kpis.find(k => k.name === rule.denominator && k.assigned_to === kpi.assigned_to);
-
-      if (!numeratorKpi || !denominatorKpi) continue;
-
-      // Process each period
-      for (const period of periods) {
-        const periodKey = viewMode === "weekly" ? period : undefined;
-        const monthId = viewMode === "monthly" ? period : undefined;
-        
-        const numeratorKey = viewMode === "monthly" ? `${numeratorKpi.id}-month-${monthId}` : `${numeratorKpi.id}-${periodKey}`;
-        const denominatorKey = viewMode === "monthly" ? `${denominatorKpi.id}-month-${monthId}` : `${denominatorKpi.id}-${periodKey}`;
-
-        const numeratorEntry = entries[numeratorKey];
-        const denominatorEntry = entries[denominatorKey];
-
-        const numeratorValue = numeratorEntry?.actual_value;
-        const denominatorValue = denominatorEntry?.actual_value;
-
-        if (numeratorValue && denominatorValue && denominatorValue !== 0) {
-          const calculatedValue = numeratorValue / denominatorValue;
-          const target = kpiTargets[kpi.id] || kpi.target_value;
-          
-          const variance = kpi.metric_type === "percentage" 
-            ? calculatedValue - target 
-            : ((calculatedValue - target) / target) * 100;
-
-          let status: string;
-          if (kpi.target_direction === "above") {
-            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
-          } else {
-            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
-          }
-
-          const { data: session } = await supabase.auth.getSession();
-          const userId = session.session?.user?.id;
-
-          const entryData: any = {
-            kpi_id: kpi.id,
-            actual_value: calculatedValue,
-            variance,
-            status,
-            created_by: userId,
-            entry_type: viewMode === "monthly" ? 'monthly' : 'weekly',
-          };
-
-          if (viewMode === "monthly") {
-            entryData.month = monthId;
-          } else {
-            entryData.week_start_date = periodKey;
-          }
-
-          const { data, error } = await supabase
-            .from("scorecard_entries")
-            .upsert(entryData, {
-              onConflict: viewMode === "monthly" ? "kpi_id,month" : "kpi_id,week_start_date"
-            })
-            .select()
-            .single();
-
-          if (!error && data) {
-            const calculatedKey = viewMode === "monthly" ? `${kpi.id}-month-${monthId}` : `${kpi.id}-${periodKey}`;
-            setEntries(prev => ({
-              ...prev,
-              [calculatedKey]: data as ScorecardEntry
-            }));
-            setLocalValues(prev => ({
-              ...prev,
-              [calculatedKey]: calculatedValue.toString()
-            }));
-          }
-        }
-      }
-    }
-    
-    toast({ title: "Success", description: "All dependent KPIs recalculated" });
   };
 
   if (loading) {
@@ -707,15 +606,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                   loadScorecardData();
                 }}
               />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={recalculateAll}
-                className="gap-2"
-              >
-                <Calculator className="h-4 w-4" />
-                Recalculate
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
