@@ -9,8 +9,8 @@ const corsHeaders = {
 
 interface EmailRequest {
   year: number;
-  quarter: number;
-  mode: "weekly" | "monthly";
+  quarter?: number;
+  mode: "weekly" | "monthly" | "yearly";
   departmentId: string;
 }
 
@@ -78,6 +78,22 @@ function getMonthsForQuarter({ year, quarter }: { year: number; quarter: number 
   return months;
 }
 
+function getAllMonthsForYear({ year }: { year: number }) {
+  const months = [];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  for (let i = 0; i < 12; i++) {
+    months.push({
+      label: monthNames[i],
+      identifier: `${year}-${String(i + 1).padStart(2, '0')}`,
+      type: "month" as const,
+    });
+  }
+  
+  return months;
+}
+
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
   
@@ -124,6 +140,11 @@ const handler = async (req: Request): Promise<Response> => {
     const { year, quarter, mode, departmentId }: EmailRequest = await req.json();
 
     console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId });
+    
+    // Validate that quarter is provided for non-yearly modes
+    if (mode !== "yearly" && !quarter) {
+      throw new Error("Quarter is required for weekly and monthly modes");
+    }
 
     // Fetch department with store info
     const { data: department } = await supabaseClient
@@ -161,18 +182,20 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Fetch scorecard entries
     const periods = mode === "weekly" 
-      ? getWeekDates({ year, quarter })
-      : getMonthsForQuarter({ year, quarter });
+      ? getWeekDates({ year, quarter: quarter! })
+      : mode === "yearly"
+      ? getAllMonthsForYear({ year })
+      : getMonthsForQuarter({ year, quarter: quarter! });
 
     const { data: entries } = await supabaseClient
       .from("scorecard_entries")
       .select("*")
       .in("kpi_id", kpis?.map(k => k.id) || []);
 
-    // Fetch financial entries for monthly
+    // Fetch financial entries for monthly and yearly modes
     let financialEntries: any[] = [];
-    if (mode === "monthly") {
-      // Get the month identifiers for this quarter
+    if (mode === "monthly" || mode === "yearly") {
+      // Get the month identifiers
       const monthIdentifiers = periods.map(p => 'identifier' in p ? p.identifier : '').filter(Boolean);
       console.log("Fetching financial entries for months:", monthIdentifiers);
       
@@ -197,6 +220,11 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     // Build HTML
+    const reportTitle = mode === "yearly" 
+      ? `${year} Annual Report` 
+      : `Q${quarter} ${year}`;
+    const reportType = mode === "weekly" ? "Weekly" : mode === "yearly" ? "Yearly" : "Monthly";
+    
     let html = `
       <!DOCTYPE html>
       <html>
@@ -206,7 +234,7 @@ const handler = async (req: Request): Promise<Response> => {
           h1 { color: #333; }
           h2 { color: #666; margin-top: 30px; }
           table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }
+          th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${mode === "yearly" ? "9px" : "11px"}; }
           th { background-color: #f4f4f4; font-weight: bold; }
           .red { background-color: #fee; }
           .yellow { background-color: #ffc; }
@@ -215,7 +243,7 @@ const handler = async (req: Request): Promise<Response> => {
       </head>
       <body>
         <h1>${department.stores?.name || "Store"} - ${department.name} Scorecard</h1>
-        <p><strong>Q${quarter} ${year}</strong> | <strong>${mode === "weekly" ? "Weekly" : "Monthly"} View</strong></p>
+        <p><strong>${reportTitle}</strong> | <strong>${reportType} View</strong></p>
     `;
 
     // Add KPI tables
@@ -253,8 +281,8 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     });
 
-    // Add financial metrics for monthly
-    if (mode === "monthly") {
+    // Add financial metrics for monthly and yearly modes
+    if (mode === "monthly" || mode === "yearly") {
       // Get brand name
       const brandName = department?.stores?.brands?.name || department?.stores?.brand || null;
       
@@ -367,7 +395,9 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Scorecard <onboarding@resend.dev>",
         to: [user.email!],
-        subject: `${department.name} Scorecard - Q${quarter} ${year}`,
+        subject: mode === "yearly" 
+          ? `${department.name} Scorecard - ${year} Annual Report`
+          : `${department.name} Scorecard - Q${quarter} ${year}`,
         html,
       }),
     });
