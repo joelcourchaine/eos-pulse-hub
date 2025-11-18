@@ -402,10 +402,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             ...prev,
             [calculatedKey]: data as ScorecardEntry
           }));
-          setLocalValues(prev => ({
-            ...prev,
-            [calculatedKey]: calculatedValue.toString()
-          }));
+          // Clear local value so display shows the saved value from entries
+          setLocalValues(prev => {
+            const newLocalValues = { ...prev };
+            delete newLocalValues[calculatedKey];
+            return newLocalValues;
+          });
         } else if (error) {
           console.error('❌ Failed to save calculated value:', error);
         }
@@ -507,6 +509,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         
         // Update local state
         setEntries(updatedEntries);
+        
+        // Clear local value so input shows the saved value from entries
+        setLocalValues(prev => {
+          const newLocalValues = { ...prev };
+          delete newLocalValues[key];
+          return newLocalValues;
+        });
 
         // Auto-calculate dependent KPIs with the updated entries
         await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, updatedEntries);
