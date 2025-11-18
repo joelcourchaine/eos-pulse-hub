@@ -78,8 +78,19 @@ function getMonthsForQuarter({ year, quarter }: { year: number; quarter: number 
   return months;
 }
 
-function formatValue(value: number | null, metricType: string): string {
+function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
+  
+  // CP Hours per RO should always show 1 decimal place
+  if (kpiName === "CP Hours per RO") {
+    return Number(value).toFixed(1);
+  }
+  
+  // CP Labour Sales Per RO and CP ELR should show whole dollars
+  if (kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
+    return `$${Math.round(value).toLocaleString()}`;
+  }
+  
   if (metricType === "dollar") return `$${value.toLocaleString()}`;
   if (metricType === "percentage") return `${value}%`;
   return value.toString();
@@ -202,7 +213,7 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach(kpi => {
-        html += `<tr><td>${kpi.name}</td><td>${formatValue(kpi.target_value, kpi.metric_type)}</td>`;
+        html += `<tr><td>${kpi.name}</td><td>${formatValue(kpi.target_value, kpi.metric_type, kpi.name)}</td>`;
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
@@ -219,7 +230,7 @@ const handler = async (req: Request): Promise<Response> => {
                            entry?.status === "yellow" ? "yellow" :
                            entry?.status === "green" ? "green" : "";
           
-          html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type)}</td>`;
+          html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
         });
         html += `</tr>`;
       });
