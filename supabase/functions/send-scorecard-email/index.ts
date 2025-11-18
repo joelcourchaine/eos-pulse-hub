@@ -264,7 +264,7 @@ const handler = async (req: Request): Promise<Response> => {
             if (mode === "weekly" && 'start' in p) {
               return e.kpi_id === kpi.id && 
                      e.week_start_date === p.start.toISOString().split('T')[0];
-            } else if (mode === "monthly" && 'identifier' in p) {
+            } else if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
               return e.kpi_id === kpi.id && e.month === p.identifier;
             }
             return false;
@@ -320,10 +320,14 @@ const handler = async (req: Request): Promise<Response> => {
           );
         }
         
-        // Add Return on Gross for all brands
+        // Add Return on Gross for all brands (calculate from base values)
         baseMetrics.push(
-          { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) =>
-            data.department_profit && data.gp_net ? (data.department_profit / data.gp_net) * 100 : null }
+          { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
+            // Recalculate department_profit inline since it's not stored in the database
+            const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
+            return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
+          }}
         );
         
         // Add Dealer Salary for Ford
