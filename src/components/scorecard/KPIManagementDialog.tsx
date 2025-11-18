@@ -462,33 +462,45 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             />
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={safeMetricType}
-                              onValueChange={(v) => handleUpdateKPI(kpi.id, "metric_type", v)}
-                            >
-                              <SelectTrigger className="h-8 w-[110px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="dollar">Dollar ($)</SelectItem>
-                                <SelectItem value="percentage">Percentage (%)</SelectItem>
-                                <SelectItem value="unit">Unit Count</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                              <div className="text-sm text-muted-foreground">
+                                {safeMetricType === "dollar" ? "Dollar ($)" : safeMetricType === "percentage" ? "Percentage (%)" : "Unit Count"}
+                              </div>
+                            ) : (
+                              <Select
+                                value={safeMetricType}
+                                onValueChange={(v) => handleUpdateKPI(kpi.id, "metric_type", v)}
+                              >
+                                <SelectTrigger className="h-8 w-[110px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="dollar">Dollar ($)</SelectItem>
+                                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                  <SelectItem value="unit">Unit Count</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           </TableCell>
                           <TableCell>
-                            <Select
-                              value={safeTargetDirection}
-                              onValueChange={(v) => handleUpdateKPI(kpi.id, "target_direction", v)}
-                            >
-                              <SelectTrigger className="h-8 w-[120px]">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="above">Above Target</SelectItem>
-                                <SelectItem value="below">Below Target</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                              <div className="text-sm text-muted-foreground">
+                                {safeTargetDirection === "above" ? "Above Target" : "Below Target"}
+                              </div>
+                            ) : (
+                              <Select
+                                value={safeTargetDirection}
+                                onValueChange={(v) => handleUpdateKPI(kpi.id, "target_direction", v)}
+                              >
+                                <SelectTrigger className="h-8 w-[120px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="above">Above Target</SelectItem>
+                                  <SelectItem value="below">Below Target</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Select
