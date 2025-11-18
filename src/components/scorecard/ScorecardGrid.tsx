@@ -811,6 +811,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
                             // Display formatted value when data exists
                             <div 
+                              data-display-value
                               className={cn(
                                 "h-full w-full flex items-center justify-center cursor-text",
                                 status === "success" && "text-success font-medium",
@@ -827,7 +828,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             </div>
                           ) : (
                             // Empty state - just show symbols
-                            <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                            <div 
+                              data-display-value
+                              className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
                               onClick={(e) => {
                                 const input = e.currentTarget.nextElementSibling as HTMLInputElement;
                                 input?.focus();
@@ -861,14 +864,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             onFocus={(e) => {
                               const parent = e.target.parentElement;
                               if (parent) {
-                                const display = parent.querySelector('div') as HTMLElement;
+                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
                                 if (display) display.style.display = 'none';
                               }
                             }}
                             onBlur={(e) => {
                               const parent = e.target.parentElement;
                               if (parent) {
-                                const display = parent.querySelector('div') as HTMLElement;
+                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
                                 if (display) display.style.display = '';
                               }
                             }}
@@ -911,6 +914,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
                             // Display formatted value when data exists
                             <div 
+                              data-display-value
                               className={cn(
                                 "h-full w-full flex items-center justify-center cursor-text",
                                 status === "success" && "text-success font-medium",
@@ -927,7 +931,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             </div>
                           ) : (
                             // Empty state - just show symbols
-                            <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                            <div 
+                              data-display-value
+                              className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
                               onClick={(e) => {
                                 const input = e.currentTarget.nextElementSibling as HTMLInputElement;
                                 input?.focus();
@@ -961,14 +967,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             onFocus={(e) => {
                               const parent = e.target.parentElement;
                               if (parent) {
-                                const display = parent.querySelector('div') as HTMLElement;
+                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
                                 if (display) display.style.display = 'none';
                               }
                             }}
                             onBlur={(e) => {
                               const parent = e.target.parentElement;
                               if (parent) {
-                                const display = parent.querySelector('div') as HTMLElement;
+                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
                                 if (display) display.style.display = '';
                               }
                             }}
