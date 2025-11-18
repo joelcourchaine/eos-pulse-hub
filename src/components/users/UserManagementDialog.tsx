@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Loader2, Save, UserPlus } from "lucide-react";
+import { Users, Loader2, Save, UserPlus, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AddUserDialog } from "./AddUserDialog";
@@ -36,6 +37,9 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const { toast } = useToast();
 
@@ -134,6 +138,47 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     setProfiles(profiles.map(p => 
       p.id === profileId ? { ...p, [field]: value } : p
     ));
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setDeleting(userToDelete.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: userToDelete.id },
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+
+      // Reload profiles
+      await loadProfiles();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(null);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    }
+  };
+
+  const openDeleteDialog = (profile: Profile) => {
+    setUserToDelete(profile);
+    setDeleteDialogOpen(true);
   };
 
   return (
@@ -288,27 +333,41 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => handleUpdateProfile(profile.id, {
-                          full_name: profile.full_name,
-                          birthday_month: profile.birthday_month,
-                          birthday_day: profile.birthday_day,
-                          start_month: profile.start_month,
-                          start_year: profile.start_year,
-                          reports_to: profile.reports_to,
-                        })}
-                        disabled={saving === profile.id}
-                      >
-                        {saving === profile.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Save className="h-4 w-4 mr-2" />
-                            Save
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdateProfile(profile.id, {
+                            full_name: profile.full_name,
+                            birthday_month: profile.birthday_month,
+                            birthday_day: profile.birthday_day,
+                            start_month: profile.start_month,
+                            start_year: profile.start_year,
+                            reports_to: profile.reports_to,
+                          })}
+                          disabled={saving === profile.id}
+                        >
+                          {saving === profile.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Save className="h-4 w-4 mr-2" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => openDeleteDialog(profile)}
+                          disabled={deleting === profile.id}
+                        >
+                          {deleting === profile.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -318,6 +377,27 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{userToDelete?.full_name}</strong> ({userToDelete?.email})?
+              This action cannot be undone and will permanently remove the user and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };
