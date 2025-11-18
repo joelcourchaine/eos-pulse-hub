@@ -355,7 +355,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       // Only calculate if both values exist and denominator is not zero
       if (numeratorValue && denominatorValue && denominatorValue !== 0) {
         console.log('✅ Calculating:', kpi.name, '=', numeratorValue, '/', denominatorValue);
-        const calculatedValue = numeratorValue / denominatorValue;
+        let calculatedValue = numeratorValue / denominatorValue;
+        
+        // Round CP Hours Per RO to 1 decimal place
+        if (kpi.name === "CP Hours Per RO") {
+          calculatedValue = Math.round(calculatedValue * 10) / 10;
+        }
+        
         const target = kpiTargets[kpi.id] || kpi.target_value;
         
         const variance = kpi.metric_type === "percentage" 
