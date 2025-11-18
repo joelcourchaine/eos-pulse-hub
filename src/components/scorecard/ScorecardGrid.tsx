@@ -412,12 +412,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             [calculatedKey]: data as ScorecardEntry
           }));
           
-          // Only clear local value if the input is not focused
+          // Only clear local value after save completes
           setLocalValues(prev => {
-            // If this input is focused, keep the local value
-            if (focusedInput === calculatedKey) {
-              return prev;
-            }
             const newLocalValues = { ...prev };
             delete newLocalValues[calculatedKey];
             return newLocalValues;
@@ -525,12 +521,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           return latestEntries;
         });
         
-        // Only clear local value if the input is not focused
+        // Only clear local value if there's no pending save
         setLocalValues(prev => {
-          // If this input is focused, keep the local value
-          if (focusedInput === key) {
-            return prev;
-          }
           const newLocalValues = { ...prev };
           delete newLocalValues[key];
           return newLocalValues;
@@ -873,8 +865,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }
                               }
                             }}
-                            onFocus={() => setFocusedInput(key)}
-                            onBlur={() => setFocusedInput(null)}
+                             onFocus={() => setFocusedInput(key)}
+                             onBlur={() => {
+                               // Don't clear focusedInput immediately to avoid clearing during save
+                               setTimeout(() => setFocusedInput(null), 50);
+                             }}
                             data-kpi-index={index}
                             data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
                             className={cn(
@@ -967,8 +962,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }
                               }
                             }}
-                            onFocus={() => setFocusedInput(key)}
-                            onBlur={() => setFocusedInput(null)}
+                             onFocus={() => setFocusedInput(key)}
+                             onBlur={() => {
+                               // Don't clear focusedInput immediately to avoid clearing during save
+                               setTimeout(() => setFocusedInput(null), 50);
+                             }}
                             data-kpi-index={index}
                             data-period-index={months.findIndex(m => m.identifier === month.identifier)}
                             className={cn(
