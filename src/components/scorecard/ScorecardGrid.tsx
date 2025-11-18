@@ -865,7 +865,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             data-kpi-index={index}
                             data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
                             className={cn(
-                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
+                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium",
@@ -965,7 +965,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             data-kpi-index={index}
                             data-period-index={months.findIndex(m => m.identifier === month.identifier)}
                             className={cn(
-                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
+                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
                               status === "destructive" && "text-destructive font-medium",
