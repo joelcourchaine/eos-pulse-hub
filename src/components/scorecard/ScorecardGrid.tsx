@@ -412,8 +412,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             [calculatedKey]: data as ScorecardEntry
           }));
           
-          // Clear local value so display shows the saved value from entries
+          // Only clear local value if the input is not focused
           setLocalValues(prev => {
+            // If this input is focused, keep the local value
+            if (focusedInput === calculatedKey) {
+              return prev;
+            }
             const newLocalValues = { ...prev };
             delete newLocalValues[calculatedKey];
             return newLocalValues;
@@ -521,8 +525,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           return latestEntries;
         });
         
-        // Clear local value so input shows the saved value from entries
+        // Only clear local value if the input is not focused
         setLocalValues(prev => {
+          // If this input is focused, keep the local value
+          if (focusedInput === key) {
+            return prev;
+          }
           const newLocalValues = { ...prev };
           delete newLocalValues[key];
           return newLocalValues;
