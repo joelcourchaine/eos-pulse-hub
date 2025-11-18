@@ -283,6 +283,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Add financial metrics for monthly and yearly modes
     if (mode === "monthly" || mode === "yearly") {
+      // Fetch financial targets for this year
+      const { data: finTargets } = await supabaseClient
+        .from("financial_targets")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("year", year);
+      
+      const targetsMap = new Map<string, { value: number; direction: string }>();
+      finTargets?.forEach(t => {
+        const key = `${t.metric_name}_${t.quarter}`;
+        targetsMap.set(key, { value: t.target_value, direction: t.target_direction });
+      });
+      
       // Get brand name
       const brandName = department?.stores?.brands?.name || department?.stores?.brand || null;
       
@@ -370,10 +383,36 @@ const handler = async (req: Request): Promise<Response> => {
               value = entry?.value || null;
             }
             
+            // Determine quarter from month identifier
+            const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
+            const quarter = Math.ceil((monthIndex + 1) / 3);
+            
+            // Get target for this metric and quarter
+            const targetKey = `${metric.dbName}_${quarter}`;
+            const target = targetsMap.get(targetKey);
+            
+            // Calculate status
+            let cellClass = "";
+            if (value !== null && target && target.value !== null) {
+              const targetValue = target.value;
+              const direction = target.direction;
+              const variance = ((value - targetValue) / targetValue) * 100;
+              
+              if (direction === "above") {
+                if (variance >= 0) cellClass = "green";
+                else if (variance >= -10) cellClass = "yellow";
+                else cellClass = "red";
+              } else {
+                if (variance <= 0) cellClass = "green";
+                else if (variance <= 10) cellClass = "yellow";
+                else cellClass = "red";
+              }
+            }
+            
             if (metric.type === "percentage" && value !== null) {
-              html += `<td>${value.toFixed(1)}%</td>`;
+              html += `<td class="${cellClass}">${value.toFixed(1)}%</td>`;
             } else {
-              html += `<td>${formatValue(value, metric.type)}</td>`;
+              html += `<td class="${cellClass}">${formatValue(value, metric.type)}</td>`;
             }
           }
         });
