@@ -145,6 +145,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -808,8 +809,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         )}
                       >
                         <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
-                            // Display formatted value when data exists
+                          {!isCalculatedKPI(kpi.name) && focusedInput !== key && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                            // Display formatted value when data exists and not focused
                             <div 
                               data-display-value
                               className={cn(
@@ -826,8 +827,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             >
                               {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
                             </div>
-                          ) : (
-                            // Empty state - just show symbols
+                          ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                            // Empty state - just show symbols when not focused
                             <div 
                               data-display-value
                               className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
@@ -838,7 +839,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             >
                               {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
                             </div>
-                          )}
+                          ) : null}
                           <Input
                             type="number"
                             step="any"
@@ -861,20 +862,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }
                               }
                             }}
-                            onFocus={(e) => {
-                              const parent = e.target.parentElement;
-                              if (parent) {
-                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
-                                if (display) display.style.display = 'none';
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const parent = e.target.parentElement;
-                              if (parent) {
-                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
-                                if (display) display.style.display = '';
-                              }
-                            }}
+                            onFocus={() => setFocusedInput(key)}
+                            onBlur={() => setFocusedInput(null)}
                             data-kpi-index={index}
                             data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
                             className={cn(
@@ -911,8 +900,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         )}
                       >
                         <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {entry?.actual_value !== null && entry?.actual_value !== undefined ? (
-                            // Display formatted value when data exists
+                          {!isCalculatedKPI(kpi.name) && focusedInput !== key && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                            // Display formatted value when data exists and not focused
                             <div 
                               data-display-value
                               className={cn(
@@ -929,8 +918,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             >
                               {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
                             </div>
-                          ) : (
-                            // Empty state - just show symbols
+                          ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                            // Empty state - just show symbols when not focused
                             <div 
                               data-display-value
                               className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
@@ -941,7 +930,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             >
                               {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
                             </div>
-                          )}
+                          ) : null}
                           <Input
                             type="number"
                             step="any"
@@ -964,20 +953,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }
                               }
                             }}
-                            onFocus={(e) => {
-                              const parent = e.target.parentElement;
-                              if (parent) {
-                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
-                                if (display) display.style.display = 'none';
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const parent = e.target.parentElement;
-                              if (parent) {
-                                const display = parent.querySelector('[data-display-value]') as HTMLElement;
-                                if (display) display.style.display = '';
-                              }
-                            }}
+                            onFocus={() => setFocusedInput(key)}
+                            onBlur={() => setFocusedInput(null)}
                             data-kpi-index={index}
                             data-period-index={months.findIndex(m => m.identifier === month.identifier)}
                             className={cn(
