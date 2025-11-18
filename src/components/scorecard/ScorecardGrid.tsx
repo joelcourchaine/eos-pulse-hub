@@ -700,7 +700,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   const handleCopyToQuarters = async (kpiId: string) => {
     const currentTarget = kpiTargets[kpiId] || kpis.find(k => k.id === kpiId)?.target_value;
-    if (!currentTarget) return;
+    if (currentTarget === undefined || currentTarget === null) return;
 
     const updates = [1, 2, 3, 4]
       .filter(q => q !== quarter)
