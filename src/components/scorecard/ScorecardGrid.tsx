@@ -278,6 +278,27 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       const newEntries: { [key: string]: ScorecardEntry } = {};
       weeklyData?.forEach((entry) => {
         const key = `${entry.kpi_id}-${entry.week_start_date}`;
+        
+        // Recalculate status based on current target
+        const kpi = kpis.find(k => k.id === entry.kpi_id);
+        if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+          const target = kpiTargets[kpi.id] || kpi.target_value;
+          
+          const variance = kpi.metric_type === "percentage" 
+            ? entry.actual_value - target 
+            : target !== 0 ? ((entry.actual_value - target) / target) * 100 : 0;
+
+          let status: string;
+          if (kpi.target_direction === "above") {
+            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+          } else {
+            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+          }
+          
+          entry.status = status;
+          entry.variance = variance;
+        }
+        
         newEntries[key] = entry;
       });
       setEntries(newEntries);
@@ -305,6 +326,27 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       const newEntries: { [key: string]: ScorecardEntry } = {};
       monthlyData?.forEach((entry) => {
         const key = `${entry.kpi_id}-month-${entry.month}`;
+        
+        // Recalculate status based on current target
+        const kpi = kpis.find(k => k.id === entry.kpi_id);
+        if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+          const target = kpiTargets[kpi.id] || kpi.target_value;
+          
+          const variance = kpi.metric_type === "percentage" 
+            ? entry.actual_value - target 
+            : target !== 0 ? ((entry.actual_value - target) / target) * 100 : 0;
+
+          let status: string;
+          if (kpi.target_direction === "above") {
+            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+          } else {
+            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+          }
+          
+          entry.status = status;
+          entry.variance = variance;
+        }
+        
         newEntries[key] = entry;
       });
       setEntries(newEntries);
