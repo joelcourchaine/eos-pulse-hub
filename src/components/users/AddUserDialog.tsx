@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,7 +24,6 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [storeGroupId, setStoreGroupId] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
-  const [sendPasswordEmail, setSendPasswordEmail] = useState(true);
   const { toast } = useToast();
 
   // Update storeId when currentStoreId changes
@@ -77,7 +75,6 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           role,
           store_id: storeId || null,
           store_group_id: storeGroupId || null,
-          send_password_email: sendPasswordEmail,
         },
       });
 
@@ -89,7 +86,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
 
       toast({
         title: "Success",
-        description: "User created successfully. They will receive an email to set their password.",
+        description: `User created successfully. An invitation email has been sent to ${email} to set their password.`,
       });
 
       // Reset form
@@ -98,7 +95,6 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setRole("department_manager");
       setStoreId("");
       setStoreGroupId("");
-      setSendPasswordEmail(false);
       
       onUserCreated();
       onOpenChange(false);
@@ -209,20 +205,6 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             <p className="text-xs text-muted-foreground">
               Assign to either a single store OR a store group for multi-store access
             </p>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Checkbox 
-              id="sendPasswordEmail" 
-              checked={sendPasswordEmail}
-              onCheckedChange={(checked) => setSendPasswordEmail(checked as boolean)}
-            />
-            <Label 
-              htmlFor="sendPasswordEmail"
-              className="text-sm font-normal cursor-pointer"
-            >
-              Send password setup email to user
-            </Label>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
