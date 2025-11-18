@@ -24,6 +24,10 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [storeGroupId, setStoreGroupId] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
+  const [birthdayMonth, setBirthdayMonth] = useState<string>("");
+  const [birthdayDay, setBirthdayDay] = useState<string>("");
+  const [startMonth, setStartMonth] = useState<string>("");
+  const [startYear, setStartYear] = useState<string>("");
   const { toast } = useToast();
 
   // Update storeId when currentStoreId changes
@@ -75,6 +79,10 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           role,
           store_id: storeId || null,
           store_group_id: storeGroupId || null,
+          birthday_month: birthdayMonth ? parseInt(birthdayMonth) : null,
+          birthday_day: birthdayDay ? parseInt(birthdayDay) : null,
+          start_month: startMonth ? parseInt(startMonth) : null,
+          start_year: startYear ? parseInt(startYear) : null,
         },
       });
 
@@ -95,6 +103,10 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setRole("department_manager");
       setStoreId("");
       setStoreGroupId("");
+      setBirthdayMonth("");
+      setBirthdayDay("");
+      setStartMonth("");
+      setStartYear("");
       
       onUserCreated();
       onOpenChange(false);
@@ -205,6 +217,76 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             <p className="text-xs text-muted-foreground">
               Assign to either a single store OR a store group for multi-store access
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Birthday (Optional)</Label>
+              <div className="flex gap-2">
+                <Select value={birthdayMonth} onValueChange={setBirthdayMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">January</SelectItem>
+                    <SelectItem value="2">February</SelectItem>
+                    <SelectItem value="3">March</SelectItem>
+                    <SelectItem value="4">April</SelectItem>
+                    <SelectItem value="5">May</SelectItem>
+                    <SelectItem value="6">June</SelectItem>
+                    <SelectItem value="7">July</SelectItem>
+                    <SelectItem value="8">August</SelectItem>
+                    <SelectItem value="9">September</SelectItem>
+                    <SelectItem value="10">October</SelectItem>
+                    <SelectItem value="11">November</SelectItem>
+                    <SelectItem value="12">December</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  placeholder="Day"
+                  min="1"
+                  max="31"
+                  value={birthdayDay}
+                  onChange={(e) => setBirthdayDay(e.target.value)}
+                  className="w-20"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Start Date (Optional)</Label>
+              <div className="flex gap-2">
+                <Select value={startMonth} onValueChange={setStartMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">January</SelectItem>
+                    <SelectItem value="2">February</SelectItem>
+                    <SelectItem value="3">March</SelectItem>
+                    <SelectItem value="4">April</SelectItem>
+                    <SelectItem value="5">May</SelectItem>
+                    <SelectItem value="6">June</SelectItem>
+                    <SelectItem value="7">July</SelectItem>
+                    <SelectItem value="8">August</SelectItem>
+                    <SelectItem value="9">September</SelectItem>
+                    <SelectItem value="10">October</SelectItem>
+                    <SelectItem value="11">November</SelectItem>
+                    <SelectItem value="12">December</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  placeholder="Year"
+                  min="1950"
+                  max={new Date().getFullYear()}
+                  value={startYear}
+                  onChange={(e) => setStartYear(e.target.value)}
+                  className="w-24"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
