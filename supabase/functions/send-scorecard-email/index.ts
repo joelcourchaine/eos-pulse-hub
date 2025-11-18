@@ -180,6 +180,23 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("department_id", departmentId)
       .order("display_order");
 
+    // Fetch KPI targets for the specific quarter (for monthly/weekly modes)
+    let kpiTargetsMap = new Map<string, number>();
+    if (mode !== "yearly" && quarter) {
+      const { data: kpiTargets } = await supabaseClient
+        .from("kpi_targets")
+        .select("*")
+        .eq("year", year)
+        .eq("quarter", quarter)
+        .in("kpi_id", kpis?.map(k => k.id) || []);
+      
+      kpiTargets?.forEach(t => {
+        kpiTargetsMap.set(t.kpi_id, t.target_value || 0);
+      });
+      
+      console.log(`Fetched ${kpiTargets?.length || 0} KPI targets for Q${quarter} ${year}`);
+    }
+
     // Fetch scorecard entries
     const periods = mode === "weekly" 
       ? getWeekDates({ year, quarter: quarter! })
@@ -257,7 +274,12 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach(kpi => {
-        html += `<tr><td>${kpi.name}</td><td>${formatValue(kpi.target_value, kpi.metric_type, kpi.name)}</td>`;
+        // Use quarterly target if available, otherwise fall back to base target
+        const targetValue = (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) 
+          ? kpiTargetsMap.get(kpi.id)! 
+          : kpi.target_value;
+        
+        html += `<tr><td>${kpi.name}</td><td>${formatValue(targetValue, kpi.metric_type, kpi.name)}</td>`;
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
@@ -272,9 +294,8 @@ const handler = async (req: Request): Promise<Response> => {
 
           // Calculate status if we have an entry with a value
           let cellClass = "";
-          if (entry?.actual_value !== null && entry?.actual_value !== undefined && kpi.target_value !== null) {
+          if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
             const actualValue = entry.actual_value;
-            const targetValue = kpi.target_value;
             const direction = kpi.target_direction;
             const variance = ((actualValue - targetValue) / targetValue) * 100;
             
@@ -292,7 +313,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             console.log(`  -> Status: ${cellClass || 'none'}`);
           } else {
-            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Entry: ${entry ? 'found' : 'not found'}, Actual: ${entry?.actual_value}, Target: ${kpi.target_value}`);
+            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Entry: ${entry ? 'found' : 'not found'}, Actual: ${entry?.actual_value}, Target: ${targetValue}`);
           }
           
           html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
