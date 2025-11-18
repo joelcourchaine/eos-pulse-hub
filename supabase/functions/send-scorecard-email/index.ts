@@ -278,6 +278,8 @@ const handler = async (req: Request): Promise<Response> => {
             const direction = kpi.target_direction;
             const variance = ((actualValue - targetValue) / targetValue) * 100;
             
+            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Actual: ${actualValue}, Target: ${targetValue}, Direction: ${direction}, Variance: ${variance.toFixed(2)}%`);
+            
             if (direction === "above") {
               if (variance >= 0) cellClass = "green";
               else if (variance >= -10) cellClass = "yellow";
@@ -287,6 +289,10 @@ const handler = async (req: Request): Promise<Response> => {
               else if (variance <= 10) cellClass = "yellow";
               else cellClass = "red";
             }
+            
+            console.log(`  -> Status: ${cellClass || 'none'}`);
+          } else {
+            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Entry: ${entry ? 'found' : 'not found'}, Actual: ${entry?.actual_value}, Target: ${kpi.target_value}`);
           }
           
           html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
