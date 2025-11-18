@@ -445,21 +445,27 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
                           <TableCell>
-                            <Input
-                              className="h-8 font-medium min-w-[250px]"
-                              value={isEditingThis && editingName ? editingName : kpi.name}
-                              onFocus={() => {
-                                setEditingKpiId(kpi.id);
-                                setEditingName(kpi.name);
-                              }}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onBlur={() => handleNameBlur(kpi.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.currentTarget.blur();
-                                }
-                              }}
-                            />
+                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                              <div className="text-sm font-medium min-w-[250px] px-3 py-2">
+                                {kpi.name}
+                              </div>
+                            ) : (
+                              <Input
+                                className="h-8 font-medium min-w-[250px]"
+                                value={isEditingThis && editingName ? editingName : kpi.name}
+                                onFocus={() => {
+                                  setEditingKpiId(kpi.id);
+                                  setEditingName(kpi.name);
+                                }}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={() => handleNameBlur(kpi.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.currentTarget.blur();
+                                  }
+                                }}
+                              />
+                            )}
                           </TableCell>
                           <TableCell>
                             {PRESET_KPIS.some(p => p.name === kpi.name) ? (
