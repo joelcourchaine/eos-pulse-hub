@@ -50,7 +50,6 @@ interface KPIManagementDialogProps {
 
 export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, quarter }: KPIManagementDialogProps) => {
   const [open, setOpen] = useState(false);
-  const [selectedKPIs, setSelectedKPIs] = useState<Set<string>>(new Set());
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
@@ -60,16 +59,14 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [customKPIName, setCustomKPIName] = useState("");
   const [customKPIType, setCustomKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [customKPIDirection, setCustomKPIDirection] = useState<"above" | "below">("above");
+  const [addingPresetKpi, setAddingPresetKpi] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
       loadProfiles();
-      // Initialize selected KPIs based on existing KPIs
-      const existingKPINames = new Set(kpis.map(k => k.name));
-      setSelectedKPIs(existingKPINames);
     }
-  }, [open, kpis]);
+  }, [open]);
 
   const loadProfiles = async () => {
     // First get the store_id from the department
@@ -100,66 +97,40 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     setProfiles((data || []).filter(p => p.id && p.id.trim() !== ""));
   };
 
-  const handleKPIToggle = (kpiName: string, checked: boolean) => {
-    const preset = PRESET_KPIS.find(p => p.name === kpiName);
+  const handleAddPresetKPI = async (presetName: string) => {
+    const preset = PRESET_KPIS.find(p => p.name === presetName);
     if (!preset) return;
 
-    const newSelected = new Set(selectedKPIs);
+    setAddingPresetKpi(presetName);
 
-    if (checked) {
-      // Add the KPI
-      newSelected.add(kpiName);
-      // Auto-add dependencies
-      preset.dependencies.forEach(dep => newSelected.add(dep));
-    } else {
-      // Check if any selected KPIs depend on this one
-      const dependentKPIs = PRESET_KPIS.filter(p => 
-        selectedKPIs.has(p.name) && p.dependencies.includes(kpiName)
-      );
+    try {
+      // Check if dependencies exist, add them first if needed
+      for (const depName of preset.dependencies) {
+        const dependencyExists = kpis.some(k => k.name === depName);
+        if (!dependencyExists) {
+          const depPreset = PRESET_KPIS.find(p => p.name === depName);
+          if (depPreset) {
+            const { error: depError } = await supabase
+              .from("kpi_definitions")
+              .insert({
+                name: depPreset.name,
+                metric_type: depPreset.metricType,
+                target_value: 0,
+                target_direction: depPreset.targetDirection,
+                department_id: departmentId,
+                display_order: kpis.length + 1
+              });
 
-      if (dependentKPIs.length > 0) {
-        toast({
-          title: "Cannot remove KPI",
-          description: `"${kpiName}" is required by: ${dependentKPIs.map(k => k.name).join(", ")}`,
-          variant: "destructive"
-        });
-        return;
+            if (depError) {
+              toast({ title: "Error", description: `Failed to add dependency: ${depName}`, variant: "destructive" });
+              setAddingPresetKpi(null);
+              return;
+            }
+          }
+        }
       }
 
-      newSelected.delete(kpiName);
-    }
-
-    setSelectedKPIs(newSelected);
-  };
-
-  const handleApplyKPIs = async () => {
-    // Get currently active KPI names
-    const existingKPINames = new Set(kpis.map(k => k.name));
-    
-    // Find KPIs to add
-    const kpisToAdd = Array.from(selectedKPIs).filter(name => !existingKPINames.has(name));
-    
-    // Find KPIs to remove
-    const kpisToRemove = kpis.filter(k => !selectedKPIs.has(k.name));
-
-    // Remove unchecked KPIs
-    for (const kpi of kpisToRemove) {
-      const { error } = await supabase
-        .from("kpi_definitions")
-        .delete()
-        .eq("id", kpi.id);
-
-      if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-        return;
-      }
-    }
-
-    // Add new KPIs
-    for (const kpiName of kpisToAdd) {
-      const preset = PRESET_KPIS.find(p => p.name === kpiName);
-      if (!preset) continue;
-
+      // Add the main KPI
       const { error } = await supabase
         .from("kpi_definitions")
         .insert({
@@ -168,20 +139,23 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           target_value: 0,
           target_direction: preset.targetDirection,
           department_id: departmentId,
-          display_order: kpis.length + kpisToAdd.indexOf(kpiName) + 1
+          display_order: kpis.length + preset.dependencies.length + 1
         });
 
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
+        setAddingPresetKpi(null);
         return;
       }
-    }
 
-    toast({ 
-      title: "Success", 
-      description: `Updated KPIs: ${kpisToAdd.length} added, ${kpisToRemove.length} removed` 
-    });
-    onKPIsChange();
+      toast({ 
+        title: "Success", 
+        description: `Added "${preset.name}" KPI` 
+      });
+      onKPIsChange();
+    } finally {
+      setAddingPresetKpi(null);
+    }
   };
 
   const handleAddCustomKPI = async () => {
@@ -320,11 +294,6 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     onKPIsChange();
   };
 
-  const isKPIDependency = (kpiName: string) => {
-    return PRESET_KPIS.some(p => 
-      selectedKPIs.has(p.name) && p.dependencies.includes(kpiName)
-    );
-  };
 
   return (
     <>
@@ -339,47 +308,29 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           <DialogHeader>
             <DialogTitle>Manage KPIs</DialogTitle>
             <DialogDescription>
-              Select KPIs to track for this department. Dependencies will be automatically selected.
+              Add KPIs to track for this department. You can add the same KPI multiple times with different owners.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* KPI Selection */}
+            {/* Preset KPIs Section */}
             <div className="border rounded-lg p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Select KPIs</h3>
-                <Button onClick={handleApplyKPIs} size="sm">
-                  Apply Changes
-                </Button>
-              </div>
+              <h3 className="font-semibold text-sm">Add Preset KPIs</h3>
+              <p className="text-xs text-muted-foreground">You can add the same KPI multiple times with different owners</p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {PRESET_KPIS.map((preset) => {
-                  const isSelected = selectedKPIs.has(preset.name);
-                  const isDependency = isKPIDependency(preset.name);
+                  const isAdding = addingPresetKpi === preset.name;
                   
                   return (
                     <div 
                       key={preset.name}
-                      className={`flex items-start space-x-3 p-3 rounded-lg border ${
-                        isDependency ? 'bg-muted/50 border-primary/30' : 'hover:bg-muted/30'
-                      }`}
+                      className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/30"
                     >
-                      <Checkbox
-                        id={preset.name}
-                        checked={isSelected}
-                        onCheckedChange={(checked) => handleKPIToggle(preset.name, checked as boolean)}
-                        disabled={isDependency}
-                      />
                       <div className="flex-1">
-                        <Label 
-                          htmlFor={preset.name}
-                          className={`text-sm font-medium cursor-pointer ${
-                            isDependency ? 'text-muted-foreground' : ''
-                          }`}
-                        >
+                        <div className="text-sm font-medium">
                           {preset.name}
-                        </Label>
+                        </div>
                         <div className="text-xs text-muted-foreground mt-1">
                           Type: {preset.metricType === "dollar" ? "$" : preset.metricType === "percentage" ? "%" : "units"}
                           {preset.dependencies.length > 0 && (
@@ -387,13 +338,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                               • Requires: {preset.dependencies.join(", ")}
                             </span>
                           )}
-                          {isDependency && (
-                            <span className="ml-2 text-primary">
-                              • Required by other KPI
-                            </span>
-                          )}
                         </div>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddPresetKPI(preset.name)}
+                        disabled={isAdding}
+                        className="ml-3"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add
+                      </Button>
                     </div>
                   );
                 })}
