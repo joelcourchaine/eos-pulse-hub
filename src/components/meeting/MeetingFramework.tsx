@@ -71,13 +71,28 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
   const saveNote = async (section: string, content: string) => {
     if (!departmentId) return;
 
-    const { data: existing } = await supabase
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Error saving note",
+        description: "You must be logged in to save notes",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { data: existing, error: fetchError } = await supabase
       .from('meeting_notes')
       .select('id')
       .eq('department_id', departmentId)
       .eq('meeting_date', meetingDate)
       .eq('section', section)
       .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error fetching existing note:', fetchError);
+    }
 
     if (existing) {
       // Update existing note
@@ -90,7 +105,7 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
         console.error('Error updating note:', error);
         toast({
           title: "Error saving note",
-          description: "Failed to save meeting note",
+          description: `Failed to save: ${error.message}`,
           variant: "destructive"
         });
       }
@@ -102,14 +117,15 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
           department_id: departmentId,
           meeting_date: meetingDate,
           section: section,
-          notes: content
+          notes: content,
+          created_by: user.id
         });
 
       if (error) {
         console.error('Error inserting note:', error);
         toast({
           title: "Error saving note",
-          description: "Failed to save meeting note",
+          description: `Failed to save: ${error.message}`,
           variant: "destructive"
         });
       }
