@@ -398,10 +398,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         if (!error && data) {
           const calculatedKey = isMonthly ? `${kpi.id}-month-${monthId}` : `${kpi.id}-${periodKey}`;
           console.log('💾 Saved calculated value:', kpi.name, '=', calculatedValue);
+          
+          // Update entries using functional form
           setEntries(prev => ({
             ...prev,
             [calculatedKey]: data as ScorecardEntry
           }));
+          
           // Clear local value so display shows the saved value from entries
           setLocalValues(prev => {
             const newLocalValues = { ...prev };
@@ -501,14 +504,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (error) {
         toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
       } else if (data) {
-        // Create updated entries map with the new data
-        const updatedEntries = {
-          ...entries,
-          [key]: data as ScorecardEntry
-        };
-        
-        // Update local state
-        setEntries(updatedEntries);
+        // Update entries state using functional form to get the latest state
+        let latestEntries: Record<string, ScorecardEntry> = {};
+        setEntries(prev => {
+          latestEntries = {
+            ...prev,
+            [key]: data as ScorecardEntry
+          };
+          return latestEntries;
+        });
         
         // Clear local value so input shows the saved value from entries
         setLocalValues(prev => {
@@ -518,7 +522,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         });
 
         // Auto-calculate dependent KPIs with the updated entries
-        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, updatedEntries);
+        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, latestEntries);
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
