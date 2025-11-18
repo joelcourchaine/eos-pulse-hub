@@ -97,23 +97,20 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
       // Process work anniversaries
       if (profile.start_month && profile.start_year) {
         const anniversaryThisYear = new Date(currentYear, profile.start_month - 1, 1);
-        const anniversaryNextYear = new Date(currentYear + 1, profile.start_month - 1, 1);
+        const yearsOfService = currentYear - profile.start_year;
+        const daysFromToday = Math.ceil((anniversaryThisYear.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         
-        let anniversaryDate = anniversaryThisYear;
-        if (anniversaryThisYear < today) {
-          anniversaryDate = anniversaryNextYear;
-        }
-
-        const yearsOfService = anniversaryDate.getFullYear() - profile.start_year;
-        const daysUntil = Math.ceil((anniversaryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        // Show anniversaries from the start of current month through the next 30 days
+        const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+        const daysFromStartOfMonth = Math.ceil((anniversaryThisYear.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24));
         
-        if (daysUntil <= 30 && yearsOfService > 0) {
+        if (daysFromStartOfMonth >= 0 && daysFromToday <= 30 && yearsOfService > 0) {
           upcomingCelebrations.push({
             id: `${profile.id}-anniversary`,
             name: profile.full_name,
             type: "anniversary",
-            date: anniversaryDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-            daysUntil,
+            date: anniversaryThisYear.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            daysUntil: daysFromToday,
             yearsOfService,
           });
         }
@@ -159,7 +156,7 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground text-center py-4">
-            No celebrations in the next 30 days
+            No recent or upcoming celebrations
           </p>
         </CardContent>
       </Card>
@@ -174,7 +171,7 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
           Celebrations
         </CardTitle>
         <CardDescription>
-          Upcoming birthdays and work anniversaries in the next 30 days
+          Recent and upcoming birthdays and work anniversaries
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -207,7 +204,11 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
               </div>
               <div className="text-right">
                 <p className="text-xs font-semibold text-primary">
-                  {celebration.daysUntil === 0 ? "Today!" : celebration.daysUntil === 1 ? "Tomorrow" : `In ${celebration.daysUntil} days`}
+                  {celebration.daysUntil === 0 ? "Today!" : 
+                   celebration.daysUntil === 1 ? "Tomorrow" : 
+                   celebration.daysUntil > 0 ? `In ${celebration.daysUntil} days` :
+                   celebration.daysUntil === -1 ? "Yesterday" :
+                   `${Math.abs(celebration.daysUntil)} days ago`}
                 </p>
               </div>
             </div>
