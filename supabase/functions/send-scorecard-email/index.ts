@@ -245,6 +245,36 @@ const handler = async (req: Request): Promise<Response> => {
       financialEntries = finData || [];
     }
 
+    // Fetch director notes
+    let directorNotes = null;
+    const periodType = mode === "weekly" ? "quarterly" : mode;
+    let periodDate = "";
+    
+    if (mode === "yearly") {
+      periodDate = `${year}`;
+    } else if (mode === "monthly" && quarter) {
+      // Use the last month of the quarter for monthly reports
+      const lastMonthOfQuarter = quarter * 3;
+      periodDate = `${year}-${String(lastMonthOfQuarter).padStart(2, '0')}`;
+    } else if (mode === "weekly" && quarter) {
+      periodDate = `Q${quarter}-${year}`;
+    }
+    
+    console.log(`Fetching director notes for period: ${periodType} - ${periodDate}`);
+    
+    const { data: notesData } = await supabaseClient
+      .from("director_notes")
+      .select("*")
+      .eq("department_id", departmentId)
+      .eq("period_type", periodType)
+      .eq("period_date", periodDate)
+      .maybeSingle();
+    
+    if (notesData?.notes) {
+      directorNotes = notesData.notes;
+      console.log("Director notes found");
+    }
+
     // Group KPIs by owner
     const kpisByOwner = new Map<string, any[]>();
     kpis?.forEach(kpi => {
@@ -275,11 +305,33 @@ const handler = async (req: Request): Promise<Response> => {
           .red { background-color: #fee; }
           .yellow { background-color: #ffc; }
           .green { background-color: #efe; }
+          .director-notes {
+            background-color: #f9f9f9;
+            border-left: 4px solid #2563eb;
+            padding: 12px 16px;
+            margin: 20px 0;
+          }
+          .director-notes h3 {
+            margin: 0 0 8px 0;
+            color: #2563eb;
+            font-size: 14px;
+          }
+          .director-notes p {
+            margin: 0;
+            line-height: 1.6;
+            white-space: pre-wrap;
+          }
         </style>
       </head>
       <body>
         <h1>${department.stores?.name || "Store"} - ${department.name} Scorecard</h1>
         <p><strong>${reportTitle}</strong> | <strong>${reportType} View</strong></p>
+        ${directorNotes ? `
+        <div class="director-notes">
+          <h3>Director's Notes</h3>
+          <p>${directorNotes}</p>
+        </div>
+        ` : ''}
     `;
 
     // Add KPI tables

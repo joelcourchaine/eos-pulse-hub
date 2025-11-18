@@ -114,6 +114,54 @@ export type Database = {
           },
         ]
       }
+      director_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string
+          id: string
+          notes: string | null
+          period_date: string
+          period_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          id?: string
+          notes?: string | null
+          period_date: string
+          period_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          id?: string
+          notes?: string | null
+          period_date?: string
+          period_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "director_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "director_notes_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           created_at: string

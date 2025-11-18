@@ -23,6 +23,7 @@ import { StoreManagementDialog } from "@/components/stores/StoreManagementDialog
 import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSelectionDialog";
 import { TodosPanel } from "@/components/todos/TodosPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
+import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
 const Dashboard = () => {
@@ -814,6 +815,22 @@ const Dashboard = () => {
           departmentId={selectedDepartment} 
           userId={user?.id} 
         />
+
+        {/* Director Notes Section */}
+        {selectedDepartment && (
+          <DirectorNotes
+            departmentId={selectedDepartment}
+            periodType={printMode === "weekly" ? "quarterly" : printMode}
+            periodDate={
+              printMode === "yearly"
+                ? `${selectedYear}` 
+                : printMode === "monthly"
+                  ? `${selectedYear}-${String(selectedQuarter * 3).padStart(2, '0')}` 
+                  : `Q${selectedQuarter}-${selectedYear}`
+            }
+            userRole={profile?.role || ""}
+          />
+        )}
       </main>
     </div>
 
