@@ -480,7 +480,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       clearTimeout(saveTimeoutRef.current[key]);
     }
 
-    // Set new timeout to save after user stops typing
+    // Set new timeout to save after user stops typing (1 second delay)
     saveTimeoutRef.current[key] = setTimeout(async () => {
       const actualValue = parseFloat(value) || null;
 
@@ -572,7 +572,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
       setSaving(prev => ({ ...prev, [key]: false }));
       delete saveTimeoutRef.current[key];
-    }, 800);
+    }, 1000); // Debounce delay - 1 second
   };
 
   const getStatus = (status: string | null) => {
