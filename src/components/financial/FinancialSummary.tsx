@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1297,7 +1297,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       </TooltipTrigger>
                                       {notes[key] && (
                                         <TooltipContent className="max-w-xs bg-popover text-popover-foreground z-50">
-                                          <p className="text-sm">{notes[key]}</p>
+                                          <div 
+                                            className="text-sm prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md" 
+                                            dangerouslySetInnerHTML={{ __html: notes[key] }}
+                                          />
                                         </TooltipContent>
                                       )}
                                     </Tooltip>
@@ -1335,12 +1338,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           <div className="space-y-4">
             <div>
               <Label htmlFor="note">Note</Label>
-              <Textarea
-                id="note"
+              <RichTextEditor
                 value={currentNote}
-                onChange={(e) => setCurrentNote(e.target.value)}
-                placeholder="Enter your note here..."
-                rows={4}
+                onChange={setCurrentNote}
+                placeholder="Type or paste (Cmd+V) your notes and images here..."
                 className="mt-2"
               />
             </div>

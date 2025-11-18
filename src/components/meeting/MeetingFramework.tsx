@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -185,12 +185,11 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
                     {section.description}
                   </p>
                 </div>
-                <Textarea
-                  placeholder={`Add notes for ${section.title.toLowerCase()}...`}
+                <RichTextEditor
+                  placeholder={`Add notes and images for ${section.title.toLowerCase()}...`}
                   value={notes[section.id] || ""}
-                  onChange={(e) => handleNoteChange(section.id, e.target.value)}
+                  onChange={(value) => handleNoteChange(section.id, value)}
                   className="min-h-[100px]"
-                  disabled={loading || !departmentId}
                 />
               </div>
             </TabsContent>
