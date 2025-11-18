@@ -688,9 +688,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       return;
     }
 
-    setKpiTargets(prev => ({ ...prev, [kpiId]: newValue }));
     setEditingTarget(null);
-    loadScorecardData(); // Reload to recalculate statuses
+    // Reload targets and scorecard data to recalculate statuses immediately
+    await loadKPITargets();
+    await loadScorecardData();
     toast({
       title: "Success",
       description: "Target updated successfully",
