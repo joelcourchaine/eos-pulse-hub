@@ -103,21 +103,16 @@ Deno.serve(async (req) => {
 
     console.log('Creating user:', { email, full_name, role });
 
-    // Generate a temporary password
-    const tempPassword = crypto.randomUUID();
-
-    // Create the user in auth.users
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: tempPassword,
-      email_confirm: true,
-      user_metadata: {
+    // Invite the user - this will send them an email to set their password
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      data: {
         full_name,
         birthday_month,
         birthday_day,
         start_month,
         start_year,
       },
+      redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/reset-password`
     });
 
     if (userError) {
@@ -156,26 +151,7 @@ Deno.serve(async (req) => {
     }
 
     console.log('User role and profile updated successfully');
-
-    // Send password reset email so user can set their own password (if requested)
-    if (send_password_email !== false) {
-      try {
-        const { data: resetData, error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
-          email,
-          {
-            redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/reset-password`
-          }
-        );
-
-        if (resetError) {
-          console.warn('Error sending password reset email:', resetError);
-        } else {
-          console.log('Password reset email sent successfully to:', email);
-        }
-      } catch (error) {
-        console.warn('Exception sending password reset email:', error);
-      }
-    }
+    console.log('Invitation email sent to:', email);
 
     return new Response(
       JSON.stringify({
