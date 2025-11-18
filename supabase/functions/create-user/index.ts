@@ -158,16 +158,22 @@ Deno.serve(async (req) => {
     console.log('User role and profile updated successfully');
 
     // Send password reset email so user can set their own password (if requested)
-    if (send_password_email) {
-      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email,
-      });
+    if (send_password_email !== false) {
+      try {
+        const { data: resetData, error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
+          email,
+          {
+            redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+          }
+        );
 
-      if (resetError) {
-        console.warn('Error sending password reset email:', resetError);
-      } else {
-        console.log('Password reset email sent successfully');
+        if (resetError) {
+          console.warn('Error sending password reset email:', resetError);
+        } else {
+          console.log('Password reset email sent successfully to:', email);
+        }
+      } catch (error) {
+        console.warn('Exception sending password reset email:', error);
       }
     }
 
