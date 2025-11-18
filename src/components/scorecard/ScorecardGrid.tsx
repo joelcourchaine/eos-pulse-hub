@@ -547,7 +547,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
-  const formatTarget = (value: number, type: string) => {
+  const formatTarget = (value: number, type: string, kpiName?: string) => {
+    // CP Hours per RO should always show 1 decimal place
+    if (kpiName === "CP Hours per RO") {
+      return Number(value).toFixed(1);
+    }
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
     return value.toString();
@@ -813,7 +817,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 input?.select();
                               }}
                             >
-                              {formatTarget(entry.actual_value, kpi.metric_type)}
+                              {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
                             </div>
                           ) : (
                             // Empty state - just show symbols
@@ -913,7 +917,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 input?.select();
                               }}
                             >
-                              {formatTarget(entry.actual_value, kpi.metric_type)}
+                              {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
                             </div>
                           ) : (
                             // Empty state - just show symbols
