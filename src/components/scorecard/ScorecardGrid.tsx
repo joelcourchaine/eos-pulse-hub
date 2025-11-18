@@ -412,12 +412,14 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
             [calculatedKey]: data as ScorecardEntry
           }));
           
-          // Only clear local value after save completes
-          setLocalValues(prev => {
-            const newLocalValues = { ...prev };
-            delete newLocalValues[calculatedKey];
-            return newLocalValues;
-          });
+          // Wait for next tick to clear local value, ensuring entries state is updated
+          setTimeout(() => {
+            setLocalValues(prev => {
+              const newLocalValues = { ...prev };
+              delete newLocalValues[calculatedKey];
+              return newLocalValues;
+            });
+          }, 0);
         } else if (error) {
           console.error('❌ Failed to save calculated value:', error);
         }
@@ -511,7 +513,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (error) {
         toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
       } else if (data) {
-        // Update entries state using functional form to get the latest state
+        // Update entries state first
         let latestEntries: Record<string, ScorecardEntry> = {};
         setEntries(prev => {
           latestEntries = {
@@ -521,12 +523,14 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           return latestEntries;
         });
         
-        // Only clear local value if there's no pending save
-        setLocalValues(prev => {
-          const newLocalValues = { ...prev };
-          delete newLocalValues[key];
-          return newLocalValues;
-        });
+        // Wait for next tick to clear local value, ensuring entries state is updated
+        setTimeout(() => {
+          setLocalValues(prev => {
+            const newLocalValues = { ...prev };
+            delete newLocalValues[key];
+            return newLocalValues;
+          });
+        }, 0);
 
         // Auto-calculate dependent KPIs with the updated entries
         await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, latestEntries);
