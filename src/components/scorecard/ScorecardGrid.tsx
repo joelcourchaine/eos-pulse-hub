@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface KPI {
   id: string;
@@ -28,6 +29,7 @@ interface KPITarget {
 interface Profile {
   id: string;
   full_name: string;
+  role?: string;
 }
 
 interface ScorecardEntry {
@@ -146,6 +148,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [targetEditValue, setTargetEditValue] = useState<string>("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -166,6 +171,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const previousWeekDate = previousWeekMonday.toISOString().split('T')[0];
 
   useEffect(() => {
+    loadUserRole();
     loadScorecardData();
     fetchProfiles();
     loadKPITargets();
@@ -191,6 +197,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return updated;
     });
   }, [entries, kpis]);
+
+  const loadUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!error && data) {
+      setUserRole(data.role);
+    }
+  };
 
   const fetchProfiles = async () => {
     const { data, error } = await supabase
@@ -625,6 +646,91 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     return weeklyTarget * 4;
   };
 
+  const canEditTargets = () => {
+    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager';
+  };
+
+  const handleTargetEdit = (kpiId: string) => {
+    if (!canEditTargets()) return;
+    const currentTarget = kpiTargets[kpiId] || kpis.find(k => k.id === kpiId)?.target_value || 0;
+    setEditingTarget(kpiId);
+    setTargetEditValue(currentTarget.toString());
+  };
+
+  const handleTargetSave = async (kpiId: string) => {
+    const newValue = parseFloat(targetEditValue);
+    if (isNaN(newValue)) {
+      toast({
+        title: "Invalid Value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("kpi_targets")
+      .upsert({
+        kpi_id: kpiId,
+        quarter: quarter,
+        year: year,
+        target_value: newValue,
+      }, {
+        onConflict: "kpi_id,quarter,year",
+      });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update target",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setKpiTargets(prev => ({ ...prev, [kpiId]: newValue }));
+    setEditingTarget(null);
+    loadScorecardData(); // Reload to recalculate statuses
+    toast({
+      title: "Success",
+      description: "Target updated successfully",
+    });
+  };
+
+  const handleCopyToQuarters = async (kpiId: string) => {
+    const currentTarget = kpiTargets[kpiId] || kpis.find(k => k.id === kpiId)?.target_value;
+    if (!currentTarget) return;
+
+    const updates = [1, 2, 3, 4]
+      .filter(q => q !== quarter)
+      .map(q => ({
+        kpi_id: kpiId,
+        quarter: q,
+        year: year,
+        target_value: currentTarget,
+      }));
+
+    const { error } = await supabase
+      .from("kpi_targets")
+      .upsert(updates, {
+        onConflict: "kpi_id,quarter,year",
+      });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy targets",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: `Target copied to all quarters in ${year}`,
+    });
+  };
+
   // Check if a KPI is automatically calculated
   const isCalculatedKPI = (kpiName: string): boolean => {
     const calculatedKPIs = [
@@ -830,10 +936,68 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     {kpi.name}
                   </TableCell>
                   <TableCell 
-                    className="bg-background z-10 text-center text-muted-foreground py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    className="bg-background z-10 text-center py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     style={{ position: 'sticky', left: '200px' }}
                   >
-                    {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type)}
+                    {canEditTargets() && editingTarget === kpi.id ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <Input
+                          type="number"
+                          step="any"
+                          value={targetEditValue}
+                          onChange={(e) => setTargetEditValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleTargetSave(kpi.id);
+                            if (e.key === 'Escape') setEditingTarget(null);
+                          }}
+                          className="w-20 h-7 text-center"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleTargetSave(kpi.id)}
+                          className="h-7 px-2"
+                        >
+                          ✓
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <span
+                          className={cn(
+                            "text-muted-foreground",
+                            canEditTargets() && "cursor-pointer hover:text-foreground"
+                          )}
+                          onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
+                        >
+                          {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                        </span>
+                        {canEditTargets() && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0 hover:bg-accent"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-2" align="center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCopyToQuarters(kpi.id)}
+                                className="text-xs"
+                              >
+                                Copy to Q1-Q4 {year}
+                              </Button>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   {viewMode === "weekly" ? weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
