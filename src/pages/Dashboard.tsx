@@ -48,7 +48,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printMode, setPrintMode] = useState<"weekly" | "monthly">("monthly");
+  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly">("monthly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
   const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
@@ -502,7 +502,7 @@ const Dashboard = () => {
           },
           body: JSON.stringify({
             year: selectedYear,
-            quarter: selectedQuarter,
+            ...(printMode !== "yearly" && { quarter: selectedQuarter }),
             mode: printMode,
             departmentId: selectedDepartment,
           }),
@@ -630,7 +630,7 @@ const Dashboard = () => {
                   </div>
                   <div className="mb-4 p-4 border rounded-lg bg-muted/30">
                     <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
-                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly") => setPrintMode(value)}>
+                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly") => setPrintMode(value)}>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="weekly" id="weekly" />
                         <Label htmlFor="weekly" className="cursor-pointer font-normal">
@@ -641,6 +641,12 @@ const Dashboard = () => {
                         <RadioGroupItem value="monthly" id="monthly" />
                         <Label htmlFor="monthly" className="cursor-pointer font-normal">
                           Monthly Scores (3 months per quarter)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="yearly" id="yearly" />
+                        <Label htmlFor="yearly" className="cursor-pointer font-normal">
+                          Yearly Report (All 12 months with KPIs & Financial Summary)
                         </Label>
                       </div>
                     </RadioGroup>

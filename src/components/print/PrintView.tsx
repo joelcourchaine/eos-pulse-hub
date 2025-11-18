@@ -4,8 +4,8 @@ import { Loader2 } from "lucide-react";
 
 interface PrintViewProps {
   year: number;
-  quarter: number;
-  mode: "weekly" | "monthly";
+  quarter?: number;
+  mode: "weekly" | "monthly" | "yearly";
   departmentId?: string;
 }
 
