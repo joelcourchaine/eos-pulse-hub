@@ -536,7 +536,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
-  const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
+const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
     // If percentage, keep the same target
     if (metricType === "percentage") {
       return weeklyTarget;
@@ -549,6 +549,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     // If above target direction (higher is better) and not percentage, multiply by 4
     return weeklyTarget * 4;
+  };
+
+  // Check if a KPI is automatically calculated
+  const isCalculatedKPI = (kpiName: string): boolean => {
+    const calculatedKPIs = [
+      "CP Labour Sales Per RO",
+      "CP Hours Per RO", 
+      "CP ELR"
+    ];
+    return calculatedKPIs.includes(kpiName);
   };
 
   if (loading) {
@@ -841,10 +851,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                               "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium"
+                              status === "destructive" && "text-destructive font-medium",
+                              isCalculatedKPI(kpi.name) && "cursor-not-allowed"
                             )}
                             placeholder="-"
-                            disabled={saving[key]}
+                            disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                            readOnly={isCalculatedKPI(kpi.name)}
                           />
                           {saving[key] && (
                             <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
@@ -939,10 +951,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
                               "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
                               status === "success" && "text-success font-medium",
                               status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium"
+                              status === "destructive" && "text-destructive font-medium",
+                              isCalculatedKPI(kpi.name) && "cursor-not-allowed"
                             )}
                             placeholder="-"
-                            disabled={saving[key]}
+                            disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                            readOnly={isCalculatedKPI(kpi.name)}
                           />
                           {saving[key] && (
                             <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
