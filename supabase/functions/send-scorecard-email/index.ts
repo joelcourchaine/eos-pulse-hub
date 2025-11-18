@@ -293,21 +293,21 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach(kpi => {
-        // For yearly mode, show all quarterly targets; for other modes, show single target
+        // For yearly mode, show all quarterly targets compactly; for other modes, show single target
         let displayTarget = '';
         if (mode === "yearly") {
-          // Show all quarterly targets
+          // Show all quarterly targets horizontally separated by slashes
           const q1 = kpiTargetsByQuarter.get(kpi.id)?.get(1) || kpi.target_value;
           const q2 = kpiTargetsByQuarter.get(kpi.id)?.get(2) || kpi.target_value;
           const q3 = kpiTargetsByQuarter.get(kpi.id)?.get(3) || kpi.target_value;
           const q4 = kpiTargetsByQuarter.get(kpi.id)?.get(4) || kpi.target_value;
-          displayTarget = `Q1: ${formatValue(q1, kpi.metric_type, kpi.name)}<br>Q2: ${formatValue(q2, kpi.metric_type, kpi.name)}<br>Q3: ${formatValue(q3, kpi.metric_type, kpi.name)}<br>Q4: ${formatValue(q4, kpi.metric_type, kpi.name)}`;
+          displayTarget = `${formatValue(q1, kpi.metric_type, kpi.name)}/${formatValue(q2, kpi.metric_type, kpi.name)}/${formatValue(q3, kpi.metric_type, kpi.name)}/${formatValue(q4, kpi.metric_type, kpi.name)}`;
         } else {
           const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
           displayTarget = formatValue(target, kpi.metric_type, kpi.name);
         }
         
-        html += `<tr><td>${kpi.name}</td><td style="font-size: ${mode === "yearly" ? "8px" : "11px"}">${displayTarget}</td>`;
+        html += `<tr><td>${kpi.name}</td><td style="font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
