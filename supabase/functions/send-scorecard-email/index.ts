@@ -125,10 +125,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId });
 
-    // Fetch department
+    // Fetch department with store info
     const { data: department } = await supabaseClient
       .from("departments")
-      .select("*, stores(name)")
+      .select(`
+        *,
+        stores(
+          name,
+          brand,
+          brands:brand_id (
+            name
+          )
+        )
+      `)
       .eq("id", departmentId)
       .single();
 
@@ -246,31 +255,95 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Add financial metrics for monthly
     if (mode === "monthly") {
+      // Get brand name
+      const brandName = department?.stores?.brands?.name || department?.stores?.brand || null;
+      
+      // Define metrics based on brand
+      const getFinancialMetrics = (brand: string | null) => {
+        const isNissan = brand?.toLowerCase().includes('nissan');
+        const isFord = brand?.toLowerCase().includes('ford');
+        const isMazda = brand?.toLowerCase().includes('mazda');
+        
+        const baseMetrics = [
+          { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
+          { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
+          { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
+            data.gp_net && data.total_sales ? (data.gp_net / data.total_sales) * 100 : null },
+          { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
+          { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
+            data.sales_expense && data.gp_net ? (data.sales_expense / data.gp_net) * 100 : null },
+          { display: "Semi Fixed Expense", dbName: "semi_fixed_expense", type: "dollar" as const },
+          { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
+            data.semi_fixed_expense && data.gp_net ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
+          { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+            data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
+            data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+          { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
+          { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+            data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+            data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+        ];
+        
+        // Add brand-specific metrics
+        if (!isMazda) {
+          baseMetrics.push(
+            { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const },
+            { display: "Net Operating Profit", dbName: "net", type: "dollar" as const }
+          );
+        }
+        
+        // Add Return on Gross for all brands
+        baseMetrics.push(
+          { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) =>
+            data.department_profit && data.gp_net ? (data.department_profit / data.gp_net) * 100 : null }
+        );
+        
+        // Add Dealer Salary for Ford
+        if (isFord) {
+          baseMetrics.splice(baseMetrics.length - 1, 0, 
+            { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const }
+          );
+        }
+        
+        return baseMetrics;
+      };
+      
+      const FINANCIAL_METRICS = getFinancialMetrics(brandName);
+      
       html += `<h2>Financial Metrics</h2><table><thead><tr><th>Metric</th>`;
       periods.forEach(p => {
         html += `<th>${p.label}</th>`;
       });
       html += `</tr></thead><tbody>`;
-
-      // Map display names to actual database metric names
-      const FINANCIAL_METRICS = [
-        { display: "Total Sales", dbName: "total_sales" },
-        { display: "GP Net", dbName: "gp_net" },
-        { display: "Sales Expense", dbName: "sales_expense" },
-        { display: "Semi Fixed Expense", dbName: "semi_fixed_expense" },
-        { display: "Total Fixed Expense", dbName: "total_fixed_expense" }
-      ];
       
       FINANCIAL_METRICS.forEach(metric => {
         html += `<tr><td>${metric.display}</td>`;
         periods.forEach(p => {
-          const entry = financialEntries.find(e => {
-            if ('identifier' in p) {
-              return e.metric_name === metric.dbName && e.month === p.identifier;
+          if ('identifier' in p) {
+            // Gather all financial data for this month to calculate percentages
+            const monthData: any = {};
+            financialEntries.forEach(e => {
+              if (e.month === p.identifier) {
+                monthData[e.metric_name] = e.value;
+              }
+            });
+            
+            let value = null;
+            if (metric.calc) {
+              value = metric.calc(monthData);
+            } else {
+              const entry = financialEntries.find(e => 
+                e.metric_name === metric.dbName && e.month === p.identifier
+              );
+              value = entry?.value || null;
             }
-            return false;
-          });
-          html += `<td>${formatValue(entry?.value, "dollar")}</td>`;
+            
+            if (metric.type === "percentage" && value !== null) {
+              html += `<td>${value.toFixed(1)}%</td>`;
+            } else {
+              html += `<td>${formatValue(value, metric.type)}</td>`;
+            }
+          }
         });
         html += `</tr>`;
       });
