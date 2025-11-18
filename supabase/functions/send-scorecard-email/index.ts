@@ -270,9 +270,24 @@ const handler = async (req: Request): Promise<Response> => {
             return false;
           });
 
-          const cellClass = entry?.status === "red" ? "red" : 
-                           entry?.status === "yellow" ? "yellow" :
-                           entry?.status === "green" ? "green" : "";
+          // Calculate status if we have an entry with a value
+          let cellClass = "";
+          if (entry?.actual_value !== null && entry?.actual_value !== undefined && kpi.target_value !== null) {
+            const actualValue = entry.actual_value;
+            const targetValue = kpi.target_value;
+            const direction = kpi.target_direction;
+            const variance = ((actualValue - targetValue) / targetValue) * 100;
+            
+            if (direction === "above") {
+              if (variance >= 0) cellClass = "green";
+              else if (variance >= -10) cellClass = "yellow";
+              else cellClass = "red";
+            } else {
+              if (variance <= 0) cellClass = "green";
+              else if (variance <= 10) cellClass = "yellow";
+              else cellClass = "red";
+            }
+          }
           
           html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
         });
