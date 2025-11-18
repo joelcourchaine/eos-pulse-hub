@@ -33,6 +33,7 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
   const { toast } = useToast();
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
+  const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const meetingDate = format(new Date(), 'yyyy-MM-dd');
 
   // Load existing notes from database
@@ -88,10 +89,11 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
       .eq('department_id', departmentId)
       .eq('meeting_date', meetingDate)
       .eq('section', section)
-      .single();
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    if (fetchError) {
       console.error('Error fetching existing note:', fetchError);
+      return;
     }
 
     if (existing) {
@@ -136,12 +138,17 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
   const handleNoteChange = (section: string, content: string) => {
     setNotes(prev => ({ ...prev, [section]: content }));
     
+    // Clear existing timeout for this section
+    if (saveTimeouts[section]) {
+      clearTimeout(saveTimeouts[section]);
+    }
+    
     // Debounce the save
     const timeoutId = setTimeout(() => {
       saveNote(section, content);
     }, 1000);
-
-    return () => clearTimeout(timeoutId);
+    
+    setSaveTimeouts(prev => ({ ...prev, [section]: timeoutId }));
   };
 
   return (
