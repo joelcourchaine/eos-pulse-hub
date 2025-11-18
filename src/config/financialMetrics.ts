@@ -382,6 +382,113 @@ export const NISSAN_METRICS: FinancialMetric[] = [
   },
 ];
 
+// Mazda-specific metrics (excludes Parts Transfer and Net Operating Profit)
+export const MAZDA_METRICS: FinancialMetric[] = [
+  { 
+    name: "Total Sales", 
+    key: "total_sales", 
+    type: "dollar", 
+    description: "Total revenue for the period", 
+    targetDirection: "above" 
+  },
+  { 
+    name: "GP Net", 
+    key: "gp_net", 
+    type: "dollar", 
+    description: "Gross profit after costs", 
+    targetDirection: "above" 
+  },
+  { 
+    name: "GP %", 
+    key: "gp_percent", 
+    type: "percentage", 
+    description: "Gross profit margin", 
+    targetDirection: "above",
+    calculation: {
+      numerator: "gp_net",
+      denominator: "total_sales"
+    }
+  },
+  { 
+    name: "Sales Expense", 
+    key: "sales_expense", 
+    type: "dollar", 
+    description: "Total sales expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Sales Expense %", 
+    key: "sales_expense_percent", 
+    type: "percentage", 
+    description: "Sales expenses as % of GP Net", 
+    targetDirection: "below",
+    calculation: {
+      numerator: "sales_expense",
+      denominator: "gp_net"
+    }
+  },
+  { 
+    name: "Semi Fixed Expense", 
+    key: "semi_fixed_expense", 
+    type: "dollar", 
+    description: "Semi-fixed expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Semi Fixed Expense %", 
+    key: "semi_fixed_expense_percent", 
+    type: "percentage", 
+    description: "Semi-fixed expenses as % of GP Net", 
+    targetDirection: "below",
+    calculation: {
+      numerator: "semi_fixed_expense",
+      denominator: "gp_net"
+    }
+  },
+  { 
+    name: "Net Selling Gross", 
+    key: "net_selling_gross", 
+    type: "dollar", 
+    description: "GP Net less Sales Expense less Semi Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense"]
+    }
+  },
+  { 
+    name: "Total Fixed Expense", 
+    key: "total_fixed_expense", 
+    type: "dollar", 
+    description: "Total fixed expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Department Profit", 
+    key: "department_profit", 
+    type: "dollar", 
+    description: "GP Net less Sales Expense less Semi Fixed Expense less Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense", "total_fixed_expense"]
+    }
+  },
+  { 
+    name: "Return on Gross", 
+    key: "return_on_gross", 
+    type: "percentage", 
+    description: "Department Profit divided by GP Net", 
+    targetDirection: "above",
+    calculation: {
+      numerator: "department_profit",
+      denominator: "gp_net"
+    }
+  },
+];
+
 // You can add additional brand configurations here
 export const OTHER_METRICS: FinancialMetric[] = [
   // Define metrics for other brands as needed
@@ -394,6 +501,9 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   }
   if (brand?.toLowerCase().includes('ford')) {
     return FORD_METRICS;
+  }
+  if (brand?.toLowerCase().includes('mazda')) {
+    return MAZDA_METRICS;
   }
   return GMC_CHEVROLET_METRICS;
 };
