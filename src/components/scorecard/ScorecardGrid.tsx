@@ -176,7 +176,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     Object.entries(entries).forEach(([key, entry]) => {
       const kpi = kpis.find(k => entry.kpi_id === k.id);
       if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
-        newLocalValues[key] = formatValue(entry.actual_value, kpi.metric_type);
+        newLocalValues[key] = formatValue(entry.actual_value, kpi.metric_type, kpi.name);
       }
     });
     setLocalValues(prev => {
@@ -537,8 +537,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return "destructive";
   };
 
-  const formatValue = (value: number | null, type: string) => {
+  const formatValue = (value: number | null, type: string, kpiName?: string) => {
     if (value === null || value === undefined) return "";
+    // CP Hours per RO should always show 1 decimal place
+    if (kpiName === "CP Hours per RO") {
+      return Number(value).toFixed(1);
+    }
     // Don't format with commas for input fields - number inputs don't accept them
     return value.toString();
   };
@@ -779,7 +783,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     const key = `${kpi.id}-${weekDate}`;
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
-                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
                     const isCurrentWeek = weekDate === currentWeekDate;
                     
                     return (
@@ -881,7 +885,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     const key = `${kpi.id}-month-${month.identifier}`;
                     const entry = entries[key];
                     const status = getStatus(entry?.status || null);
-                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type);
+                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
                     
                     return (
                       <TableCell
