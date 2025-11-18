@@ -660,7 +660,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const handleCopyToQuarters = async (metricKey: string) => {
     const currentTarget = targets[metricKey];
     const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-    if (!currentTarget || !metric) return;
+    if (currentTarget === undefined || currentTarget === null || !metric) return;
 
     const updates = [1, 2, 3, 4]
       .filter(q => q !== quarter)
