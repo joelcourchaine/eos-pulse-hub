@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -105,6 +106,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [currentNoteCell, setCurrentNoteCell] = useState<{ metricKey: string; monthId: string } | null>(null);
   const [currentNote, setCurrentNote] = useState("");
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [targetEditValue, setTargetEditValue] = useState<string>("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -124,6 +128,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   useEffect(() => {
     const loadData = async () => {
+      await loadUserRole();
       await loadStoreBrand();
       loadFinancialData();
       loadTargets();
@@ -141,6 +146,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   useEffect(() => {
     loadTargets();
   }, [targetYear]);
+
+  const loadUserRole = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!error && data) {
+      setUserRole(data.role);
+    }
+  };
 
   const loadStoreBrand = async () => {
     if (!departmentId) return;
@@ -580,6 +600,100 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return value.toString();
   };
 
+  const canEditTargets = () => {
+    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager';
+  };
+
+  const handleTargetEdit = (metricKey: string) => {
+    if (!canEditTargets()) return;
+    const currentTarget = targets[metricKey] || 0;
+    setEditingTarget(metricKey);
+    setTargetEditValue(currentTarget.toString());
+  };
+
+  const handleTargetSave = async (metricKey: string) => {
+    const newValue = parseFloat(targetEditValue);
+    if (isNaN(newValue)) {
+      toast({
+        title: "Invalid Value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+    if (!metric) return;
+
+    const { error } = await supabase
+      .from("financial_targets")
+      .upsert({
+        department_id: departmentId,
+        metric_name: metricKey,
+        quarter: quarter,
+        year: year,
+        target_value: newValue,
+        target_direction: targetDirections[metricKey] || metric.targetDirection,
+      }, {
+        onConflict: "department_id,metric_name,quarter,year",
+      });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update target",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEditingTarget(null);
+    // Reload targets and financial data to recalculate statuses immediately
+    await loadTargets();
+    await loadPrecedingQuartersData();
+    toast({
+      title: "Success",
+      description: "Target updated successfully",
+    });
+  };
+
+  const handleCopyToQuarters = async (metricKey: string) => {
+    const currentTarget = targets[metricKey];
+    const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+    if (!currentTarget || !metric) return;
+
+    const updates = [1, 2, 3, 4]
+      .filter(q => q !== quarter)
+      .map(q => ({
+        department_id: departmentId,
+        metric_name: metricKey,
+        quarter: q,
+        year: year,
+        target_value: currentTarget,
+        target_direction: targetDirections[metricKey] || metric.targetDirection,
+      }));
+
+    const { error } = await supabase
+      .from("financial_targets")
+      .upsert(updates, {
+        onConflict: "department_id,metric_name,quarter,year",
+      });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy targets",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: `Target copied to all quarters in ${year}`,
+    });
+  };
+
   const handleOpenNoteDialog = (metricKey: string, monthId: string) => {
     const key = `${metricKey}-${monthId}`;
     setCurrentNoteCell({ metricKey, monthId });
@@ -890,8 +1004,66 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </TableCell>
                           );
                         })}
-                        <TableCell className="text-center font-semibold py-[7.2px] min-w-[100px] bg-primary/5 border-x-2 border-primary/30">
-                          {formatTarget(target, metric.type)}
+                        <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/5 border-x-2 border-primary/30">
+                          {canEditTargets() && editingTarget === metric.key ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="number"
+                                step="any"
+                                value={targetEditValue}
+                                onChange={(e) => setTargetEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleTargetSave(metric.key);
+                                  if (e.key === 'Escape') setEditingTarget(null);
+                                }}
+                                className="w-20 h-7 text-center"
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleTargetSave(metric.key)}
+                                className="h-7 px-2"
+                              >
+                                ✓
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-2">
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  canEditTargets() && "cursor-pointer hover:text-foreground"
+                                )}
+                                onClick={() => canEditTargets() && handleTargetEdit(metric.key)}
+                              >
+                                {formatTarget(target, metric.type)}
+                              </span>
+                              {canEditTargets() && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-6 w-6 p-0 hover:bg-accent"
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-2" align="center">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleCopyToQuarters(metric.key)}
+                                      className="text-xs"
+                                    >
+                                      Copy to Q1-Q4 {year}
+                                    </Button>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         {months.map((month, monthIndex) => {
                           const key = `${metric.key}-${month.identifier}`;
