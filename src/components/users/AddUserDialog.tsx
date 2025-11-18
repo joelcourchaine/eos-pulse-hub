@@ -25,7 +25,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [storeGroupId, setStoreGroupId] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
-  const [sendPasswordEmail, setSendPasswordEmail] = useState(false);
+  const [sendPasswordEmail, setSendPasswordEmail] = useState(true);
   const { toast } = useToast();
 
   // Update storeId when currentStoreId changes
