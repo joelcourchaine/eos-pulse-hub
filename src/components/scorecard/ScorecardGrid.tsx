@@ -658,7 +658,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
   };
 
   const handleTargetSave = async (kpiId: string) => {
-    const newValue = parseFloat(targetEditValue);
+    const trimmedValue = targetEditValue.trim();
+    if (trimmedValue === "") {
+      toast({
+        title: "Invalid Value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const newValue = parseFloat(trimmedValue);
     if (isNaN(newValue)) {
       toast({
         title: "Invalid Value",
