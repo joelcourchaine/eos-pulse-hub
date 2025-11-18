@@ -363,6 +363,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           calculatedValue = Math.round(calculatedValue * 10) / 10;
         }
         
+        // Round CP Labour Sales Per RO to nearest dollar
+        if (kpi.name === "CP Labour Sales Per RO") {
+          calculatedValue = Math.round(calculatedValue);
+        }
+        
         const target = kpiTargets[kpi.id] || kpi.target_value;
         
         const variance = kpi.metric_type === "percentage" 
@@ -541,6 +546,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Hours per RO") {
       return Number(value).toFixed(1);
     }
+    // CP Labour Sales Per RO should show whole dollars
+    if (kpiName === "CP Labour Sales Per RO") {
+      return Math.round(value).toString();
+    }
     // Don't format with commas for input fields - number inputs don't accept them
     return value.toString();
   };
@@ -549,6 +558,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     // CP Hours per RO should always show 1 decimal place
     if (kpiName === "CP Hours per RO") {
       return Number(value).toFixed(1);
+    }
+    // CP Labour Sales Per RO should show whole dollars
+    if (kpiName === "CP Labour Sales Per RO") {
+      return `$${Math.round(value).toLocaleString()}`;
     }
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
