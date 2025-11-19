@@ -146,15 +146,14 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Quarter is required for weekly and monthly modes");
     }
 
-    // Fetch department with store info
+    // Fetch department with store and brand info (always use brand_id relationship for consistency)
     const { data: department } = await supabaseClient
       .from("departments")
       .select(`
         *,
-        stores(
+        stores!inner(
           name,
-          brand,
-          brands:brand_id (
+          brands!inner(
             name
           )
         )
@@ -165,6 +164,12 @@ const handler = async (req: Request): Promise<Response> => {
     if (!department) {
       throw new Error("Department not found");
     }
+    
+    console.log("Department loaded:", {
+      department: department.name,
+      store: department.stores?.name,
+      brand: department.stores?.brands?.name
+    });
 
     // Fetch profiles
     const { data: profiles } = await supabaseClient
@@ -432,8 +437,9 @@ const handler = async (req: Request): Promise<Response> => {
         targetsMap.set(key, { value: t.target_value, direction: t.target_direction });
       });
       
-      // Get brand name
-      const brandName = department?.stores?.brands?.name || department?.stores?.brand || null;
+      // Get brand name from the brands relationship (always use brand_id relationship, not legacy brand field)
+      const brandName = department?.stores?.brands?.name || null;
+      console.log("Using brand for metrics:", brandName);
       
       // Define metrics based on brand - must match EXACTLY what's in the UI
       const getFinancialMetrics = (brand: string | null) => {
