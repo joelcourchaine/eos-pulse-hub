@@ -12,6 +12,19 @@ import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 
+const PRESET_KPIS = [
+  { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Total Service Gross", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "Total Service Gross %", metricType: "percentage" as const, targetDirection: "above" as const },
+  { name: "CP Hours", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const },
+  { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const },
+  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const },
+];
+
 interface KPI {
   id: string;
   name: string;
@@ -154,6 +167,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [targetEditValue, setTargetEditValue] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [showAddKPI, setShowAddKPI] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [newKPIName, setNewKPIName] = useState("");
   const [newKPIType, setNewKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [newKPIDirection, setNewKPIDirection] = useState<"above" | "below">("above");
@@ -787,6 +801,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     return calculatedKPIs.includes(kpiName);
   };
 
+  const handlePresetSelect = (presetName: string) => {
+    if (presetName === "custom") {
+      setSelectedPreset("custom");
+      setNewKPIName("");
+      setNewKPIType("dollar");
+      setNewKPIDirection("above");
+    } else {
+      const preset = PRESET_KPIS.find(p => p.name === presetName);
+      if (preset) {
+        setSelectedPreset(presetName);
+        setNewKPIName(preset.name);
+        setNewKPIType(preset.metricType);
+        setNewKPIDirection(preset.targetDirection);
+      }
+    }
+  };
+
   const handleAddKPI = async () => {
     if (!newKPIName.trim() || !selectedUserId) {
       toast({
@@ -825,6 +856,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       description: "KPI added successfully",
     });
 
+    setSelectedPreset("");
     setNewKPIName("");
     setNewKPIType("dollar");
     setNewKPIDirection("above");
@@ -911,41 +943,71 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       
                       <div className="space-y-3">
                         <div className="space-y-2">
-                          <Label htmlFor="kpi-name">KPI Name</Label>
-                          <Input
-                            id="kpi-name"
-                            placeholder="Enter KPI name"
-                            value={newKPIName}
-                            onChange={(e) => setNewKPIName(e.target.value)}
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="kpi-type">Metric Type</Label>
-                          <Select value={newKPIType} onValueChange={(v: "dollar" | "percentage" | "unit") => setNewKPIType(v)}>
-                            <SelectTrigger id="kpi-type">
-                              <SelectValue />
+                          <Label htmlFor="kpi-preset">Select KPI</Label>
+                          <Select value={selectedPreset} onValueChange={handlePresetSelect}>
+                            <SelectTrigger id="kpi-preset">
+                              <SelectValue placeholder="Choose preset or custom" />
                             </SelectTrigger>
                             <SelectContent className="bg-background z-50">
-                              <SelectItem value="dollar">Dollar ($)</SelectItem>
-                              <SelectItem value="percentage">Percentage (%)</SelectItem>
-                              <SelectItem value="unit">Unit (#)</SelectItem>
+                              <SelectItem value="custom">Custom KPI</SelectItem>
+                              {PRESET_KPIS.map((preset) => (
+                                <SelectItem key={preset.name} value={preset.name}>
+                                  {preset.name}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="kpi-direction">Target Direction</Label>
-                          <Select value={newKPIDirection} onValueChange={(v: "above" | "below") => setNewKPIDirection(v)}>
-                            <SelectTrigger id="kpi-direction">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              <SelectItem value="above">Above Target</SelectItem>
-                              <SelectItem value="below">Below Target</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+
+                        {selectedPreset && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="kpi-name">KPI Name</Label>
+                              <Input
+                                id="kpi-name"
+                                placeholder="Enter KPI name"
+                                value={newKPIName}
+                                onChange={(e) => setNewKPIName(e.target.value)}
+                                disabled={selectedPreset !== "custom"}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="kpi-type">Metric Type</Label>
+                              <Select 
+                                value={newKPIType} 
+                                onValueChange={(v: "dollar" | "percentage" | "unit") => setNewKPIType(v)}
+                                disabled={selectedPreset !== "custom"}
+                              >
+                                <SelectTrigger id="kpi-type">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background z-50">
+                                  <SelectItem value="dollar">Dollar ($)</SelectItem>
+                                  <SelectItem value="percentage">Percentage (%)</SelectItem>
+                                  <SelectItem value="unit">Unit (#)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor="kpi-direction">Target Direction</Label>
+                              <Select 
+                                value={newKPIDirection} 
+                                onValueChange={(v: "above" | "below") => setNewKPIDirection(v)}
+                                disabled={selectedPreset !== "custom"}
+                              >
+                                <SelectTrigger id="kpi-direction">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background z-50">
+                                  <SelectItem value="above">Above Target</SelectItem>
+                                  <SelectItem value="below">Below Target</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </>
+                        )}
                       </div>
                       
                       <div className="flex gap-2 justify-end">
