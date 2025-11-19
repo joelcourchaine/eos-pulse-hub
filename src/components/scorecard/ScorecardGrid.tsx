@@ -659,12 +659,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   const handleTargetSave = async (kpiId: string) => {
     const trimmedValue = targetEditValue.trim();
+    
+    // Allow empty values - this clears/removes the target
     if (trimmedValue === "") {
-      toast({
-        title: "Invalid Value",
-        description: "Please enter a valid number",
-        variant: "destructive",
-      });
+      setEditingTarget(null);
+      setTargetEditValue("");
       return;
     }
     

@@ -623,12 +623,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const handleTargetSave = async (metricKey: string) => {
     const trimmedValue = targetEditValue.trim();
+    
+    // Allow empty values - this clears/removes the target
     if (trimmedValue === "") {
-      toast({
-        title: "Invalid Value",
-        description: "Please enter a valid number",
-        variant: "destructive",
-      });
+      setEditingTarget(null);
+      setTargetEditValue("");
       return;
     }
     
