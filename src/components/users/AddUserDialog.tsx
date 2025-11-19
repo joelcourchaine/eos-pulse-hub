@@ -101,7 +101,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setEmail("");
       setFullName("");
       setRole("department_manager");
-      setStoreId("");
+      setStoreId(currentStoreId || "");
       setStoreGroupId("");
       setBirthdayMonth("");
       setBirthdayDay("");
