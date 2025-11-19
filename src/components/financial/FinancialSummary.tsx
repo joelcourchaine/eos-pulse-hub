@@ -435,8 +435,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
             averages[`${metric.key}-Q${pq.quarter}-${pq.year}`] = calculatedPercentage;
           }
-        } else if (metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && metric.calculation.type === 'subtract') {
-          // For dollar subtraction metrics, calculate from components
+        } else if (metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex')) {
+          // For dollar subtraction/complex metrics, calculate from components
           const calc = metric.calculation;
           const baseValues = data
             ?.filter(entry => entry.metric_name === calc.base && quarterMonthIds.includes(entry.month))
@@ -449,6 +449,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               ?.filter(entry => entry.metric_name === deduction && quarterMonthIds.includes(entry.month))
               .map(entry => entry.value || 0) || [];
             totalCalculated -= deductionValues.reduce((sum, val) => sum + val, 0);
+          }
+          
+          // Handle additions for complex calculations
+          if (calc.type === 'complex' && 'additions' in calc) {
+            for (const addition of calc.additions) {
+              const additionValues = data
+                ?.filter(entry => entry.metric_name === addition && quarterMonthIds.includes(entry.month))
+                .map(entry => entry.value || 0) || [];
+              totalCalculated += additionValues.reduce((sum, val) => sum + val, 0);
+            }
           }
           
           if (baseValues.length > 0) {
@@ -1108,8 +1118,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               return undefined;
                             }
                             
-                            // Handle dollar subtraction calculations
-                            if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && sourceMetric.calculation.type === 'subtract') {
+                            // Handle dollar subtraction/complex calculations
+                            if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
                               const baseValue = getValueForMetric(sourceMetric.calculation.base);
                               if (baseValue === null || baseValue === undefined) return undefined;
                               
@@ -1119,6 +1129,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 // Treat missing deductions as 0 (no expense = 0)
                                 calculatedValue -= (deductionValue || 0);
                               }
+                              
+                              // Handle additions for complex calculations
+                              if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
+                                for (const addition of sourceMetric.calculation.additions) {
+                                  const additionValue = getValueForMetric(addition);
+                                  calculatedValue += (additionValue || 0);
+                                }
+                              }
+                              
                               return calculatedValue;
                             }
                             
@@ -1140,8 +1159,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                           }
                           
-                          // Calculate dollar subtraction metrics automatically if calculation is defined
-                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && metric.calculation.type === 'subtract';
+                          // Calculate dollar subtraction/complex metrics automatically if calculation is defined
+                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseValue = getValueForMetric(metric.calculation.base);
                             
@@ -1152,6 +1171,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 // Treat missing deductions as 0 (no expense = 0)
                                 calculatedValue -= (deductionValue || 0);
                               }
+                              
+                              // Handle additions for complex calculations
+                              if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
+                                for (const addition of metric.calculation.additions) {
+                                  const additionValue = getValueForMetric(addition);
+                                  calculatedValue += (additionValue || 0);
+                                }
+                              }
+                              
                               value = calculatedValue;
                             } else {
                               value = undefined;
