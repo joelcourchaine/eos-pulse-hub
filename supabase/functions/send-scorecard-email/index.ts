@@ -583,12 +583,16 @@ const handler = async (req: Request): Promise<Response> => {
             const targetKey = `${metric.dbName}_${quarter}`;
             const target = targetsMap.get(targetKey);
             
-            // Calculate status
+            // Calculate status - MUST match UI logic exactly
             let cellClass = "";
             if (value !== null && target && target.value !== null) {
               const targetValue = target.value;
               const direction = target.direction;
-              const variance = ((value - targetValue) / targetValue) * 100;
+              
+              // Match UI variance calculation: percentage types use direct subtraction, dollar types use percentage change
+              const variance = metric.type === "percentage"
+                ? value - targetValue
+                : ((value - targetValue) / targetValue) * 100;
               
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
