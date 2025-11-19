@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -172,6 +172,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [newKPIType, setNewKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [newKPIDirection, setNewKPIDirection] = useState<"above" | "below">("above");
   const [storeUsers, setStoreUsers] = useState<Profile[]>([]);
+  const [draggedOwnerId, setDraggedOwnerId] = useState<string | null>(null);
+  const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -864,6 +866,90 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     onKPIsChange();
   };
 
+  const handleOwnerDragStart = (ownerId: string | null) => {
+    setDraggedOwnerId(ownerId);
+  };
+
+  const handleOwnerDragOver = (e: React.DragEvent, ownerId: string | null) => {
+    e.preventDefault();
+    setDragOverOwnerId(ownerId);
+  };
+
+  const handleOwnerDragEnd = () => {
+    setDraggedOwnerId(null);
+    setDragOverOwnerId(null);
+  };
+
+  const handleOwnerDrop = async (e: React.DragEvent, targetOwnerId: string | null) => {
+    e.preventDefault();
+    
+    if (!draggedOwnerId || draggedOwnerId === targetOwnerId) {
+      setDraggedOwnerId(null);
+      setDragOverOwnerId(null);
+      return;
+    }
+
+    // Group KPIs by owner in current order
+    const ownerGroups: { [key: string]: KPI[] } = {};
+    const ownerOrder: string[] = [];
+    
+    kpis.forEach(kpi => {
+      const ownerId = kpi.assigned_to || 'unassigned';
+      if (!ownerGroups[ownerId]) {
+        ownerGroups[ownerId] = [];
+        ownerOrder.push(ownerId);
+      }
+      ownerGroups[ownerId].push(kpi);
+    });
+
+    // Find indices
+    const draggedIndex = ownerOrder.indexOf(draggedOwnerId);
+    const targetIndex = ownerOrder.indexOf(targetOwnerId || 'unassigned');
+
+    // Reorder owner groups
+    const newOwnerOrder = [...ownerOrder];
+    const [removed] = newOwnerOrder.splice(draggedIndex, 1);
+    newOwnerOrder.splice(targetIndex, 0, removed);
+
+    // Flatten back to KPI array with new display_order
+    let newDisplayOrder = 0;
+    const updates: { id: string; display_order: number }[] = [];
+
+    newOwnerOrder.forEach(ownerId => {
+      ownerGroups[ownerId].forEach(kpi => {
+        updates.push({ id: kpi.id, display_order: newDisplayOrder });
+        newDisplayOrder++;
+      });
+    });
+
+    // Update database
+    for (const update of updates) {
+      const { error } = await supabase
+        .from("kpi_definitions")
+        .update({ display_order: update.display_order })
+        .eq("id", update.id);
+
+      if (error) {
+        console.error("Error updating KPI order:", error);
+        toast({
+          title: "Error",
+          description: "Failed to update KPI order",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    toast({
+      title: "Success",
+      description: "Owner order updated",
+    });
+
+    setDraggedOwnerId(null);
+    setDragOverOwnerId(null);
+    onKPIsChange();
+  };
+
   const canManageKPIs = userRole === "super_admin" || userRole === "store_gm" || userRole === "department_manager";
 
   if (loading) {
@@ -1148,12 +1234,27 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             return (
               <React.Fragment key={kpi.id}>
                 {showOwnerHeader && (
-                  <TableRow key={`owner-${kpi.assigned_to || 'unassigned'}`} className="bg-muted/50">
+                  <TableRow 
+                    key={`owner-${kpi.assigned_to || 'unassigned'}`} 
+                    className={cn(
+                      "bg-muted/50 transition-colors",
+                      dragOverOwnerId === (kpi.assigned_to || 'unassigned') && "bg-primary/20",
+                      canManageKPIs && "cursor-grab active:cursor-grabbing"
+                    )}
+                    draggable={canManageKPIs}
+                    onDragStart={() => handleOwnerDragStart(kpi.assigned_to || 'unassigned')}
+                    onDragOver={(e) => handleOwnerDragOver(e, kpi.assigned_to || 'unassigned')}
+                    onDragEnd={handleOwnerDragEnd}
+                    onDrop={(e) => handleOwnerDrop(e, kpi.assigned_to || 'unassigned')}
+                  >
                     <TableCell 
                       className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: 0 }}
                     >
                       <div className="flex items-center gap-2">
+                        {canManageKPIs && (
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                        )}
                         <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-semibold text-primary">
                             {ownerInitials}
