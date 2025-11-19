@@ -435,50 +435,39 @@ const handler = async (req: Request): Promise<Response> => {
       // Get brand name
       const brandName = department?.stores?.brands?.name || department?.stores?.brand || null;
       
-      // Define metrics based on brand
+      // Define metrics based on brand - must match EXACTLY what's in the UI
       const getFinancialMetrics = (brand: string | null) => {
         const isNissan = brand?.toLowerCase().includes('nissan');
         const isFord = brand?.toLowerCase().includes('ford');
         const isMazda = brand?.toLowerCase().includes('mazda');
         
-        const baseMetrics = [
-          { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
-          { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
-          { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
-            data.gp_net && data.total_sales ? (data.gp_net / data.total_sales) * 100 : null },
-          { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
-          { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
-            data.sales_expense && data.gp_net ? (data.sales_expense / data.gp_net) * 100 : null },
-          { display: "Semi Fixed Expense", dbName: "semi_fixed_expense", type: "dollar" as const },
-          { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
-            data.semi_fixed_expense && data.gp_net ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
-          { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
-            data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
-            data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
-          { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
-          { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
-            data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
-            data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
-        ];
-        
-        // Add Ford-specific metrics with calculations
         if (isFord) {
-          baseMetrics.push(
+          // Ford-specific metrics - exact order from financialMetrics.ts
+          return [
+            { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
+            { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
+            { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
+              data.gp_net && data.total_sales ? (data.gp_net / data.total_sales) * 100 : null },
+            { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
+            { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              data.sales_expense && data.gp_net ? (data.sales_expense / data.gp_net) * 100 : null },
             { display: "Adjusted Selling Gross", dbName: "adjusted_selling_gross", type: "dollar" as const },
+            { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense ? data.gp_net - data.sales_expense : null },
+            { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
+            { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense && data.total_fixed_expense ?
+              data.gp_net - data.sales_expense - data.total_fixed_expense : null },
+            { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const },
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const, calc: (data: any) => {
-              // For Ford: Adjusted Selling Gross - Net Selling Gross
-              const netSellingGross = data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
-                data.gp_net - data.sales_expense - data.semi_fixed_expense : null;
+              const netSellingGross = data.gp_net && data.sales_expense ? data.gp_net - data.sales_expense : null;
               return data.adjusted_selling_gross && netSellingGross ? 
                 data.adjusted_selling_gross - netSellingGross : null;
             }},
-            { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const },
             { display: "Net Operating Profit", dbName: "net", type: "dollar" as const, calc: (data: any) => {
-              // For Ford: Department Profit - Dealer Salary + Parts Transfer
-              const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
-                data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
-              const netSellingGross = data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
-                data.gp_net - data.sales_expense - data.semi_fixed_expense : null;
+              const departmentProfit = data.gp_net && data.sales_expense && data.total_fixed_expense ?
+                data.gp_net - data.sales_expense - data.total_fixed_expense : null;
+              const netSellingGross = data.gp_net && data.sales_expense ? data.gp_net - data.sales_expense : null;
               const partsTransfer = data.adjusted_selling_gross && netSellingGross ? 
                 data.adjusted_selling_gross - netSellingGross : null;
               
@@ -486,27 +475,68 @@ const handler = async (req: Request): Promise<Response> => {
                 return departmentProfit - data.dealer_salary + partsTransfer;
               }
               return null;
+            }},
+            { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
+              const departmentProfit = data.gp_net && data.sales_expense && data.total_fixed_expense ?
+                data.gp_net - data.sales_expense - data.total_fixed_expense : null;
+              return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
             }}
-          );
-        } else if (!isMazda) {
-          // For non-Ford, non-Mazda brands (GMC/Chevrolet, Nissan, etc.)
-          baseMetrics.push(
+          ];
+        } else if (isMazda) {
+          // Mazda-specific metrics - no Parts Transfer or Net Operating Profit
+          return [
+            { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
+            { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
+            { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
+              data.gp_net && data.total_sales ? (data.gp_net / data.total_sales) * 100 : null },
+            { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
+            { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              data.sales_expense && data.gp_net ? (data.sales_expense / data.gp_net) * 100 : null },
+            { display: "Semi Fixed Expense", dbName: "semi_fixed_expense", type: "dollar" as const },
+            { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              data.semi_fixed_expense && data.gp_net ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
+            { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
+              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+            { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
+            { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+            { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
+              const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+                data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
+              return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
+            }}
+          ];
+        } else {
+          // GMC/Chevrolet/Nissan/Other brands - standard metrics
+          return [
+            { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
+            { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
+            { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
+              data.gp_net && data.total_sales ? (data.gp_net / data.total_sales) * 100 : null },
+            { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
+            { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              data.sales_expense && data.gp_net ? (data.sales_expense / data.gp_net) * 100 : null },
+            { display: "Semi Fixed Expense", dbName: "semi_fixed_expense", type: "dollar" as const },
+            { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              data.semi_fixed_expense && data.gp_net ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
+            { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
+              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+            { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
+            { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const },
-            { display: "Net Operating Profit", dbName: "net", type: "dollar" as const }
-          );
+            { display: "Net Operating Profit", dbName: "net", type: "dollar" as const },
+            { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
+              const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+                data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
+              return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
+            }}
+          ];
         }
-        
-        // Add Return on Gross for all brands (calculate from base values)
-        baseMetrics.push(
-          { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-            // Recalculate department_profit inline since it's not stored in the database
-            const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
-              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
-            return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
-          }}
-        );
-        
-        return baseMetrics;
       };
       
       const FINANCIAL_METRICS = getFinancialMetrics(brandName);
