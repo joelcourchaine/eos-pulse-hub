@@ -473,9 +473,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         console.log('✅ Calculating:', kpi.name, '=', numeratorValue, '/', denominatorValue);
         let calculatedValue = numeratorValue / denominatorValue;
         
-        // Round CP Hours Per RO to 1 decimal place
+        // Round CP Hours Per RO to 2 decimal places
         if (kpi.name === "CP Hours Per RO") {
-          calculatedValue = Math.round(calculatedValue * 10) / 10;
+          calculatedValue = Math.round(calculatedValue * 100) / 100;
         }
         
         // Round CP Labour Sales Per RO and CP ELR to nearest dollar
