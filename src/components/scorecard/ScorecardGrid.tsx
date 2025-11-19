@@ -924,6 +924,130 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     }
   };
 
+  const handleBulkRecalculateELR = async () => {
+    try {
+      setSaving(prev => ({ ...prev, 'bulk-elr': true }));
+      
+      // Get all unique owners who have CP ELR KPIs
+      const cpELRKpis = kpis.filter(k => k.name === "CP ELR");
+      
+      if (cpELRKpis.length === 0) {
+        toast({
+          title: "No CP ELR KPIs",
+          description: "No CP ELR KPIs found to recalculate",
+        });
+        setSaving(prev => ({ ...prev, 'bulk-elr': false }));
+        return;
+      }
+
+      let totalUpdates = 0;
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user?.id;
+
+      // Process each owner's CP ELR
+      for (const elrKpi of cpELRKpis) {
+        const ownerId = elrKpi.assigned_to;
+        
+        // Find the CP Labour Sales and CP Hours KPIs for this owner
+        const cpLabourSalesKpi = kpis.find(k => k.name === "CP Labour Sales" && k.assigned_to === ownerId);
+        const cpHoursKpi = kpis.find(k => k.name === "CP Hours" && k.assigned_to === ownerId);
+        
+        if (!cpLabourSalesKpi || !cpHoursKpi) {
+          console.log(`Skipping owner ${ownerId} - missing required KPIs`);
+          continue;
+        }
+
+        // Fetch all entries for these KPIs
+        const { data: labourSalesEntries } = await supabase
+          .from('scorecard_entries')
+          .select('*')
+          .eq('kpi_id', cpLabourSalesKpi.id);
+
+        const { data: hoursEntries } = await supabase
+          .from('scorecard_entries')
+          .select('*')
+          .eq('kpi_id', cpHoursKpi.id);
+
+        if (!labourSalesEntries || !hoursEntries) continue;
+
+        // Group by period
+        const labourSalesByPeriod: { [key: string]: number } = {};
+        const hoursByPeriod: { [key: string]: number } = {};
+
+        labourSalesEntries.forEach(e => {
+          const key = e.entry_type === 'monthly' ? e.month : e.week_start_date;
+          labourSalesByPeriod[key] = e.actual_value;
+        });
+
+        hoursEntries.forEach(e => {
+          const key = e.entry_type === 'monthly' ? e.month : e.week_start_date;
+          hoursByPeriod[key] = e.actual_value;
+        });
+
+        // Calculate and upsert CP ELR for each period
+        for (const [period, labourSales] of Object.entries(labourSalesByPeriod)) {
+          const hours = hoursByPeriod[period];
+          
+          if (hours && hours !== 0) {
+            const calculatedValue = Math.round(labourSales / hours);
+            const target = kpiTargets[elrKpi.id] || elrKpi.target_value;
+            const variance = target !== 0 ? ((calculatedValue - target) / target) * 100 : 0;
+            
+            let status: string;
+            if (elrKpi.target_direction === "above") {
+              status = calculatedValue >= target ? "green" : calculatedValue >= target * 0.9 ? "yellow" : "red";
+            } else {
+              status = calculatedValue <= target ? "green" : calculatedValue <= target * 1.1 ? "yellow" : "red";
+            }
+
+            const isMonthly = period.includes('-') && period.split('-').length === 2;
+            const entryData: any = {
+              kpi_id: elrKpi.id,
+              actual_value: calculatedValue,
+              variance,
+              status,
+              created_by: userId,
+              entry_type: isMonthly ? 'monthly' : 'weekly',
+            };
+
+            if (isMonthly) {
+              entryData.month = period;
+            } else {
+              entryData.week_start_date = period;
+            }
+
+            const { error } = await supabase
+              .from('scorecard_entries')
+              .upsert(entryData, {
+                onConflict: isMonthly ? 'kpi_id,month' : 'kpi_id,week_start_date'
+              });
+
+            if (!error) {
+              totalUpdates++;
+            }
+          }
+        }
+      }
+
+      setSaving(prev => ({ ...prev, 'bulk-elr': false }));
+      
+      toast({
+        title: "CP ELR Recalculation complete",
+        description: `Calculated ${totalUpdates} CP ELR entries`,
+      });
+
+      loadScorecardData();
+    } catch (error) {
+      console.error('Error during CP ELR recalculation:', error);
+      setSaving(prev => ({ ...prev, 'bulk-elr': false }));
+      toast({
+        title: "Recalculation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleAddKPI = async () => {
     if (!newKPIName.trim() || !selectedUserId) {
       toast({
@@ -1228,15 +1352,27 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 }}
               />
               {canManageKPIs && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkRecalculate}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Recalculate CP Hours Per RO
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkRecalculate}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Recalculate CP Hours Per RO
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkRecalculateELR}
+                    disabled={saving['bulk-elr']}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", saving['bulk-elr'] && "animate-spin")} />
+                    {saving['bulk-elr'] ? "Calculating..." : "Recalculate CP ELR"}
+                  </Button>
+                </>
               )}
               <Button
                 variant="outline"
