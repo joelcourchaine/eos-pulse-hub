@@ -657,8 +657,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
   const formatValue = (value: number | null, type: string, kpiName?: string) => {
     if (value === null || value === undefined) return "";
-    // CP Hours per RO should always show 2 decimal places
-    if (kpiName === "CP Hours per RO") {
+    // CP Hours Per RO should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO") {
       return Number(value).toFixed(2);
     }
     // CP Labour Sales Per RO and CP ELR should show whole dollars
@@ -670,8 +670,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   };
 
   const formatTarget = (value: number, type: string, kpiName?: string) => {
-    // CP Hours per RO should always show 2 decimal places
-    if (kpiName === "CP Hours per RO") {
+    // CP Hours Per RO should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO") {
       return Number(value).toFixed(2);
     }
     // CP Labour Sales Per RO and CP ELR should show whole dollars
