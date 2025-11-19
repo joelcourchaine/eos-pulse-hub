@@ -181,33 +181,22 @@ export const FORD_METRICS: FinancialMetric[] = [
     }
   },
   { 
-    name: "Semi Fixed Expense", 
-    key: "semi_fixed_expense", 
+    name: "Adjusted Selling Gross", 
+    key: "adjusted_selling_gross", 
     type: "dollar", 
-    description: "Semi-fixed expenses", 
-    targetDirection: "below" 
-  },
-  { 
-    name: "Semi Fixed Expense %", 
-    key: "semi_fixed_expense_percent", 
-    type: "percentage", 
-    description: "Semi-fixed expenses as % of GP Net", 
-    targetDirection: "below",
-    calculation: {
-      numerator: "semi_fixed_expense",
-      denominator: "gp_net"
-    }
+    description: "Net Selling Gross including part gross transfer", 
+    targetDirection: "above" 
   },
   { 
     name: "Net Selling Gross", 
     key: "net_selling_gross", 
     type: "dollar", 
-    description: "GP Net less Sales Expense less Semi Fixed Expense", 
+    description: "GP Net less Sales Expense", 
     targetDirection: "above",
     calculation: {
       type: "subtract",
       base: "gp_net",
-      deductions: ["sales_expense", "semi_fixed_expense"]
+      deductions: ["sales_expense"]
     }
   },
   { 
@@ -221,12 +210,12 @@ export const FORD_METRICS: FinancialMetric[] = [
     name: "Department Profit", 
     key: "department_profit", 
     type: "dollar", 
-    description: "GP Net less Sales Expense less Semi Fixed Expense less Fixed Expense", 
+    description: "GP Net less Sales Expense less Fixed Expense", 
     targetDirection: "above",
     calculation: {
       type: "subtract",
       base: "gp_net",
-      deductions: ["sales_expense", "semi_fixed_expense", "total_fixed_expense"]
+      deductions: ["sales_expense", "total_fixed_expense"]
     }
   },
   { 
