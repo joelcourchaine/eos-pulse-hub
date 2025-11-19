@@ -820,144 +820,91 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     }
   };
 
-  const handleBulkRecalculate = async () => {
+  const handleBulkRecalculateAll = async () => {
     try {
+      setSaving(prev => ({ ...prev, 'bulk-recalc': true }));
+      
+      let hoursPerROUpdates = 0;
+      let elrUpdates = 0;
+
+      // 1. Recalculate CP Hours Per RO
       const cpHoursPerROKpi = kpis.find(k => k.name === "CP Hours Per RO");
       const cpHoursKpi = kpis.find(k => k.name === "CP Hours");
       const cpROsKpi = kpis.find(k => k.name === "CP RO's");
 
-      if (!cpHoursPerROKpi || !cpHoursKpi || !cpROsKpi) {
-        toast({
-          title: "Cannot recalculate",
-          description: "Required KPIs (CP Hours, CP RO's, or CP Hours Per RO) not found",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Fetch all entries for these KPIs
-      const { data: allEntries, error: fetchError } = await supabase
-        .from('scorecard_entries')
-        .select('*')
-        .in('kpi_id', [cpHoursKpi.id, cpROsKpi.id, cpHoursPerROKpi.id]);
-
-      if (fetchError) throw fetchError;
-
-      const updates: any[] = [];
-      const entriesByKey: { [key: string]: any } = {};
-
-      // Group entries by date/period
-      allEntries?.forEach(entry => {
-        const key = entry.entry_type === 'weekly' 
-          ? entry.week_start_date 
-          : entry.month;
-        if (!entriesByKey[key]) entriesByKey[key] = {};
-        
-        if (entry.kpi_id === cpHoursKpi.id) {
-          entriesByKey[key].cpHours = entry.actual_value;
-        } else if (entry.kpi_id === cpROsKpi.id) {
-          entriesByKey[key].cpROs = entry.actual_value;
-        } else if (entry.kpi_id === cpHoursPerROKpi.id) {
-          entriesByKey[key].cpHoursPerROEntry = entry;
-        }
-      });
-
-      // Calculate new values with 2 decimal precision
-      Object.values(entriesByKey).forEach((data: any) => {
-        if (data.cpHours && data.cpROs && data.cpROs !== 0 && data.cpHoursPerROEntry) {
-          const newValue = Math.round((data.cpHours / data.cpROs) * 100) / 100;
-          const target = kpiTargets[cpHoursPerROKpi.id] || cpHoursPerROKpi.target_value;
-          const variance = target !== 0 ? ((newValue - target) / target) * 100 : 0;
-          
-          let status: string;
-          if (cpHoursPerROKpi.target_direction === "above") {
-            status = newValue >= target ? "green" : newValue >= target * 0.9 ? "yellow" : "red";
-          } else {
-            status = newValue <= target ? "green" : newValue <= target * 1.1 ? "yellow" : "red";
-          }
-
-          updates.push({
-            id: data.cpHoursPerROEntry.id,
-            actual_value: newValue,
-            variance,
-            status,
-          });
-        }
-      });
-
-      if (updates.length === 0) {
-        toast({
-          title: "No updates needed",
-          description: "No CP Hours Per RO entries found to recalculate",
-        });
-        return;
-      }
-
-      // Update all entries
-      for (const update of updates) {
-        const { error: updateError } = await supabase
+      if (cpHoursPerROKpi && cpHoursKpi && cpROsKpi) {
+        const { data: allEntries } = await supabase
           .from('scorecard_entries')
-          .update({
-            actual_value: update.actual_value,
-            variance: update.variance,
-            status: update.status,
-          })
-          .eq('id', update.id);
+          .select('*')
+          .in('kpi_id', [cpHoursKpi.id, cpROsKpi.id, cpHoursPerROKpi.id]);
 
-        if (updateError) throw updateError;
-      }
+        const updates: any[] = [];
+        const entriesByKey: { [key: string]: any } = {};
 
-      toast({
-        title: "Recalculation complete",
-        description: `Updated ${updates.length} CP Hours Per RO entries with 2-decimal precision`,
-      });
-
-      // Reload data
-      loadScorecardData();
-    } catch (error) {
-      console.error('Error during bulk recalculation:', error);
-      toast({
-        title: "Recalculation failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleBulkRecalculateELR = async () => {
-    try {
-      setSaving(prev => ({ ...prev, 'bulk-elr': true }));
-      
-      // Get all unique owners who have CP ELR KPIs
-      const cpELRKpis = kpis.filter(k => k.name === "CP ELR");
-      
-      if (cpELRKpis.length === 0) {
-        toast({
-          title: "No CP ELR KPIs",
-          description: "No CP ELR KPIs found to recalculate",
+        allEntries?.forEach(entry => {
+          const key = entry.entry_type === 'weekly' 
+            ? entry.week_start_date 
+            : entry.month;
+          if (!entriesByKey[key]) entriesByKey[key] = {};
+          
+          if (entry.kpi_id === cpHoursKpi.id) {
+            entriesByKey[key].cpHours = entry.actual_value;
+          } else if (entry.kpi_id === cpROsKpi.id) {
+            entriesByKey[key].cpROs = entry.actual_value;
+          } else if (entry.kpi_id === cpHoursPerROKpi.id) {
+            entriesByKey[key].cpHoursPerROEntry = entry;
+          }
         });
-        setSaving(prev => ({ ...prev, 'bulk-elr': false }));
-        return;
+
+        Object.values(entriesByKey).forEach((data: any) => {
+          if (data.cpHours && data.cpROs && data.cpROs !== 0 && data.cpHoursPerROEntry) {
+            const newValue = Math.round((data.cpHours / data.cpROs) * 100) / 100;
+            const target = kpiTargets[cpHoursPerROKpi.id] || cpHoursPerROKpi.target_value;
+            const variance = target !== 0 ? ((newValue - target) / target) * 100 : 0;
+            
+            let status: string;
+            if (cpHoursPerROKpi.target_direction === "above") {
+              status = newValue >= target ? "green" : newValue >= target * 0.9 ? "yellow" : "red";
+            } else {
+              status = newValue <= target ? "green" : newValue <= target * 1.1 ? "yellow" : "red";
+            }
+
+            updates.push({
+              id: data.cpHoursPerROEntry.id,
+              actual_value: newValue,
+              variance,
+              status,
+            });
+          }
+        });
+
+        for (const update of updates) {
+          await supabase
+            .from('scorecard_entries')
+            .update({
+              actual_value: update.actual_value,
+              variance: update.variance,
+              status: update.status,
+            })
+            .eq('id', update.id);
+        }
+
+        hoursPerROUpdates = updates.length;
       }
 
-      let totalUpdates = 0;
+      // 2. Recalculate CP ELR
+      const cpELRKpis = kpis.filter(k => k.name === "CP ELR");
       const { data: session } = await supabase.auth.getSession();
       const userId = session.session?.user?.id;
 
-      // Process each owner's CP ELR
       for (const elrKpi of cpELRKpis) {
         const ownerId = elrKpi.assigned_to;
         
-        // Find the CP Labour Sales and CP Hours KPIs for this owner
         const cpLabourSalesKpi = kpis.find(k => k.name === "CP Labour Sales" && k.assigned_to === ownerId);
         const cpHoursKpi = kpis.find(k => k.name === "CP Hours" && k.assigned_to === ownerId);
         
-        if (!cpLabourSalesKpi || !cpHoursKpi) {
-          console.log(`Skipping owner ${ownerId} - missing required KPIs`);
-          continue;
-        }
+        if (!cpLabourSalesKpi || !cpHoursKpi) continue;
 
-        // Fetch all entries for these KPIs
         const { data: labourSalesEntries } = await supabase
           .from('scorecard_entries')
           .select('*')
@@ -970,7 +917,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
         if (!labourSalesEntries || !hoursEntries) continue;
 
-        // Group by period
         const labourSalesByPeriod: { [key: string]: number } = {};
         const hoursByPeriod: { [key: string]: number } = {};
 
@@ -984,7 +930,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           hoursByPeriod[key] = e.actual_value;
         });
 
-        // Calculate and upsert CP ELR for each period
         for (const [period, labourSales] of Object.entries(labourSalesByPeriod)) {
           const hours = hoursByPeriod[period];
           
@@ -1023,23 +968,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               });
 
             if (!error) {
-              totalUpdates++;
+              elrUpdates++;
             }
           }
         }
       }
 
-      setSaving(prev => ({ ...prev, 'bulk-elr': false }));
+      setSaving(prev => ({ ...prev, 'bulk-recalc': false }));
       
       toast({
-        title: "CP ELR Recalculation complete",
-        description: `Calculated ${totalUpdates} CP ELR entries`,
+        title: "Recalculation complete",
+        description: `Updated ${hoursPerROUpdates} CP Hours Per RO and ${elrUpdates} CP ELR entries`,
       });
 
       loadScorecardData();
     } catch (error) {
-      console.error('Error during CP ELR recalculation:', error);
-      setSaving(prev => ({ ...prev, 'bulk-elr': false }));
+      console.error('Error during bulk recalculation:', error);
+      setSaving(prev => ({ ...prev, 'bulk-recalc': false }));
       toast({
         title: "Recalculation failed",
         description: error.message,
@@ -1352,27 +1297,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 }}
               />
               {canManageKPIs && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkRecalculate}
-                    className="gap-2"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Recalculate CP Hours Per RO
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkRecalculateELR}
-                    disabled={saving['bulk-elr']}
-                    className="gap-2"
-                  >
-                    <RefreshCw className={cn("h-4 w-4", saving['bulk-elr'] && "animate-spin")} />
-                    {saving['bulk-elr'] ? "Calculating..." : "Recalculate CP ELR"}
-                  </Button>
-                </>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkRecalculateAll}
+                  disabled={saving['bulk-recalc']}
+                  className="gap-2"
+                >
+                  <RefreshCw className={cn("h-4 w-4", saving['bulk-recalc'] && "animate-spin")} />
+                  {saving['bulk-recalc'] ? "Recalculating..." : "Recalculate All"}
+                </Button>
               )}
               <Button
                 variant="outline"
