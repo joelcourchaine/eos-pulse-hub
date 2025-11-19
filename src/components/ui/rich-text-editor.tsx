@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -101,6 +101,34 @@ export const RichTextEditor = ({
     }
   };
 
+  // Initialize content only once when value changes externally
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const startOffset = range?.startOffset;
+      const endOffset = range?.endOffset;
+      
+      editorRef.current.innerHTML = value;
+      
+      // Restore cursor position if possible
+      if (range && startOffset !== undefined && endOffset !== undefined) {
+        try {
+          const newRange = document.createRange();
+          const textNode = editorRef.current.firstChild;
+          if (textNode) {
+            newRange.setStart(textNode, Math.min(startOffset, textNode.textContent?.length || 0));
+            newRange.setEnd(textNode, Math.min(endOffset, textNode.textContent?.length || 0));
+            selection?.removeAllRanges();
+            selection?.addRange(newRange);
+          }
+        } catch (e) {
+          // Cursor restoration failed, ignore
+        }
+      }
+    }
+  }, [value]);
+
   return (
     <div className="relative">
       <div
@@ -108,7 +136,7 @@ export const RichTextEditor = ({
         contentEditable
         onPaste={handlePaste}
         onInput={handleInput}
-        dangerouslySetInnerHTML={{ __html: value }}
+        suppressContentEditableWarning
         className={cn(
           "min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
