@@ -553,6 +553,12 @@ const handler = async (req: Request): Promise<Response> => {
       const FINANCIAL_METRICS = getFinancialMetrics(brandName);
       
       html += `<h2>Financial Metrics</h2><table><thead><tr><th>Metric</th>`;
+      
+      // Add Q1-Q4 targets column for yearly mode
+      if (mode === "yearly") {
+        html += `<th>Q1/Q2/Q3/Q4 Targets</th>`;
+      }
+      
       periods.forEach(p => {
         html += `<th>${p.label}</th>`;
       });
@@ -560,6 +566,22 @@ const handler = async (req: Request): Promise<Response> => {
       
       FINANCIAL_METRICS.forEach(metric => {
         html += `<tr><td>${metric.display}</td>`;
+        
+        // Add Q1-Q4 targets cell for yearly mode
+        if (mode === "yearly") {
+          const q1Target = targetsMap.get(`${metric.dbName}_1`);
+          const q2Target = targetsMap.get(`${metric.dbName}_2`);
+          const q3Target = targetsMap.get(`${metric.dbName}_3`);
+          const q4Target = targetsMap.get(`${metric.dbName}_4`);
+          
+          const q1Value = q1Target?.value ?? 0;
+          const q2Value = q2Target?.value ?? 0;
+          const q3Value = q3Target?.value ?? 0;
+          const q4Value = q4Target?.value ?? 0;
+          
+          const displayTarget = `${formatValue(q1Value, metric.type)}/${formatValue(q2Value, metric.type)}/${formatValue(q3Value, metric.type)}/${formatValue(q4Value, metric.type)}`;
+          html += `<td style="font-weight: bold; background-color: #f9f9f9;">${displayTarget}</td>`;
+        }
         periods.forEach(p => {
           if ('identifier' in p) {
             // Gather all financial data for this month to calculate percentages
