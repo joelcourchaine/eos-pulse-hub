@@ -12,6 +12,11 @@ export interface FinancialMetric {
     type: "subtract";
     base: string;
     deductions: string[];
+  } | {
+    type: "complex";
+    base: string;
+    deductions: string[];
+    additions: string[];
   };
 }
 
@@ -241,8 +246,14 @@ export const FORD_METRICS: FinancialMetric[] = [
     name: "Net Operating Profit", 
     key: "net", 
     type: "dollar", 
-    description: "Net profit/loss after adjustments", 
-    targetDirection: "above" 
+    description: "Department Profit less Dealer Salary plus Parts Transfer", 
+    targetDirection: "above",
+    calculation: {
+      type: "complex",
+      base: "department_profit",
+      deductions: ["dealer_salary"],
+      additions: ["parts_transfer"]
+    }
   },
   { 
     name: "Return on Gross", 
