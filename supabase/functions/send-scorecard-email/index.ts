@@ -461,8 +461,35 @@ const handler = async (req: Request): Promise<Response> => {
             data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
         ];
         
-        // Add brand-specific metrics
-        if (!isMazda) {
+        // Add Ford-specific metrics with calculations
+        if (isFord) {
+          baseMetrics.push(
+            { display: "Adjusted Selling Gross", dbName: "adjusted_selling_gross", type: "dollar" as const },
+            { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const, calc: (data: any) => {
+              // For Ford: Adjusted Selling Gross - Net Selling Gross
+              const netSellingGross = data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
+                data.gp_net - data.sales_expense - data.semi_fixed_expense : null;
+              return data.adjusted_selling_gross && netSellingGross ? 
+                data.adjusted_selling_gross - netSellingGross : null;
+            }},
+            { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const },
+            { display: "Net Operating Profit", dbName: "net", type: "dollar" as const, calc: (data: any) => {
+              // For Ford: Department Profit - Dealer Salary + Parts Transfer
+              const departmentProfit = data.gp_net && data.sales_expense && data.semi_fixed_expense && data.total_fixed_expense ?
+                data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null;
+              const netSellingGross = data.gp_net && data.sales_expense && data.semi_fixed_expense ? 
+                data.gp_net - data.sales_expense - data.semi_fixed_expense : null;
+              const partsTransfer = data.adjusted_selling_gross && netSellingGross ? 
+                data.adjusted_selling_gross - netSellingGross : null;
+              
+              if (departmentProfit !== null && data.dealer_salary !== null && data.dealer_salary !== undefined && partsTransfer !== null) {
+                return departmentProfit - data.dealer_salary + partsTransfer;
+              }
+              return null;
+            }}
+          );
+        } else if (!isMazda) {
+          // For non-Ford, non-Mazda brands (GMC/Chevrolet, Nissan, etc.)
           baseMetrics.push(
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const },
             { display: "Net Operating Profit", dbName: "net", type: "dollar" as const }
@@ -478,13 +505,6 @@ const handler = async (req: Request): Promise<Response> => {
             return departmentProfit && data.gp_net ? (departmentProfit / data.gp_net) * 100 : null;
           }}
         );
-        
-        // Add Dealer Salary for Ford
-        if (isFord) {
-          baseMetrics.splice(baseMetrics.length - 1, 0, 
-            { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const }
-          );
-        }
         
         return baseMetrics;
       };
