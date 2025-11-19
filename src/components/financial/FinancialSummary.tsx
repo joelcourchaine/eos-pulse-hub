@@ -952,19 +952,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted/50 z-10 min-w-[200px] font-bold py-[7.2px]">
+                    <TableHead className="sticky left-0 bg-muted/50 z-20 min-w-[200px] font-bold py-[7.2px]">
                       Financial Metric
                     </TableHead>
                     {precedingQuarters.map((pq) => (
-                      <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-[7.2px]">
+                      <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
                         {pq.label}
                       </TableHead>
                     ))}
-                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30">
+                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                       Q{quarter} Target
                     </TableHead>
                     {months.map((month) => (
-                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px]">
+                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                         {month.label}
                       </TableHead>
                     ))}
@@ -985,7 +985,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         )}
                       >
                         <TableCell className={cn(
-                          "sticky left-0 z-10 py-[7.2px] min-w-[200px]",
+                          "sticky left-0 z-10 py-[7.2px] min-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
                           isDepartmentProfit ? "bg-primary/5" : "bg-background"
                         )}>
                           <div>
