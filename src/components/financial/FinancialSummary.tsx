@@ -952,7 +952,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted/50 z-30 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                    <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                       Financial Metric
                     </TableHead>
                     {precedingQuarters.map((pq) => (
@@ -985,8 +985,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         )}
                       >
                         <TableCell className={cn(
-                          "sticky left-0 z-20 py-[7.2px] min-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
-                          isDepartmentProfit ? "bg-primary/5" : "bg-background"
+                          "sticky left-0 z-30 py-[7.2px] min-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
+                          isDepartmentProfit ? "bg-primary/5 border-y-2 border-primary/40" : "bg-background"
                         )}>
                           <div>
                             <p className={cn(
