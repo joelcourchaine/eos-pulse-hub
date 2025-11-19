@@ -584,8 +584,9 @@ const handler = async (req: Request): Promise<Response> => {
             const target = targetsMap.get(targetKey);
             
             // Calculate status - MUST match UI logic exactly
+            // UI treats target value of 0 as "no target" (falsy check), so we must do the same
             let cellClass = "";
-            if (value !== null && target && target.value !== null) {
+            if (value !== null && target && target.value !== null && target.value !== 0) {
               const targetValue = target.value;
               const direction = target.direction;
               
