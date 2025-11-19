@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -820,6 +820,110 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     }
   };
 
+  const handleBulkRecalculate = async () => {
+    try {
+      const cpHoursPerROKpi = kpis.find(k => k.name === "CP Hours Per RO");
+      const cpHoursKpi = kpis.find(k => k.name === "CP Hours");
+      const cpROsKpi = kpis.find(k => k.name === "CP RO's");
+
+      if (!cpHoursPerROKpi || !cpHoursKpi || !cpROsKpi) {
+        toast({
+          title: "Cannot recalculate",
+          description: "Required KPIs (CP Hours, CP RO's, or CP Hours Per RO) not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fetch all entries for these KPIs
+      const { data: allEntries, error: fetchError } = await supabase
+        .from('scorecard_entries')
+        .select('*')
+        .in('kpi_id', [cpHoursKpi.id, cpROsKpi.id, cpHoursPerROKpi.id]);
+
+      if (fetchError) throw fetchError;
+
+      const updates: any[] = [];
+      const entriesByKey: { [key: string]: any } = {};
+
+      // Group entries by date/period
+      allEntries?.forEach(entry => {
+        const key = entry.entry_type === 'weekly' 
+          ? entry.week_start_date 
+          : entry.month;
+        if (!entriesByKey[key]) entriesByKey[key] = {};
+        
+        if (entry.kpi_id === cpHoursKpi.id) {
+          entriesByKey[key].cpHours = entry.actual_value;
+        } else if (entry.kpi_id === cpROsKpi.id) {
+          entriesByKey[key].cpROs = entry.actual_value;
+        } else if (entry.kpi_id === cpHoursPerROKpi.id) {
+          entriesByKey[key].cpHoursPerROEntry = entry;
+        }
+      });
+
+      // Calculate new values with 2 decimal precision
+      Object.values(entriesByKey).forEach((data: any) => {
+        if (data.cpHours && data.cpROs && data.cpROs !== 0 && data.cpHoursPerROEntry) {
+          const newValue = Math.round((data.cpHours / data.cpROs) * 100) / 100;
+          const target = kpiTargets[cpHoursPerROKpi.id] || cpHoursPerROKpi.target_value;
+          const variance = target !== 0 ? ((newValue - target) / target) * 100 : 0;
+          
+          let status: string;
+          if (cpHoursPerROKpi.target_direction === "above") {
+            status = newValue >= target ? "green" : newValue >= target * 0.9 ? "yellow" : "red";
+          } else {
+            status = newValue <= target ? "green" : newValue <= target * 1.1 ? "yellow" : "red";
+          }
+
+          updates.push({
+            id: data.cpHoursPerROEntry.id,
+            actual_value: newValue,
+            variance,
+            status,
+          });
+        }
+      });
+
+      if (updates.length === 0) {
+        toast({
+          title: "No updates needed",
+          description: "No CP Hours Per RO entries found to recalculate",
+        });
+        return;
+      }
+
+      // Update all entries
+      for (const update of updates) {
+        const { error: updateError } = await supabase
+          .from('scorecard_entries')
+          .update({
+            actual_value: update.actual_value,
+            variance: update.variance,
+            status: update.status,
+          })
+          .eq('id', update.id);
+
+        if (updateError) throw updateError;
+      }
+
+      toast({
+        title: "Recalculation complete",
+        description: `Updated ${updates.length} CP Hours Per RO entries with 2-decimal precision`,
+      });
+
+      // Reload data
+      loadScorecardData();
+    } catch (error) {
+      console.error('Error during bulk recalculation:', error);
+      toast({
+        title: "Recalculation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleAddKPI = async () => {
     if (!newKPIName.trim() || !selectedUserId) {
       toast({
@@ -1123,6 +1227,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   loadScorecardData();
                 }}
               />
+              {canManageKPIs && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBulkRecalculate}
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Recalculate CP Hours Per RO
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
