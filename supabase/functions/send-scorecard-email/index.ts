@@ -392,11 +392,16 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           // Calculate status if we have an entry with a value
+          // UNIVERSAL LOGIC: target value of 0 means "no target" - no status indicator
           let cellClass = "";
           if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
             const actualValue = entry.actual_value;
             const direction = kpi.target_direction;
-            const variance = ((actualValue - targetValue) / targetValue) * 100;
+            
+            // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
+            const variance = kpi.metric_type === "percentage"
+              ? actualValue - targetValue
+              : ((actualValue - targetValue) / targetValue) * 100;
             
             console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Actual: ${actualValue}, Target: ${targetValue}, Direction: ${direction}, Variance: ${variance.toFixed(2)}%`);
             
