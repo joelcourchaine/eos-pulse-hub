@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 
 interface KPI {
   id: string;
@@ -151,6 +152,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetEditValue, setTargetEditValue] = useState<string>("");
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [showAddKPI, setShowAddKPI] = useState(false);
+  const [newKPIName, setNewKPIName] = useState("");
+  const [newKPIType, setNewKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
+  const [newKPIDirection, setNewKPIDirection] = useState<"above" | "below">("above");
+  const [storeUsers, setStoreUsers] = useState<Profile[]>([]);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -175,6 +182,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     loadScorecardData();
     fetchProfiles();
     loadKPITargets();
+    loadStoreUsers();
   }, [departmentId, kpis, year, quarter, viewMode]);
 
   // Update local values when entries change
@@ -228,6 +236,34 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       profilesMap[profile.id] = profile;
     });
     setProfiles(profilesMap);
+  };
+
+  const loadStoreUsers = async () => {
+    // Get the store_id from the department
+    const { data: departmentData, error: deptError } = await supabase
+      .from("departments")
+      .select("store_id")
+      .eq("id", departmentId)
+      .maybeSingle();
+
+    if (deptError || !departmentData) {
+      console.error("Error fetching department:", deptError);
+      return;
+    }
+
+    // Get profiles for that store
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, email")
+      .eq("store_id", departmentData.store_id)
+      .order("full_name");
+
+    if (error) {
+      console.error("Error fetching store users:", error);
+      return;
+    }
+
+    setStoreUsers(data || []);
   };
 
   const loadKPITargets = async () => {
@@ -751,6 +787,53 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     return calculatedKPIs.includes(kpiName);
   };
 
+  const handleAddKPI = async () => {
+    if (!newKPIName.trim() || !selectedUserId) {
+      toast({
+        title: "Missing Information",
+        description: "Please select a user and enter a KPI name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const maxOrder = Math.max(...kpis.map(k => k.display_order), 0);
+
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .insert({
+        department_id: departmentId,
+        name: newKPIName.trim(),
+        metric_type: newKPIType,
+        target_direction: newKPIDirection,
+        target_value: 0,
+        display_order: maxOrder + 1,
+        assigned_to: selectedUserId,
+      });
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: "KPI added successfully",
+    });
+
+    setNewKPIName("");
+    setNewKPIType("dollar");
+    setNewKPIDirection("above");
+    setShowAddKPI(false);
+    onKPIsChange();
+  };
+
+  const canManageKPIs = userRole === "super_admin" || userRole === "store_gm" || userRole === "department_manager";
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -794,6 +877,92 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </div>
         
         <div className="flex items-center gap-2">
+          {canManageKPIs && (
+            <>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select user to add KPI" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {storeUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedUserId && (
+                <Popover open={showAddKPI} onOpenChange={setShowAddKPI}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add KPI
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 bg-background z-50" align="end">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Add New KPI</h4>
+                        <p className="text-sm text-muted-foreground">
+                          for {storeUsers.find(u => u.id === selectedUserId)?.full_name}
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="kpi-name">KPI Name</Label>
+                          <Input
+                            id="kpi-name"
+                            placeholder="Enter KPI name"
+                            value={newKPIName}
+                            onChange={(e) => setNewKPIName(e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="kpi-type">Metric Type</Label>
+                          <Select value={newKPIType} onValueChange={(v: "dollar" | "percentage" | "unit") => setNewKPIType(v)}>
+                            <SelectTrigger id="kpi-type">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="dollar">Dollar ($)</SelectItem>
+                              <SelectItem value="percentage">Percentage (%)</SelectItem>
+                              <SelectItem value="unit">Unit (#)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="kpi-direction">Target Direction</Label>
+                          <Select value={newKPIDirection} onValueChange={(v: "above" | "below") => setNewKPIDirection(v)}>
+                            <SelectTrigger id="kpi-direction">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="above">Above Target</SelectItem>
+                              <SelectItem value="below">Below Target</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" size="sm" onClick={() => setShowAddKPI(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleAddKPI}>
+                          Add KPI
+                        </Button>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </>
+          )}
+          
           {kpis.length > 0 && (
             <>
               <SetKPITargetsDialog
