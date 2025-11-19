@@ -986,7 +986,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       >
                         <TableCell className={cn(
                           "sticky left-0 z-30 py-[7.2px] min-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
-                          isDepartmentProfit ? "bg-primary/5 border-y-2 border-primary/40" : "bg-background"
+                          isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background"
                         )}>
                           <div>
                             <p className={cn(
