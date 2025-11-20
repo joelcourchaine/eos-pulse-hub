@@ -35,6 +35,150 @@ export type Database = {
         }
         Relationships: []
       }
+      department_answer_history: {
+        Row: {
+          answer_id: string
+          changed_at: string
+          changed_by: string | null
+          department_id: string
+          id: string
+          new_value: string | null
+          previous_value: string | null
+          question_id: string
+        }
+        Insert: {
+          answer_id: string
+          changed_at?: string
+          changed_by?: string | null
+          department_id: string
+          id?: string
+          new_value?: string | null
+          previous_value?: string | null
+          question_id: string
+        }
+        Update: {
+          answer_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          department_id?: string
+          id?: string
+          new_value?: string | null
+          previous_value?: string | null
+          question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_answer_history_answer_id_fkey"
+            columns: ["answer_id"]
+            isOneToOne: false
+            referencedRelation: "department_answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_answer_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_answer_history_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_answer_history_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "department_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      department_answers: {
+        Row: {
+          answer_value: string | null
+          department_id: string
+          id: string
+          question_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          answer_value?: string | null
+          department_id: string
+          id?: string
+          question_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          answer_value?: string | null
+          department_id?: string
+          id?: string
+          question_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_answers_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "department_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_answers_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      department_questions: {
+        Row: {
+          answer_type: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          question_category: string
+          question_text: string
+          updated_at: string
+        }
+        Insert: {
+          answer_type?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          question_category: string
+          question_text: string
+          updated_at?: string
+        }
+        Update: {
+          answer_type?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          question_category?: string
+          question_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       department_types: {
         Row: {
           created_at: string
