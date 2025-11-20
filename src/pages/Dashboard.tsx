@@ -820,14 +820,8 @@ const Dashboard = () => {
         {selectedDepartment && (
           <DirectorNotes
             departmentId={selectedDepartment}
-            periodType={printMode === "weekly" ? "quarterly" : printMode}
-            periodDate={
-              printMode === "yearly"
-                ? `${selectedYear}` 
-                : printMode === "monthly"
-                  ? `${selectedYear}-${String(selectedQuarter * 3).padStart(2, '0')}` 
-                  : `Q${selectedQuarter}-${selectedYear}`
-            }
+            periodType="quarterly"
+            periodDate={`Q${selectedQuarter}-${selectedYear}`}
             userRole={profile?.role || ""}
           />
         )}
