@@ -1,31 +1,46 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { format, subMonths } from "date-fns";
 
 interface DirectorNotesProps {
   departmentId: string;
-  periodType: "monthly" | "quarterly" | "yearly";
-  periodDate: string; // e.g., "2025-11", "Q4-2025", "2025"
   userRole: string;
 }
 
-export const DirectorNotes = ({ departmentId, periodType, periodDate, userRole }: DirectorNotesProps) => {
+export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) => {
+  // Generate list of current month + 4 previous months
+  const getAvailableMonths = () => {
+    const months = [];
+    for (let i = 0; i < 5; i++) {
+      const date = subMonths(new Date(), i);
+      months.push({
+        value: format(date, "yyyy-MM"),
+        label: format(date, "MMMM yyyy")
+      });
+    }
+    return months;
+  };
+
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
   const [notes, setNotes] = useState("");
   const [existingNoteId, setExistingNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
   const canEdit = userRole === "super_admin" || userRole === "store_gm";
+  const availableMonths = getAvailableMonths();
 
   useEffect(() => {
     loadNotes();
-  }, [departmentId, periodType, periodDate]);
+  }, [departmentId, selectedMonth]);
 
   const loadNotes = async () => {
     try {
@@ -33,8 +48,8 @@ export const DirectorNotes = ({ departmentId, periodType, periodDate, userRole }
         .from("director_notes")
         .select("*")
         .eq("department_id", departmentId)
-        .eq("period_type", periodType)
-        .eq("period_date", periodDate)
+        .eq("period_type", "monthly")
+        .eq("period_date", selectedMonth)
         .maybeSingle();
 
       if (error) throw error;
@@ -76,8 +91,8 @@ export const DirectorNotes = ({ departmentId, periodType, periodDate, userRole }
           .from("director_notes")
           .insert({
             department_id: departmentId,
-            period_type: periodType,
-            period_date: periodDate,
+            period_type: "monthly",
+            period_date: selectedMonth,
             notes,
             created_by: user.id,
           })
@@ -112,7 +127,7 @@ export const DirectorNotes = ({ departmentId, periodType, periodDate, userRole }
             <div className="flex flex-col items-start">
               <CardTitle className="text-lg">Director's Notes</CardTitle>
               <CardDescription>
-                Add observations and suggestions for this {periodType} period
+                Add observations and suggestions for the selected month
               </CardDescription>
             </div>
             {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
@@ -120,21 +135,34 @@ export const DirectorNotes = ({ departmentId, periodType, periodDate, userRole }
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-4">
-            <Textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Enter your observations, suggestions, and recommendations for this period..."
-              className="min-h-[120px]"
-              disabled={!canEdit}
-            />
-            {canEdit && (
-              <div className="flex justify-end">
-                <Button onClick={handleSave} disabled={isSaving}>
+            <div className="flex items-center gap-4">
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMonths.map((month) => (
+                    <SelectItem key={month.value} value={month.value}>
+                      {month.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {canEdit && (
+                <Button onClick={handleSave} disabled={isSaving} size="sm">
                   <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? "Saving..." : "Save Notes"}
+                  {isSaving ? "Saving..." : "Save"}
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
+            <div className="resize-y overflow-auto min-h-[200px] max-h-[800px] border rounded-md">
+              <RichTextEditor
+                value={notes}
+                onChange={setNotes}
+                placeholder="Enter your observations, suggestions, and recommendations. You can paste images directly here..."
+                className="min-h-[200px] p-3"
+              />
+            </div>
             {!canEdit && (
               <p className="text-sm text-muted-foreground">
                 Only Store GMs and Super Admins can edit director notes.

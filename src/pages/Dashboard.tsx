@@ -820,8 +820,6 @@ const Dashboard = () => {
         {selectedDepartment && (
           <DirectorNotes
             departmentId={selectedDepartment}
-            periodType="quarterly"
-            periodDate={`Q${selectedQuarter}-${selectedYear}`}
             userRole={profile?.role || ""}
           />
         )}
