@@ -17,6 +17,8 @@ interface Question {
   question_category: string;
   answer_type: string;
   display_order: number;
+  answer_description: string | null;
+  reference_image_url: string | null;
 }
 
 interface Answer {
@@ -305,6 +307,16 @@ export const DepartmentQuestionnaireDialog = ({
                   {categoryQuestions.map((question) => (
                     <div key={question.id} className="space-y-2">
                       <Label htmlFor={question.id}>{question.question_text}</Label>
+                      {question.answer_description && (
+                        <p className="text-sm text-muted-foreground">{question.answer_description}</p>
+                      )}
+                      {question.reference_image_url && (
+                        <img
+                          src={question.reference_image_url}
+                          alt="Reference"
+                          className="max-w-md rounded-lg border mb-2"
+                        />
+                      )}
                       {renderInput(question)}
                     </div>
                   ))}

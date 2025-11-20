@@ -148,6 +148,7 @@ export type Database = {
       }
       department_questions: {
         Row: {
+          answer_description: string | null
           answer_type: string
           created_at: string
           display_order: number
@@ -155,9 +156,11 @@ export type Database = {
           is_active: boolean
           question_category: string
           question_text: string
+          reference_image_url: string | null
           updated_at: string
         }
         Insert: {
+          answer_description?: string | null
           answer_type?: string
           created_at?: string
           display_order?: number
@@ -165,9 +168,11 @@ export type Database = {
           is_active?: boolean
           question_category: string
           question_text: string
+          reference_image_url?: string | null
           updated_at?: string
         }
         Update: {
+          answer_description?: string | null
           answer_type?: string
           created_at?: string
           display_order?: number
@@ -175,6 +180,7 @@ export type Database = {
           is_active?: boolean
           question_category?: string
           question_text?: string
+          reference_image_url?: string | null
           updated_at?: string
         }
         Relationships: []
