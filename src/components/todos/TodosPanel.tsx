@@ -73,10 +73,23 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
   }, [departmentId]);
 
   const loadProfiles = async () => {
+    if (!departmentId) return;
+    
     try {
+      // First get the department's store_id
+      const { data: department, error: deptError } = await supabase
+        .from("departments")
+        .select("store_id")
+        .eq("id", departmentId)
+        .single();
+
+      if (deptError) throw deptError;
+
+      // Then get profiles for that store
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name");
+        .select("id, full_name")
+        .eq("store_id", department.store_id);
 
       if (error) throw error;
 
