@@ -24,6 +24,7 @@ import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSe
 import { TodosPanel } from "@/components/todos/TodosPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
+import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 
 const Dashboard = () => {
@@ -293,7 +294,7 @@ const Dashboard = () => {
     try {
       let query = supabase
         .from("departments")
-        .select("*")
+        .select("*, profiles(email, full_name)")
         .order("name");
 
       // Filter departments by store
@@ -753,15 +754,24 @@ const Dashboard = () => {
                   Track your department's key performance indicators
                 </CardDescription>
               </div>
-              {selectedDepartment && (
-                <KPIManagementDialog 
-                  departmentId={selectedDepartment} 
-                  kpis={kpis}
-                  onKPIsChange={fetchKPIs}
-                  year={selectedYear}
-                  quarter={selectedQuarter}
-                />
-              )}
+              <div className="flex gap-2">
+                {selectedDepartment && (
+                  <>
+                    <DepartmentQuestionnaireDialog
+                      departmentId={selectedDepartment}
+                      departmentName={departments.find(d => d.id === selectedDepartment)?.name || "Department"}
+                      managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
+                    />
+                    <KPIManagementDialog 
+                      departmentId={selectedDepartment} 
+                      kpis={kpis}
+                      onKPIsChange={fetchKPIs}
+                      year={selectedYear}
+                      quarter={selectedQuarter}
+                    />
+                  </>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
