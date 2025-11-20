@@ -26,11 +26,12 @@ interface TodoManagementDialogProps {
   departmentId: string;
   profiles: Profile[];
   onTodoAdded: () => void;
+  onDialogOpen?: () => void;
   todo?: Todo;
   trigger?: React.ReactNode;
 }
 
-export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, todo, trigger }: TodoManagementDialogProps) {
+export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, onDialogOpen, todo, trigger }: TodoManagementDialogProps) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState(todo?.title || "");
   const [description, setDescription] = useState(todo?.description || "");
@@ -118,7 +119,12 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, todo
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (isOpen && onDialogOpen) {
+        onDialogOpen();
+      }
+    }}>
       <DialogTrigger asChild>
         {trigger || (
           <Button>
