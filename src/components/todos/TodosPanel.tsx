@@ -254,6 +254,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
                 departmentId={departmentId}
                 profiles={profilesList}
                 onTodoAdded={loadTodos}
+                onDialogOpen={loadProfiles}
                 todo={todo}
                 trigger={
                   <Button
@@ -311,6 +312,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
               departmentId={departmentId}
               profiles={profilesList}
               onTodoAdded={loadTodos}
+              onDialogOpen={loadProfiles}
             />
           </div>
         </CardHeader>
