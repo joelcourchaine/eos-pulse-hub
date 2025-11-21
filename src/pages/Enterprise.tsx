@@ -87,7 +87,13 @@ export default function Enterprise() {
     }
   }, [stores, filterMode, selectedGroupIds, selectedBrandIds, selectedStoreIds]);
 
-  const storeIds = filteredStores.map(s => s.id);
+  const storeIds = useMemo(() => {
+    if (filteredStores.length > 0) {
+      return filteredStores.map(s => s.id);
+    }
+    // If no stores filtered, use all stores
+    return stores?.map(s => s.id) || [];
+  }, [filteredStores, stores]);
 
   // Fetch departments for selected stores
   const { data: departments } = useQuery({
