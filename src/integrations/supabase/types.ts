@@ -617,6 +617,42 @@ export type Database = {
           },
         ]
       }
+      question_department_types: {
+        Row: {
+          created_at: string
+          department_type_id: string
+          id: string
+          question_id: string
+        }
+        Insert: {
+          created_at?: string
+          department_type_id: string
+          id?: string
+          question_id: string
+        }
+        Update: {
+          created_at?: string
+          department_type_id?: string
+          id?: string
+          question_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_department_types_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_department_types_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "department_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rocks: {
         Row: {
           assigned_to: string | null

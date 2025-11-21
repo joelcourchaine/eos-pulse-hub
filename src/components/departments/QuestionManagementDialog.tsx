@@ -20,11 +20,18 @@ interface Question {
   is_active: boolean;
   answer_description: string | null;
   reference_image_url: string | null;
+  department_types?: { id: string; name: string }[];
+}
+
+interface DepartmentType {
+  id: string;
+  name: string;
 }
 
 export const QuestionManagementDialog = () => {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -37,24 +44,52 @@ export const QuestionManagementDialog = () => {
     answer_type: "text",
     answer_description: "",
     display_order: 0,
+    department_type_ids: [] as string[],
   });
 
   useEffect(() => {
     if (open) {
+      loadDepartmentTypes();
       loadQuestions();
     }
   }, [open]);
+
+  const loadDepartmentTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("department_types")
+        .select("id, name")
+        .order("display_order");
+
+      if (error) throw error;
+      setDepartmentTypes(data || []);
+    } catch (error) {
+      console.error("Error loading department types:", error);
+    }
+  };
 
   const loadQuestions = async () => {
     try {
       const { data, error } = await supabase
         .from("department_questions")
-        .select("*")
+        .select(`
+          *,
+          question_department_types(
+            department_type_id,
+            department_types(id, name)
+          )
+        `)
         .order("question_category")
         .order("display_order");
 
       if (error) throw error;
-      setQuestions(data || []);
+      
+      const formattedQuestions = data?.map((q: any) => ({
+        ...q,
+        department_types: q.question_department_types?.map((qdt: any) => qdt.department_types) || [],
+      })) || [];
+      
+      setQuestions(formattedQuestions);
     } catch (error) {
       console.error("Error loading questions:", error);
       toast({
@@ -73,6 +108,7 @@ export const QuestionManagementDialog = () => {
       answer_type: question.answer_type,
       answer_description: question.answer_description || "",
       display_order: question.display_order,
+      department_type_ids: question.department_types?.map(dt => dt.id) || [],
     });
     setIsAddingNew(false);
   };
@@ -86,6 +122,7 @@ export const QuestionManagementDialog = () => {
       answer_type: "text",
       answer_description: "",
       display_order: questions.length + 1,
+      department_type_ids: [],
     });
   };
 
@@ -98,6 +135,7 @@ export const QuestionManagementDialog = () => {
       answer_type: "text",
       answer_description: "",
       display_order: 0,
+      department_type_ids: [],
     });
   };
 
@@ -111,10 +149,21 @@ export const QuestionManagementDialog = () => {
       return;
     }
 
+    if (formData.department_type_ids.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one department type.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
+      let questionId = editingId;
+
       if (isAddingNew) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("department_questions")
           .insert({
             question_text: formData.question_text,
@@ -122,9 +171,12 @@ export const QuestionManagementDialog = () => {
             answer_type: formData.answer_type,
             answer_description: formData.answer_description || null,
             display_order: formData.display_order,
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+        questionId = data.id;
         toast({ title: "Success", description: "Question added successfully." });
       } else if (editingId) {
         const { error } = await supabase
@@ -140,6 +192,27 @@ export const QuestionManagementDialog = () => {
 
         if (error) throw error;
         toast({ title: "Success", description: "Question updated successfully." });
+      }
+
+      // Update department type associations
+      if (questionId) {
+        // Delete existing associations
+        await supabase
+          .from("question_department_types")
+          .delete()
+          .eq("question_id", questionId);
+
+        // Insert new associations
+        const associations = formData.department_type_ids.map(typeId => ({
+          question_id: questionId,
+          department_type_id: typeId,
+        }));
+
+        const { error: assocError } = await supabase
+          .from("question_department_types")
+          .insert(associations);
+
+        if (assocError) throw assocError;
       }
 
       await loadQuestions();
@@ -334,6 +407,35 @@ export const QuestionManagementDialog = () => {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label>Department Types *</Label>
+                <div className="flex flex-wrap gap-2 p-3 border rounded-md">
+                  {departmentTypes.map(type => (
+                    <label key={type.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.department_type_ids.includes(type.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              department_type_ids: [...formData.department_type_ids, type.id]
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              department_type_ids: formData.department_type_ids.filter(id => id !== type.id)
+                            });
+                          }
+                        }}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{type.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <Button onClick={handleSave} disabled={isSaving}>
                   <Save className="mr-2 h-4 w-4" />
@@ -358,10 +460,19 @@ export const QuestionManagementDialog = () => {
                     <Card key={question.id} className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 space-y-2">
-                          <div className="flex items-start gap-2">
-                            <p className="font-medium">{question.question_text}</p>
+                          <div className="flex items-start gap-2 flex-wrap">
+                            <p className="font-medium flex-1">{question.question_text}</p>
                             <span className="text-xs bg-muted px-2 py-1 rounded">{question.answer_type}</span>
                           </div>
+                          {question.department_types && question.department_types.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {question.department_types.map(dt => (
+                                <span key={dt.id} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                  {dt.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {question.answer_description && (
                             <p className="text-sm text-muted-foreground">{question.answer_description}</p>
                           )}

@@ -39,12 +39,14 @@ interface HistoryEntry {
 interface DepartmentQuestionnaireDialogProps {
   departmentId: string;
   departmentName: string;
+  departmentTypeId?: string;
   managerEmail?: string;
 }
 
 export const DepartmentQuestionnaireDialog = ({
   departmentId,
   departmentName,
+  departmentTypeId,
   managerEmail,
 }: DepartmentQuestionnaireDialogProps) => {
   const [open, setOpen] = useState(false);
@@ -64,12 +66,20 @@ export const DepartmentQuestionnaireDialog = ({
 
   const loadQuestionsAndAnswers = async () => {
     try {
-      // Load questions
-      const { data: questionsData, error: questionsError } = await supabase
+      // Load questions filtered by department type
+      let query = supabase
         .from("department_questions")
-        .select("*")
-        .eq("is_active", true)
-        .order("display_order");
+        .select(`
+          *,
+          question_department_types!inner(department_type_id)
+        `)
+        .eq("is_active", true);
+
+      if (departmentTypeId) {
+        query = query.eq("question_department_types.department_type_id", departmentTypeId);
+      }
+
+      const { data: questionsData, error: questionsError } = await query.order("display_order");
 
       if (questionsError) throw questionsError;
       setQuestions(questionsData || []);
