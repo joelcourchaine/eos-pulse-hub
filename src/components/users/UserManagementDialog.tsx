@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Loader2, Save, UserPlus, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AddUserDialog } from "./AddUserDialog";
@@ -227,6 +228,27 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     setDeleteDialogOpen(true);
   };
 
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'department_manager':
+        return 'hsl(142 76% 36%)'; // Green
+      case 'service_advisor':
+        return 'hsl(221 83% 53%)'; // Blue
+      case 'technician':
+        return 'hsl(25 95% 53%)'; // Orange
+      default:
+        return 'hsl(var(--muted))';
+    }
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
   return (
     <>
       <AddUserDialog 
@@ -278,11 +300,21 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                 {profiles.map((profile) => (
                   <TableRow key={profile.id}>
                     <TableCell>
-                      <Input
-                        value={profile.full_name}
-                        onChange={(e) => updateProfileField(profile.id, "full_name", e.target.value)}
-                        className="h-8"
-                      />
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback 
+                            style={{ backgroundColor: getRoleColor(profile.user_role || profile.role) }}
+                            className="text-white text-xs font-medium"
+                          >
+                            {getInitials(profile.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <Input
+                          value={profile.full_name}
+                          onChange={(e) => updateProfileField(profile.id, "full_name", e.target.value)}
+                          className="h-8"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {profile.email}
