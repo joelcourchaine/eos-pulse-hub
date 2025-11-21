@@ -15,6 +15,7 @@ import { format } from "date-fns";
 
 type FilterMode = "group" | "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
+type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ export default function Enterprise() {
   const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("targets");
 
   const { data: storeGroups } = useQuery({
     queryKey: ["store_groups"],
@@ -494,6 +496,22 @@ export default function Enterprise() {
 
               {metricType === "financial" && (
                 <div>
+                  <label className="text-sm font-medium mb-2 block">Compare Against</label>
+                  <Select value={comparisonMode} onValueChange={(v) => setComparisonMode(v as ComparisonMode)}>
+                    <SelectTrigger className="bg-background z-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="targets">Store Targets</SelectItem>
+                      <SelectItem value="current_year_avg">Current Year Average</SelectItem>
+                      <SelectItem value="previous_year">Same Month Last Year</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {metricType === "financial" && (
+                <div>
                   <label className="text-sm font-medium mb-2 block">Month</label>
                   <Select 
                     value={format(selectedMonth, "yyyy-MM")} 
@@ -571,6 +589,8 @@ export default function Enterprise() {
                         metricType,
                         selectedMetrics,
                         selectedMonth: format(selectedMonth, "yyyy-MM"),
+                        comparisonMode,
+                        departmentIds,
                       }
                     })}
                     disabled={filteredStores.length === 0 || selectedMetrics.length === 0}

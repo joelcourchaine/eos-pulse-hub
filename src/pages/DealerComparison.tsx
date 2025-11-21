@@ -39,11 +39,13 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics, selectedMonth } = location.state as {
+  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds } = location.state as {
     data: ComparisonData[];
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
+    comparisonMode?: string;
+    departmentIds?: string[];
   };
 
   // Initialize with passed data
@@ -53,8 +55,11 @@ export default function DealerComparison() {
 
   // Extract department IDs from the data
   const departmentIds = useMemo(() => {
+    if (initialDepartmentIds && initialDepartmentIds.length > 0) {
+      return initialDepartmentIds;
+    }
     return Array.from(new Set(comparisonData.map(d => d.departmentId).filter(Boolean))) as string[];
-  }, [comparisonData]);
+  }, [comparisonData, initialDepartmentIds]);
 
   // Create metric key map for financial metrics
   const metricKeyMap = useMemo(() => {
@@ -106,7 +111,47 @@ export default function DealerComparison() {
       if (error) throw error;
       return data;
     },
-    enabled: departmentIds.length > 0 && metricType === "financial",
+    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "targets",
+  });
+
+  // Fetch current year average data
+  const { data: currentYearData } = useQuery({
+    queryKey: ["dealer_comparison_year_avg", departmentIds, selectedMonth],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return [];
+      const year = selectedMonth ? new Date(selectedMonth + '-15').getFullYear() : new Date().getFullYear();
+      
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*, departments(id, name, store_id, stores(name))")
+        .in("department_id", departmentIds)
+        .gte("month", `${year}-01`)
+        .lte("month", `${year}-12`);
+      if (error) throw error;
+      return data;
+    },
+    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "current_year_avg",
+  });
+
+  // Fetch previous year same month data
+  const { data: previousYearData } = useQuery({
+    queryKey: ["dealer_comparison_prev_year", departmentIds, selectedMonth],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return [];
+      const currentDate = selectedMonth ? new Date(selectedMonth + '-15') : new Date();
+      const prevYear = currentDate.getFullYear() - 1;
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const prevYearMonth = `${prevYear}-${month}`;
+      
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*, departments(id, name, store_id, stores(name))")
+        .in("department_id", departmentIds)
+        .eq("month", prevYearMonth);
+      if (error) throw error;
+      return data;
+    },
+    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "previous_year",
   });
 
   // Fetch KPI data for polling
@@ -160,15 +205,42 @@ export default function DealerComparison() {
         keyToDef.set(m.key, m);
       });
       
-      // Build a map of targets by department + metric
-      const targetMap = new Map<string, { value: number; direction: string }>();
-      if (financialTargets) {
+      // Build comparison baseline map (targets, averages, or previous year)
+      const comparisonMap = new Map<string, { value: number; direction?: string }>();
+      
+      if (comparisonMode === "targets" && financialTargets) {
         financialTargets.forEach(target => {
           const key = `${target.department_id}-${target.metric_name}`;
-          targetMap.set(key, {
+          comparisonMap.set(key, {
             value: Number(target.target_value),
             direction: target.target_direction
           });
+        });
+      } else if (comparisonMode === "current_year_avg" && currentYearData) {
+        // Calculate averages for each department + metric
+        const sums = new Map<string, { total: number; count: number }>();
+        currentYearData.forEach(entry => {
+          const deptId = (entry as any)?.departments?.id;
+          const key = `${deptId}-${entry.metric_name}`;
+          const current = sums.get(key) || { total: 0, count: 0 };
+          if (entry.value !== null) {
+            current.total += Number(entry.value);
+            current.count += 1;
+          }
+          sums.set(key, current);
+        });
+        sums.forEach((sum, key) => {
+          if (sum.count > 0) {
+            comparisonMap.set(key, { value: sum.total / sum.count });
+          }
+        });
+      } else if (comparisonMode === "previous_year" && previousYearData) {
+        previousYearData.forEach(entry => {
+          const deptId = (entry as any)?.departments?.id;
+          const key = `${deptId}-${entry.metric_name}`;
+          if (entry.value !== null) {
+            comparisonMap.set(key, { value: Number(entry.value) });
+          }
         });
       }
       
@@ -184,9 +256,9 @@ export default function DealerComparison() {
         const deptName = (entry as any)?.departments?.name;
         const key = `${storeId}-${deptId}-${entry.metric_name}`;
         
-        // Get target for this metric
-        const targetKey = `${deptId}-${entry.metric_name}`;
-        const targetInfo = targetMap.get(targetKey);
+        // Get comparison baseline for this metric
+        const comparisonKey = `${deptId}-${entry.metric_name}`;
+        const comparisonInfo = comparisonMap.get(comparisonKey);
         
         dataMap[key] = {
           storeId,
@@ -195,20 +267,21 @@ export default function DealerComparison() {
           departmentName: deptName,
           metricName,
           value: entry.value ? Number(entry.value) : null,
-          target: targetInfo?.value || null,
+          target: comparisonInfo?.value || null,
           variance: null,
         };
         
-        // Calculate variance if both value and target exist
+        // Calculate variance if both value and comparison baseline exist
         if (dataMap[key].value !== null && dataMap[key].target !== null) {
           const value = dataMap[key].value!;
-          const target = dataMap[key].target!;
+          const baseline = dataMap[key].target!;
           const metricDef = keyToDef.get(entry.metric_name);
           
-          if (target !== 0) {
-            const variance = ((value - target) / Math.abs(target)) * 100;
+          if (baseline !== 0) {
+            const variance = ((value - baseline) / Math.abs(baseline)) * 100;
             // Reverse sign if target direction is "below" (lower is better)
-            dataMap[key].variance = metricDef?.targetDirection === 'below' ? -variance : variance;
+            const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+            dataMap[key].variance = shouldReverse ? -variance : variance;
           }
         }
       });
@@ -286,9 +359,9 @@ export default function DealerComparison() {
             }
             
             if (value !== null) {
-              // Get target for calculated metric
-              const targetKey = `${deptId}-${metricKey}`;
-              const targetInfo = targetMap.get(targetKey);
+              // Get comparison baseline for calculated metric
+              const comparisonKey = `${deptId}-${metricKey}`;
+              const comparisonInfo = comparisonMap.get(comparisonKey);
               
               dataMap[key] = {
                 storeId,
@@ -297,14 +370,15 @@ export default function DealerComparison() {
                 departmentName: sampleEntry.departmentName,
                 metricName,
                 value,
-                target: targetInfo?.value || null,
+                target: comparisonInfo?.value || null,
                 variance: null,
               };
               
               // Calculate variance for calculated metrics
-              if (targetInfo && targetInfo.value !== 0) {
-                const variance = ((value - targetInfo.value) / Math.abs(targetInfo.value)) * 100;
-                dataMap[key].variance = metricDef?.targetDirection === 'below' ? -variance : variance;
+              if (comparisonInfo && comparisonInfo.value !== 0) {
+                const variance = ((value - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+                dataMap[key].variance = shouldReverse ? -variance : variance;
               }
             }
           });
@@ -320,7 +394,7 @@ export default function DealerComparison() {
       setComparisonData(result);
       setLastRefresh(new Date());
     }
-  }, [financialEntries, financialTargets, metricType, selectedMetrics]);
+  }, [financialEntries, financialTargets, currentYearData, previousYearData, metricType, selectedMetrics, comparisonMode]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
@@ -428,6 +502,10 @@ export default function DealerComparison() {
               {selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
                 format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
                 format(new Date(selectedMonth), 'MMMM yyyy')}`}
+              {" • "}
+              {comparisonMode === "targets" && "vs Store Targets"}
+              {comparisonMode === "current_year_avg" && "vs Current Year Average"}
+              {comparisonMode === "previous_year" && "vs Previous Year"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
