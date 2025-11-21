@@ -24,6 +24,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [storeGroupId, setStoreGroupId] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [birthdayMonth, setBirthdayMonth] = useState<string>("");
   const [birthdayDay, setBirthdayDay] = useState<string>("");
   const [startMonth, setStartMonth] = useState<string>("");
@@ -42,8 +43,11 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
     if (open) {
       loadStores();
       loadStoreGroups();
+      if (currentStoreId) {
+        loadDepartments(currentStoreId);
+      }
     }
-  }, [open]);
+  }, [open, currentStoreId]);
 
   const loadStores = async () => {
     const { data, error } = await supabase
@@ -64,6 +68,17 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
     
     if (!error && data) {
       setStoreGroups(data);
+    }
+  };
+
+  const loadDepartments = async (storeId: string) => {
+    const { data, error } = await supabase
+      .from("departments")
+      .select("*, department_types(name)")
+      .eq("store_id", storeId);
+    
+    if (!error && data) {
+      setDepartments(data);
     }
   };
 
@@ -167,6 +182,15 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 <SelectItem value="store_gm">Store GM</SelectItem>
                 <SelectItem value="department_manager">Department Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
+                {departments.some(d => d.department_types?.name?.toLowerCase().includes('service')) && (
+                  <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                )}
+                {departments.some(d => d.department_types?.name?.toLowerCase().includes('parts')) && (
+                  <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
+                )}
+                {departments.some(d => d.department_types?.name?.toLowerCase().includes('sales')) && (
+                  <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -178,7 +202,12 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
                 <Select value={storeId || "none"} onValueChange={(value) => {
                   setStoreId(value === "none" ? "" : value);
-                  if (value !== "none") setStoreGroupId(""); // Clear group if store selected
+                  if (value !== "none") {
+                    setStoreGroupId(""); // Clear group if store selected
+                    loadDepartments(value); // Load departments for the selected store
+                  } else {
+                    setDepartments([]); // Clear departments if no store selected
+                  }
                 }}>
                   <SelectTrigger id="store">
                     <SelectValue placeholder="Select store" />

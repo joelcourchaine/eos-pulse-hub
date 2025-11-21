@@ -8,7 +8,7 @@ const corsHeaders = {
 interface CreateUserRequest {
   email: string;
   full_name: string;
-  role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only';
+  role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'parts_advisor';
   store_id?: string;
   store_group_id?: string;
   birthday_month?: number;
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     let { email, full_name, role, store_id, store_group_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
 
     // SECURITY: Validate role
-    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only'];
+    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'parts_advisor'];
     if (!validRoles.includes(role)) {
       return new Response(
         JSON.stringify({ 
