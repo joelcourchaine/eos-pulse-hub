@@ -270,12 +270,29 @@ export const DepartmentQuestionnaireDialog = ({
 
     setIsSendingEmail(true);
     try {
+      // Get current user's name
+      const { data: { user } } = await supabase.auth.getUser();
+      let senderName = "Your manager";
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        
+        if (profile?.full_name) {
+          senderName = profile.full_name;
+        }
+      }
+
       const { error } = await supabase.functions.invoke("send-questionnaire-email", {
         body: {
           departmentId,
           departmentName,
           managerEmail,
           questions,
+          senderName,
         },
       });
 
