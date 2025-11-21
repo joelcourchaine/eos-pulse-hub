@@ -88,6 +88,27 @@ export default function DealerComparison() {
     refetchInterval: 60000, // Poll every 60 seconds
   });
 
+  // Fetch financial targets
+  const { data: financialTargets } = useQuery({
+    queryKey: ["dealer_comparison_targets", departmentIds, selectedMonth],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return [];
+      const monthDate = selectedMonth ? new Date(selectedMonth + '-15') : new Date();
+      const quarter = Math.ceil((monthDate.getMonth() + 1) / 3);
+      const year = monthDate.getFullYear();
+      
+      const { data, error } = await supabase
+        .from("financial_targets")
+        .select("*")
+        .in("department_id", departmentIds)
+        .eq("quarter", quarter)
+        .eq("year", year);
+      if (error) throw error;
+      return data;
+    },
+    enabled: departmentIds.length > 0 && metricType === "financial",
+  });
+
   // Fetch KPI data for polling
   const { data: kpiDefinitions, refetch: refetchKPIs } = useQuery({
     queryKey: ["dealer_comparison_kpis", departmentIds],
@@ -139,6 +160,18 @@ export default function DealerComparison() {
         keyToDef.set(m.key, m);
       });
       
+      // Build a map of targets by department + metric
+      const targetMap = new Map<string, { value: number; direction: string }>();
+      if (financialTargets) {
+        financialTargets.forEach(target => {
+          const key = `${target.department_id}-${target.metric_name}`;
+          targetMap.set(key, {
+            value: Number(target.target_value),
+            direction: target.target_direction
+          });
+        });
+      }
+      
       // Build a map of all data by store+dept+metric key
       const dataMap: Record<string, ComparisonData> = {};
       
@@ -151,6 +184,10 @@ export default function DealerComparison() {
         const deptName = (entry as any)?.departments?.name;
         const key = `${storeId}-${deptId}-${entry.metric_name}`;
         
+        // Get target for this metric
+        const targetKey = `${deptId}-${entry.metric_name}`;
+        const targetInfo = targetMap.get(targetKey);
+        
         dataMap[key] = {
           storeId,
           storeName,
@@ -158,9 +195,22 @@ export default function DealerComparison() {
           departmentName: deptName,
           metricName,
           value: entry.value ? Number(entry.value) : null,
-          target: null,
+          target: targetInfo?.value || null,
           variance: null,
         };
+        
+        // Calculate variance if both value and target exist
+        if (dataMap[key].value !== null && dataMap[key].target !== null) {
+          const value = dataMap[key].value!;
+          const target = dataMap[key].target!;
+          const metricDef = keyToDef.get(entry.metric_name);
+          
+          if (target !== 0) {
+            const variance = ((value - target) / Math.abs(target)) * 100;
+            // Reverse sign if target direction is "below" (lower is better)
+            dataMap[key].variance = metricDef?.targetDirection === 'below' ? -variance : variance;
+          }
+        }
       });
       
       // Group by store+department for calculations
@@ -236,6 +286,10 @@ export default function DealerComparison() {
             }
             
             if (value !== null) {
+              // Get target for calculated metric
+              const targetKey = `${deptId}-${metricKey}`;
+              const targetInfo = targetMap.get(targetKey);
+              
               dataMap[key] = {
                 storeId,
                 storeName: sampleEntry.storeName,
@@ -243,9 +297,15 @@ export default function DealerComparison() {
                 departmentName: sampleEntry.departmentName,
                 metricName,
                 value,
-                target: null,
+                target: targetInfo?.value || null,
                 variance: null,
               };
+              
+              // Calculate variance for calculated metrics
+              if (targetInfo && targetInfo.value !== 0) {
+                const variance = ((value - targetInfo.value) / Math.abs(targetInfo.value)) * 100;
+                dataMap[key].variance = metricDef?.targetDirection === 'below' ? -variance : variance;
+              }
             }
           });
         });
@@ -260,7 +320,7 @@ export default function DealerComparison() {
       setComparisonData(result);
       setLastRefresh(new Date());
     }
-  }, [financialEntries, metricType, selectedMetrics]);
+  }, [financialEntries, financialTargets, metricType, selectedMetrics]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
@@ -321,8 +381,12 @@ export default function DealerComparison() {
 
   const getVarianceColor = (variance: number | null) => {
     if (variance === null) return "secondary";
-    if (variance >= 0) return "default";
-    return "destructive";
+    // Green: 10% or more above target
+    if (variance >= 10) return "default"; // Green indicator
+    // Yellow: Within ±10% of target  
+    if (variance >= -10) return "secondary"; // Yellow indicator
+    // Red: More than 10% below target
+    return "destructive"; // Red indicator
   };
 
   const formatValue = (value: number | null, metricName: string) => {
