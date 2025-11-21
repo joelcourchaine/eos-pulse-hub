@@ -112,7 +112,7 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
     mutationFn: async ({ departmentId, newManagerId }: { departmentId: string; newManagerId: string }) => {
       const { error } = await supabase
         .from('departments')
-        .update({ manager_id: newManagerId || null })
+        .update({ manager_id: newManagerId === "none" ? null : newManagerId })
         .eq('id', departmentId);
       if (error) throw error;
     },
@@ -215,7 +215,7 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                               <SelectValue placeholder="Select manager" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">No manager</SelectItem>
+                              <SelectItem value="none">No manager</SelectItem>
                               {users?.map((user) => (
                                 <SelectItem key={user.id} value={user.id}>
                                   {user.full_name}
@@ -223,11 +223,11 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                               ))}
                             </SelectContent>
                           </Select>
-                          <Button
+                           <Button
                             size="sm"
                             onClick={() => updateManagerMutation.mutate({ 
                               departmentId: dept.id, 
-                              newManagerId: editingManagerId 
+                              newManagerId: editingManagerId === "none" ? "none" : editingManagerId 
                             })}
                             disabled={updateManagerMutation.isPending}
                           >
@@ -255,7 +255,7 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                             className="h-6 px-2 text-xs"
                             onClick={() => {
                               setEditingDepartmentId(dept.id);
-                              setEditingManagerId(dept.manager_id || "");
+                              setEditingManagerId(dept.manager_id || "none");
                             }}
                           >
                             Edit
