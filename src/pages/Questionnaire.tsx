@@ -81,13 +81,20 @@ export default function Questionnaire() {
         .eq("is_active", true)
         .order("display_order");
 
-      if (questionsError) throw questionsError;
+      console.log("Questions lookup result:", { questionsData, questionsError });
+
+      if (questionsError) {
+        console.error("Questions error:", questionsError);
+        throw questionsError;
+      }
 
       // Load existing answers
-      const { data: answersData } = await supabase
+      const { data: answersData, error: answersError } = await supabase
         .from("department_answers")
         .select("question_id, answer_value")
         .eq("department_id", department.id);
+
+      console.log("Answers lookup result:", { answersData, answersError });
 
       // Convert answers array to object
       const answersMap: Record<string, string> = {};
