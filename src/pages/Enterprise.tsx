@@ -188,20 +188,30 @@ export default function Enterprise() {
       const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
       console.log("Financial entries filtered:", filtered.length, "Selected keys:", selectedKeys);
       
-      return filtered.map(entry => {
-        // Find the display name for this metric key
+      // Group by store + department + metric to get the most recent entry
+      const groupedByKey = filtered.reduce((acc, entry) => {
         const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
-        return {
-          storeId: (entry as any)?.departments?.store_id || "",
-          storeName: (entry as any)?.departments?.stores?.name || "",
-          departmentId: (entry as any)?.departments?.id,
-          departmentName: (entry as any)?.departments?.name,
-          metricName: metricDisplayName,
-          value: entry.value ? Number(entry.value) : null,
-          target: null,
-          variance: null,
-        };
-      });
+        const departmentId = (entry as any)?.departments?.id;
+        const storeId = (entry as any)?.departments?.store_id;
+        const key = `${storeId}-${departmentId}-${entry.metric_name}`;
+        
+        // Only keep the most recent entry (data is ordered by month descending)
+        if (!acc[key]) {
+          acc[key] = {
+            storeId: storeId || "",
+            storeName: (entry as any)?.departments?.stores?.name || "",
+            departmentId: departmentId,
+            departmentName: (entry as any)?.departments?.name,
+            metricName: metricDisplayName,
+            value: entry.value ? Number(entry.value) : null,
+            target: null,
+            variance: null,
+          };
+        }
+        return acc;
+      }, {} as Record<string, any>);
+      
+      return Object.values(groupedByKey);
     } else if (kpiDefinitions && scorecardEntries) {
       console.log("Processing KPI data");
       const mapped = scorecardEntries
