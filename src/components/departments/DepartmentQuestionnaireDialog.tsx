@@ -6,11 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2 } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsList as TabsTriggers, TabsTrigger } from "@/components/ui/tabs";
+import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2, Plus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Question {
   id: string;
@@ -20,6 +21,12 @@ interface Question {
   display_order: number;
   answer_description: string | null;
   reference_image_url: string | null;
+  department_types?: { id: string; name: string }[];
+}
+
+interface DepartmentType {
+  id: string;
+  name: string;
 }
 
 interface Answer {
@@ -54,21 +61,54 @@ export const DepartmentQuestionnaireDialog = ({
 }: DepartmentQuestionnaireDialogProps) => {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<{ question_text: string; answer_description: string }>({ question_text: "", answer_description: "" });
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [editForm, setEditForm] = useState<{ 
+    question_text: string; 
+    answer_description: string;
+    question_category: string;
+    answer_type: string;
+    display_order: number;
+    department_type_ids: string[];
+  }>({ 
+    question_text: "", 
+    answer_description: "",
+    question_category: "",
+    answer_type: "text",
+    display_order: 0,
+    department_type_ids: [],
+  });
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
+      if (isSuperAdmin) {
+        loadDepartmentTypes();
+      }
       loadQuestionsAndAnswers();
       loadHistory();
     }
   }, [open, departmentId]);
+
+  const loadDepartmentTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("department_types")
+        .select("id, name")
+        .order("display_order");
+
+      if (error) throw error;
+      setDepartmentTypes(data || []);
+    } catch (error) {
+      console.error("Error loading department types:", error);
+    }
+  };
 
   const loadQuestionsAndAnswers = async () => {
     try {
@@ -77,7 +117,10 @@ export const DepartmentQuestionnaireDialog = ({
         .from("department_questions")
         .select(`
           *,
-          question_department_types!inner(department_type_id)
+          question_department_types!inner(
+            department_type_id,
+            department_types(id, name)
+          )
         `)
         .eq("is_active", true);
 
@@ -88,7 +131,13 @@ export const DepartmentQuestionnaireDialog = ({
       const { data: questionsData, error: questionsError } = await query.order("display_order");
 
       if (questionsError) throw questionsError;
-      setQuestions(questionsData || []);
+      
+      const formattedQuestions = questionsData?.map((q: any) => ({
+        ...q,
+        department_types: q.question_department_types?.map((qdt: any) => qdt.department_types).filter(Boolean) || [],
+      })) || [];
+      
+      setQuestions(formattedQuestions);
 
       // Load existing answers
       const { data: answersData, error: answersError } = await supabase
@@ -243,37 +292,145 @@ export const DepartmentQuestionnaireDialog = ({
 
   const handleEditQuestion = (question: Question) => {
     setEditingQuestionId(question.id);
+    setIsAddingNew(false);
     setEditForm({
       question_text: question.question_text,
       answer_description: question.answer_description || "",
+      question_category: question.question_category,
+      answer_type: question.answer_type,
+      display_order: question.display_order,
+      department_type_ids: question.department_types?.map(dt => dt.id) || [],
+    });
+  };
+
+  const handleAddNew = () => {
+    setIsAddingNew(true);
+    setEditingQuestionId(null);
+    setEditForm({
+      question_text: "",
+      answer_description: "",
+      question_category: "",
+      answer_type: "text",
+      display_order: questions.length + 1,
+      department_type_ids: departmentTypeId ? [departmentTypeId] : [],
     });
   };
 
   const handleCancelEdit = () => {
     setEditingQuestionId(null);
-    setEditForm({ question_text: "", answer_description: "" });
+    setIsAddingNew(false);
+    setEditForm({ 
+      question_text: "", 
+      answer_description: "",
+      question_category: "",
+      answer_type: "text",
+      display_order: 0,
+      department_type_ids: [],
+    });
   };
 
-  const handleSaveQuestion = async (questionId: string) => {
+  const handleSaveQuestion = async (questionId?: string) => {
+    if (!editForm.question_text || !editForm.question_category) {
+      toast({
+        title: "Validation Error",
+        description: "Question text and category are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (editForm.department_type_ids.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one department type.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from("department_questions")
-        .update({
-          question_text: editForm.question_text,
-          answer_description: editForm.answer_description || null,
-        })
-        .eq("id", questionId);
+      let finalQuestionId = questionId;
 
-      if (error) throw error;
+      if (isAddingNew) {
+        const { data, error } = await supabase
+          .from("department_questions")
+          .insert({
+            question_text: editForm.question_text,
+            question_category: editForm.question_category,
+            answer_type: editForm.answer_type,
+            answer_description: editForm.answer_description || null,
+            display_order: editForm.display_order,
+          })
+          .select()
+          .single();
 
-      toast({ title: "Success", description: "Question updated successfully." });
+        if (error) throw error;
+        finalQuestionId = data.id;
+        toast({ title: "Success", description: "Question added successfully." });
+      } else if (questionId) {
+        const { error } = await supabase
+          .from("department_questions")
+          .update({
+            question_text: editForm.question_text,
+            question_category: editForm.question_category,
+            answer_type: editForm.answer_type,
+            answer_description: editForm.answer_description || null,
+            display_order: editForm.display_order,
+          })
+          .eq("id", questionId);
+
+        if (error) throw error;
+        toast({ title: "Success", description: "Question updated successfully." });
+      }
+
+      // Update department type associations
+      if (finalQuestionId) {
+        await supabase
+          .from("question_department_types")
+          .delete()
+          .eq("question_id", finalQuestionId);
+
+        const associations = editForm.department_type_ids.map(typeId => ({
+          question_id: finalQuestionId,
+          department_type_id: typeId,
+        }));
+
+        const { error: assocError } = await supabase
+          .from("question_department_types")
+          .insert(associations);
+
+        if (assocError) throw assocError;
+      }
+
       await loadQuestionsAndAnswers();
       handleCancelEdit();
     } catch (error) {
-      console.error("Error updating question:", error);
+      console.error("Error saving question:", error);
       toast({
         title: "Error",
-        description: "Failed to update question.",
+        description: "Failed to save question.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteQuestion = async (questionId: string) => {
+    if (!confirm("Are you sure you want to delete this question?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("department_questions")
+        .delete()
+        .eq("id", questionId);
+
+      if (error) throw error;
+      toast({ title: "Success", description: "Question deleted successfully." });
+      await loadQuestionsAndAnswers();
+    } catch (error) {
+      console.error("Error deleting question:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete question.",
         variant: "destructive",
       });
     }
@@ -386,14 +543,49 @@ export const DepartmentQuestionnaireDialog = ({
       return (
         <Card className="p-4 mb-4 border-primary">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Question Text</Label>
-              <Input
-                value={editForm.question_text}
-                onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
-                placeholder="Enter question..."
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Question Text *</Label>
+                <Input
+                  value={editForm.question_text}
+                  onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
+                  placeholder="Enter question..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Category *</Label>
+                <Input
+                  value={editForm.question_category}
+                  onChange={(e) => setEditForm({ ...editForm, question_category: e.target.value })}
+                  placeholder="e.g., Service Rates"
+                />
+              </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Answer Type</Label>
+                <Select value={editForm.answer_type} onValueChange={(val) => setEditForm({ ...editForm, answer_type: val })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="text">Text</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                    <SelectItem value="textarea">Long Text</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Display Order</Label>
+                <Input
+                  type="number"
+                  value={editForm.display_order}
+                  onChange={(e) => setEditForm({ ...editForm, display_order: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Answer Description (Help text)</Label>
               <Textarea
@@ -403,6 +595,36 @@ export const DepartmentQuestionnaireDialog = ({
                 rows={2}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>Department Types *</Label>
+              <div className="flex flex-wrap gap-2 p-3 border rounded-md">
+                {departmentTypes.map(type => (
+                  <label key={type.id} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editForm.department_type_ids.includes(type.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setEditForm({
+                            ...editForm,
+                            department_type_ids: [...editForm.department_type_ids, type.id]
+                          });
+                        } else {
+                          setEditForm({
+                            ...editForm,
+                            department_type_ids: editForm.department_type_ids.filter(id => id !== type.id)
+                          });
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-sm">{type.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Button onClick={() => handleSaveQuestion(question.id)} size="sm">
                 <Save className="mr-2 h-4 w-4" />
@@ -423,14 +645,24 @@ export const DepartmentQuestionnaireDialog = ({
         <div className="flex items-start justify-between gap-2">
           <Label htmlFor={question.id} className="flex-1">{question.question_text}</Label>
           {isSuperAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEditQuestion(question)}
-              className="h-8 w-8 p-0"
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleEditQuestion(question)}
+                className="h-8 w-8 p-0"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteQuestion(question.id)}
+                className="h-8 w-8 p-0 text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           )}
         </div>
         {question.answer_description && (
@@ -509,6 +741,12 @@ export const DepartmentQuestionnaireDialog = ({
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save All Answers"}
               </Button>
+              {isSuperAdmin && (
+                <Button onClick={handleAddNew} disabled={isAddingNew || editingQuestionId !== null} variant="outline">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Question
+                </Button>
+              )}
               {managerEmail && (
                 <Button
                   variant="outline"
@@ -520,6 +758,105 @@ export const DepartmentQuestionnaireDialog = ({
                 </Button>
               )}
             </div>
+
+            {isAddingNew && isSuperAdmin && (
+              <Card className="p-4 mb-4 border-primary">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Question Text *</Label>
+                      <Input
+                        value={editForm.question_text}
+                        onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
+                        placeholder="Enter question..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Category *</Label>
+                      <Input
+                        value={editForm.question_category}
+                        onChange={(e) => setEditForm({ ...editForm, question_category: e.target.value })}
+                        placeholder="e.g., Service Rates"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Answer Type</Label>
+                      <Select value={editForm.answer_type} onValueChange={(val) => setEditForm({ ...editForm, answer_type: val })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="textarea">Long Text</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Display Order</Label>
+                      <Input
+                        type="number"
+                        value={editForm.display_order}
+                        onChange={(e) => setEditForm({ ...editForm, display_order: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Answer Description (Help text)</Label>
+                    <Textarea
+                      value={editForm.answer_description}
+                      onChange={(e) => setEditForm({ ...editForm, answer_description: e.target.value })}
+                      placeholder="Provide guidance on how to answer this question..."
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Department Types *</Label>
+                    <div className="flex flex-wrap gap-2 p-3 border rounded-md">
+                      {departmentTypes.map(type => (
+                        <label key={type.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editForm.department_type_ids.includes(type.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditForm({
+                                  ...editForm,
+                                  department_type_ids: [...editForm.department_type_ids, type.id]
+                                });
+                              } else {
+                                setEditForm({
+                                  ...editForm,
+                                  department_type_ids: editForm.department_type_ids.filter(id => id !== type.id)
+                                });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <span className="text-sm">{type.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={() => handleSaveQuestion()} size="sm">
+                      <Save className="mr-2 h-4 w-4" />
+                      Add Question
+                    </Button>
+                    <Button variant="outline" onClick={handleCancelEdit} size="sm">
+                      <X className="mr-2 h-4 w-4" />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
 
             {Object.entries(groupedQuestions).map(([category, categoryQuestions]) => (
               <Collapsible key={category} defaultOpen>
