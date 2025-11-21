@@ -263,18 +263,37 @@ export default function Enterprise() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-[1800px] mx-auto space-y-6">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <Building2 className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Enterprise View</h1>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <Building2 className="h-8 w-8 text-primary" />
+              <h1 className="text-3xl font-bold">Enterprise View</h1>
+            </div>
           </div>
+          <Button
+            onClick={() => {
+              const steveMarshallGroupId = "9fc8d816-7659-4b4b-9103-239901e69a25";
+              setFilterMode("group");
+              setSelectedGroupIds([steveMarshallGroupId]);
+              setMetricType("financial");
+              
+              // Select all financial metrics
+              const firstStore = stores?.find(s => s.group_id === steveMarshallGroupId);
+              const brand = firstStore?.brand || firstStore?.brands?.name || null;
+              const metrics = getMetricsForBrand(brand);
+              setSelectedMetrics(metrics.map((m: any) => m.name));
+            }}
+            disabled={!stores || stores.length === 0}
+          >
+            Steve Marshall Group Financial Summary
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
