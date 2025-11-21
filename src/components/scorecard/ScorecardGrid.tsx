@@ -11,6 +11,7 @@ import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, Re
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const PRESET_KPIS = [
   { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
@@ -182,6 +183,28 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const weeks = getWeekDates({ year, quarter });
   const months = getLast13Months();
   const allPeriods = viewMode === "weekly" ? weeks : months;
+
+  const getRoleColor = (role?: string) => {
+    if (!role) return 'hsl(var(--muted))';
+    switch (role) {
+      case 'department_manager':
+        return 'hsl(142 76% 36%)'; // Green
+      case 'service_advisor':
+        return 'hsl(221 83% 53%)'; // Blue
+      case 'technician':
+        return 'hsl(25 95% 53%)'; // Orange
+      default:
+        return 'hsl(var(--muted))';
+    }
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
   
   // Get current week's Monday to highlight it
   const today = new Date();
@@ -247,8 +270,24 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return;
     }
 
+    // Fetch user roles for each profile
+    const profilesWithRoles = await Promise.all(
+      (data || []).map(async (profile) => {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", profile.id)
+          .single();
+        
+        return {
+          ...profile,
+          role: roleData?.role
+        };
+      })
+    );
+
     const profilesMap: { [key: string]: Profile } = {};
-    data?.forEach(profile => {
+    profilesWithRoles.forEach(profile => {
       profilesMap[profile.id] = profile;
     });
     setProfiles(profilesMap);
@@ -1440,11 +1479,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         {canManageKPIs && (
                           <GripVertical className="h-4 w-4 text-muted-foreground" />
                         )}
-                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-semibold text-primary">
-                            {ownerInitials}
-                          </span>
-                        </div>
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback 
+                            style={{ backgroundColor: getRoleColor(owner?.role) }}
+                            className="text-white text-xs font-semibold"
+                          >
+                            {getInitials(ownerName)}
+                          </AvatarFallback>
+                        </Avatar>
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
