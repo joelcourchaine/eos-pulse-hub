@@ -13,6 +13,7 @@ interface Question {
   question_text: string;
   answer_type: string;
   answer_description: string | null;
+  reference_image_url: string | null;
 }
 
 interface Answer {
@@ -223,6 +224,13 @@ export default function Questionnaire() {
                   </label>
                   {question.answer_description && (
                     <p className="text-xs text-muted-foreground">{question.answer_description}</p>
+                  )}
+                  {question.reference_image_url && (
+                    <img 
+                      src={question.reference_image_url} 
+                      alt="Reference" 
+                      className="mt-2 max-w-md rounded-lg border border-border"
+                    />
                   )}
                   
                   {question.answer_type === "textarea" ? (
