@@ -124,20 +124,30 @@ export default function DealerComparison() {
       const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
       const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
       
-      const updatedData = filtered.map(entry => {
+      // Group by store + department + metric to get unique entries (same logic as Enterprise page)
+      const groupedByKey = filtered.reduce((acc, entry) => {
         const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
-        return {
-          storeId: (entry as any)?.departments?.store_id || "",
-          storeName: (entry as any)?.departments?.stores?.name || "",
-          departmentId: (entry as any)?.departments?.id,
-          departmentName: (entry as any)?.departments?.name,
-          metricName: metricDisplayName,
-          value: entry.value ? Number(entry.value) : null,
-          target: null,
-          variance: null,
-        };
-      });
-      setComparisonData(updatedData);
+        const departmentId = (entry as any)?.departments?.id;
+        const storeId = (entry as any)?.departments?.store_id;
+        const key = `${storeId}-${departmentId}-${entry.metric_name}`;
+        
+        // Only keep one entry per unique key
+        if (!acc[key]) {
+          acc[key] = {
+            storeId: storeId || "",
+            storeName: (entry as any)?.departments?.stores?.name || "",
+            departmentId: departmentId,
+            departmentName: (entry as any)?.departments?.name,
+            metricName: metricDisplayName,
+            value: entry.value ? Number(entry.value) : null,
+            target: null,
+            variance: null,
+          };
+        }
+        return acc;
+      }, {} as Record<string, ComparisonData>);
+      
+      setComparisonData(Object.values(groupedByKey));
       setLastRefresh(new Date());
     }
   }, [financialEntries, metricType, selectedMetrics, metricKeyMap]);
