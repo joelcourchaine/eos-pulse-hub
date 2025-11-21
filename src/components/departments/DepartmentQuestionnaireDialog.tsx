@@ -6,10 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ClipboardList, Save, History, Mail } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsList as TabsTriggers, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 interface Question {
   id: string;
@@ -41,6 +42,7 @@ interface DepartmentQuestionnaireDialogProps {
   departmentName: string;
   departmentTypeId?: string;
   managerEmail?: string;
+  isSuperAdmin?: boolean;
 }
 
 export const DepartmentQuestionnaireDialog = ({
@@ -48,6 +50,7 @@ export const DepartmentQuestionnaireDialog = ({
   departmentName,
   departmentTypeId,
   managerEmail,
+  isSuperAdmin = false,
 }: DepartmentQuestionnaireDialogProps) => {
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -55,6 +58,9 @@ export const DepartmentQuestionnaireDialog = ({
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ question_text: string; answer_description: string }>({ question_text: "", answer_description: "" });
+  const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -235,6 +241,112 @@ export const DepartmentQuestionnaireDialog = ({
     }
   };
 
+  const handleEditQuestion = (question: Question) => {
+    setEditingQuestionId(question.id);
+    setEditForm({
+      question_text: question.question_text,
+      answer_description: question.answer_description || "",
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingQuestionId(null);
+    setEditForm({ question_text: "", answer_description: "" });
+  };
+
+  const handleSaveQuestion = async (questionId: string) => {
+    try {
+      const { error } = await supabase
+        .from("department_questions")
+        .update({
+          question_text: editForm.question_text,
+          answer_description: editForm.answer_description || null,
+        })
+        .eq("id", questionId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Question updated successfully." });
+      await loadQuestionsAndAnswers();
+      handleCancelEdit();
+    } catch (error) {
+      console.error("Error updating question:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update question.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleImageUpload = async (questionId: string, file: File) => {
+    setUploadingImageFor(questionId);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${questionId}-${Date.now()}.${fileExt}`;
+      const filePath = `question-references/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("note-attachments")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("note-attachments")
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from("department_questions")
+        .update({ reference_image_url: publicUrl })
+        .eq("id", questionId);
+
+      if (updateError) throw updateError;
+
+      toast({ title: "Success", description: "Reference image uploaded successfully." });
+      await loadQuestionsAndAnswers();
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast({
+        title: "Error",
+        description: "Failed to upload reference image.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingImageFor(null);
+    }
+  };
+
+  const handleRemoveImage = async (questionId: string, imageUrl: string) => {
+    try {
+      const urlParts = imageUrl.split("/");
+      const filePath = `question-references/${urlParts[urlParts.length - 1]}`;
+
+      const { error: deleteError } = await supabase.storage
+        .from("note-attachments")
+        .remove([filePath]);
+
+      if (deleteError) console.error("Error deleting file:", deleteError);
+
+      const { error: updateError } = await supabase
+        .from("department_questions")
+        .update({ reference_image_url: null })
+        .eq("id", questionId);
+
+      if (updateError) throw updateError;
+
+      toast({ title: "Success", description: "Reference image removed." });
+      await loadQuestionsAndAnswers();
+    } catch (error) {
+      console.error("Error removing image:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove image.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const groupedQuestions = questions.reduce((acc, question) => {
     if (!acc[question.question_category]) {
       acc[question.question_category] = [];
@@ -264,6 +376,108 @@ export const DepartmentQuestionnaireDialog = ({
         onChange={(e) => handleAnswerChange(question.id, e.target.value)}
         placeholder="Enter your answer..."
       />
+    );
+  };
+
+  const renderQuestionContent = (question: Question) => {
+    const isEditing = editingQuestionId === question.id;
+
+    if (isEditing && isSuperAdmin) {
+      return (
+        <Card className="p-4 mb-4 border-primary">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Question Text</Label>
+              <Input
+                value={editForm.question_text}
+                onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
+                placeholder="Enter question..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Answer Description (Help text)</Label>
+              <Textarea
+                value={editForm.answer_description}
+                onChange={(e) => setEditForm({ ...editForm, answer_description: e.target.value })}
+                placeholder="Provide guidance on how to answer this question..."
+                rows={2}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => handleSaveQuestion(question.id)} size="sm">
+                <Save className="mr-2 h-4 w-4" />
+                Save
+              </Button>
+              <Button variant="outline" onClick={handleCancelEdit} size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <Label htmlFor={question.id} className="flex-1">{question.question_text}</Label>
+          {isSuperAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleEditQuestion(question)}
+              className="h-8 w-8 p-0"
+            >
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        {question.answer_description && (
+          <p className="text-sm text-muted-foreground">{question.answer_description}</p>
+        )}
+        {question.reference_image_url && (
+          <div className="relative">
+            <img
+              src={question.reference_image_url}
+              alt="Reference"
+              className="max-w-md rounded-lg border mb-2"
+            />
+            {isSuperAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-2 right-2"
+                onClick={() => handleRemoveImage(question.id, question.reference_image_url!)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        )}
+        {isSuperAdmin && !question.reference_image_url && (
+          <div className="mt-2">
+            <Label htmlFor={`upload-${question.id}`} className="cursor-pointer">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                <Upload className="h-4 w-4" />
+                {uploadingImageFor === question.id ? "Uploading..." : "Add reference image"}
+              </div>
+            </Label>
+            <Input
+              id={`upload-${question.id}`}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(question.id, file);
+              }}
+              disabled={uploadingImageFor === question.id}
+            />
+          </div>
+        )}
+        {renderInput(question)}
+      </div>
     );
   };
 
@@ -315,19 +529,8 @@ export const DepartmentQuestionnaireDialog = ({
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-4">
                   {categoryQuestions.map((question) => (
-                    <div key={question.id} className="space-y-2">
-                      <Label htmlFor={question.id}>{question.question_text}</Label>
-                      {question.answer_description && (
-                        <p className="text-sm text-muted-foreground">{question.answer_description}</p>
-                      )}
-                      {question.reference_image_url && (
-                        <img
-                          src={question.reference_image_url}
-                          alt="Reference"
-                          className="max-w-md rounded-lg border mb-2"
-                        />
-                      )}
-                      {renderInput(question)}
+                    <div key={question.id}>
+                      {renderQuestionContent(question)}
                     </div>
                   ))}
                 </CollapsibleContent>

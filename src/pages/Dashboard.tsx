@@ -766,6 +766,7 @@ const Dashboard = () => {
                       departmentName={departments.find(d => d.id === selectedDepartment)?.name || "Department"}
                       departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
                       managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
+                      isSuperAdmin={profile?.role === 'super_admin'}
                     />
                     <KPIManagementDialog 
                       departmentId={selectedDepartment} 
