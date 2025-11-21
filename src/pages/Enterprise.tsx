@@ -182,6 +182,18 @@ export default function Enterprise() {
     return [];
   }, [metricType, kpiDefinitions, filteredStores]);
 
+  // Auto-select Service Department by default
+  useEffect(() => {
+    if (uniqueDepartmentNames.length > 0 && selectedDepartmentNames.length === 0) {
+      const serviceDept = uniqueDepartmentNames.find(name => 
+        name.toLowerCase().includes('service')
+      );
+      if (serviceDept) {
+        setSelectedDepartmentNames([serviceDept]);
+      }
+    }
+  }, [uniqueDepartmentNames]);
+
   // Auto-select all metrics when switching to financial type
   useEffect(() => {
     if (metricType === "financial" && availableMetrics.length > 0) {
