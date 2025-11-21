@@ -829,7 +829,7 @@ const Dashboard = () => {
         />
 
         {/* Director Notes Section */}
-        {selectedDepartment && (
+        {selectedDepartment && (profile?.role === 'super_admin' || profile?.role === 'store_gm') && (
           <DirectorNotes
             departmentId={selectedDepartment}
             userRole={profile?.role || ""}
