@@ -169,85 +169,87 @@ export default function DealerComparison() {
         storeDeptPairs.add(`${item.storeId}|${item.departmentId}`);
       });
       
-      // Calculate derived metrics for each store+dept
-      storeDeptPairs.forEach(pair => {
-        const [storeId, deptId] = pair.split('|');
-        
-        // Get all base values for this store+dept
-        const baseValues = new Map<string, number>();
-        Object.entries(dataMap).forEach(([key, data]) => {
-          if (data.storeId === storeId && data.departmentId === deptId && data.value !== null) {
-            const metricKey = nameToKey.get(data.metricName);
-            if (metricKey) {
-              baseValues.set(metricKey, data.value);
+      // Calculate derived metrics for each store+dept (do this in 2 passes to handle dependencies)
+      for (let pass = 0; pass < 2; pass++) {
+        storeDeptPairs.forEach(pair => {
+          const [storeId, deptId] = pair.split('|');
+          
+          // Get all values (including previously calculated ones) for this store+dept
+          const allValues = new Map<string, number>();
+          Object.entries(dataMap).forEach(([key, data]) => {
+            if (data.storeId === storeId && data.departmentId === deptId && data.value !== null) {
+              const metricKey = nameToKey.get(data.metricName);
+              if (metricKey) {
+                allValues.set(metricKey, data.value);
+              }
             }
-          }
+          });
+          
+          // Get sample entry for store/dept info
+          const sampleEntry = Object.values(dataMap).find(
+            d => d.storeId === storeId && d.departmentId === deptId
+          );
+          if (!sampleEntry) return;
+          
+          // Calculate each selected metric that has a calculation formula
+          selectedMetrics.forEach(metricName => {
+            const metricKey = nameToKey.get(metricName);
+            if (!metricKey) return;
+            
+            const key = `${storeId}-${deptId}-${metricKey}`;
+            if (dataMap[key]) return; // Already exists
+            
+            const metricDef = keyToDef.get(metricKey);
+            if (!metricDef?.calculation) return;
+            
+            let value: number | null = null;
+            const calc = metricDef.calculation;
+            
+            if ('numerator' in calc && 'denominator' in calc) {
+              const num = allValues.get(calc.numerator);
+              const denom = allValues.get(calc.denominator);
+              if (num !== undefined && denom !== undefined && denom !== 0) {
+                value = (num / denom) * 100;
+              }
+            } else if (calc.type === 'subtract') {
+              const base = allValues.get(calc.base);
+              if (base !== undefined) {
+                value = base;
+                calc.deductions.forEach((d: string) => {
+                  const val = allValues.get(d);
+                  if (val !== undefined) value! -= val;
+                });
+              }
+            } else if (calc.type === 'complex') {
+              const base = allValues.get(calc.base);
+              if (base !== undefined) {
+                value = base;
+                calc.deductions.forEach((d: string) => {
+                  const val = allValues.get(d);
+                  if (val !== undefined) value! -= val;
+                });
+                calc.additions.forEach((a: string) => {
+                  const val = allValues.get(a);
+                  if (val !== undefined) value! += val;
+                });
+              }
+            }
+            
+            if (value !== null) {
+              dataMap[key] = {
+                storeId,
+                storeName: sampleEntry.storeName,
+                departmentId: deptId,
+                departmentName: sampleEntry.departmentName,
+                metricName,
+                value,
+                target: null,
+                variance: null,
+              };
+            }
+          });
         });
-        
-        // Get sample entry for store/dept info
-        const sampleEntry = Object.values(dataMap).find(
-          d => d.storeId === storeId && d.departmentId === deptId
-        );
-        if (!sampleEntry) return;
-        
-        // Calculate each selected metric that has a calculation formula
-        selectedMetrics.forEach(metricName => {
-          const metricKey = nameToKey.get(metricName);
-          if (!metricKey) return;
-          
-          const key = `${storeId}-${deptId}-${metricKey}`;
-          if (dataMap[key]) return; // Already exists
-          
-          const metricDef = keyToDef.get(metricKey);
-          if (!metricDef?.calculation) return;
-          
-          let value: number | null = null;
-          const calc = metricDef.calculation;
-          
-          if ('numerator' in calc && 'denominator' in calc) {
-            const num = baseValues.get(calc.numerator);
-            const denom = baseValues.get(calc.denominator);
-            if (num !== undefined && denom !== undefined && denom !== 0) {
-              value = (num / denom) * 100;
-            }
-          } else if (calc.type === 'subtract') {
-            const base = baseValues.get(calc.base);
-            if (base !== undefined) {
-              value = base;
-              calc.deductions.forEach((d: string) => {
-                const val = baseValues.get(d);
-                if (val !== undefined) value! -= val;
-              });
-            }
-          } else if (calc.type === 'complex') {
-            const base = baseValues.get(calc.base);
-            if (base !== undefined) {
-              value = base;
-              calc.deductions.forEach((d: string) => {
-                const val = baseValues.get(d);
-                if (val !== undefined) value! -= val;
-              });
-              calc.additions.forEach((a: string) => {
-                const val = baseValues.get(a);
-                if (val !== undefined) value! += val;
-              });
-            }
-          }
-          
-          if (value !== null) {
-            dataMap[key] = {
-              storeId,
-              storeName: sampleEntry.storeName,
-              departmentId: deptId,
-              departmentName: sampleEntry.departmentName,
-              metricName,
-              value,
-              target: null,
-              variance: null,
-            };
-          }
-        });
-      });
+      }
       
       // Filter to only selected metrics
       const result = Object.values(dataMap).filter(item => 
