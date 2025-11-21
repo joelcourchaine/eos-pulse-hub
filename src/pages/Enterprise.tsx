@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -181,6 +181,14 @@ export default function Enterprise() {
     }
     return [];
   }, [metricType, kpiDefinitions, filteredStores]);
+
+  // Auto-select all metrics when switching to financial type
+  useEffect(() => {
+    if (metricType === "financial" && availableMetrics.length > 0) {
+      const metricNames = availableMetrics.map((m: any) => m.name);
+      setSelectedMetrics(metricNames);
+    }
+  }, [metricType, availableMetrics]);
 
   // Create a map of metric names to keys for financial metrics
   const metricKeyMap = useMemo(() => {
