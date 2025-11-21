@@ -125,131 +125,41 @@ export default function DealerComparison() {
   // Update comparison data when fresh data arrives
   useEffect(() => {
     if (metricType === "financial" && financialEntries && selectedMetrics.length > 0) {
-      // Create metric key map locally to avoid dependency loop
+      console.log("Processing financial entries:", financialEntries.length);
+      
+      // Create metric key map
       const map = new Map<string, string>();
       const metrics = getMetricsForBrand(null);
       metrics.forEach((m: any) => map.set(m.name, m.key));
       
-      // Create a reverse map from key to metric definition
-      const metricDefMap = new Map<string, any>();
-      metrics.forEach((m: any) => metricDefMap.set(m.key, m));
-      
+      // Convert selected metric names to keys
       const selectedKeys = selectedMetrics.map(name => map.get(name) || name);
-      const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
+      console.log("Selected keys:", selectedKeys);
       
-      // Group by store + department + metric to get unique entries (same logic as Enterprise page)
-      const groupedByKey = filtered.reduce((acc, entry) => {
+      // Build comparison data directly from entries
+      const newData: ComparisonData[] = [];
+      
+      financialEntries.forEach(entry => {
+        // Only include if this metric was selected
+        if (!selectedKeys.includes(entry.metric_name)) return;
+        
+        // Convert key back to display name
         const metricDisplayName = Array.from(map.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
-        const departmentId = (entry as any)?.departments?.id;
-        const storeId = (entry as any)?.departments?.store_id;
-        const key = `${storeId}-${departmentId}-${entry.metric_name}`;
         
-        // Only keep one entry per unique key
-        if (!acc[key]) {
-          acc[key] = {
-            storeId: storeId || "",
-            storeName: (entry as any)?.departments?.stores?.name || "",
-            departmentId: departmentId,
-            departmentName: (entry as any)?.departments?.name,
-            metricName: metricDisplayName,
-            value: entry.value ? Number(entry.value) : null,
-            target: null,
-            variance: null,
-          };
-        }
-        return acc;
-      }, {} as Record<string, ComparisonData>);
-      
-      // Calculate derived metrics for each store/department combination
-      const storeDepCombos = new Set<string>();
-      Object.values(groupedByKey).forEach(entry => {
-        storeDepCombos.add(`${entry.storeId}-${entry.departmentId}`);
-      });
-      
-      storeDepCombos.forEach(combo => {
-        const [storeId, departmentId] = combo.split('-');
-        const baseData = Object.values(groupedByKey).filter(
-          e => e.storeId === storeId && e.departmentId === departmentId
-        );
-        
-        // Create a lookup of values by metric key
-        const valuesByKey = new Map<string, number>();
-        baseData.forEach(entry => {
-          const metricKey = map.get(entry.metricName);
-          if (metricKey && entry.value !== null) {
-            valuesByKey.set(metricKey, entry.value);
-          }
-        });
-        
-        // Calculate derived metrics
-        selectedMetrics.forEach(metricName => {
-          const metricKey = map.get(metricName);
-          if (!metricKey) return;
-          
-          const metricDef = metricDefMap.get(metricKey);
-          if (!metricDef?.calculation) return; // Skip if no calculation defined
-          
-          const key = `${storeId}-${departmentId}-${metricKey}`;
-          if (groupedByKey[key]) return; // Skip if already exists
-          
-          let calculatedValue: number | null = null;
-          const calc = metricDef.calculation;
-          
-          if ('numerator' in calc && 'denominator' in calc) {
-            // Percentage calculation
-            const num = valuesByKey.get(calc.numerator);
-            const denom = valuesByKey.get(calc.denominator);
-            if (num !== undefined && denom !== undefined && denom !== 0) {
-              calculatedValue = (num / denom) * 100;
-            }
-          } else if (calc.type === 'subtract') {
-            // Subtraction calculation
-            const base = valuesByKey.get(calc.base);
-            if (base !== undefined) {
-              calculatedValue = base;
-              for (const deduction of calc.deductions) {
-                const deductValue = valuesByKey.get(deduction);
-                if (deductValue !== undefined) {
-                  calculatedValue -= deductValue;
-                }
-              }
-            }
-          } else if (calc.type === 'complex') {
-            // Complex calculation with additions and deductions
-            const base = valuesByKey.get(calc.base);
-            if (base !== undefined) {
-              calculatedValue = base;
-              for (const deduction of calc.deductions) {
-                const deductValue = valuesByKey.get(deduction);
-                if (deductValue !== undefined) {
-                  calculatedValue -= deductValue;
-                }
-              }
-              for (const addition of calc.additions) {
-                const addValue = valuesByKey.get(addition);
-                if (addValue !== undefined) {
-                  calculatedValue += addValue;
-                }
-              }
-            }
-          }
-          
-          if (calculatedValue !== null && baseData.length > 0) {
-            groupedByKey[key] = {
-              storeId: storeId || "",
-              storeName: baseData[0].storeName,
-              departmentId: departmentId,
-              departmentName: baseData[0].departmentName,
-              metricName: metricName,
-              value: calculatedValue,
-              target: null,
-              variance: null,
-            };
-          }
+        newData.push({
+          storeId: (entry as any)?.departments?.store_id || "",
+          storeName: (entry as any)?.departments?.stores?.name || "",
+          departmentId: (entry as any)?.departments?.id,
+          departmentName: (entry as any)?.departments?.name,
+          metricName: metricDisplayName,
+          value: entry.value ? Number(entry.value) : null,
+          target: null,
+          variance: null,
         });
       });
       
-      setComparisonData(Object.values(groupedByKey));
+      console.log("Processed comparison data:", newData.length);
+      setComparisonData(newData);
       setLastRefresh(new Date());
     }
   }, [financialEntries, metricType, selectedMetrics]);
