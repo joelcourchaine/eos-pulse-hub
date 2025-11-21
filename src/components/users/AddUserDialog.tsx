@@ -87,6 +87,25 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
     setLoading(true);
 
     try {
+      // Check if email already exists
+      const { data: existingUser, error: checkError } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("email", email.toLowerCase().trim())
+        .maybeSingle();
+      
+      if (checkError) {
+        console.error("Error checking email:", checkError);
+      } else if (existingUser) {
+        toast({
+          title: "Email Already Exists",
+          description: `A user named "${existingUser.full_name}" already has this email address. Please use a different email or manage the existing user from the Users dialog.`,
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email,
@@ -127,9 +146,19 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error creating user:', error);
+      
+      // Provide specific error messages for common cases
+      let errorMessage = "Failed to create user";
+      
+      if (error.message?.includes("already been registered") || error.message?.includes("email_exists")) {
+        errorMessage = `A user with email "${email}" already exists in the system. Please use the Users dialog to manage existing users or choose a different email address.`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to create user",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
