@@ -17,6 +17,8 @@ interface DepartmentSelectionDialogProps {
 export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: DepartmentSelectionDialogProps) {
   const [selectedTypeId, setSelectedTypeId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
+  const [editingDepartmentId, setEditingDepartmentId] = useState<string | null>(null);
+  const [editingManagerId, setEditingManagerId] = useState<string>("");
   const queryClient = useQueryClient();
 
   const { data: departmentTypes } = useQuery({
@@ -106,6 +108,25 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
     },
   });
 
+  const updateManagerMutation = useMutation({
+    mutationFn: async ({ departmentId, newManagerId }: { departmentId: string; newManagerId: string }) => {
+      const { error } = await supabase
+        .from('departments')
+        .update({ manager_id: newManagerId || null })
+        .eq('id', departmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Manager updated successfully");
+      setEditingDepartmentId(null);
+      setEditingManagerId("");
+      queryClient.invalidateQueries({ queryKey: ['store-departments', storeId] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update manager: ${error.message}`);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate();
@@ -178,18 +199,67 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
             <div className="space-y-2">
               {departments.map((dept) => (
                 <div key={dept.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-1">
                     <Check className="h-5 w-5 text-green-600" />
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">{dept.name}</div>
                       {dept.department_types && (
                         <div className="text-xs text-muted-foreground">
                           {dept.department_types.description}
                         </div>
                       )}
-                      {dept.profiles && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Manager: {dept.profiles.full_name}
+                      {editingDepartmentId === dept.id ? (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Select value={editingManagerId} onValueChange={setEditingManagerId}>
+                            <SelectTrigger className="h-8 w-[200px]">
+                              <SelectValue placeholder="Select manager" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">No manager</SelectItem>
+                              {users?.map((user) => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            onClick={() => updateManagerMutation.mutate({ 
+                              departmentId: dept.id, 
+                              newManagerId: editingManagerId 
+                            })}
+                            disabled={updateManagerMutation.isPending}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingDepartmentId(null);
+                              setEditingManagerId("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="text-xs text-muted-foreground">
+                            Manager: {dept.profiles?.full_name || "Not assigned"}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setEditingDepartmentId(dept.id);
+                              setEditingManagerId(dept.manager_id || "");
+                            }}
+                          >
+                            Edit
+                          </Button>
                         </div>
                       )}
                     </div>
