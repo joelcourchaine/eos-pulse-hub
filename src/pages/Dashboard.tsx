@@ -21,7 +21,6 @@ import { Celebrations } from "@/components/celebrations/Celebrations";
 import { UserManagementDialog } from "@/components/users/UserManagementDialog";
 import { StoreManagementDialog } from "@/components/stores/StoreManagementDialog";
 import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSelectionDialog";
-import { QuestionManagementDialog } from "@/components/departments/QuestionManagementDialog";
 import { TodosPanel } from "@/components/todos/TodosPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
@@ -756,9 +755,6 @@ const Dashboard = () => {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                {profile?.role === 'super_admin' && (
-                  <QuestionManagementDialog />
-                )}
                 {selectedDepartment && (
                   <>
                     <DepartmentQuestionnaireDialog
