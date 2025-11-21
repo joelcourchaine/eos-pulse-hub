@@ -275,58 +275,72 @@ export default function DealerComparison() {
             <CardTitle>Side-by-Side Comparison</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 bg-background z-10 border-b-2">
-                      <div className="text-base font-bold">Metric</div>
-                    </TableHead>
-                    {stores.map(([storeId, store]) => (
-                      <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
-                        <div className="text-base font-bold">{store.storeName}</div>
+            {stores.length === 0 ? (
+              <div className="text-center py-12 space-y-4">
+                <p className="text-lg font-semibold text-muted-foreground">No data available</p>
+                <p className="text-sm text-muted-foreground">
+                  There are no financial entries for {selectedMonth && format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}.
+                  <br />
+                  Please select a different month or add financial data for this period.
+                </p>
+                <Button onClick={() => navigate("/enterprise")} variant="outline">
+                  Return to Enterprise View
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background z-10 border-b-2">
+                        <div className="text-base font-bold">Metric</div>
                       </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedMetrics.map((metric) => (
-                    <TableRow key={metric}>
-                      <TableCell className="font-medium sticky left-0 bg-background z-10">
-                        {metric}
-                      </TableCell>
-                      {stores.map(([storeId, store]) => {
-                        const metricData = store.metrics[metric];
-                        return (
-                          <TableCell key={storeId} className="text-center">
-                            {metricData ? (
-                              <div className="space-y-2">
-                                <div className="text-lg font-semibold">
-                                  {formatValue(metricData.value, metric)}
-                                </div>
-                                {metricData.target !== null && (
-                                  <div className="text-xs text-muted-foreground">
-                                    Target: {formatValue(metricData.target, metric)}
-                                  </div>
-                                )}
-                                {metricData.variance !== null && (
-                                  <Badge variant={getVarianceColor(metricData.variance)}>
-                                    {metricData.variance >= 0 ? "+" : ""}
-                                    {metricData.variance.toFixed(1)}%
-                                  </Badge>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">No data</span>
-                            )}
-                          </TableCell>
-                        );
-                      })}
+                      {stores.map(([storeId, store]) => (
+                        <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
+                          <div className="text-base font-bold">{store.storeName}</div>
+                        </TableHead>
+                      ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedMetrics.map((metric) => (
+                      <TableRow key={metric}>
+                        <TableCell className="font-medium sticky left-0 bg-background z-10">
+                          {metric}
+                        </TableCell>
+                        {stores.map(([storeId, store]) => {
+                          const metricData = store.metrics[metric];
+                          return (
+                            <TableCell key={storeId} className="text-center">
+                              {metricData ? (
+                                <div className="space-y-2">
+                                  <div className="text-lg font-semibold">
+                                    {formatValue(metricData.value, metric)}
+                                  </div>
+                                  {metricData.target !== null && (
+                                    <div className="text-xs text-muted-foreground">
+                                      Target: {formatValue(metricData.target, metric)}
+                                    </div>
+                                  )}
+                                  {metricData.variance !== null && (
+                                    <Badge variant={getVarianceColor(metricData.variance)}>
+                                      {metricData.variance >= 0 ? "+" : ""}
+                                      {metricData.variance.toFixed(1)}%
+                                    </Badge>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">No data</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
