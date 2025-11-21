@@ -6,11 +6,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft } from "lucide-react";
+import { Building2, ArrowLeft, CalendarIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MetricComparisonTable from "@/components/enterprise/MetricComparisonTable";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 type FilterMode = "group" | "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
@@ -23,6 +27,7 @@ export default function Enterprise() {
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
   const { data: storeGroups } = useQuery({
     queryKey: ["store_groups"],
@@ -135,14 +140,15 @@ export default function Enterprise() {
 
   // Fetch financial entries
   const { data: financialEntries } = useQuery({
-    queryKey: ["financial_entries", departmentIds],
+    queryKey: ["financial_entries", departmentIds, selectedMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
+      const monthString = format(selectedMonth, "yyyy-MM");
       const { data, error } = await supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name))")
         .in("department_id", departmentIds)
-        .order("month", { ascending: false });
+        .eq("month", monthString);
       if (error) throw error;
       return data;
     },
@@ -293,6 +299,7 @@ export default function Enterprise() {
               setFilterMode("group");
               setSelectedGroupIds([steveMarshallGroupId]);
               setMetricType("financial");
+              setSelectedMonth(new Date()); // Default to current month
               
               // Select all financial metrics
               const firstStore = stores?.find(s => s.group_id === steveMarshallGroupId);
@@ -410,6 +417,35 @@ export default function Enterprise() {
                 </Select>
               </div>
 
+              {metricType === "financial" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Month</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !selectedMonth && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedMonth ? format(selectedMonth, "MMMM yyyy") : <span>Pick a month</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedMonth}
+                        onSelect={(date) => date && setSelectedMonth(date)}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium mb-2 block">
                   Metrics ({selectedMetrics.length} selected)
@@ -451,11 +487,12 @@ export default function Enterprise() {
                     </span>
                   </CardTitle>
                   <Button
-                    onClick={() => navigate("/dealer-comparison", {
+                     onClick={() => navigate("/dealer-comparison", {
                       state: {
                         data: comparisonData,
                         metricType,
                         selectedMetrics,
+                        selectedMonth: format(selectedMonth, "yyyy-MM"),
                       }
                     })}
                     disabled={comparisonData.length === 0}
