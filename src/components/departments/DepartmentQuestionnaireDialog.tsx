@@ -50,6 +50,8 @@ interface DepartmentQuestionnaireDialogProps {
   departmentTypeId?: string;
   managerEmail?: string;
   isSuperAdmin?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const DepartmentQuestionnaireDialog = ({
@@ -58,10 +60,15 @@ export const DepartmentQuestionnaireDialog = ({
   departmentTypeId,
   managerEmail,
   isSuperAdmin = false,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: DepartmentQuestionnaireDialogProps) => {
   console.log("DepartmentQuestionnaireDialog rendering for:", departmentName, "ID:", departmentId);
   
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
+  
   const [questions, setQuestions] = useState<Question[]>([]);
   const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -717,23 +724,16 @@ export const DepartmentQuestionnaireDialog = ({
 
   console.log("DepartmentQuestionnaireDialog return rendering button");
   
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <ClipboardList className="mr-2 h-4 w-4" />
-          Department Info
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Department Information - {departmentName}</DialogTitle>
-          <DialogDescription>
-            Answer questions about your department. Changes are tracked automatically.
-          </DialogDescription>
-        </DialogHeader>
+  const dialogContent = (
+    <>
+      <DialogHeader>
+        <DialogTitle>Department Information - {departmentName}</DialogTitle>
+        <DialogDescription>
+          Answer questions about your department. Changes are tracked automatically.
+        </DialogDescription>
+      </DialogHeader>
 
-        <Tabs defaultValue="questions" className="w-full">
+      <Tabs defaultValue="questions" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="questions">Questions</TabsTrigger>
             <TabsTrigger value="history">Change History</TabsTrigger>
@@ -913,6 +913,31 @@ export const DepartmentQuestionnaireDialog = ({
             )}
           </TabsContent>
         </Tabs>
+      </>
+    );
+
+  // If controlled externally (no trigger button needed)
+  if (controlledOpen !== undefined) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          {dialogContent}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // If uncontrolled (has trigger button)
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <ClipboardList className="mr-2 h-4 w-4" />
+          Department Info
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        {dialogContent}
       </DialogContent>
     </Dialog>
   );
