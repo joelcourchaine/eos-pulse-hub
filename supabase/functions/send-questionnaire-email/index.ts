@@ -15,6 +15,7 @@ interface Question {
   question_text: string;
   question_category: string;
   answer_type: string;
+  reference_image_url?: string;
 }
 
 interface RequestBody {
@@ -88,7 +89,10 @@ const handler = async (req: Request): Promise<Response> => {
     const previewQuestions = questions.slice(0, 3);
     previewQuestions.forEach((q) => {
       questionsPreviewHtml += `
-        <li style="margin-bottom: 8px; color: #374151;">${q.question_text}</li>
+        <li style="margin-bottom: 16px; color: #374151;">
+          ${q.question_text}
+          ${q.reference_image_url ? `<br><img src="${q.reference_image_url}" alt="Reference image" style="max-width: 300px; margin-top: 8px; border-radius: 4px; border: 1px solid #e5e7eb;">` : ''}
+        </li>
       `;
     });
     if (questions.length > 3) {
