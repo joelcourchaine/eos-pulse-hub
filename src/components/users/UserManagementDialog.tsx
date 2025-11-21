@@ -43,6 +43,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [departments, setDepartments] = useState<any[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,6 +51,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       loadProfiles();
       loadStores();
       loadStoreGroups();
+      loadDepartments();
     }
   }, [open, currentStoreId]);
 
@@ -72,6 +74,24 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     
     if (data) {
       setStoreGroups(data);
+    }
+  };
+
+  const loadDepartments = async () => {
+    let query = supabase
+      .from("departments")
+      .select("*")
+      .order("name");
+    
+    // Filter by current store if provided
+    if (currentStoreId) {
+      query = query.eq("store_id", currentStoreId);
+    }
+    
+    const { data } = await query;
+    
+    if (data) {
+      setDepartments(data);
     }
   };
 
@@ -187,6 +207,44 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     }
   };
 
+  const handleUpdateManagedDepartment = async (userId: string, newDepartmentId: string | null) => {
+    try {
+      // First, unassign this user from any departments they currently manage
+      await supabase
+        .from("departments")
+        .update({ manager_id: null })
+        .eq("manager_id", userId);
+
+      // Then assign to new department if one was selected
+      if (newDepartmentId) {
+        // First unassign any other manager from this department
+        await supabase
+          .from("departments")
+          .update({ manager_id: null })
+          .eq("id", newDepartmentId);
+        
+        // Then assign this user
+        const { error } = await supabase
+          .from("departments")
+          .update({ manager_id: userId })
+          .eq("id", newDepartmentId);
+
+        if (error) throw error;
+      }
+
+      toast({ title: "Success", description: "Department assignment updated successfully" });
+      loadProfiles();
+      loadDepartments();
+    } catch (error: any) {
+      console.error("Error updating department:", error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update department assignment.",
+        variant: "destructive" 
+      });
+    }
+  };
+
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
 
@@ -288,6 +346,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                   <TableHead className="min-w-[200px]">Email</TableHead>
                   <TableHead className="min-w-[150px]">Role</TableHead>
                   <TableHead className="min-w-[150px]">Store / Group</TableHead>
+                  <TableHead className="min-w-[150px]">Manages Department</TableHead>
                   <TableHead className="min-w-[120px]">Birthday Month</TableHead>
                   <TableHead className="min-w-[100px]">Birthday Day</TableHead>
                   <TableHead className="min-w-[120px]">Start Month</TableHead>
@@ -351,6 +410,24 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={departments.find(d => d.manager_id === profile.id)?.id || "none"}
+                        onValueChange={(value) => handleUpdateManagedDepartment(profile.id, value === "none" ? null : value)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="None" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d.id} value={d.id}>
+                              {d.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <select
