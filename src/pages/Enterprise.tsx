@@ -6,15 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft, CalendarIcon } from "lucide-react";
+import { Building2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MetricComparisonTable from "@/components/enterprise/MetricComparisonTable";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 type FilterMode = "group" | "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
@@ -478,29 +475,32 @@ export default function Enterprise() {
               {metricType === "financial" && (
                 <div>
                   <label className="text-sm font-medium mb-2 block">Month</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !selectedMonth && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedMonth ? format(selectedMonth, "MMMM yyyy") : <span>Pick a month</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={selectedMonth}
-                        onSelect={(date) => date && setSelectedMonth(date)}
-                        initialFocus
-                        className={cn("p-3 pointer-events-auto")}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Select 
+                    value={format(selectedMonth, "yyyy-MM")} 
+                    onValueChange={(value) => {
+                      // Parse yyyy-MM and set to the 1st of that month in local time
+                      const [year, month] = value.split('-');
+                      setSelectedMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                    }}
+                  >
+                    <SelectTrigger className="bg-background z-50">
+                      <SelectValue>
+                        {format(selectedMonth, "MMMM yyyy")}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50 max-h-[300px]">
+                      {Array.from({ length: 24 }, (_, i) => {
+                        const date = new Date();
+                        date.setMonth(date.getMonth() - i);
+                        const value = format(date, "yyyy-MM");
+                        return (
+                          <SelectItem key={value} value={value}>
+                            {format(date, "MMMM yyyy")}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
