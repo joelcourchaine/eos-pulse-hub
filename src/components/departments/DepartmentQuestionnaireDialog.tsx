@@ -63,8 +63,6 @@ export const DepartmentQuestionnaireDialog = ({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: DepartmentQuestionnaireDialogProps) => {
-  console.log("DepartmentQuestionnaireDialog rendering for:", departmentName, "ID:", departmentId);
-  
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = controlledOnOpenChange || setInternalOpen;
@@ -722,8 +720,6 @@ export const DepartmentQuestionnaireDialog = ({
     );
   };
 
-  console.log("DepartmentQuestionnaireDialog return rendering button");
-  
   const dialogContent = (
     <>
       <DialogHeader>
