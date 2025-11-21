@@ -26,7 +26,7 @@ export default function Enterprise() {
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
-  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
+  const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
@@ -104,11 +104,18 @@ export default function Enterprise() {
     enabled: storeIds.length > 0,
   });
 
+  // Get unique department names
+  const uniqueDepartmentNames = useMemo(() => {
+    if (!departments) return [];
+    const names = Array.from(new Set(departments.map(d => d.name)));
+    return names.sort();
+  }, [departments]);
+
   const departmentIds = useMemo(() => {
     if (!departments) return [];
-    if (selectedDepartmentIds.length === 0) return departments.map(d => d.id);
-    return departments.filter(d => selectedDepartmentIds.includes(d.id)).map(d => d.id);
-  }, [departments, selectedDepartmentIds]);
+    if (selectedDepartmentNames.length === 0) return departments.map(d => d.id);
+    return departments.filter(d => selectedDepartmentNames.includes(d.name)).map(d => d.id);
+  }, [departments, selectedDepartmentNames]);
 
   // Fetch KPI definitions
   const { data: kpiDefinitions } = useQuery({
@@ -273,11 +280,11 @@ export default function Enterprise() {
     );
   };
 
-  const toggleDepartmentSelection = (departmentId: string) => {
-    setSelectedDepartmentIds(prev =>
-      prev.includes(departmentId)
-        ? prev.filter(id => id !== departmentId)
-        : [...prev, departmentId]
+  const toggleDepartmentSelection = (departmentName: string) => {
+    setSelectedDepartmentNames(prev =>
+      prev.includes(departmentName)
+        ? prev.filter(name => name !== departmentName)
+        : [...prev, departmentName]
     );
   };
 
@@ -415,7 +422,7 @@ export default function Enterprise() {
             <CardHeader>
               <CardTitle>
                 Select Departments
-                {selectedDepartmentIds.length === 0 && departments && departments.length > 0 && (
+                {selectedDepartmentNames.length === 0 && uniqueDepartmentNames.length > 0 && (
                   <span className="text-sm font-normal text-muted-foreground ml-2">(All selected)</span>
                 )}
               </CardTitle>
@@ -423,18 +430,18 @@ export default function Enterprise() {
             <CardContent>
               <ScrollArea className="h-[300px] pr-4">
                 <div className="space-y-3">
-                  {departments?.map((dept) => (
-                    <div key={dept.id} className="flex items-center space-x-2">
+                  {uniqueDepartmentNames.map((deptName) => (
+                    <div key={deptName} className="flex items-center space-x-2">
                       <Checkbox
-                        id={`dept-${dept.id}`}
-                        checked={selectedDepartmentIds.length === 0 || selectedDepartmentIds.includes(dept.id)}
-                        onCheckedChange={() => toggleDepartmentSelection(dept.id)}
+                        id={`dept-${deptName}`}
+                        checked={selectedDepartmentNames.length === 0 || selectedDepartmentNames.includes(deptName)}
+                        onCheckedChange={() => toggleDepartmentSelection(deptName)}
                       />
                       <label
-                        htmlFor={`dept-${dept.id}`}
+                        htmlFor={`dept-${deptName}`}
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                       >
-                        {dept.name}
+                        {deptName}
                       </label>
                     </div>
                   ))}
