@@ -295,7 +295,7 @@ const Dashboard = () => {
     try {
       let query = supabase
         .from("departments")
-        .select("*, profiles(email, full_name)")
+        .select("*, profiles(email, full_name), department_type_id")
         .order("name");
 
       // Filter departments by store
@@ -764,6 +764,7 @@ const Dashboard = () => {
                     <DepartmentQuestionnaireDialog
                       departmentId={selectedDepartment}
                       departmentName={departments.find(d => d.id === selectedDepartment)?.name || "Department"}
+                      departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
                       managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
                     />
                     <KPIManagementDialog 
