@@ -328,8 +328,12 @@ export default function DealerComparison() {
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null) return "N/A";
     
-    // Check if it's a percentage metric
-    if (metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
+    // Get metric definition to check type
+    const metrics = getMetricsForBrand(null);
+    const metricDef = metrics.find((m: any) => m.name === metricName);
+    
+    // Check if it's a percentage metric by type or name
+    if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
       return `${value.toFixed(1)}%`;
     }
     
