@@ -619,6 +619,16 @@ const Dashboard = () => {
                   Users
                 </Button>
               )}
+              {selectedDepartment && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowDepartmentInfo(true)}
+                >
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  Department Info
+                </Button>
+              )}
               <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
