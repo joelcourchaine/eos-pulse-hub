@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Enterprise from "./pages/Enterprise";
 import DealerComparison from "./pages/DealerComparison";
 import ResetPassword from "./pages/ResetPassword";
+import Questionnaire from "./pages/Questionnaire";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/dealer-comparison" element={<DealerComparison />} />
+          <Route path="/questionnaire/:token" element={<Questionnaire />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
