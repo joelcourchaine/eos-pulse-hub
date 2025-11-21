@@ -59,6 +59,8 @@ export const DepartmentQuestionnaireDialog = ({
   managerEmail,
   isSuperAdmin = false,
 }: DepartmentQuestionnaireDialogProps) => {
+  console.log("DepartmentQuestionnaireDialog rendering for:", departmentName, "ID:", departmentId);
+  
   const [open, setOpen] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
@@ -713,6 +715,8 @@ export const DepartmentQuestionnaireDialog = ({
     );
   };
 
+  console.log("DepartmentQuestionnaireDialog return rendering button");
+  
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
