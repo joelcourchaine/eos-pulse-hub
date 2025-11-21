@@ -263,7 +263,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const fetchProfiles = async () => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name");
+      .select("id, full_name, role");
 
     if (error) {
       console.error("Error fetching profiles:", error);
@@ -281,7 +281,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         
         return {
           ...profile,
-          role: roleData?.role
+          role: roleData?.role || profile.role // Fall back to profile role if user_roles is empty
         };
       })
     );
