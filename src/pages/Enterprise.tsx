@@ -26,6 +26,7 @@ export default function Enterprise() {
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
@@ -103,7 +104,11 @@ export default function Enterprise() {
     enabled: storeIds.length > 0,
   });
 
-  const departmentIds = departments?.map(d => d.id) || [];
+  const departmentIds = useMemo(() => {
+    if (!departments) return [];
+    if (selectedDepartmentIds.length === 0) return departments.map(d => d.id);
+    return departments.filter(d => selectedDepartmentIds.includes(d.id)).map(d => d.id);
+  }, [departments, selectedDepartmentIds]);
 
   // Fetch KPI definitions
   const { data: kpiDefinitions } = useQuery({
@@ -268,6 +273,14 @@ export default function Enterprise() {
     );
   };
 
+  const toggleDepartmentSelection = (departmentId: string) => {
+    setSelectedDepartmentIds(prev =>
+      prev.includes(departmentId)
+        ? prev.filter(id => id !== departmentId)
+        : [...prev, departmentId]
+    );
+  };
+
   const toggleMetricSelection = (metric: string) => {
     setSelectedMetrics(prev =>
       prev.includes(metric)
@@ -400,6 +413,38 @@ export default function Enterprise() {
 
           <Card className="lg:col-span-1">
             <CardHeader>
+              <CardTitle>
+                Select Departments
+                {selectedDepartmentIds.length === 0 && departments && departments.length > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground ml-2">(All selected)</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[300px] pr-4">
+                <div className="space-y-3">
+                  {departments?.map((dept) => (
+                    <div key={dept.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`dept-${dept.id}`}
+                        checked={selectedDepartmentIds.length === 0 || selectedDepartmentIds.includes(dept.id)}
+                        onCheckedChange={() => toggleDepartmentSelection(dept.id)}
+                      />
+                      <label
+                        htmlFor={`dept-${dept.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {dept.name}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          <Card className="lg:col-span-1">
+            <CardHeader>
               <CardTitle>Select Metrics</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -476,7 +521,7 @@ export default function Enterprise() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-4">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
