@@ -140,7 +140,7 @@ export default function Enterprise() {
       if (departmentIds.length === 0) return [];
       const { data, error } = await supabase
         .from("financial_entries")
-        .select("*, departments(name, store_id, stores(name))")
+        .select("*, departments(id, name, store_id, stores(name))")
         .in("department_id", departmentIds)
         .order("month", { ascending: false });
       if (error) throw error;
