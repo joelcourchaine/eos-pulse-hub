@@ -23,6 +23,7 @@ interface RequestBody {
   departmentName: string;
   managerEmail: string;
   questions: Question[];
+  senderName?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -31,7 +32,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { departmentId, departmentName, managerEmail, questions }: RequestBody = await req.json();
+    const { departmentId, departmentName, managerEmail, questions, senderName }: RequestBody = await req.json();
 
     // Create Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -122,7 +123,7 @@ const handler = async (req: Request): Promise<Response> => {
             </p>
             
             <p style="color: #374151;">
-              We need you to provide information about <strong>${departmentName}</strong>. 
+              ${senderName || 'Your manager'} would like you to provide information about your <strong>${departmentName}</strong>. 
               Please click the button below to fill out the questionnaire online:
             </p>
 
