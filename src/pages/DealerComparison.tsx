@@ -120,13 +120,18 @@ export default function DealerComparison() {
 
   // Update comparison data when fresh data arrives
   useEffect(() => {
-    if (metricType === "financial" && financialEntries) {
-      const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
+    if (metricType === "financial" && financialEntries && selectedMetrics.length > 0) {
+      // Create metric key map locally to avoid dependency loop
+      const map = new Map<string, string>();
+      const metrics = getMetricsForBrand(null);
+      metrics.forEach((m: any) => map.set(m.name, m.key));
+      
+      const selectedKeys = selectedMetrics.map(name => map.get(name) || name);
       const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
       
       // Group by store + department + metric to get unique entries (same logic as Enterprise page)
       const groupedByKey = filtered.reduce((acc, entry) => {
-        const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
+        const metricDisplayName = Array.from(map.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
         const departmentId = (entry as any)?.departments?.id;
         const storeId = (entry as any)?.departments?.store_id;
         const key = `${storeId}-${departmentId}-${entry.metric_name}`;
@@ -150,7 +155,7 @@ export default function DealerComparison() {
       setComparisonData(Object.values(groupedByKey));
       setLastRefresh(new Date());
     }
-  }, [financialEntries, metricType, selectedMetrics, metricKeyMap]);
+  }, [financialEntries, metricType, selectedMetrics]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
