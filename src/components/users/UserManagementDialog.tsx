@@ -302,6 +302,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                           <SelectItem value="read_only">Read Only</SelectItem>
                           <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
                           <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                          <SelectItem value="technician">Technician</SelectItem>
                           <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
                         </SelectContent>
                       </Select>
