@@ -553,7 +553,7 @@ export default function Enterprise() {
                         selectedMonth: format(selectedMonth, "yyyy-MM"),
                       }
                     })}
-                    disabled={comparisonData.length === 0}
+                    disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
                   >
                     View Dashboard
                   </Button>
