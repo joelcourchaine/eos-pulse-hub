@@ -69,12 +69,23 @@ export default function MetricComparisonTable({
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
     
-    if (metricType === "financial" || metricName.toLowerCase().includes("$")) {
-      return `$${value.toLocaleString()}`;
-    }
-    if (metricName.toLowerCase().includes("%") || metricName.toLowerCase().includes("percent")) {
+    const lowerMetricName = metricName.toLowerCase();
+    
+    // Check if it's a percentage metric
+    if (lowerMetricName.includes("%") || lowerMetricName.includes("percent")) {
       return `${value.toFixed(1)}%`;
     }
+    
+    // Check if it's a currency metric
+    if (metricType === "financial" || lowerMetricName.includes("$") || 
+        lowerMetricName.includes("sales") || lowerMetricName.includes("expense") ||
+        lowerMetricName.includes("profit") || lowerMetricName.includes("gross")) {
+      // Only format as currency if it's not a percentage
+      if (!lowerMetricName.includes("%") && !lowerMetricName.includes("percent")) {
+        return `$${value.toLocaleString()}`;
+      }
+    }
+    
     return value.toLocaleString();
   };
 
