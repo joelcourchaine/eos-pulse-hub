@@ -38,10 +38,11 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics } = location.state as {
+  const { data: initialData, metricType, selectedMetrics, selectedMonth } = location.state as {
     data: ComparisonData[];
     metricType: string;
     selectedMetrics: string[];
+    selectedMonth?: string;
   };
 
   // Initialize with passed data
@@ -68,14 +69,14 @@ export default function DealerComparison() {
 
   // Fetch financial entries for polling
   const { data: financialEntries, refetch: refetchFinancial } = useQuery({
-    queryKey: ["dealer_comparison_financial", departmentIds],
+    queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       const { data, error } = await supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name))")
         .in("department_id", departmentIds)
-        .order("month", { ascending: false });
+        .eq("month", selectedMonth || new Date().toISOString().slice(0, 7));
       if (error) throw error;
       return data;
     },
@@ -232,6 +233,7 @@ export default function DealerComparison() {
             <h1 className="text-3xl font-bold">Dealer Comparison Dashboard</h1>
             <p className="text-muted-foreground">
               Comparing {stores.length} stores across {selectedMetrics.length} metrics
+              {selectedMonth && ` • ${new Date(selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
