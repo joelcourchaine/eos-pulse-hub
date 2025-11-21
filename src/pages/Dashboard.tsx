@@ -619,57 +619,6 @@ const Dashboard = () => {
                   Users
                 </Button>
               )}
-              {selectedDepartment && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowDepartmentInfo(true)}
-                >
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Department Info
-                </Button>
-              )}
-              {selectedDepartment && departments.find(d => d.id === selectedDepartment)?.profiles?.email && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={async () => {
-                    try {
-                      const dept = departments.find(d => d.id === selectedDepartment);
-                      const { data: questionsData } = await supabase
-                        .from("department_questions")
-                        .select("*")
-                        .eq("is_active", true)
-                        .order("display_order");
-                      
-                      const { data, error } = await supabase.functions.invoke("send-questionnaire-email", {
-                        body: {
-                          departmentId: selectedDepartment,
-                          departmentName: dept?.name || "Department",
-                          managerEmail: dept?.profiles?.email,
-                          questions: questionsData || [],
-                        },
-                      });
-
-                      if (error) throw error;
-
-                      toast({
-                        title: "Email Sent",
-                        description: "Questionnaire has been sent successfully.",
-                      });
-                    } catch (error: any) {
-                      toast({
-                        variant: "destructive",
-                        title: "Error",
-                        description: error.message,
-                      });
-                    }
-                  }}
-                >
-                  <Mail className="mr-2 h-4 w-4" />
-                  Email Questionnaire
-                </Button>
-              )}
               <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -808,22 +757,13 @@ const Dashboard = () => {
               </div>
               <div className="flex gap-2">
                 {selectedDepartment && (
-                  <>
-                    <DepartmentQuestionnaireDialog
-                      departmentId={selectedDepartment}
-                      departmentName={departments.find(d => d.id === selectedDepartment)?.name || "Department"}
-                      departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
-                      managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
-                      isSuperAdmin={profile?.role === 'super_admin'}
-                    />
-                    <KPIManagementDialog 
-                      departmentId={selectedDepartment} 
-                      kpis={kpis}
-                      onKPIsChange={fetchKPIs}
-                      year={selectedYear}
-                      quarter={selectedQuarter}
-                    />
-                  </>
+                  <KPIManagementDialog 
+                    departmentId={selectedDepartment} 
+                    kpis={kpis}
+                    onKPIsChange={fetchKPIs}
+                    year={selectedYear}
+                    quarter={selectedQuarter}
+                  />
                 )}
               </div>
             </div>
