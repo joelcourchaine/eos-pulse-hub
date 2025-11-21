@@ -23,6 +23,7 @@ interface Profile {
   reports_to: string | null;
   store_id: string | null;
   store_group_id: string | null;
+  user_role?: string; // Role from user_roles table
 }
 
 interface UserManagementDialogProps {
@@ -104,7 +105,22 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       console.error("Error loading profiles:", error);
       toast({ title: "Error", description: "Failed to load users", variant: "destructive" });
     } else {
-      setProfiles(data || []);
+      // Load user roles for each profile
+      const profilesWithRoles = await Promise.all(
+        (data || []).map(async (profile) => {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", profile.id)
+            .single();
+          
+          return {
+            ...profile,
+            user_role: roleData?.role || profile.role
+          };
+        })
+      );
+      setProfiles(profilesWithRoles);
     }
     setLoading(false);
   };
@@ -134,10 +150,40 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     setSaving(null);
   };
 
-  const updateProfileField = (profileId: string, field: keyof Profile, value: string | number) => {
+  const updateProfileField = (profileId: string, field: keyof Profile, value: string | number | null) => {
     setProfiles(profiles.map(p => 
       p.id === profileId ? { ...p, [field]: value } : p
     ));
+  };
+
+  const handleUpdateRole = async (userId: string, newRole: string) => {
+    try {
+      // First, delete existing role
+      await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId);
+
+      // Then insert new role
+      const { error } = await supabase
+        .from("user_roles")
+        .insert([{
+          user_id: userId,
+          role: newRole as any
+        }]);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "User role updated successfully" });
+      loadProfiles();
+    } catch (error: any) {
+      console.error("Error updating role:", error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to update user role. Only super admins can change roles.",
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -218,6 +264,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                 <TableRow>
                   <TableHead className="min-w-[150px]">Name</TableHead>
                   <TableHead className="min-w-[200px]">Email</TableHead>
+                  <TableHead className="min-w-[150px]">Role</TableHead>
                   <TableHead className="min-w-[150px]">Store / Group</TableHead>
                   <TableHead className="min-w-[120px]">Birthday Month</TableHead>
                   <TableHead className="min-w-[100px]">Birthday Day</TableHead>
@@ -239,6 +286,25 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {profile.email}
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={profile.user_role || profile.role}
+                        onValueChange={(value) => handleUpdateRole(profile.id, value)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                          <SelectItem value="store_gm">Store GM</SelectItem>
+                          <SelectItem value="department_manager">Department Manager</SelectItem>
+                          <SelectItem value="read_only">Read Only</SelectItem>
+                          <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
+                          <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                          <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell className="text-xs">
                       {profile.store_group_id ? (
