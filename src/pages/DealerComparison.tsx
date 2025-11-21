@@ -73,11 +73,14 @@ export default function DealerComparison() {
     queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
+      // Ensure we use the exact month string passed from Enterprise
+      const monthString = selectedMonth || format(new Date(), "yyyy-MM");
+      console.log("Querying financial data for month:", monthString);
       const { data, error } = await supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name))")
         .in("department_id", departmentIds)
-        .eq("month", selectedMonth || new Date().toISOString().slice(0, 7));
+        .eq("month", monthString);
       if (error) throw error;
       return data;
     },
@@ -253,7 +256,9 @@ export default function DealerComparison() {
             <h1 className="text-3xl font-bold">Dealer Comparison Dashboard</h1>
             <p className="text-muted-foreground">
               Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} metrics
-              {selectedMonth && ` • ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}`}
+              {selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
+                format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
+                format(new Date(selectedMonth), 'MMMM yyyy')}`}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
@@ -279,7 +284,10 @@ export default function DealerComparison() {
               <div className="text-center py-12 space-y-4">
                 <p className="text-lg font-semibold text-muted-foreground">No data available</p>
                 <p className="text-sm text-muted-foreground">
-                  There are no financial entries for {selectedMonth && format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}.
+                  There are no financial entries for{' '}
+                  {selectedMonth && (selectedMonth.substring(0, 7) === selectedMonth ? 
+                    format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
+                    format(new Date(selectedMonth), 'MMMM yyyy'))}.
                   <br />
                   Please select a different month or add financial data for this period.
                 </p>
