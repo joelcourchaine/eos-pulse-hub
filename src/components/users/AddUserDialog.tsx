@@ -56,7 +56,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       .order("name");
     
     if (!error && data) {
-      setStores(data);
+      // Filter out stores with empty or null IDs
+      setStores(data.filter(s => s.id && s.id.trim() !== ""));
     }
   };
 
@@ -67,7 +68,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       .order("name");
     
     if (!error && data) {
-      setStoreGroups(data);
+      // Filter out store groups with empty or null IDs
+      setStoreGroups(data.filter(g => g.id && g.id.trim() !== ""));
     }
   };
 
@@ -246,7 +248,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {stores.filter(s => s.id && s.id.trim() !== "").map((store) => (
+                    {stores.map((store) => (
                       <SelectItem key={store.id} value={store.id}>
                         {store.name}
                       </SelectItem>
@@ -266,7 +268,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    {storeGroups.filter(g => g.id && g.id.trim() !== "").map((group) => (
+                    {storeGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
                       </SelectItem>
