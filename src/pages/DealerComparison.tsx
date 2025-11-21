@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
+import { format } from "date-fns";
 
 interface ComparisonData {
   storeId: string;
@@ -190,7 +191,11 @@ export default function DealerComparison() {
     }
   };
 
-  // Group data by store
+  // Group data by store (use initialData to get all selected stores)
+  const uniqueStoreIds = useMemo(() => {
+    return Array.from(new Set(initialData.map(d => d.storeId)));
+  }, [initialData]);
+
   const storeData = comparisonData.reduce((acc, item) => {
     if (!acc[item.storeId]) {
       acc[item.storeId] = {
@@ -247,8 +252,8 @@ export default function DealerComparison() {
           <div className="flex-1">
             <h1 className="text-3xl font-bold">Dealer Comparison Dashboard</h1>
             <p className="text-muted-foreground">
-              Comparing {stores.length} stores across {selectedMetrics.length} metrics
-              {selectedMonth && ` • ${new Date(selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+              Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} metrics
+              {selectedMonth && ` • ${format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}`}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
