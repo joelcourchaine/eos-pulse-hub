@@ -6,12 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2, Plus } from "lucide-react";
+import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2, Plus, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CategoryManagementDialog } from "./CategoryManagementDialog";
 
 interface Question {
   id: string;
@@ -69,12 +70,14 @@ export const DepartmentQuestionnaireDialog = ({
   
   const [questions, setQuestions] = useState<Question[]>([]);
   const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [showCategoryManagement, setShowCategoryManagement] = useState(false);
   const [editForm, setEditForm] = useState<{ 
     question_text: string; 
     answer_description: string;
@@ -97,11 +100,26 @@ export const DepartmentQuestionnaireDialog = ({
     if (open) {
       if (isSuperAdmin) {
         loadDepartmentTypes();
+        loadCategories();
       }
       loadQuestionsAndAnswers();
       loadHistory();
     }
   }, [open, departmentId]);
+
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("question_categories")
+        .select("id, name")
+        .order("display_order");
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error("Error loading categories:", error);
+    }
+  };
 
   const loadDepartmentTypes = async () => {
     try {
@@ -560,14 +578,35 @@ export const DepartmentQuestionnaireDialog = ({
                   placeholder="Enter question..."
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Category *</Label>
-                <Input
-                  value={editForm.question_category}
-                  onChange={(e) => setEditForm({ ...editForm, question_category: e.target.value })}
-                  placeholder="e.g., Service Rates"
-                />
-              </div>
+                     <div className="space-y-2">
+                       <Label>Category *</Label>
+                       <div className="flex gap-2">
+                         <Select 
+                           value={editForm.question_category} 
+                           onValueChange={(val) => setEditForm({ ...editForm, question_category: val })}
+                         >
+                           <SelectTrigger className="flex-1">
+                             <SelectValue placeholder="Select category..." />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {categories.map((cat) => (
+                               <SelectItem key={cat.id} value={cat.name}>
+                                 {cat.name}
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="icon"
+                           onClick={() => setShowCategoryManagement(true)}
+                           title="Manage Categories"
+                         >
+                           <Settings className="h-4 w-4" />
+                         </Button>
+                       </div>
+                     </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -772,14 +811,35 @@ export const DepartmentQuestionnaireDialog = ({
                         placeholder="Enter question..."
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Category *</Label>
-                      <Input
-                        value={editForm.question_category}
-                        onChange={(e) => setEditForm({ ...editForm, question_category: e.target.value })}
-                        placeholder="e.g., Service Rates"
-                      />
-                    </div>
+                     <div className="space-y-2">
+                       <Label>Category *</Label>
+                       <div className="flex gap-2">
+                         <Select 
+                           value={editForm.question_category} 
+                           onValueChange={(val) => setEditForm({ ...editForm, question_category: val })}
+                         >
+                           <SelectTrigger className="flex-1">
+                             <SelectValue placeholder="Select category..." />
+                           </SelectTrigger>
+                           <SelectContent>
+                             {categories.map((cat) => (
+                               <SelectItem key={cat.id} value={cat.name}>
+                                 {cat.name}
+                               </SelectItem>
+                             ))}
+                           </SelectContent>
+                         </Select>
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="icon"
+                           onClick={() => setShowCategoryManagement(true)}
+                           title="Manage Categories"
+                         >
+                           <Settings className="h-4 w-4" />
+                         </Button>
+                       </div>
+                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -916,26 +976,46 @@ export const DepartmentQuestionnaireDialog = ({
   // If controlled externally (no trigger button needed)
   if (controlledOpen !== undefined) {
     return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          {dialogContent}
-        </DialogContent>
-      </Dialog>
+      <>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            {dialogContent}
+          </DialogContent>
+        </Dialog>
+
+        {isSuperAdmin && (
+          <CategoryManagementDialog
+            open={showCategoryManagement}
+            onOpenChange={setShowCategoryManagement}
+            onCategoriesChanged={loadCategories}
+          />
+        )}
+      </>
     );
   }
 
   // If uncontrolled (has trigger button)
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <ClipboardList className="mr-2 h-4 w-4" />
-          Department Info
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        {dialogContent}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm">
+            <ClipboardList className="mr-2 h-4 w-4" />
+            Department Info
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          {dialogContent}
+        </DialogContent>
+      </Dialog>
+
+      {isSuperAdmin && (
+        <CategoryManagementDialog
+          open={showCategoryManagement}
+          onOpenChange={setShowCategoryManagement}
+          onCategoriesChanged={loadCategories}
+        />
+      )}
+    </>
   );
 };
