@@ -121,6 +121,11 @@ export const DepartmentQuestionnaireDialog = ({
     }
   };
 
+  const handleCategoriesChanged = async () => {
+    await loadCategories();
+    await loadQuestionsAndAnswers();
+  };
+
   const loadDepartmentTypes = async () => {
     try {
       const { data, error } = await supabase
@@ -987,7 +992,7 @@ export const DepartmentQuestionnaireDialog = ({
           <CategoryManagementDialog
             open={showCategoryManagement}
             onOpenChange={setShowCategoryManagement}
-            onCategoriesChanged={loadCategories}
+            onCategoriesChanged={handleCategoriesChanged}
           />
         )}
       </>
@@ -1013,7 +1018,7 @@ export const DepartmentQuestionnaireDialog = ({
         <CategoryManagementDialog
           open={showCategoryManagement}
           onOpenChange={setShowCategoryManagement}
-          onCategoriesChanged={loadCategories}
+          onCategoriesChanged={handleCategoriesChanged}
         />
       )}
     </>
