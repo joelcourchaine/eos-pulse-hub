@@ -1072,6 +1072,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         {pq.label}
                       </TableHead>
                     ))}
+                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
+                      AVG 2024
+                    </TableHead>
                     <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                       Q{quarter} Target
                     </TableHead>
@@ -1148,6 +1151,89 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </TableCell>
                           );
                         })}
+                        <TableCell className={cn(
+                          "text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium",
+                          isDepartmentProfit && "z-10 font-bold"
+                        )}>
+                          {(() => {
+                            // Calculate average of all 2024 months
+                            const months2024 = [
+                              '2024-01', '2024-02', '2024-03', '2024-04', 
+                              '2024-05', '2024-06', '2024-07', '2024-08', 
+                              '2024-09', '2024-10', '2024-11', '2024-12'
+                            ];
+                            
+                            const getValueForMetric = (metricKey: string, monthIdentifier: string): number | undefined => {
+                              const entryKey = `${metricKey}-${monthIdentifier}`;
+                              const existingValue = entries[entryKey];
+                              
+                              if (existingValue !== null && existingValue !== undefined) {
+                                return existingValue;
+                              }
+                              
+                              const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+                              if (!sourceMetric || !sourceMetric.calculation) {
+                                return undefined;
+                              }
+                              
+                              if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
+                                const baseValue = getValueForMetric(sourceMetric.calculation.base, monthIdentifier);
+                                if (baseValue === null || baseValue === undefined) return undefined;
+                                
+                                let calculatedValue = baseValue;
+                                for (const deduction of sourceMetric.calculation.deductions) {
+                                  const deductionValue = getValueForMetric(deduction, monthIdentifier);
+                                  calculatedValue -= (deductionValue || 0);
+                                }
+                                
+                                if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
+                                  for (const addition of sourceMetric.calculation.additions) {
+                                    const additionValue = getValueForMetric(addition, monthIdentifier);
+                                    calculatedValue += (additionValue || 0);
+                                  }
+                                }
+                                
+                                return calculatedValue;
+                              }
+                              
+                              return undefined;
+                            };
+                            
+                            const values: number[] = [];
+                            for (const month of months2024) {
+                              let value;
+                              
+                              // Handle percentage calculations
+                              if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+                                const numeratorValue = getValueForMetric(metric.calculation.numerator, month);
+                                const denominatorValue = getValueForMetric(metric.calculation.denominator, month);
+                                
+                                if (numeratorValue !== null && numeratorValue !== undefined && 
+                                    denominatorValue !== null && denominatorValue !== undefined && 
+                                    denominatorValue !== 0) {
+                                  value = (numeratorValue / denominatorValue) * 100;
+                                }
+                              }
+                              // Handle dollar calculations
+                              else if (metric.type === "dollar" && metric.calculation && 'type' in metric.calculation) {
+                                value = getValueForMetric(metric.key, month);
+                              }
+                              // Handle direct entries
+                              else {
+                                value = getValueForMetric(metric.key, month);
+                              }
+                              
+                              if (value !== null && value !== undefined) {
+                                values.push(value);
+                              }
+                            }
+                            
+                            if (values.length === 0) return "-";
+                            
+                            const average = values.reduce((sum, val) => sum + val, 0) / values.length;
+                            return formatTarget(average, metric.type);
+                          })()}
+                        </TableCell>
                         <TableCell className={cn(
                           "text-center py-[7.2px] min-w-[100px] bg-background border-x-2 border-primary/30",
                           isDepartmentProfit && "z-10"
