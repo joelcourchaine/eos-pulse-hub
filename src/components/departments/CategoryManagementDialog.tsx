@@ -107,12 +107,25 @@ export const CategoryManagementDialog = ({
     }
 
     try {
-      const { error } = await supabase
+      // Get the old category name
+      const oldCategory = categories.find(cat => cat.id === id);
+      if (!oldCategory) return;
+
+      // Update the category name
+      const { error: categoryError } = await supabase
         .from("question_categories")
         .update({ name: editingName.trim() })
         .eq("id", id);
 
-      if (error) throw error;
+      if (categoryError) throw categoryError;
+
+      // Update all questions that use this category
+      const { error: questionsError } = await supabase
+        .from("department_questions")
+        .update({ question_category: editingName.trim() })
+        .eq("question_category", oldCategory.name);
+
+      if (questionsError) throw questionsError;
 
       toast({
         title: "Success",
