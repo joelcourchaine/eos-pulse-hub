@@ -781,13 +781,37 @@ export const DepartmentQuestionnaireDialog = ({
           </TabsList>
 
           <TabsContent value="questions" className="space-y-4">
+            {(editingQuestionId !== null || isAddingNew) && (
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Edit2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    {isAddingNew ? "Adding new question" : "Editing question"} - scroll down to save or cancel
+                  </span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleCancelEdit}
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel Editing
+                </Button>
+              </div>
+            )}
             <div className="flex gap-2 mb-4">
               <Button onClick={handleSave} disabled={isSaving}>
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save All Answers"}
               </Button>
               {isSuperAdmin && (
-                <Button onClick={handleAddNew} disabled={isAddingNew || editingQuestionId !== null} variant="outline">
+                <Button 
+                  onClick={handleAddNew} 
+                  disabled={isAddingNew || editingQuestionId !== null} 
+                  variant="outline"
+                  title={editingQuestionId !== null ? "Please save or cancel the current question first" : ""}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Question
                 </Button>
