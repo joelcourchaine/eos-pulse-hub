@@ -490,13 +490,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     const monthIds = months.map(m => m.identifier);
     
-    // Also load all 2024 months for AVG 2024 calculation
-    const months2024 = [
-      '2024-01', '2024-02', '2024-03', '2024-04', 
-      '2024-05', '2024-06', '2024-07', '2024-08', 
-      '2024-09', '2024-10', '2024-11', '2024-12'
+    // Also load all months from previous year for AVG calculation
+    const previousYear = year - 1;
+    const monthsPreviousYear = [
+      `${previousYear}-01`, `${previousYear}-02`, `${previousYear}-03`, `${previousYear}-04`, 
+      `${previousYear}-05`, `${previousYear}-06`, `${previousYear}-07`, `${previousYear}-08`, 
+      `${previousYear}-09`, `${previousYear}-10`, `${previousYear}-11`, `${previousYear}-12`
     ];
-    const allMonthIds = [...new Set([...monthIds, ...months2024])];
+    const allMonthIds = [...new Set([...monthIds, ...monthsPreviousYear])];
 
     const { data, error } = await supabase
       .from("financial_entries")
@@ -1072,7 +1073,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       </TableHead>
                     ))}
                     <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
-                      AVG 2024
+                      AVG {year - 1}
                     </TableHead>
                     <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                       Q{quarter} Target
@@ -1155,11 +1156,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           isDepartmentProfit && "z-10 font-bold"
                         )}>
                           {(() => {
-                            // Calculate average of all 2024 months
-                            const months2024 = [
-                              '2024-01', '2024-02', '2024-03', '2024-04', 
-                              '2024-05', '2024-06', '2024-07', '2024-08', 
-                              '2024-09', '2024-10', '2024-11', '2024-12'
+                            // Calculate average of all months from previous year
+                            const previousYear = year - 1;
+                            const monthsPreviousYear = [
+                              `${previousYear}-01`, `${previousYear}-02`, `${previousYear}-03`, `${previousYear}-04`, 
+                              `${previousYear}-05`, `${previousYear}-06`, `${previousYear}-07`, `${previousYear}-08`, 
+                              `${previousYear}-09`, `${previousYear}-10`, `${previousYear}-11`, `${previousYear}-12`
                             ];
                             
                             const getValueForMetric = (metricKey: string, monthIdentifier: string): number | undefined => {
@@ -1199,7 +1201,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             };
                             
                             const values: number[] = [];
-                            for (const month of months2024) {
+                            for (const month of monthsPreviousYear) {
                               let value;
                               
                               // Handle percentage calculations
