@@ -10,7 +10,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -111,6 +111,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetEditValue, setTargetEditValue] = useState<string>("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [pasteMetric, setPasteMetric] = useState<string>("");
+  const [pasteData, setPasteData] = useState<string>("");
+  const [parsedPasteData, setParsedPasteData] = useState<{ month: string; value: number }[]>([]);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -616,6 +620,86 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager';
   };
 
+  const handlePasteDataChange = (value: string) => {
+    setPasteData(value);
+    
+    // Parse the pasted data
+    if (!value.trim() || !pasteMetric) {
+      setParsedPasteData([]);
+      return;
+    }
+
+    // Split by tabs or spaces (supporting both tab-separated and space-separated)
+    const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
+    const parsed: { month: string; value: number }[] = [];
+
+    values.forEach((val, idx) => {
+      if (idx < months.length) {
+        const numValue = parseFloat(val);
+        if (!isNaN(numValue)) {
+          parsed.push({
+            month: months[idx].identifier,
+            value: numValue
+          });
+        }
+      }
+    });
+
+    setParsedPasteData(parsed);
+  };
+
+  const handlePasteSave = async () => {
+    if (!pasteMetric || parsedPasteData.length === 0) {
+      toast({
+        title: "No data to save",
+        description: "Please select a metric and paste valid data",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      // Save each month's value
+      for (const entry of parsedPasteData) {
+        const { error } = await supabase
+          .from("financial_entries")
+          .upsert({
+            department_id: departmentId,
+            metric_name: pasteMetric,
+            month: entry.month,
+            value: entry.value,
+            created_by: user.id
+          }, {
+            onConflict: 'department_id,metric_name,month'
+          });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Data saved",
+        description: `Successfully saved ${parsedPasteData.length} entries`
+      });
+
+      // Refresh data and close dialog
+      await loadFinancialData();
+      setPasteDialogOpen(false);
+      setPasteData("");
+      setPasteMetric("");
+      setParsedPasteData([]);
+    } catch (error: any) {
+      console.error('Error saving pasted data:', error);
+      toast({
+        title: "Error saving data",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleTargetEdit = (metricKey: string) => {
     if (!canEditTargets()) return;
     const currentTarget = targets[metricKey] || 0;
@@ -822,17 +906,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               </div>
               <div className="flex items-center gap-2">
                 {(userRole === 'super_admin' || userRole === 'store_gm') && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImportDialogOpen(true);
-                    }}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Import Data
-                  </Button>
+                  <>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPasteDialogOpen(true);
+                      }}
+                    >
+                      <ClipboardPaste className="h-4 w-4 mr-2" />
+                      Paste Row
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImportDialogOpen(true);
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import Data
+                    </Button>
+                  </>
                 )}
                 <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
                   <DialogTrigger asChild>
@@ -1412,6 +1509,92 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           toast({ title: "Success", description: "Financial data imported successfully" });
         }}
       />
+
+      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Paste Row Data</DialogTitle>
+            <DialogDescription>
+              Copy a row from Google Sheets and paste it here. The values should be tab-separated (months: {months.map(m => m.label).join(', ')})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="paste-metric">Select Metric</Label>
+              <Select value={pasteMetric} onValueChange={(value) => {
+                setPasteMetric(value);
+                handlePasteDataChange(pasteData);
+              }}>
+                <SelectTrigger id="paste-metric">
+                  <SelectValue placeholder="Choose a metric..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {FINANCIAL_METRICS.filter(m => !m.calculation).map((metric) => (
+                    <SelectItem key={metric.key} value={metric.key}>
+                      {metric.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paste-values">Paste Values</Label>
+              <Input
+                id="paste-values"
+                placeholder="Paste tab-separated values here (e.g., 150000  160000  155000...)"
+                value={pasteData}
+                onChange={(e) => handlePasteDataChange(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tip: In Google Sheets, select the cells for all months in the row, copy (Ctrl+C), and paste here
+              </p>
+            </div>
+
+            {parsedPasteData.length > 0 && (
+              <div className="space-y-2">
+                <Label>Preview ({parsedPasteData.length} values)</Label>
+                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Month</TableHead>
+                        <TableHead>Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedPasteData.map((entry, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{months.find(m => m.identifier === entry.month)?.label}</TableCell>
+                          <TableCell>{entry.value.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => {
+              setPasteDialogOpen(false);
+              setPasteData("");
+              setPasteMetric("");
+              setParsedPasteData([]);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handlePasteSave}
+              disabled={parsedPasteData.length === 0}
+            >
+              Save {parsedPasteData.length} Entries
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
