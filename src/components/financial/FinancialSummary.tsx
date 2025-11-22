@@ -10,12 +10,13 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
+import { FinancialDataImport } from "./FinancialDataImport";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -109,6 +110,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetEditValue, setTargetEditValue] = useState<string>("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -819,6 +821,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                {(userRole === 'super_admin' || userRole === 'store_gm') && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImportDialogOpen(true);
+                    }}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import Data
+                  </Button>
+                )}
                 <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
@@ -1388,6 +1403,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           </div>
         </DialogContent>
       </Dialog>
+
+      <FinancialDataImport
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImportComplete={() => {
+          loadFinancialData();
+          toast({ title: "Success", description: "Financial data imported successfully" });
+        }}
+      />
     </Card>
   );
 };
