@@ -1075,6 +1075,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
                       AVG {year - 1}
                     </TableHead>
+                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
+                      AVG {year}
+                    </TableHead>
                     <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                       Q{quarter} Target
                     </TableHead>
@@ -1202,6 +1205,89 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             const values: number[] = [];
                             for (const month of monthsPreviousYear) {
+                              let value;
+                              
+                              // Handle percentage calculations
+                              if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+                                const numeratorValue = getValueForMetric(metric.calculation.numerator, month);
+                                const denominatorValue = getValueForMetric(metric.calculation.denominator, month);
+                                
+                                if (numeratorValue !== null && numeratorValue !== undefined && 
+                                    denominatorValue !== null && denominatorValue !== undefined && 
+                                    denominatorValue !== 0) {
+                                  value = (numeratorValue / denominatorValue) * 100;
+                                }
+                              }
+                              // Handle dollar calculations
+                              else if (metric.type === "dollar" && metric.calculation && 'type' in metric.calculation) {
+                                value = getValueForMetric(metric.key, month);
+                              }
+                              // Handle direct entries
+                              else {
+                                value = getValueForMetric(metric.key, month);
+                              }
+                              
+                              if (value !== null && value !== undefined) {
+                                values.push(value);
+                              }
+                            }
+                            
+                            if (values.length === 0) return "-";
+                            
+                            const average = values.reduce((sum, val) => sum + val, 0) / values.length;
+                            return formatTarget(average, metric.type);
+                          })()}
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium",
+                          isDepartmentProfit && "z-10 font-bold"
+                        )}>
+                          {(() => {
+                            // Calculate average of all months from current year that have data
+                            const monthsCurrentYear = [
+                              `${year}-01`, `${year}-02`, `${year}-03`, `${year}-04`, 
+                              `${year}-05`, `${year}-06`, `${year}-07`, `${year}-08`, 
+                              `${year}-09`, `${year}-10`, `${year}-11`, `${year}-12`
+                            ];
+                            
+                            const getValueForMetric = (metricKey: string, monthIdentifier: string): number | undefined => {
+                              const entryKey = `${metricKey}-${monthIdentifier}`;
+                              const existingValue = entries[entryKey];
+                              
+                              if (existingValue !== null && existingValue !== undefined) {
+                                return existingValue;
+                              }
+                              
+                              const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+                              if (!sourceMetric || !sourceMetric.calculation) {
+                                return undefined;
+                              }
+                              
+                              if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
+                                const baseValue = getValueForMetric(sourceMetric.calculation.base, monthIdentifier);
+                                if (baseValue === null || baseValue === undefined) return undefined;
+                                
+                                let calculatedValue = baseValue;
+                                for (const deduction of sourceMetric.calculation.deductions) {
+                                  const deductionValue = getValueForMetric(deduction, monthIdentifier);
+                                  calculatedValue -= (deductionValue || 0);
+                                }
+                                
+                                if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
+                                  for (const addition of sourceMetric.calculation.additions) {
+                                    const additionValue = getValueForMetric(addition, monthIdentifier);
+                                    calculatedValue += (additionValue || 0);
+                                  }
+                                }
+                                
+                                return calculatedValue;
+                              }
+                              
+                              return undefined;
+                            };
+                            
+                            const values: number[] = [];
+                            for (const month of monthsCurrentYear) {
                               let value;
                               
                               // Handle percentage calculations
