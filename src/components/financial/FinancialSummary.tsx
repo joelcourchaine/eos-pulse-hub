@@ -498,12 +498,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setLocalValues({});
     
     const monthIds = months.map(m => m.identifier);
+    
+    // Also load all 2024 months for AVG 2024 calculation
+    const months2024 = [
+      '2024-01', '2024-02', '2024-03', '2024-04', 
+      '2024-05', '2024-06', '2024-07', '2024-08', 
+      '2024-09', '2024-10', '2024-11', '2024-12'
+    ];
+    const allMonthIds = [...new Set([...monthIds, ...months2024])];
 
     const { data, error } = await supabase
       .from("financial_entries")
       .select("*")
       .eq("department_id", departmentId)
-      .in("month", monthIds);
+      .in("month", allMonthIds);
 
     if (error) {
       toast({ title: "Error", description: "Failed to load financial data", variant: "destructive" });
