@@ -7,7 +7,7 @@ import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
@@ -603,6 +603,10 @@ const Dashboard = () => {
               )}
               {profile.role === 'super_admin' && (
                 <>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")}>
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Enterprise
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setShowStores(true)}>
                     <Building2 className="mr-2 h-4 w-4" />
                     Stores
