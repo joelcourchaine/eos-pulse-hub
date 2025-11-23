@@ -191,14 +191,22 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     setLoading(false);
   };
 
-  const formatValue = (value: number | null, type: string) => {
+  const formatValue = (value: number | null, type: string, kpiName?: string) => {
     if (value === null || value === undefined) return "-";
+    // Total Hours should show whole numbers
+    if (kpiName === "Total Hours") {
+      return Math.round(value).toLocaleString();
+    }
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
     return value.toString();
   };
 
-  const formatTarget = (value: number, type: string) => {
+  const formatTarget = (value: number, type: string, kpiName?: string) => {
+    // Total Hours should show whole numbers
+    if (kpiName === "Total Hours") {
+      return Math.round(value).toLocaleString();
+    }
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${value}%`;
     return value.toString();
@@ -313,7 +321,7 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
                         {ownerKpis.map(kpi => (
                           <tr key={kpi.id}>
                             <td className="kpi-name">{kpi.name}</td>
-                            <td className="target-value">{formatTarget(kpi.target_value, kpi.metric_type)}</td>
+                            <td className="target-value">{formatTarget(kpi.target_value, kpi.metric_type, kpi.name)}</td>
                             {periods.map(period => {
                               const entry = mode === "weekly"
                                 ? scorecardEntries.find(
@@ -329,8 +337,10 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
                                   key={mode === "weekly" ? (period as any).date : (period as any).identifier}
                                   className={`value-cell ${status === 'green' ? 'status-green' : status === 'yellow' ? 'status-yellow' : status === 'red' ? 'status-red' : ''}`}
                                 >
-                                  {entry?.actual_value !== null && entry?.actual_value !== undefined
-                                    ? kpi.metric_type === "dollar" 
+                                   {entry?.actual_value !== null && entry?.actual_value !== undefined
+                                    ? kpi.name === "Total Hours"
+                                      ? Math.round(entry.actual_value).toLocaleString()
+                                      : kpi.metric_type === "dollar" 
                                       ? `$${entry.actual_value.toLocaleString()}`
                                       : kpi.metric_type === "percentage"
                                       ? `${entry.actual_value}%`

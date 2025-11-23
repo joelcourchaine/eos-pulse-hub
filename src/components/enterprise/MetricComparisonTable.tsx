@@ -71,6 +71,11 @@ export default function MetricComparisonTable({
     
     const lowerMetricName = metricName.toLowerCase();
     
+    // Total Hours should show whole numbers
+    if (metricName === "Total Hours") {
+      return Math.round(value).toLocaleString();
+    }
+    
     // Check if it's a percentage metric
     if (lowerMetricName.includes("%") || lowerMetricName.includes("percent")) {
       return `${value.toFixed(1)}%`;
