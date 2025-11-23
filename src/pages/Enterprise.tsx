@@ -223,7 +223,10 @@ export default function Enterprise() {
       kpiDefinitionsCount: kpiDefinitions?.length,
       scorecardEntriesCount: scorecardEntries?.length,
       departmentsCount: departments?.length,
+      filteredStoresCount: filteredStores.length,
     });
+
+    let dataWithValues: any[] = [];
 
     if (metricType === "financial" && financialEntries && departments) {
       // Convert selected metric names to database keys
@@ -254,10 +257,10 @@ export default function Enterprise() {
         return acc;
       }, {} as Record<string, any>);
       
-      return Object.values(groupedByKey);
+      dataWithValues = Object.values(groupedByKey);
     } else if (kpiDefinitions && scorecardEntries) {
       console.log("Processing KPI data");
-      const mapped = scorecardEntries
+      dataWithValues = scorecardEntries
         .map(entry => {
           const kpi = kpiDefinitions.find(k => k.id === entry.kpi_id);
           if (!kpi || !selectedMetrics.includes(kpi.name)) return null;
@@ -274,12 +277,60 @@ export default function Enterprise() {
           };
         })
         .filter(Boolean) as any[];
-      console.log("KPI entries mapped:", mapped.length);
-      return mapped;
+      console.log("KPI entries mapped:", dataWithValues.length);
     }
-    console.log("No data matched conditions");
-    return [];
-  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap]);
+
+    // Ensure all filtered stores appear in the output, even without data
+    if (filteredStores.length > 0 && selectedMetrics.length > 0) {
+      const storesWithData = new Set(dataWithValues.map(d => d.storeId));
+      const storesWithoutData = filteredStores.filter(store => !storesWithData.has(store.id));
+      
+      console.log("Stores with data:", storesWithData.size, "Stores without data:", storesWithoutData.length);
+      
+      // Add placeholder entries for stores without data
+      storesWithoutData.forEach(store => {
+        const storeDepartments = departments?.filter(d => d.store_id === store.id) || [];
+        const relevantDepartments = selectedDepartmentNames.length > 0
+          ? storeDepartments.filter(d => selectedDepartmentNames.includes(d.name))
+          : storeDepartments;
+        
+        // If store has no departments, add one entry per metric
+        if (relevantDepartments.length === 0) {
+          selectedMetrics.forEach(metricName => {
+            dataWithValues.push({
+              storeId: store.id,
+              storeName: store.name,
+              departmentId: undefined,
+              departmentName: undefined,
+              metricName: metricName,
+              value: null,
+              target: null,
+              variance: null,
+            });
+          });
+        } else {
+          // Add entries for each department + metric combination
+          relevantDepartments.forEach(dept => {
+            selectedMetrics.forEach(metricName => {
+              dataWithValues.push({
+                storeId: store.id,
+                storeName: store.name,
+                departmentId: dept.id,
+                departmentName: dept.name,
+                metricName: metricName,
+                value: null,
+                target: null,
+                variance: null,
+              });
+            });
+          });
+        }
+      });
+    }
+
+    console.log("Final comparison data length:", dataWithValues.length);
+    return dataWithValues;
+  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap, filteredStores, selectedDepartmentNames]);
 
   const toggleStoreSelection = (storeId: string) => {
     setSelectedStoreIds(prev =>
