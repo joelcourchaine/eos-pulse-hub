@@ -31,8 +31,16 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   
   const months = [];
   
-  // For Q1, show all 12 months to allow full year data entry
+  // For Q1, show 24 months (last year + current year) to allow 2-year data entry
   if (quarter === 1) {
+    // Add all 12 months from previous year
+    for (let i = 0; i < 12; i++) {
+      months.push({
+        label: `${monthNames[i]} ${year - 1}`,
+        identifier: `${year - 1}-${String(i + 1).padStart(2, '0')}`,
+      });
+    }
+    // Add all 12 months from current year
     for (let i = 0; i < 12; i++) {
       months.push({
         label: monthNames[i],
