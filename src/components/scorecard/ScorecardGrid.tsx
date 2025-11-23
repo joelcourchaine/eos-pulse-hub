@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const PRESET_KPIS = [
+  { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
   { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
   { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
   { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const },
