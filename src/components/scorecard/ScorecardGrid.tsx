@@ -514,9 +514,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     // Load data for each preceding quarter
     for (const pq of precedingQuarters) {
-      const quarterMonths = getMonthsForQuarter(pq.quarter, pq.year)
-        .filter(m => m.type === 'month')
-        .map(m => m.identifier);
+      // Always get exactly 3 months for each quarter (for calculation purposes)
+      const startMonth = (pq.quarter - 1) * 3 + 1;
+      const quarterMonths = [
+        `${pq.year}-${String(startMonth).padStart(2, '0')}`,
+        `${pq.year}-${String(startMonth + 1).padStart(2, '0')}`,
+        `${pq.year}-${String(startMonth + 2).padStart(2, '0')}`
+      ];
       
       const { data, error } = await supabase
         .from("scorecard_entries")
