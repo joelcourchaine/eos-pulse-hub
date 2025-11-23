@@ -26,6 +26,7 @@ import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
+import { useUserRole } from "@/hooks/use-user-role";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { isSuperAdmin, isStoreGM, loading: rolesLoading } = useUserRole(user?.id);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
     return localStorage.getItem('selectedDepartment') || "";
@@ -94,12 +96,14 @@ const Dashboard = () => {
   }, [navigate]);
 
   useEffect(() => {
-    if (profile?.role === 'super_admin') {
+    if (rolesLoading) return;
+    
+    if (isSuperAdmin) {
       fetchStores();
     } else if (profile) {
       fetchDepartments();
     }
-  }, [profile]);
+  }, [profile, isSuperAdmin, rolesLoading]);
 
   useEffect(() => {
     if (selectedStore && profile) {
@@ -299,7 +303,7 @@ const Dashboard = () => {
         .order("name");
 
       // Filter departments by store
-      if (profile?.role === 'super_admin') {
+      if (isSuperAdmin) {
         // Super admin: filter by selected store
         if (selectedStore) {
           query = query.eq("store_id", selectedStore);
@@ -537,7 +541,7 @@ const Dashboard = () => {
     }
   };
 
-  if (loading || !user || !profile) {
+  if (loading || rolesLoading || !user || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
         <div className="text-center">
@@ -573,7 +577,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              {profile?.role === 'super_admin' && stores.length > 0 && (
+              {isSuperAdmin && stores.length > 0 && (
                 <Select value={selectedStore} onValueChange={setSelectedStore}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Select Store" />
@@ -601,7 +605,7 @@ const Dashboard = () => {
                   </SelectContent>
                 </Select>
               )}
-              {profile.role === 'super_admin' && (
+              {isSuperAdmin && (
                 <>
                   <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")}>
                     <TrendingUp className="mr-2 h-4 w-4" />
@@ -617,7 +621,7 @@ const Dashboard = () => {
                   </Button>
                 </>
               )}
-              {(profile.role === 'super_admin' || profile.role === 'store_gm') && (
+              {(isSuperAdmin || isStoreGM) && (
                 <Button variant="outline" size="sm" onClick={() => setShowUsers(true)}>
                   <Users className="mr-2 h-4 w-4" />
                   Users
@@ -699,7 +703,7 @@ const Dashboard = () => {
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Dealership Logo */}
-          <LogoUpload storeId={selectedStore || profile?.store_id || null} userRole={profile?.role} />
+          <LogoUpload storeId={selectedStore || profile?.store_id || null} userRole={isSuperAdmin ? 'super_admin' : profile?.role} />
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">This Week</CardTitle>
@@ -825,7 +829,7 @@ const Dashboard = () => {
         />
 
         {/* Celebrations */}
-        <Celebrations currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id} />
+        <Celebrations currentStoreId={isSuperAdmin ? selectedStore : profile?.store_id} />
 
         {/* To-Dos Section */}
         <TodosPanel 
@@ -835,10 +839,10 @@ const Dashboard = () => {
         />
 
         {/* Director Notes Section */}
-        {selectedDepartment && (profile?.role === 'super_admin' || profile?.role === 'store_gm') && (
+        {selectedDepartment && (isSuperAdmin || isStoreGM) && (
           <DirectorNotes
             departmentId={selectedDepartment}
-            userRole={profile?.role || ""}
+            userRole={isSuperAdmin ? 'super_admin' : isStoreGM ? 'store_gm' : profile?.role || ""}
           />
         )}
       </main>
@@ -848,7 +852,7 @@ const Dashboard = () => {
     <UserManagementDialog
       open={showUsers}
       onOpenChange={setShowUsers}
-      currentStoreId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id}
+      currentStoreId={isSuperAdmin ? selectedStore : profile?.store_id}
     />
     <StoreManagementDialog
       open={showStores}
@@ -857,7 +861,7 @@ const Dashboard = () => {
     <DepartmentSelectionDialog
       open={showDepartments}
       onOpenChange={setShowDepartments}
-      storeId={profile?.role === 'super_admin' ? selectedStore : profile?.store_id || ""}
+      storeId={isSuperAdmin ? selectedStore : profile?.store_id || ""}
     />
     {selectedDepartment && (
       <DepartmentQuestionnaireDialog
@@ -867,7 +871,7 @@ const Dashboard = () => {
         departmentName={departments.find(d => d.id === selectedDepartment)?.name || "Department"}
         departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
         managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
-        isSuperAdmin={profile?.role === 'super_admin'}
+        isSuperAdmin={isSuperAdmin}
       />
     )}
     </>
