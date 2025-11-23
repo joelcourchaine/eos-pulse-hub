@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -33,6 +33,7 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
   const [notes, setNotes] = useState("");
   const [existingNoteId, setExistingNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const canEdit = userRole === "super_admin" || userRole === "store_gm";
@@ -66,7 +67,7 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (showToast = false) => {
     if (!canEdit) return;
 
     setIsSaving(true);
@@ -103,10 +104,12 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
         setExistingNoteId(data.id);
       }
 
-      toast({
-        title: "Notes saved",
-        description: "Director's notes have been saved successfully.",
-      });
+      if (showToast) {
+        toast({
+          title: "Notes saved",
+          description: "Director's notes have been saved successfully.",
+        });
+      }
     } catch (error) {
       console.error("Error saving director notes:", error);
       toast({
@@ -117,6 +120,22 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleNotesChange = (value: string) => {
+    setNotes(value);
+    
+    if (!canEdit) return;
+
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // Set new timeout for auto-save
+    saveTimeoutRef.current = setTimeout(() => {
+      handleSave(false);
+    }, 1000);
   };
 
   return (
@@ -149,7 +168,7 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
                 </SelectContent>
               </Select>
               {canEdit && (
-                <Button onClick={handleSave} disabled={isSaving} size="sm">
+                <Button onClick={() => handleSave(true)} disabled={isSaving} size="sm">
                   <Save className="mr-2 h-4 w-4" />
                   {isSaving ? "Saving..." : "Save"}
                 </Button>
@@ -158,7 +177,7 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
             <div className="resize-y overflow-auto min-h-[200px] max-h-[800px] border rounded-md">
               <RichTextEditor
                 value={notes}
-                onChange={setNotes}
+                onChange={handleNotesChange}
                 placeholder="Enter your observations, suggestions, and recommendations. You can paste images directly here..."
                 className="min-h-[200px] p-3"
               />
