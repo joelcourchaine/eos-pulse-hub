@@ -129,31 +129,55 @@ const getWeekDates = (selectedQuarter: { year: number; quarter: number }) => {
   return weeks;
 };
 
-const getLast13Months = () => {
-  const months = [];
+const getMonthsForQuarter = (quarter: number, year: number) => {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
   
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth(); // 0-11
+  const months = [];
   
-  // Generate 13 months ending with current month
-  for (let i = 12; i >= 0; i--) {
-    const monthDate = new Date(currentYear, currentMonth - i, 1);
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    
-    months.push({
-      label: monthNames[month],
-      identifier: `${year}-${String(month + 1).padStart(2, '0')}`,
-      year: year,
-      month: month + 1,
-      type: 'month' as const,
-    });
+  // For Q1, show all 12 months to allow full year data entry
+  if (quarter === 1) {
+    for (let i = 0; i < 12; i++) {
+      months.push({
+        label: monthNames[i],
+        identifier: `${year}-${String(i + 1).padStart(2, '0')}`,
+        year: year,
+        month: i + 1,
+        type: 'month' as const,
+      });
+    }
+  } else {
+    // For Q2, Q3, Q4, show only the quarter's 3 months
+    for (let i = 0; i < 3; i++) {
+      const monthIndex = (quarter - 1) * 3 + i;
+      months.push({
+        label: monthNames[monthIndex],
+        identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+        year: year,
+        month: monthIndex + 1,
+        type: 'month' as const,
+      });
+    }
   }
   
   return months;
+};
+
+const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
+  const quarters = [];
+  let q = currentQuarter;
+  let y = currentYear;
+  
+  for (let i = 0; i < count; i++) {
+    q--;
+    if (q < 1) {
+      q = 4;
+      y--;
+    }
+    quarters.push({ quarter: q, year: y, label: `Q${q} ${y}` });
+  }
+  
+  return quarters.reverse();
 };
 
 const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange }: ScorecardGridProps) => {
@@ -163,6 +187,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
+  const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -187,7 +212,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
-  const months = getLast13Months();
+  const months = getMonthsForQuarter(quarter, year);
+  const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
   const allPeriods = viewMode === "weekly" ? weeks : months;
 
   const getRoleColor = (role?: string) => {
@@ -1560,15 +1586,29 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
                 </TableHead>
               );
-            }) : months.map((month) => (
-              <TableHead 
-                key={month.identifier} 
-                className="text-center min-w-[120px] max-w-[120px] text-xs py-[7.2px] font-bold"
-              >
-                <div className="text-xs font-semibold">{month.label}</div>
-                <div className="text-[10px] text-muted-foreground">{month.year}</div>
-              </TableHead>
-            ))}
+            }) : (
+              <>
+                {precedingQuarters.map((pq) => (
+                  <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                    {pq.label}
+                  </TableHead>
+                ))}
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
+                  AVG {year - 1}
+                </TableHead>
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
+                  AVG {year}
+                </TableHead>
+                {months.map((month) => (
+                  <TableHead 
+                    key={month.identifier} 
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                  >
+                    {month.label}
+                  </TableHead>
+                ))}
+              </>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1798,111 +1838,141 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         </div>
                       </TableCell>
                     );
-                  }) : months.map((month) => {
-                    const key = `${kpi.id}-month-${month.identifier}`;
-                    const entry = entries[key];
-                    const status = getStatus(entry?.status || null);
-                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
-                    
-                    return (
-                      <TableCell
-                        key={month.identifier}
-                        className={cn(
-                          "p-1 relative min-w-[120px] max-w-[120px]",
-                          status === "success" && "bg-success/10",
-                          status === "warning" && "bg-warning/10",
-                          status === "destructive" && "bg-destructive/10"
-                        )}
-                      >
-                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
-                            // Display formatted value when data exists (always for calculated, when not focused for others)
-                            <div 
-                              data-display-value
-                              className={cn(
-                                "h-full w-full flex items-center justify-center cursor-text",
-                                status === "success" && "text-success font-medium",
-                                status === "warning" && "text-warning font-medium",
-                                status === "destructive" && "text-destructive font-medium",
-                                isCalculatedKPI(kpi.name) && "cursor-default"
-                              )}
-                              onClick={(e) => {
-                                if (!isCalculatedKPI(kpi.name)) {
-                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                  input?.focus();
-                                  input?.select();
-                                }
-                              }}
-                            >
-                              {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
-                            </div>
-                          ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
-                            // Empty state - just show symbols when not focused
-                            <div 
-                              data-display-value
-                              className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                              onClick={(e) => {
-                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                input?.focus();
-                              }}
-                            >
-                              {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
-                            </div>
-                          ) : null}
-                          <Input
-                            type="number"
-                            step="any"
-                            value={displayValue}
-                            onChange={(e) =>
-                              handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
-                                const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
-                                
-                                if (currentKpiIndex < kpis.length - 1) {
-                                  const nextInput = document.querySelector(
-                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                  ) as HTMLInputElement;
-                                  nextInput?.focus();
-                                  nextInput?.select();
-                                }
-                              }
-                            }}
-                             onFocus={() => setFocusedInput(key)}
-                             onBlur={() => {
-                               // Clear local value on blur so display shows saved value
-                               setTimeout(() => {
-                                 setFocusedInput(null);
-                                 setLocalValues(prev => {
-                                   const newLocalValues = { ...prev };
-                                   delete newLocalValues[key];
-                                   return newLocalValues;
-                                 });
-                               }, 100);
-                             }}
-                            data-kpi-index={index}
-                            data-period-index={months.findIndex(m => m.identifier === month.identifier)}
-                            className={cn(
-                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                              status === "success" && "text-success font-medium",
-                              status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium",
-                              isCalculatedKPI(kpi.name) && "hidden"
-                            )}
-                            placeholder="-"
-                            disabled={saving[key] || isCalculatedKPI(kpi.name)}
-                            readOnly={isCalculatedKPI(kpi.name)}
-                          />
-                          {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
-                          )}
-                        </div>
+                  }) : (
+                    <>
+                      {/* Preceding Quarters */}
+                      {precedingQuarters.map((pq) => {
+                        const qKey = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
+                        const qValue = precedingQuartersData[qKey];
+                        
+                        return (
+                          <TableCell 
+                            key={`${pq.quarter}-${pq.year}`} 
+                            className="text-center py-[7.2px] min-w-[100px] text-muted-foreground"
+                          >
+                            {qValue !== null && qValue !== undefined ? formatTarget(qValue, kpi.metric_type, kpi.name) : "-"}
+                          </TableCell>
+                        );
+                      })}
+                      
+                      {/* AVG Year-1 */}
+                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
+                        -
                       </TableCell>
-                    );
-                  })}
+                      
+                      {/* AVG Year */}
+                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
+                        -
+                      </TableCell>
+                      
+                      {/* Months */}
+                      {months.map((month) => {
+                        const key = `${kpi.id}-month-${month.identifier}`;
+                        const entry = entries[key];
+                        const status = getStatus(entry?.status || null);
+                        const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
+                        
+                        return (
+                          <TableCell
+                            key={month.identifier}
+                            className={cn(
+                              "p-1 relative min-w-[125px] max-w-[125px]",
+                              status === "success" && "bg-success/10",
+                              status === "warning" && "bg-warning/10",
+                              status === "destructive" && "bg-destructive/10"
+                            )}
+                          >
+                            <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                              {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                                // Display formatted value when data exists (always for calculated, when not focused for others)
+                                <div 
+                                  data-display-value
+                                  className={cn(
+                                    "h-full w-full flex items-center justify-center cursor-text",
+                                    status === "success" && "text-success font-medium",
+                                    status === "warning" && "text-warning font-medium",
+                                    status === "destructive" && "text-destructive font-medium",
+                                    isCalculatedKPI(kpi.name) && "cursor-default"
+                                  )}
+                                  onClick={(e) => {
+                                    if (!isCalculatedKPI(kpi.name)) {
+                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                      input?.focus();
+                                      input?.select();
+                                    }
+                                  }}
+                                >
+                                  {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
+                                </div>
+                              ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                                // Empty state - just show symbols when not focused
+                                <div 
+                                  data-display-value
+                                  className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                  onClick={(e) => {
+                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                    input?.focus();
+                                  }}
+                                >
+                                  {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                                </div>
+                              ) : null}
+                              <Input
+                                type="number"
+                                step="any"
+                                value={displayValue}
+                                onChange={(e) =>
+                                  handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                    const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
+                                    
+                                    if (currentKpiIndex < kpis.length - 1) {
+                                      const nextInput = document.querySelector(
+                                        `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                      ) as HTMLInputElement;
+                                      nextInput?.focus();
+                                      nextInput?.select();
+                                    }
+                                  }
+                                }}
+                                 onFocus={() => setFocusedInput(key)}
+                                 onBlur={() => {
+                                   // Clear local value on blur so display shows saved value
+                                   setTimeout(() => {
+                                     setFocusedInput(null);
+                                     setLocalValues(prev => {
+                                       const newLocalValues = { ...prev };
+                                       delete newLocalValues[key];
+                                       return newLocalValues;
+                                     });
+                                   }, 100);
+                                 }}
+                                data-kpi-index={index}
+                                data-period-index={months.findIndex(m => m.identifier === month.identifier)}
+                                className={cn(
+                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                  status === "success" && "text-success font-medium",
+                                  status === "warning" && "text-warning font-medium",
+                                  status === "destructive" && "text-destructive font-medium",
+                                  isCalculatedKPI(kpi.name) && "hidden"
+                                )}
+                                placeholder="-"
+                                disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                                readOnly={isCalculatedKPI(kpi.name)}
+                              />
+                              {saving[key] && (
+                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                              )}
+                            </div>
+                          </TableCell>
+                        );
+                      })}
+                    </>
+                  )}
                 </TableRow>
               </React.Fragment>
             );
