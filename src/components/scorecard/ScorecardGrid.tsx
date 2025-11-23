@@ -188,6 +188,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
+  const [yearlyAverages, setYearlyAverages] = useState<{ [key: string]: { prevYear: number | null; currentYear: number | null } }>({});
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -255,6 +256,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     loadKPITargets();
     loadStoreUsers();
   }, [departmentId, kpis, year, quarter, viewMode]);
+
+  useEffect(() => {
+    if (viewMode === "monthly" && kpis.length > 0) {
+      loadPrecedingQuartersData();
+      calculateYearlyAverages();
+    }
+  }, [departmentId, kpis, year, quarter, viewMode, entries]);
 
   // Update local values when entries change
   useEffect(() => {
@@ -497,6 +505,86 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     }
 
     setLoading(false);
+  };
+
+  const loadPrecedingQuartersData = async () => {
+    if (!departmentId || kpis.length === 0) return;
+
+    const quarterAverages: { [key: string]: number } = {};
+    
+    // Load data for each preceding quarter
+    for (const pq of precedingQuarters) {
+      const quarterMonths = getMonthsForQuarter(pq.quarter, pq.year)
+        .filter(m => m.type === 'month')
+        .map(m => m.identifier);
+      
+      const { data, error } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpis.map(k => k.id))
+        .eq("entry_type", "monthly")
+        .in("month", quarterMonths);
+
+      if (error) {
+        console.error("Error loading preceding quarter data:", error);
+        continue;
+      }
+
+      // Calculate average for each KPI in this quarter
+      kpis.forEach(kpi => {
+        const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
+        const values = kpiEntries
+          .map(e => e.actual_value)
+          .filter((v): v is number => v !== null && v !== undefined);
+        
+        if (values.length > 0) {
+          const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+          const key = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
+          quarterAverages[key] = average;
+        }
+      });
+    }
+
+    setPrecedingQuartersData(quarterAverages);
+  };
+
+  const calculateYearlyAverages = () => {
+    if (kpis.length === 0) return;
+
+    const averages: { [key: string]: { prevYear: number | null; currentYear: number | null } } = {};
+
+    kpis.forEach(kpi => {
+      // Calculate previous year average (all 12 months of year-1)
+      const prevYearMonths = Array.from({ length: 12 }, (_, i) => 
+        `${year - 1}-${String(i + 1).padStart(2, '0')}`
+      );
+      const prevYearValues = prevYearMonths
+        .map(month => entries[`${kpi.id}-month-${month}`]?.actual_value)
+        .filter((v): v is number => v !== null && v !== undefined);
+      
+      const prevYearAvg = prevYearValues.length > 0
+        ? prevYearValues.reduce((sum, v) => sum + v, 0) / prevYearValues.length
+        : null;
+
+      // Calculate current year average (all months with data)
+      const currentYearMonths = Array.from({ length: 12 }, (_, i) => 
+        `${year}-${String(i + 1).padStart(2, '0')}`
+      );
+      const currentYearValues = currentYearMonths
+        .map(month => entries[`${kpi.id}-month-${month}`]?.actual_value)
+        .filter((v): v is number => v !== null && v !== undefined);
+      
+      const currentYearAvg = currentYearValues.length > 0
+        ? currentYearValues.reduce((sum, v) => sum + v, 0) / currentYearValues.length
+        : null;
+
+      averages[kpi.id] = {
+        prevYear: prevYearAvg,
+        currentYear: currentYearAvg
+      };
+    });
+
+    setYearlyAverages(averages);
   };
 
   const calculateDependentKPIs = async (changedKpiId: string, periodKey: string, isMonthly: boolean, monthId?: string, updatedEntries?: { [key: string]: ScorecardEntry }) => {
@@ -1857,12 +1945,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       
                       {/* AVG Year-1 */}
                       <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
-                        -
+                        {yearlyAverages[kpi.id]?.prevYear !== null && yearlyAverages[kpi.id]?.prevYear !== undefined
+                          ? formatTarget(yearlyAverages[kpi.id].prevYear!, kpi.metric_type, kpi.name)
+                          : "-"}
                       </TableCell>
                       
                       {/* AVG Year */}
                       <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
-                        -
+                        {yearlyAverages[kpi.id]?.currentYear !== null && yearlyAverages[kpi.id]?.currentYear !== undefined
+                          ? formatTarget(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
+                          : "-"}
                       </TableCell>
                       
                       {/* Months */}
