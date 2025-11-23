@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
         start_month,
         start_year,
       },
-      redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+      redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/set-password`
     });
 
     if (userError) {
