@@ -4,10 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -175,6 +176,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [storeUsers, setStoreUsers] = useState<Profile[]>([]);
   const [draggedOwnerId, setDraggedOwnerId] = useState<string | null>(null);
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [pasteKpi, setPasteKpi] = useState<string>("");
+  const [pasteData, setPasteData] = useState<string>("");
+  const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1078,6 +1083,103 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     onKPIsChange();
   };
 
+  const handlePasteDataChange = (value: string) => {
+    setPasteData(value);
+    
+    if (!value.trim() || !pasteKpi) {
+      setParsedPasteData([]);
+      return;
+    }
+
+    const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
+    const parsed: { period: string; value: number }[] = [];
+    const periods = viewMode === "weekly" ? weeks : months;
+
+    values.forEach((val, idx) => {
+      if (idx < periods.length) {
+        const numValue = parseFloat(val);
+        if (!isNaN(numValue)) {
+          const periodIdentifier = viewMode === "weekly" 
+            ? periods[idx].start.toISOString().split('T')[0]
+            : (periods[idx] as any).identifier;
+          parsed.push({
+            period: periodIdentifier,
+            value: numValue
+          });
+        }
+      }
+    });
+
+    setParsedPasteData(parsed);
+  };
+
+  const handlePasteSave = async () => {
+    if (!pasteKpi || parsedPasteData.length === 0) {
+      toast({
+        title: "No data to save",
+        description: "Please select a KPI and paste valid data",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      for (const entry of parsedPasteData) {
+        const kpi = kpis.find(k => k.id === pasteKpi);
+        if (!kpi) continue;
+
+        const target = kpiTargets[pasteKpi] || kpi.target_value;
+        const variance = kpi.metric_type === "percentage" 
+          ? entry.value - target 
+          : ((entry.value - target) / target) * 100;
+
+        let status: string;
+        if (kpi.target_direction === "above") {
+          status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+        } else {
+          status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+        }
+
+        const { error } = await supabase
+          .from("scorecard_entries")
+          .upsert({
+            kpi_id: pasteKpi,
+            [viewMode === "weekly" ? "week_start_date" : "month"]: entry.period,
+            entry_type: viewMode,
+            actual_value: entry.value,
+            variance: variance,
+            status: status,
+            created_by: user.id
+          }, {
+            onConflict: viewMode === "weekly" ? 'kpi_id,week_start_date' : 'kpi_id,month'
+          });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Data saved",
+        description: `Successfully saved ${parsedPasteData.length} entries`
+      });
+
+      await loadScorecardData();
+      setPasteDialogOpen(false);
+      setPasteData("");
+      setPasteKpi("");
+      setParsedPasteData([]);
+    } catch (error: any) {
+      console.error('Error saving pasted data:', error);
+      toast({
+        title: "Error saving data",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleOwnerDragStart = (ownerId: string | null) => {
     setDraggedOwnerId(ownerId);
   };
@@ -1336,16 +1438,30 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 }}
               />
               {canManageKPIs && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleBulkRecalculateAll}
-                  disabled={saving['bulk-recalc']}
-                  className="gap-2"
-                >
-                  <RefreshCw className={cn("h-4 w-4", saving['bulk-recalc'] && "animate-spin")} />
-                  {saving['bulk-recalc'] ? "Recalculating..." : "Recalculate All"}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPasteDialogOpen(true);
+                    }}
+                    className="gap-2"
+                  >
+                    <ClipboardPaste className="h-4 w-4" />
+                    Paste Row
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkRecalculateAll}
+                    disabled={saving['bulk-recalc']}
+                    className="gap-2"
+                  >
+                    <RefreshCw className={cn("h-4 w-4", saving['bulk-recalc'] && "animate-spin")} />
+                    {saving['bulk-recalc'] ? "Recalculating..." : "Recalculate All"}
+                  </Button>
+                </>
               )}
               <Button
                 variant="outline"
@@ -1788,6 +1904,90 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       </Table>
     </div>
       )}
+
+      {/* Paste Row Dialog */}
+      <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Paste Row Data</DialogTitle>
+            <DialogDescription>
+              Copy a row from Google Sheets and paste it here. The values should be tab-separated {viewMode === "weekly" ? "(weeks: " + weeks.map(w => w.label).join(', ') + ")" : "(months: " + months.map(m => m.label).join(', ') + ")"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="paste-kpi">Select KPI</Label>
+              <Select value={pasteKpi} onValueChange={(value) => {
+                setPasteKpi(value);
+                handlePasteDataChange(pasteData);
+              }}>
+                <SelectTrigger id="paste-kpi">
+                  <SelectValue placeholder="Choose a KPI..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {kpis.filter(k => !isCalculatedKPI(k.name)).map((kpi) => (
+                    <SelectItem key={kpi.id} value={kpi.id}>
+                      {kpi.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paste-values">Paste Values</Label>
+              <Input
+                id="paste-values"
+                placeholder="Paste tab-separated values here (e.g., 150  160  155...)"
+                value={pasteData}
+                onChange={(e) => handlePasteDataChange(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tip: In Google Sheets, select the cells for all {viewMode === "weekly" ? "weeks" : "months"}, copy (Ctrl+C), and paste here
+              </p>
+            </div>
+
+            {parsedPasteData.length > 0 && (
+              <div className="space-y-2">
+                <Label>Preview ({parsedPasteData.length} values)</Label>
+                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{viewMode === "weekly" ? "Week" : "Month"}</TableHead>
+                        <TableHead>Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedPasteData.map((entry, idx) => {
+                        const periodLabel = viewMode === "weekly" 
+                          ? weeks.find(w => w.start.toISOString().split('T')[0] === entry.period)?.label
+                          : months.find(m => (m as any).identifier === entry.period)?.label;
+                        return (
+                          <TableRow key={idx}>
+                            <TableCell>{periodLabel}</TableCell>
+                            <TableCell>{entry.value.toLocaleString()}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setPasteDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handlePasteSave}>
+                Save {parsedPasteData.length} {parsedPasteData.length === 1 ? 'Entry' : 'Entries'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
