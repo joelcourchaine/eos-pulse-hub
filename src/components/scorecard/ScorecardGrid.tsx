@@ -1724,6 +1724,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
                   AVG {year}
                 </TableHead>
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                  Q{quarter} Target
+                </TableHead>
                 {months.map((month) => (
                   <TableHead 
                     key={month.identifier} 
@@ -1782,7 +1785,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: '200px' }}
                     />
-                    <TableCell colSpan={weeks.length + months.length} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={viewMode === "weekly" ? weeks.length : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -1992,6 +1995,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         {yearlyAverages[kpi.id]?.currentYear !== null && yearlyAverages[kpi.id]?.currentYear !== undefined
                           ? formatTarget(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
                           : "-"}
+                      </TableCell>
+                      
+                      {/* Q{quarter} Target */}
+                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                        {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
                       </TableCell>
                       
                       {/* Months */}
