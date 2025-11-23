@@ -548,30 +548,59 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setPrecedingQuartersData(quarterAverages);
   };
 
-  const calculateYearlyAverages = () => {
-    if (kpis.length === 0) return;
+  const calculateYearlyAverages = async () => {
+    if (!departmentId || kpis.length === 0) return;
 
     const averages: { [key: string]: { prevYear: number | null; currentYear: number | null } } = {};
 
+    // Fetch previous year data (all 12 months)
+    const prevYearMonths = Array.from({ length: 12 }, (_, i) => 
+      `${year - 1}-${String(i + 1).padStart(2, '0')}`
+    );
+
+    const { data: prevYearData, error: prevYearError } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("entry_type", "monthly")
+      .in("month", prevYearMonths);
+
+    if (prevYearError) {
+      console.error("Error loading previous year data:", prevYearError);
+    }
+
+    // Fetch current year data (all 12 months)
+    const currentYearMonths = Array.from({ length: 12 }, (_, i) => 
+      `${year}-${String(i + 1).padStart(2, '0')}`
+    );
+
+    const { data: currentYearData, error: currentYearError } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("entry_type", "monthly")
+      .in("month", currentYearMonths);
+
+    if (currentYearError) {
+      console.error("Error loading current year data:", currentYearError);
+    }
+
+    // Calculate averages for each KPI
     kpis.forEach(kpi => {
-      // Calculate previous year average (all 12 months of year-1)
-      const prevYearMonths = Array.from({ length: 12 }, (_, i) => 
-        `${year - 1}-${String(i + 1).padStart(2, '0')}`
-      );
-      const prevYearValues = prevYearMonths
-        .map(month => entries[`${kpi.id}-month-${month}`]?.actual_value)
+      // Calculate previous year average
+      const prevYearEntries = prevYearData?.filter(e => e.kpi_id === kpi.id) || [];
+      const prevYearValues = prevYearEntries
+        .map(e => e.actual_value)
         .filter((v): v is number => v !== null && v !== undefined);
       
       const prevYearAvg = prevYearValues.length > 0
         ? prevYearValues.reduce((sum, v) => sum + v, 0) / prevYearValues.length
         : null;
 
-      // Calculate current year average (all months with data)
-      const currentYearMonths = Array.from({ length: 12 }, (_, i) => 
-        `${year}-${String(i + 1).padStart(2, '0')}`
-      );
-      const currentYearValues = currentYearMonths
-        .map(month => entries[`${kpi.id}-month-${month}`]?.actual_value)
+      // Calculate current year average
+      const currentYearEntries = currentYearData?.filter(e => e.kpi_id === kpi.id) || [];
+      const currentYearValues = currentYearEntries
+        .map(e => e.actual_value)
         .filter((v): v is number => v !== null && v !== undefined);
       
       const currentYearAvg = currentYearValues.length > 0
