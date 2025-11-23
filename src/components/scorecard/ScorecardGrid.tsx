@@ -1926,13 +1926,33 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   <SelectValue placeholder="Choose a KPI..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {kpis.filter(k => !isCalculatedKPI(k.name)).map((kpi) => (
-                    <SelectItem key={kpi.id} value={kpi.id}>
-                      {kpi.name}
-                    </SelectItem>
-                  ))}
+                  {kpis.filter(k => !isCalculatedKPI(k.name)).map((kpi) => {
+                    const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+                    const ownerName = owner ? owner.full_name : "Unassigned";
+                    return (
+                      <SelectItem key={kpi.id} value={kpi.id}>
+                        <div className="flex items-center justify-between w-full gap-3">
+                          <span>{kpi.name}</span>
+                          <span className="text-xs text-muted-foreground">({ownerName})</span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
+              {pasteKpi && (() => {
+                const selectedKpi = kpis.find(k => k.id === pasteKpi);
+                if (selectedKpi) {
+                  const owner = selectedKpi.assigned_to ? profiles[selectedKpi.assigned_to] : null;
+                  const ownerName = owner ? owner.full_name : "Unassigned";
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      Pasting values for <span className="font-medium text-foreground">{selectedKpi.name}</span> owned by <span className="font-medium text-foreground">{ownerName}</span>
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div className="space-y-2">
