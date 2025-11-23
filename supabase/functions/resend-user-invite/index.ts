@@ -82,40 +82,68 @@ Deno.serve(async (req) => {
 
     console.log('Resending invitation for user:', user_id);
 
-    // Get user email from profiles
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('email')
-      .eq('id', user_id)
-      .single();
+    // Get user data from auth
+    const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(user_id);
 
-    if (profileError || !profile) {
-      console.error('Error fetching user profile:', profileError);
+    if (authUserError || !authUser.user) {
+      console.error('Error fetching auth user:', authUserError);
       return new Response(
-        JSON.stringify({ success: false, error: 'User not found' }),
+        JSON.stringify({ success: false, error: 'User not found in auth system' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
       );
     }
 
-    // Resend invitation email
-    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      profile.email,
-      {
-        redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/reset-password`
-      }
-    );
-
-    if (inviteError) {
-      console.error('Error resending invitation:', inviteError);
-      throw inviteError;
+    const userEmail = authUser.user.email;
+    if (!userEmail) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User has no email address' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
     }
 
-    console.log('Invitation resent successfully to:', profile.email);
+    // Check if user has confirmed their email
+    const isConfirmed = authUser.user.email_confirmed_at != null;
+
+    if (isConfirmed) {
+      // User is already active, send password reset email instead
+      console.log('User is already active, sending password reset email to:', userEmail);
+      
+      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
+        userEmail,
+        {
+          redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+        }
+      );
+
+      if (resetError) {
+        console.error('Error sending password reset:', resetError);
+        throw resetError;
+      }
+
+      console.log('Password reset email sent successfully to:', userEmail);
+    } else {
+      // User hasn't confirmed yet, resend invitation
+      console.log('User not confirmed, resending invitation to:', userEmail);
+      
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        userEmail,
+        {
+          redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+        }
+      );
+
+      if (inviteError) {
+        console.error('Error resending invitation:', inviteError);
+        throw inviteError;
+      }
+
+      console.log('Invitation resent successfully to:', userEmail);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Invitation email sent successfully',
+        message: isConfirmed ? 'Password reset email sent successfully' : 'Invitation email sent successfully',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
