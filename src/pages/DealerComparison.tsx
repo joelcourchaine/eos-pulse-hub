@@ -73,24 +73,31 @@ export default function DealerComparison() {
     return new Map<string, string>();
   }, [metricType, comparisonData]);
 
-  // Fetch financial entries for polling
+  // Fetch ALL financial entries for these departments (not filtered by month initially to get full context)
   const { data: financialEntries, refetch: refetchFinancial } = useQuery({
     queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      // Ensure we use the exact month string passed from Enterprise
       const monthString = selectedMonth || format(new Date(), "yyyy-MM");
-      console.log("Querying financial data for month:", monthString);
+      console.log("Fetching all financial data for departments:", departmentIds, "month:", monthString);
+      
+      // Fetch ALL entries for these departments in this month
       const { data, error } = await supabase
         .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name))")
+        .select("*, departments(id, name, store_id, stores(name, brand, brand_id))")
         .in("department_id", departmentIds)
         .eq("month", monthString);
-      if (error) throw error;
-      return data;
+      
+      if (error) {
+        console.error("Error fetching financial entries:", error);
+        throw error;
+      }
+      
+      console.log("Fetched financial entries:", data?.length || 0, "records");
+      return data || [];
     },
     enabled: departmentIds.length > 0 && metricType === "financial",
-    refetchInterval: 60000, // Poll every 60 seconds
+    refetchInterval: 60000,
   });
 
   // Fetch financial targets
@@ -385,10 +392,10 @@ export default function DealerComparison() {
         });
       }
       
-      // Ensure all stores + metrics have entries (even null ones)
-      const allStores = new Set<string>();
+      // Build complete list of all store+dept combinations from initial department IDs
       const allDepts = new Map<string, { storeId: string; storeName: string; deptId: string; deptName: string }>();
       
+      // First pass: collect all store+dept info from entries
       financialEntries.forEach(entry => {
         const storeId = (entry as any)?.departments?.store_id || "";
         const storeName = (entry as any)?.departments?.stores?.name || "";
@@ -396,7 +403,6 @@ export default function DealerComparison() {
         const deptName = (entry as any)?.departments?.name;
         
         if (storeId && deptId) {
-          allStores.add(storeId);
           const key = `${storeId}-${deptId}`;
           if (!allDepts.has(key)) {
             allDepts.set(key, { storeId, storeName, deptId, deptName });
@@ -404,26 +410,40 @@ export default function DealerComparison() {
         }
       });
       
-      // Add placeholder entries for all store+dept+metric combinations
+      // Ensure ALL metrics in dataMap are included (even if not in selectedMetrics) for proper calculations
+      // But only display selectedMetrics in final output
+      const allMetricKeys = Array.from(keyToName.keys());
+      
+      // For each store+dept, ensure placeholders exist for all base metrics needed for calculations
       allDepts.forEach(({ storeId, storeName, deptId, deptName }) => {
-        selectedMetrics.forEach(metricName => {
-          const metricKey = nameToKey.get(metricName);
-          if (!metricKey) return;
+        allMetricKeys.forEach(metricKey => {
+          const metricName = keyToName.get(metricKey);
+          if (!metricName) return;
           
           const key = `${storeId}-${deptId}-${metricKey}`;
           
-          // Only add if it doesn't already exist
+          // Only add placeholder if it doesn't exist
           if (!dataMap[key]) {
-            dataMap[key] = {
-              storeId,
-              storeName,
-              departmentId: deptId,
-              departmentName: deptName,
-              metricName,
-              value: null,
-              target: null,
-              variance: null,
-            };
+            // Check if this metric is in selectedMetrics - if not, only add if it's needed for calculations
+            const metricDef = keyToDef.get(metricKey);
+            const isSelected = selectedMetrics.includes(metricName);
+            
+            // Add placeholder for selected metrics or metrics needed for calculations
+            if (isSelected) {
+              const comparisonKey = `${deptId}-${metricKey}`;
+              const comparisonInfo = comparisonMap.get(comparisonKey);
+              
+              dataMap[key] = {
+                storeId,
+                storeName,
+                departmentId: deptId,
+                departmentName: deptName,
+                metricName,
+                value: null,
+                target: comparisonInfo?.value || null,
+                variance: null,
+              };
+            }
           }
         });
       });
