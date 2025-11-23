@@ -385,6 +385,49 @@ export default function DealerComparison() {
         });
       }
       
+      // Ensure all stores + metrics have entries (even null ones)
+      const allStores = new Set<string>();
+      const allDepts = new Map<string, { storeId: string; storeName: string; deptId: string; deptName: string }>();
+      
+      financialEntries.forEach(entry => {
+        const storeId = (entry as any)?.departments?.store_id || "";
+        const storeName = (entry as any)?.departments?.stores?.name || "";
+        const deptId = (entry as any)?.departments?.id;
+        const deptName = (entry as any)?.departments?.name;
+        
+        if (storeId && deptId) {
+          allStores.add(storeId);
+          const key = `${storeId}-${deptId}`;
+          if (!allDepts.has(key)) {
+            allDepts.set(key, { storeId, storeName, deptId, deptName });
+          }
+        }
+      });
+      
+      // Add placeholder entries for all store+dept+metric combinations
+      allDepts.forEach(({ storeId, storeName, deptId, deptName }) => {
+        selectedMetrics.forEach(metricName => {
+          const metricKey = nameToKey.get(metricName);
+          if (!metricKey) return;
+          
+          const key = `${storeId}-${deptId}-${metricKey}`;
+          
+          // Only add if it doesn't already exist
+          if (!dataMap[key]) {
+            dataMap[key] = {
+              storeId,
+              storeName,
+              departmentId: deptId,
+              departmentName: deptName,
+              metricName,
+              value: null,
+              target: null,
+              variance: null,
+            };
+          }
+        });
+      });
+      
       // Filter to only selected metrics
       const result = Object.values(dataMap).filter(item => 
         selectedMetrics.includes(item.metricName)
