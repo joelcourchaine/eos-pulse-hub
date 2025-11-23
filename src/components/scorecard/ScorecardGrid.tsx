@@ -983,6 +983,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       return;
     }
 
+    // Reload targets and scorecard data to refresh visual indicators
+    await loadKPITargets();
+    await loadScorecardData();
+    
     toast({
       title: "Success",
       description: `Target copied to all quarters in ${year}`,
