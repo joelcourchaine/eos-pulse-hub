@@ -568,18 +568,18 @@ const Dashboard = () => {
         {/* Header */}
         <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-3 flex-shrink-0">
               <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
-              <div>
-                <h1 className="text-xl font-bold text-foreground">GO Scorecard</h1>
-                <p className="text-sm text-muted-foreground">Growth Operating System</p>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-foreground whitespace-nowrap">GO Scorecard</h1>
+                <p className="text-xs text-muted-foreground whitespace-nowrap">Growth Operating System</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 flex-wrap justify-end">
               {isSuperAdmin && stores.length > 0 && (
                 <Select value={selectedStore} onValueChange={setSelectedStore}>
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Select Store" />
                   </SelectTrigger>
                   <SelectContent>
