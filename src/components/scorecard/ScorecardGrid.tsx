@@ -878,7 +878,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return Math.round(value).toLocaleString();
     }
     if (type === "dollar") return `$${value.toLocaleString()}`;
-    if (type === "percentage") return `${value}%`;
+    if (type === "percentage") return `${Math.round(value)}%`;
     return value.toString();
   };
 
