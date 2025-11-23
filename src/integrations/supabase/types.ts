@@ -994,6 +994,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_current_user_store_group: { Args: never; Returns: string }
       get_user_department: { Args: { _user_id: string }; Returns: string }
       get_user_store: { Args: { _user_id: string }; Returns: string }
       get_user_store_group: { Args: { _user_id: string }; Returns: string }
