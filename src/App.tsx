@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Enterprise from "./pages/Enterprise";
 import DealerComparison from "./pages/DealerComparison";
 import ResetPassword from "./pages/ResetPassword";
+import SetPassword from "./pages/SetPassword";
 import Questionnaire from "./pages/Questionnaire";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/set-password" element={<SetPassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/dealer-comparison" element={<DealerComparison />} />
