@@ -1663,12 +1663,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 >
                   KPI
                 </TableHead>
-                <TableHead 
-                  className="bg-muted z-20 text-center font-bold min-w-[100px] py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
-                  style={{ position: 'sticky', left: '200px' }}
-                >
-                  Q{quarter} Target
-                </TableHead>
             {viewMode === "weekly" ? weeks.map((week) => {
               const weekDate = week.start.toISOString().split('T')[0];
               const isCurrentWeek = weekDate === currentWeekDate;
@@ -1781,10 +1775,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell 
-                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
-                      style={{ position: 'sticky', left: '200px' }}
-                    />
                     <TableCell colSpan={viewMode === "weekly" ? weeks.length : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
@@ -1794,70 +1784,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     style={{ position: 'sticky', left: 0 }}
                   >
                     {kpi.name}
-                  </TableCell>
-                  <TableCell 
-                    className="bg-background z-10 text-center py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
-                    style={{ position: 'sticky', left: '200px' }}
-                  >
-                    {canEditTargets() && editingTarget === kpi.id ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <Input
-                          type="number"
-                          step="any"
-                          value={targetEditValue}
-                          onChange={(e) => setTargetEditValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleTargetSave(kpi.id);
-                            if (e.key === 'Escape') setEditingTarget(null);
-                          }}
-                          className="w-20 h-7 text-center"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleTargetSave(kpi.id)}
-                          className="h-7 px-2"
-                        >
-                          ✓
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2">
-                        <span
-                          className={cn(
-                            "text-muted-foreground",
-                            canEditTargets() && "cursor-pointer hover:text-foreground"
-                          )}
-                          onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
-                        >
-                          {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
-                        </span>
-                        {canEditTargets() && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 hover:bg-accent"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2" align="center">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleCopyToQuarters(kpi.id)}
-                                className="text-xs"
-                              >
-                                Copy to Q1-Q4 {year}
-                              </Button>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </div>
-                    )}
                   </TableCell>
                   {viewMode === "weekly" ? weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
@@ -1999,7 +1925,65 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       
                       {/* Q{quarter} Target */}
                       <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
-                        {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                        {canEditTargets() && editingTarget === kpi.id ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              step="any"
+                              value={targetEditValue}
+                              onChange={(e) => setTargetEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleTargetSave(kpi.id);
+                                if (e.key === 'Escape') setEditingTarget(null);
+                              }}
+                              className="w-20 h-7 text-center"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleTargetSave(kpi.id)}
+                              className="h-7 px-2"
+                            >
+                              ✓
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <span
+                              className={cn(
+                                "text-muted-foreground",
+                                canEditTargets() && "cursor-pointer hover:text-foreground"
+                              )}
+                              onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
+                            >
+                              {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                            </span>
+                            {canEditTargets() && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 p-0 hover:bg-accent"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-2" align="center">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCopyToQuarters(kpi.id)}
+                                    className="text-xs"
+                                  >
+                                    Copy to Q1-Q4 {year}
+                                  </Button>
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
                       
                       {/* Months */}
