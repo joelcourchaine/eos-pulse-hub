@@ -998,6 +998,11 @@ export type Database = {
       get_user_department: { Args: { _user_id: string }; Returns: string }
       get_user_store: { Args: { _user_id: string }; Returns: string }
       get_user_store_group: { Args: { _user_id: string }; Returns: string }
+      get_user_store_group_no_rls: {
+        Args: { _user_id: string }
+        Returns: string
+      }
+      get_user_store_no_rls: { Args: { _user_id: string }; Returns: string }
       get_user_stores: {
         Args: { _user_id: string }
         Returns: {
