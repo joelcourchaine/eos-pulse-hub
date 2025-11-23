@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
   { name: "Total ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
+  { name: "Total Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
   { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
   { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
   { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
