@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Loader2, Save, UserPlus, Trash2 } from "lucide-react";
+import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +40,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [resendingInvite, setResendingInvite] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
@@ -286,6 +287,35 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     setDeleteDialogOpen(true);
   };
 
+  const handleResendInvite = async (userId: string) => {
+    setResendingInvite(userId);
+    try {
+      const { data, error } = await supabase.functions.invoke('resend-user-invite', {
+        body: { user_id: userId },
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to resend invitation');
+      }
+
+      toast({
+        title: "Success",
+        description: "Invitation email sent successfully",
+      });
+    } catch (error: any) {
+      console.error('Error resending invitation:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invitation email",
+        variant: "destructive",
+      });
+    } finally {
+      setResendingInvite(null);
+    }
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'department_manager':
@@ -529,6 +559,19 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                               <Save className="h-4 w-4 mr-2" />
                               Save
                             </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleResendInvite(profile.id)}
+                          disabled={resendingInvite === profile.id}
+                          title="Resend invitation email"
+                        >
+                          {resendingInvite === profile.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Mail className="h-4 w-4" />
                           )}
                         </Button>
                         <Button
