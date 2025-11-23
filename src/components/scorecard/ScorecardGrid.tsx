@@ -1279,34 +1279,58 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     <div className="space-y-4">
       {/* Quarter Controls - Always visible */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={(new Date().getFullYear() - 1).toString()}>
-                {new Date().getFullYear() - 1}
-              </SelectItem>
-              <SelectItem value={new Date().getFullYear().toString()}>
-                {new Date().getFullYear()}
-              </SelectItem>
-              <SelectItem value={(new Date().getFullYear() + 1).toString()}>
-                {new Date().getFullYear() + 1}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Q1</SelectItem>
-              <SelectItem value="2">Q2</SelectItem>
-              <SelectItem value="3">Q3</SelectItem>
-              <SelectItem value="4">Q4</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={(new Date().getFullYear() - 1).toString()}>
+                  {new Date().getFullYear() - 1}
+                </SelectItem>
+                <SelectItem value={new Date().getFullYear().toString()}>
+                  {new Date().getFullYear()}
+                </SelectItem>
+                <SelectItem value={(new Date().getFullYear() + 1).toString()}>
+                  {new Date().getFullYear() + 1}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">Q1</SelectItem>
+                <SelectItem value="2">Q2</SelectItem>
+                <SelectItem value="3">Q3</SelectItem>
+                <SelectItem value="4">Q4</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* View Mode Toggle - Prominent */}
+          <div className="flex items-center border rounded-lg p-1 bg-muted/30">
+            <Button
+              variant={viewMode === "weekly" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("weekly")}
+              className="gap-2"
+            >
+              <CalendarDays className="h-4 w-4" />
+              Weekly
+            </Button>
+            <Button
+              variant={viewMode === "monthly" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("monthly")}
+              className="gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              Monthly
+            </Button>
+          </div>
         </div>
         
         <div className="flex items-center gap-2">
@@ -1464,24 +1488,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   </Button>
                 </>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setViewMode(viewMode === "weekly" ? "monthly" : "weekly")}
-                className="gap-2"
-              >
-                {viewMode === "weekly" ? (
-                  <>
-                    <Calendar className="h-4 w-4" />
-                    View Monthly
-                  </>
-                ) : (
-                  <>
-                    <CalendarDays className="h-4 w-4" />
-                    View Weekly
-                  </>
-                )}
-              </Button>
             </>
           )}
         </div>

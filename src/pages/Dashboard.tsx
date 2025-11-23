@@ -760,7 +760,7 @@ const Dashboard = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-2xl">Weekly Scorecard</CardTitle>
+                <CardTitle className="text-2xl">GO Scorecard</CardTitle>
                 <CardDescription>
                   Track your department's key performance indicators
                 </CardDescription>
