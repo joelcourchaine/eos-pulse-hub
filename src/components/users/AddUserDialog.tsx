@@ -55,7 +55,17 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       .select("*")
       .order("name");
     
-    if (!error && data) {
+    if (error) {
+      console.error("Error fetching stores:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load stores. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (data) {
       // Filter out stores with empty or null IDs
       setStores(data.filter(s => s.id && s.id.trim() !== ""));
     }
@@ -67,7 +77,17 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       .select("*")
       .order("name");
     
-    if (!error && data) {
+    if (error) {
+      console.error("Error fetching store groups:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load store groups. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (data) {
       // Filter out store groups with empty or null IDs
       setStoreGroups(data.filter(g => g.id && g.id.trim() !== ""));
     }
