@@ -65,8 +65,8 @@ export default function DealerComparison() {
   const metricKeyMap = useMemo(() => {
     if (metricType === "financial" && comparisonData.length > 0) {
       const map = new Map<string, string>();
-      const firstStore = comparisonData[0];
-      const metrics = getMetricsForBrand(null); // Get all metrics
+      // Get metrics for all brands to build the map (we'll filter by brand in the main processing)
+      const metrics = getMetricsForBrand(null);
       metrics.forEach((m: any) => map.set(m.name, m.key));
       return map;
     }
@@ -200,11 +200,16 @@ export default function DealerComparison() {
     if (metricType === "financial" && financialEntries && selectedMetrics.length > 0) {
       console.log("Processing financial entries:", financialEntries.length);
       
+      // Detect brand from first entry to get correct metrics
+      const firstEntry = financialEntries[0];
+      const brand = (firstEntry as any)?.departments?.stores?.brand || null;
+      console.log("Detected brand for comparison:", brand);
+      
       // Create metric maps
       const nameToKey = new Map<string, string>();
       const keyToName = new Map<string, string>();
       const keyToDef = new Map<string, any>();
-      const metrics = getMetricsForBrand(null);
+      const metrics = getMetricsForBrand(brand);
       
       metrics.forEach((m: any) => {
         nameToKey.set(m.name, m.key);
