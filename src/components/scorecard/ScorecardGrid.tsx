@@ -882,6 +882,18 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return value.toString();
   };
 
+  const formatQuarterAverage = (value: number, type: string, kpiName?: string) => {
+    // CP Labour Sales, CP Hours, and CP RO's should show no decimal places in quarter averages
+    if (kpiName === "CP Labour Sales") {
+      return `$${Math.round(value).toLocaleString()}`;
+    }
+    if (kpiName === "CP Hours" || kpiName === "CP RO's") {
+      return Math.round(value).toLocaleString();
+    }
+    // For all other KPIs, use the regular formatTarget function
+    return formatTarget(value, type, kpiName);
+  };
+
 const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
     // If percentage, keep the same target
     if (metricType === "percentage") {
@@ -1919,14 +1931,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       {/* AVG Year-1 */}
                       <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
                         {yearlyAverages[kpi.id]?.prevYear !== null && yearlyAverages[kpi.id]?.prevYear !== undefined
-                          ? formatTarget(yearlyAverages[kpi.id].prevYear!, kpi.metric_type, kpi.name)
+                          ? formatQuarterAverage(yearlyAverages[kpi.id].prevYear!, kpi.metric_type, kpi.name)
                           : "-"}
                       </TableCell>
                       
                       {/* AVG Year */}
                       <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
                         {yearlyAverages[kpi.id]?.currentYear !== null && yearlyAverages[kpi.id]?.currentYear !== undefined
-                          ? formatTarget(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
+                          ? formatQuarterAverage(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
                           : "-"}
                       </TableCell>
                       
