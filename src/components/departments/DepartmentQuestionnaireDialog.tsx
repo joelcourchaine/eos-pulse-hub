@@ -73,6 +73,8 @@ export const DepartmentQuestionnaireDialog = ({
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string }[]>([]);
+  const [selectedRecipientEmail, setSelectedRecipientEmail] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
@@ -104,8 +106,40 @@ export const DepartmentQuestionnaireDialog = ({
       }
       loadQuestionsAndAnswers();
       loadHistory();
+      loadProfiles();
     }
   }, [open, departmentId]);
+
+  useEffect(() => {
+    if (managerEmail && profiles.length > 0 && !selectedRecipientEmail) {
+      setSelectedRecipientEmail(managerEmail);
+    }
+  }, [managerEmail, profiles]);
+
+  const loadProfiles = async () => {
+    try {
+      // Get the department's store_id
+      const { data: department, error: deptError } = await supabase
+        .from("departments")
+        .select("store_id")
+        .eq("id", departmentId)
+        .single();
+
+      if (deptError) throw deptError;
+
+      // Get profiles for that store
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("store_id", department.store_id)
+        .order("full_name");
+
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
 
   const loadCategories = async () => {
     try {
@@ -282,10 +316,10 @@ export const DepartmentQuestionnaireDialog = ({
   };
 
   const handleSendEmail = async () => {
-    if (!managerEmail) {
+    if (!selectedRecipientEmail) {
       toast({
         title: "Error",
-        description: "No manager email found for this department.",
+        description: "Please select a recipient.",
         variant: "destructive",
       });
       return;
@@ -293,13 +327,17 @@ export const DepartmentQuestionnaireDialog = ({
 
     setIsSendingEmail(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const senderProfile = profiles.find(p => p.id === user?.id);
+      const senderName = senderProfile?.full_name || "Your manager";
+
       const { error } = await supabase.functions.invoke("send-questionnaire-email", {
         body: {
           departmentId,
           departmentName,
-          managerEmail,
+          managerEmail: selectedRecipientEmail,
           questions,
-          senderName: "Joel",
+          senderName,
         },
       });
 
@@ -307,15 +345,26 @@ export const DepartmentQuestionnaireDialog = ({
 
       toast({
         title: "Email sent",
-        description: `Questionnaire sent to ${managerEmail}`,
+        description: `Questionnaire sent to ${selectedRecipientEmail}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending email:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send email. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Check for Resend domain verification error
+      const errorMessage = error.message || String(error);
+      if (errorMessage.includes("verify a domain") || errorMessage.includes("validation_error")) {
+        toast({
+          title: "Email Domain Not Verified",
+          description: "To send emails to other recipients, you need to verify your domain in Resend. Visit resend.com/domains to set this up.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to send email. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSendingEmail(false);
     }
@@ -816,16 +865,33 @@ export const DepartmentQuestionnaireDialog = ({
                   Add Question
                 </Button>
               )}
-              {managerEmail && (
+              <div className="flex gap-2 items-center">
+                <div className="w-64">
+                  <Select
+                    value={selectedRecipientEmail}
+                    onValueChange={setSelectedRecipientEmail}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select recipient..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.email}>
+                          {profile.full_name} ({profile.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
                   variant="outline"
                   onClick={handleSendEmail}
-                  disabled={isSendingEmail}
+                  disabled={isSendingEmail || !selectedRecipientEmail}
                 >
                   <Mail className="mr-2 h-4 w-4" />
                   {isSendingEmail ? "Sending..." : "Email Questions"}
                 </Button>
-              )}
+              </div>
             </div>
 
             {isAddingNew && isSuperAdmin && (
