@@ -85,11 +85,21 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
 
       if (deptError) throw deptError;
 
-      // Then get profiles for that store
+      // Get super_admin user IDs
+      const { data: superAdmins, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+
+      if (rolesError) throw rolesError;
+
+      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
+
+      // Get profiles for that store OR super_admins
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .eq("store_id", department.store_id);
+        .or(`store_id.eq.${department.store_id},id.in.(${superAdminIds.join(',')})`);
 
       if (error) throw error;
 
