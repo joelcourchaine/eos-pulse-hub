@@ -1923,7 +1923,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             key={`${pq.quarter}-${pq.year}`} 
                             className="text-center py-[7.2px] min-w-[100px] text-muted-foreground"
                           >
-                            {qValue !== null && qValue !== undefined ? formatTarget(qValue, kpi.metric_type, kpi.name) : "-"}
+                            {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
                           </TableCell>
                         );
                       })}
