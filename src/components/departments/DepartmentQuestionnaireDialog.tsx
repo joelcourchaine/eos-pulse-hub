@@ -73,7 +73,7 @@ export const DepartmentQuestionnaireDialog = ({
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string; store_id: string | null; stores: { name: string } | null }[]>([]);
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string; store_id: string | null; stores: { name: string } | null; is_super_admin?: boolean }[]>([]);
   const [selectedRecipientEmail, setSelectedRecipientEmail] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -155,7 +155,14 @@ export const DepartmentQuestionnaireDialog = ({
       const { data, error } = await query;
 
       if (error) throw error;
-      setProfiles(data || []);
+      
+      // Mark super admins in the profile data
+      const profilesWithAdminFlag = (data || []).map(profile => ({
+        ...profile,
+        is_super_admin: superAdminIds.includes(profile.id)
+      }));
+      
+      setProfiles(profilesWithAdminFlag);
     } catch (error) {
       console.error("Error loading profiles:", error);
     }
@@ -902,7 +909,7 @@ export const DepartmentQuestionnaireDialog = ({
                     <SelectContent>
                       {profiles.map((profile) => (
                         <SelectItem key={profile.id} value={profile.email}>
-                          {profile.full_name} - {profile.stores?.name || 'No Store'} ({profile.email})
+                          {profile.full_name} - {profile.is_super_admin ? 'Growth Advisor' : (profile.stores?.name || 'No Store')} ({profile.email})
                         </SelectItem>
                       ))}
                     </SelectContent>
