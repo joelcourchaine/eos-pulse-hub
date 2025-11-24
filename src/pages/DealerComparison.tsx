@@ -319,7 +319,7 @@ export default function DealerComparison() {
       if (isFixedCombined) {
         const combinedByStore = new Map<string, Map<string, number>>();
         
-        // First pass: aggregate ONLY dollar values from Parts and Service
+        // First pass: aggregate base dollar values from Parts and Service (only metrics without calculations)
         Object.values(dataMap).forEach(entry => {
           const isParts = entry.departmentName?.toLowerCase().includes('parts');
           const isService = entry.departmentName?.toLowerCase().includes('service');
@@ -328,8 +328,8 @@ export default function DealerComparison() {
             const metricKey = nameToKey.get(entry.metricName);
             const metricDef = metricKey ? keyToDef.get(metricKey) : null;
             
-            // Only aggregate dollar metrics (skip percentages - we'll calculate them later)
-            if (metricKey && metricDef?.type === 'dollar') {
+            // Only aggregate base dollar metrics (those without calculation formulas)
+            if (metricKey && metricDef?.type === 'dollar' && !metricDef.calculation) {
               if (!combinedByStore.has(entry.storeId)) {
                 combinedByStore.set(entry.storeId, new Map());
               }
@@ -340,13 +340,56 @@ export default function DealerComparison() {
           }
         });
         
-        // Second pass: calculate percentage metrics and create final data
+        // Helper function to calculate derived metrics
+        const calculateDerivedMetric = (storeMetrics: Map<string, number>, metricDef: any): number => {
+          if (!metricDef.calculation) return 0;
+          
+          const calc = metricDef.calculation;
+          
+          if ('numerator' in calc && 'denominator' in calc) {
+            // Simple ratio calculation (typically for percentages but could be dollar amounts)
+            const num = storeMetrics.get(calc.numerator) || 0;
+            const denom = storeMetrics.get(calc.denominator) || 0;
+            return denom !== 0 ? (num / denom) * 100 : 0;
+          } else if (calc.type === 'subtract') {
+            // Subtraction calculation
+            const base = storeMetrics.get(calc.base) || 0;
+            const deductions = (calc.deductions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            return base - deductions;
+          } else if (calc.type === 'complex') {
+            // Complex calculation with additions and deductions
+            const base = storeMetrics.get(calc.base) || 0;
+            const deductions = (calc.deductions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            const additions = (calc.additions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            return base - deductions + additions;
+          }
+          
+          return 0;
+        };
+        
+        // Second pass: calculate derived dollar metrics (those with calculation formulas)
+        combinedByStore.forEach((storeMetrics, storeId) => {
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calculatedValue = calculateDerivedMetric(storeMetrics, metricDef);
+              storeMetrics.set(metricDef.key, calculatedValue);
+            }
+          });
+        });
+        
+        // Third pass: create final data with both dollar and percentage metrics
         const newDataMap: Record<string, ComparisonData> = {};
         
         combinedByStore.forEach((storeMetrics, storeId) => {
           const storeName = Object.values(dataMap).find(d => d.storeId === storeId)?.storeName || '';
           
-          // Process all selected metrics (both dollar and percentage)
+          // Process all selected metrics
           selectedMetrics.forEach(metricName => {
             const metricKey = nameToKey.get(metricName);
             if (!metricKey) return;
@@ -357,18 +400,11 @@ export default function DealerComparison() {
             let finalValue: number;
             
             if (metricDef.type === 'dollar') {
-              // Use aggregated dollar value
+              // Use aggregated or calculated dollar value
               finalValue = storeMetrics.get(metricKey) || 0;
-            } else if (metricDef.type === 'percentage' && metricDef.calculation) {
-              // Calculate percentage from aggregated dollar values
-              const calc = metricDef.calculation;
-              if ('numerator' in calc && 'denominator' in calc) {
-                const num = storeMetrics.get(calc.numerator) || 0;
-                const denom = storeMetrics.get(calc.denominator) || 0;
-                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
-              } else {
-                finalValue = 0;
-              }
+            } else if (metricDef.type === 'percentage') {
+              // Calculate percentage from dollar values
+              finalValue = calculateDerivedMetric(storeMetrics, metricDef);
             } else {
               finalValue = 0;
             }
