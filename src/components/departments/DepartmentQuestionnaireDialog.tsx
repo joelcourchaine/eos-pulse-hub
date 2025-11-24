@@ -118,11 +118,41 @@ export const DepartmentQuestionnaireDialog = ({
 
   const loadProfiles = async () => {
     try {
-      // Get all profiles across all stores, ordered by full name
-      const { data, error } = await supabase
+      // Get the department's store_id
+      const { data: department, error: deptError } = await supabase
+        .from("departments")
+        .select("store_id")
+        .eq("id", departmentId)
+        .maybeSingle();
+
+      if (deptError) throw deptError;
+      if (!department) {
+        console.error("Department not found");
+        return;
+      }
+
+      // Get all super admins
+      const { data: superAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+
+      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
+
+      // Get profiles for that store OR super_admins
+      let query = supabase
         .from("profiles")
-        .select("id, full_name, email, store_id, stores(name)")
-        .order("full_name");
+        .select("id, full_name, email, store_id, stores(name)");
+
+      if (superAdminIds.length > 0) {
+        query = query.or(`store_id.eq.${department.store_id},id.in.(${superAdminIds.join(',')})`);
+      } else {
+        query = query.eq("store_id", department.store_id);
+      }
+
+      query = query.order("full_name");
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setProfiles(data || []);
