@@ -515,6 +515,7 @@ export type Database = {
       kpi_targets: {
         Row: {
           created_at: string
+          entry_type: string | null
           id: string
           kpi_id: string
           quarter: number
@@ -524,6 +525,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          entry_type?: string | null
           id?: string
           kpi_id: string
           quarter: number
@@ -533,6 +535,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          entry_type?: string | null
           id?: string
           kpi_id?: string
           quarter?: number

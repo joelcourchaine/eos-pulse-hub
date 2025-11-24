@@ -370,7 +370,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       .select("*")
       .in("kpi_id", kpiIds)
       .eq("quarter", quarter)
-      .eq("year", year);
+      .eq("year", year)
+      .eq("entry_type", viewMode);
 
     if (error) {
       console.error("Error loading KPI targets:", error);
