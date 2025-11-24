@@ -317,71 +317,69 @@ export default function DealerComparison() {
       
       // If Fixed Combined, aggregate Parts and Service data
       if (isFixedCombined) {
-        const combinedByStore = new Map<string, Map<string, any>>();
+        const combinedByStore = new Map<string, Map<string, number>>();
         
+        // First pass: aggregate ONLY dollar values from Parts and Service
         Object.values(dataMap).forEach(entry => {
           const isParts = entry.departmentName?.toLowerCase().includes('parts');
           const isService = entry.departmentName?.toLowerCase().includes('service');
           
           if (isParts || isService) {
-            if (!combinedByStore.has(entry.storeId)) {
-              combinedByStore.set(entry.storeId, new Map());
-            }
-            const storeMetrics = combinedByStore.get(entry.storeId)!;
             const metricKey = nameToKey.get(entry.metricName);
+            const metricDef = metricKey ? keyToDef.get(metricKey) : null;
             
-            if (!storeMetrics.has(entry.metricName)) {
-              storeMetrics.set(entry.metricName, {
-                storeId: entry.storeId,
-                storeName: entry.storeName,
-                departmentName: 'Fixed Combined',
-                metricName: entry.metricName,
-                metricKey: metricKey,
-                values: {},
-              });
-            }
-            
-            const combined = storeMetrics.get(entry.metricName);
-            if (metricKey) {
-              combined.values[metricKey] = (combined.values[metricKey] || 0) + (entry.value || 0);
+            // Only aggregate dollar metrics (skip percentages - we'll calculate them later)
+            if (metricKey && metricDef?.type === 'dollar') {
+              if (!combinedByStore.has(entry.storeId)) {
+                combinedByStore.set(entry.storeId, new Map());
+              }
+              const storeMetrics = combinedByStore.get(entry.storeId)!;
+              const currentValue = storeMetrics.get(metricKey) || 0;
+              storeMetrics.set(metricKey, currentValue + (entry.value || 0));
             }
           }
         });
         
-        // Calculate final values and percentages for Fixed Combined
+        // Second pass: calculate percentage metrics and create final data
         const newDataMap: Record<string, ComparisonData> = {};
+        
         combinedByStore.forEach((storeMetrics, storeId) => {
-          const allMetrics = new Map<string, number>();
+          const storeName = Object.values(dataMap).find(d => d.storeId === storeId)?.storeName || '';
           
-          // First pass: collect all dollar values
-          storeMetrics.forEach((metric) => {
-            if (metric.metricKey) {
-              allMetrics.set(metric.metricKey, metric.values[metric.metricKey] || 0);
-            }
-          });
-          
-          // Second pass: calculate percentages
-          storeMetrics.forEach((metric) => {
-            const metricDef = keyToDef.get(metric.metricKey);
-            let finalValue = metric.values[metric.metricKey] || 0;
+          // Process all selected metrics (both dollar and percentage)
+          selectedMetrics.forEach(metricName => {
+            const metricKey = nameToKey.get(metricName);
+            if (!metricKey) return;
             
-            // If it's a percentage metric, recalculate
-            if (metricDef?.type === 'percentage' && metricDef?.calculation) {
+            const metricDef = keyToDef.get(metricKey);
+            if (!metricDef) return;
+            
+            let finalValue: number;
+            
+            if (metricDef.type === 'dollar') {
+              // Use aggregated dollar value
+              finalValue = storeMetrics.get(metricKey) || 0;
+            } else if (metricDef.type === 'percentage' && metricDef.calculation) {
+              // Calculate percentage from aggregated dollar values
               const calc = metricDef.calculation;
               if ('numerator' in calc && 'denominator' in calc) {
-                const num = allMetrics.get(calc.numerator) || 0;
-                const denom = allMetrics.get(calc.denominator) || 0;
+                const num = storeMetrics.get(calc.numerator) || 0;
+                const denom = storeMetrics.get(calc.denominator) || 0;
                 finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              } else {
+                finalValue = 0;
               }
+            } else {
+              finalValue = 0;
             }
             
-            const key = `${metric.storeId}-fixed-combined-${metric.metricKey}`;
+            const key = `${storeId}-fixed-combined-${metricKey}`;
             newDataMap[key] = {
-              storeId: metric.storeId,
-              storeName: metric.storeName,
+              storeId,
+              storeName,
               departmentId: undefined,
               departmentName: 'Fixed Combined',
-              metricName: metric.metricName,
+              metricName,
               value: finalValue,
               target: null,
               variance: null,
