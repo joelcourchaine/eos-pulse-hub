@@ -124,6 +124,16 @@ export function TodoManagementDialog({
 
         if (error) throw error;
 
+        // If linked to an issue, update issue status to "in progress"
+        if (linkedIssueId) {
+          const { error: issueError } = await supabase
+            .from("issues")
+            .update({ status: "in progress" })
+            .eq("id", linkedIssueId);
+          
+          if (issueError) console.error("Failed to update issue status:", issueError);
+        }
+
         toast({
           title: "Success",
           description: "To-Do created successfully",
