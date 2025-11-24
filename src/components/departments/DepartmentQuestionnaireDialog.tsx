@@ -73,7 +73,7 @@ export const DepartmentQuestionnaireDialog = ({
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string }[]>([]);
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string; store_id: string | null; stores: { name: string } | null }[]>([]);
   const [selectedRecipientEmail, setSelectedRecipientEmail] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -118,37 +118,11 @@ export const DepartmentQuestionnaireDialog = ({
 
   const loadProfiles = async () => {
     try {
-      // Get the department's store_id
-      const { data: department, error: deptError } = await supabase
-        .from("departments")
-        .select("store_id")
-        .eq("id", departmentId)
-        .single();
-
-      if (deptError) throw deptError;
-
-      // Get all super admins
-      const { data: superAdmins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "super_admin");
-
-      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
-
-      // Get profiles for that store OR super_admins
-      let query = supabase
+      // Get all profiles across all stores, ordered by full name
+      const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email");
-
-      if (superAdminIds.length > 0) {
-        query = query.or(`store_id.eq.${department.store_id},id.in.(${superAdminIds.join(',')})`);
-      } else {
-        query = query.eq("store_id", department.store_id);
-      }
-
-      query = query.order("full_name");
-
-      const { data, error } = await query;
+        .select("id, full_name, email, store_id, stores(name)")
+        .order("full_name");
 
       if (error) throw error;
       setProfiles(data || []);
@@ -895,13 +869,13 @@ export const DepartmentQuestionnaireDialog = ({
                       <SelectTrigger id="recipient-select">
                         <SelectValue placeholder="Choose who to send to..." />
                       </SelectTrigger>
-                      <SelectContent>
-                        {profiles.map((profile) => (
-                          <SelectItem key={profile.id} value={profile.email}>
-                            {profile.full_name} ({profile.email})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                    <SelectContent>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.email}>
+                          {profile.full_name} - {profile.stores?.name || 'No Store'} ({profile.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
                     </Select>
                   </div>
                   <Button
