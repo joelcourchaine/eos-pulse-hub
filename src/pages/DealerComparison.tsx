@@ -39,13 +39,15 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds } = location.state as {
+  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [] } = location.state as {
     data: ComparisonData[];
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
     comparisonMode?: string;
     departmentIds?: string[];
+    isFixedCombined?: boolean;
+    selectedDepartmentNames?: string[];
   };
 
   // Initialize with passed data
@@ -312,6 +314,85 @@ export default function DealerComparison() {
           }
         }
       });
+      
+      // If Fixed Combined, aggregate Parts and Service data
+      if (isFixedCombined) {
+        const combinedByStore = new Map<string, Map<string, any>>();
+        
+        Object.values(dataMap).forEach(entry => {
+          const isParts = entry.departmentName?.toLowerCase().includes('parts');
+          const isService = entry.departmentName?.toLowerCase().includes('service');
+          
+          if (isParts || isService) {
+            if (!combinedByStore.has(entry.storeId)) {
+              combinedByStore.set(entry.storeId, new Map());
+            }
+            const storeMetrics = combinedByStore.get(entry.storeId)!;
+            const metricKey = nameToKey.get(entry.metricName);
+            
+            if (!storeMetrics.has(entry.metricName)) {
+              storeMetrics.set(entry.metricName, {
+                storeId: entry.storeId,
+                storeName: entry.storeName,
+                departmentName: 'Fixed Combined',
+                metricName: entry.metricName,
+                metricKey: metricKey,
+                values: {},
+              });
+            }
+            
+            const combined = storeMetrics.get(entry.metricName);
+            if (metricKey) {
+              combined.values[metricKey] = (combined.values[metricKey] || 0) + (entry.value || 0);
+            }
+          }
+        });
+        
+        // Calculate final values and percentages for Fixed Combined
+        const newDataMap: Record<string, ComparisonData> = {};
+        combinedByStore.forEach((storeMetrics, storeId) => {
+          const allMetrics = new Map<string, number>();
+          
+          // First pass: collect all dollar values
+          storeMetrics.forEach((metric) => {
+            if (metric.metricKey) {
+              allMetrics.set(metric.metricKey, metric.values[metric.metricKey] || 0);
+            }
+          });
+          
+          // Second pass: calculate percentages
+          storeMetrics.forEach((metric) => {
+            const metricDef = keyToDef.get(metric.metricKey);
+            let finalValue = metric.values[metric.metricKey] || 0;
+            
+            // If it's a percentage metric, recalculate
+            if (metricDef?.type === 'percentage' && metricDef?.calculation) {
+              const calc = metricDef.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = allMetrics.get(calc.numerator) || 0;
+                const denom = allMetrics.get(calc.denominator) || 0;
+                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              }
+            }
+            
+            const key = `${metric.storeId}-fixed-combined-${metric.metricKey}`;
+            newDataMap[key] = {
+              storeId: metric.storeId,
+              storeName: metric.storeName,
+              departmentId: undefined,
+              departmentName: 'Fixed Combined',
+              metricName: metric.metricName,
+              value: finalValue,
+              target: null,
+              variance: null,
+            };
+          });
+        });
+        
+        // Replace dataMap with combined data
+        Object.keys(dataMap).forEach(key => delete dataMap[key]);
+        Object.assign(dataMap, newDataMap);
+      }
       
       // Group by store+department for calculations
       const storeDeptPairs = new Set<string>();

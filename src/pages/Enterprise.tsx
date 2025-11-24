@@ -751,6 +751,8 @@ export default function Enterprise() {
                         selectedMonth: format(selectedMonth, "yyyy-MM"),
                         comparisonMode,
                         departmentIds,
+                        isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                        selectedDepartmentNames,
                       }
                     })}
                     disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
