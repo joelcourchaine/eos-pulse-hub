@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,24 +23,55 @@ interface Todo {
 }
 
 interface TodoManagementDialogProps {
-  departmentId: string;
+  departmentId?: string;
   profiles: Profile[];
   onTodoAdded: () => void;
   onDialogOpen?: () => void;
   todo?: Todo;
   trigger?: React.ReactNode;
+  linkedIssueId?: string;
+  linkedIssueTitle?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, onDialogOpen, todo, trigger }: TodoManagementDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState(todo?.title || "");
-  const [description, setDescription] = useState(todo?.description || "");
-  const [assignedTo, setAssignedTo] = useState<string>(todo?.assigned_to || "");
-  const [dueDate, setDueDate] = useState(todo?.due_date || "");
+export function TodoManagementDialog({ 
+  departmentId, 
+  profiles, 
+  onTodoAdded, 
+  onDialogOpen, 
+  todo, 
+  trigger,
+  linkedIssueId,
+  linkedIssueTitle,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: TodoManagementDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [assignedTo, setAssignedTo] = useState<string>("");
+  const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   
   const isEditMode = !!todo;
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
+
+  useEffect(() => {
+    if (todo && open) {
+      setTitle(todo.title);
+      setDescription(todo.description || "");
+      setAssignedTo(todo.assigned_to || "");
+      setDueDate(todo.due_date || "");
+    } else if (!open) {
+      setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
+      setDescription("");
+      setAssignedTo("");
+      setDueDate("");
+    }
+  }, [todo, open, linkedIssueTitle]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,11 +114,12 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, onDi
           .insert({
             title: title.trim(),
             description: description.trim() || null,
-            department_id: departmentId,
+            department_id: departmentId!,
             assigned_to: assignedTo || null,
             due_date: dueDate || null,
             created_by: user?.id,
-            status: "pending"
+            status: "pending",
+            issue_id: linkedIssueId || null,
           });
 
         if (error) throw error;
@@ -120,7 +152,11 @@ export function TodoManagementDialog({ departmentId, profiles, onTodoAdded, onDi
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen);
+      if (controlledOnOpenChange) {
+        controlledOnOpenChange(isOpen);
+      } else {
+        setOpen(isOpen);
+      }
       if (isOpen && onDialogOpen) {
         onDialogOpen();
       }

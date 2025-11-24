@@ -407,6 +407,57 @@ export type Database = {
           },
         ]
       }
+      issues: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string
+          description: string | null
+          display_order: number
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "issues_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "issues_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kpi_definitions: {
         Row: {
           assigned_to: string | null
@@ -913,6 +964,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          issue_id: string | null
           status: string | null
           title: string
           updated_at: string
@@ -925,6 +977,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          issue_id?: string | null
           status?: string | null
           title: string
           updated_at?: string
@@ -937,6 +990,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          issue_id?: string | null
           status?: string | null
           title?: string
           updated_at?: string
@@ -961,6 +1015,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
             referencedColumns: ["id"]
           },
         ]
