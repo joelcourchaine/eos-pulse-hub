@@ -1,5 +1,23 @@
 project_id = "ihfxzbrnupbufapybjyt"
 
+[auth.email]
+enable_signup = true
+double_confirm_changes = false
+enable_confirmations = false
+
+[auth.hook.custom_access_token]
+enabled = false
+
+[auth.hook.send_sms]
+enabled = false
+
+[auth.hook.send_email]
+enabled = true
+uri = "https://ihfxzbrnupbufapybjyt.supabase.co/functions/v1/send-auth-email"
+
+[functions.send-auth-email]
+verify_jwt = false
+
 [functions.send-scorecard-email]
 verify_jwt = true
 

@@ -1,0 +1,208 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface AuthEmailRequest {
+  user: {
+    email: string;
+    id: string;
+  };
+  email_data: {
+    token: string;
+    token_hash: string;
+    redirect_to: string;
+    email_action_type: string;
+    site_url: string;
+  };
+}
+
+const handler = async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const payload: AuthEmailRequest = await req.json();
+    const { user, email_data } = payload;
+    const { email_action_type, token_hash, redirect_to } = email_data;
+
+    let subject = "";
+    let html = "";
+
+    const baseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const actionLink = `${baseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`;
+
+    if (email_action_type === "invite" || email_action_type === "signup") {
+      subject = "Welcome to Dealer Growth Solutions - Set Your Password";
+      html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+              .button:hover { background-color: #1d4ed8; }
+              .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+              </div>
+              <div class="content">
+                <h2>Welcome to Dealer Growth Solutions!</h2>
+                <p>You've been invited to join our platform. Click the button below to set your password and get started.</p>
+                <div style="text-align: center;">
+                  <a href="${actionLink}" class="button">Set Your Password</a>
+                </div>
+                <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                  If the button doesn't work, copy and paste this link into your browser:<br>
+                  <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+                </p>
+                <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                  This link will expire in 24 hours for security reasons.
+                </p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} Dealer Growth Solutions. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+    } else if (email_action_type === "recovery") {
+      subject = "Reset Your Password - Dealer Growth Solutions";
+      html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+              .button:hover { background-color: #1d4ed8; }
+              .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+              </div>
+              <div class="content">
+                <h2>Password Reset Request</h2>
+                <p>We received a request to reset your password. Click the button below to create a new password.</p>
+                <div style="text-align: center;">
+                  <a href="${actionLink}" class="button">Reset Password</a>
+                </div>
+                <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                  If the button doesn't work, copy and paste this link into your browser:<br>
+                  <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+                </p>
+                <p style="margin-top: 30px; color: #666; font-size: 14px;">
+                  This link will expire in 1 hour for security reasons.
+                </p>
+                <p style="margin-top: 20px; color: #999; font-size: 13px;">
+                  If you didn't request a password reset, you can safely ignore this email.
+                </p>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} Dealer Growth Solutions. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+    } else {
+      // Default for other email types
+      subject = "Action Required - Dealer Growth Solutions";
+      html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+              .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+              .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+              .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+              </div>
+              <div class="content">
+                <h2>Action Required</h2>
+                <p>Please click the button below to proceed.</p>
+                <div style="text-align: center;">
+                  <a href="${actionLink}" class="button">Take Action</a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>© ${new Date().getFullYear()} Dealer Growth Solutions. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+    }
+
+    console.log(`Sending ${email_action_type} email to ${user.email}`);
+
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+      },
+      body: JSON.stringify({
+        from: "Dealer Growth Solutions <no-reply@dealergrowth.solutions>",
+        to: [user.email],
+        subject: subject,
+        html: html,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.text();
+      console.error("Error sending email:", errorData);
+      throw new Error(`Resend API error: ${errorData}`);
+    }
+
+    const data = await emailResponse.json();
+    console.log("Email sent successfully:", data);
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error in send-auth-email function:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+};
+
+serve(handler);
