@@ -36,6 +36,7 @@ export const SetKPITargetsDialog = ({
 }: SetKPITargetsDialogProps) => {
   const [open, setOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(currentYear);
+  const [targetType, setTargetType] = useState<"weekly" | "monthly">("weekly");
   const [editTargets, setEditTargets] = useState<{ [quarter: number]: { [kpiId: string]: string } }>({ 
     1: {}, 2: {}, 3: {}, 4: {} 
   });
@@ -45,7 +46,7 @@ export const SetKPITargetsDialog = ({
     if (open) {
       loadTargets();
     }
-  }, [open, targetYear, kpis]);
+  }, [open, targetYear, targetType, kpis]);
 
   const loadTargets = async () => {
     if (kpis.length === 0) return;
@@ -55,7 +56,8 @@ export const SetKPITargetsDialog = ({
       .from("kpi_targets")
       .select("*")
       .in("kpi_id", kpiIds)
-      .eq("year", targetYear);
+      .eq("year", targetYear)
+      .eq("entry_type", targetType);
 
     if (error) {
       console.error("Error loading targets:", error);
@@ -91,6 +93,7 @@ export const SetKPITargetsDialog = ({
             kpi_id: kpi.id,
             quarter: q,
             year: targetYear,
+            entry_type: targetType,
             target_value: parseFloat(value),
           });
         }
@@ -101,7 +104,7 @@ export const SetKPITargetsDialog = ({
       const { error } = await supabase
         .from("kpi_targets")
         .upsert(updates, {
-          onConflict: "kpi_id,quarter,year",
+          onConflict: "kpi_id,quarter,year,entry_type",
         });
 
       if (error) {
@@ -135,21 +138,38 @@ export const SetKPITargetsDialog = ({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="mb-4">
-          <Label htmlFor="target-year">Target Year</Label>
-          <Select
-            value={targetYear.toString()}
-            onValueChange={(value) => setTargetYear(parseInt(value))}
-          >
-            <SelectTrigger id="target-year" className="w-[200px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={(currentYear - 1).toString()}>{currentYear - 1} (Last Year)</SelectItem>
-              <SelectItem value={currentYear.toString()}>{currentYear} (Current Year)</SelectItem>
-              <SelectItem value={(currentYear + 1).toString()}>{currentYear + 1} (Next Year)</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="mb-4 flex gap-4">
+          <div>
+            <Label htmlFor="target-year">Target Year</Label>
+            <Select
+              value={targetYear.toString()}
+              onValueChange={(value) => setTargetYear(parseInt(value))}
+            >
+              <SelectTrigger id="target-year" className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={(currentYear - 1).toString()}>{currentYear - 1} (Last Year)</SelectItem>
+                <SelectItem value={currentYear.toString()}>{currentYear} (Current Year)</SelectItem>
+                <SelectItem value={(currentYear + 1).toString()}>{currentYear + 1} (Next Year)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="target-type">Target Type</Label>
+            <Select
+              value={targetType}
+              onValueChange={(value: "weekly" | "monthly") => setTargetType(value)}
+            >
+              <SelectTrigger id="target-type" className="w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">Weekly Targets</SelectItem>
+                <SelectItem value="monthly">Monthly Targets</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto">
