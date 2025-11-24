@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,17 @@ const ResetPassword = () => {
   const [emailSent, setEmailSent] = useState(false);
 
   // Check if we're in password update mode (user clicked email link)
-  const isUpdateMode = searchParams.get('type') === 'recovery';
+  // Supabase puts auth params in the hash, not query params
+  const [isUpdateMode, setIsUpdateMode] = useState(false);
+
+  useEffect(() => {
+    // Check if this is a password recovery flow from email link
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const type = hashParams.get('type');
+    if (type === 'recovery') {
+      setIsUpdateMode(true);
+    }
+  }, []);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
