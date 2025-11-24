@@ -11,6 +11,7 @@ interface CreateUserRequest {
   role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor';
   store_id?: string;
   store_group_id?: string;
+  department_id?: string;
   birthday_month?: number;
   birthday_day?: number;
   start_month?: number;
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
     console.log('Authorization successful for user:', user.id);
 
     const requestBody: CreateUserRequest = await req.json();
-    let { email, full_name, role, store_id, store_group_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    let { email, full_name, role, store_id, store_group_id, department_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
 
     // SECURITY: Validate role
     const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor'];
@@ -155,6 +156,22 @@ Deno.serve(async (req) => {
     }
 
     console.log('User role and profile updated successfully');
+
+    // If department_id is provided, update the department's manager_id
+    if (department_id) {
+      const { error: departmentError } = await supabaseAdmin
+        .from('departments')
+        .update({ manager_id: userData.user.id })
+        .eq('id', department_id);
+
+      if (departmentError) {
+        console.error('Error assigning user to department:', departmentError);
+        // Don't throw - user was created successfully, just log the error
+      } else {
+        console.log('User assigned as department manager for department:', department_id);
+      }
+    }
+
     console.log('Invitation email sent to:', email);
 
     return new Response(

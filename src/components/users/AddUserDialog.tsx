@@ -25,6 +25,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [departmentId, setDepartmentId] = useState<string>("");
   const [birthdayMonth, setBirthdayMonth] = useState<string>("");
   const [birthdayDay, setBirthdayDay] = useState<string>("");
   const [startMonth, setStartMonth] = useState<string>("");
@@ -135,6 +136,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           role,
           store_id: storeId || null,
           store_group_id: storeGroupId || null,
+          department_id: departmentId || null,
           birthday_month: birthdayMonth ? parseInt(birthdayMonth) : null,
           birthday_day: birthdayDay ? parseInt(birthdayDay) : null,
           start_month: startMonth ? parseInt(startMonth) : null,
@@ -159,6 +161,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setRole("department_manager");
       setStoreId(currentStoreId || "");
       setStoreGroupId("");
+      setDepartmentId("");
       setBirthdayMonth("");
       setBirthdayDay("");
       setStartMonth("");
@@ -248,6 +251,27 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
               </SelectContent>
             </Select>
           </div>
+
+          {role === "department_manager" && departments.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="department">Assign to Department *</Label>
+              <Select value={departmentId} onValueChange={setDepartmentId} required>
+                <SelectTrigger id="department">
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                This user will be assigned as the manager of the selected department
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="accessType">Store Access</Label>
