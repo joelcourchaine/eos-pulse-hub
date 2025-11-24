@@ -103,6 +103,10 @@ Deno.serve(async (req) => {
 
     console.log('Creating user:', { email, full_name, role });
 
+    // Get the origin from the referer header for redirect URL
+    const referer = req.headers.get('referer') || '';
+    const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
+
     // Invite the user - this will send them an email to set their password
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       data: {
@@ -112,7 +116,7 @@ Deno.serve(async (req) => {
         start_month,
         start_year,
       },
-      redirectTo: `${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '.lovableproject.com')}/set-password`
+      redirectTo: `${origin}/set-password`
     });
 
     if (userError) {
