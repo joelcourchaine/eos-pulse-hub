@@ -217,6 +217,11 @@ export default function DealerComparison() {
         keyToDef.set(m.key, m);
       });
       
+      console.log("DealerComparison - Detected brand:", brand);
+      console.log("DealerComparison - Total metrics loaded:", metrics.length);
+      console.log("DealerComparison - keyToName map has 'total_direct_expenses'?", keyToName.has('total_direct_expenses'));
+      console.log("DealerComparison - keyToName.get('total_direct_expenses'):", keyToName.get('total_direct_expenses'));
+      
       // Build comparison baseline map (targets, averages, or previous year)
       const comparisonMap = new Map<string, { value: number; direction?: string }>();
       
@@ -262,6 +267,15 @@ export default function DealerComparison() {
       // First, add all direct database entries
       financialEntries.forEach(entry => {
         const metricName = keyToName.get(entry.metric_name) || entry.metric_name;
+        if (entry.metric_name === 'total_direct_expenses') {
+          console.log("Found total_direct_expenses entry:", {
+            metric_name: entry.metric_name,
+            mapped_name: metricName,
+            value: entry.value,
+            store: (entry as any)?.departments?.stores?.name,
+            dept: (entry as any)?.departments?.name
+          });
+        }
         const storeId = (entry as any)?.departments?.store_id || "";
         const storeName = (entry as any)?.departments?.stores?.name || "";
         const deptId = (entry as any)?.departments?.id;
@@ -458,7 +472,9 @@ export default function DealerComparison() {
         selectedMetrics.includes(item.metricName)
       );
       
-      console.log("Final comparison data:", result.length, "entries");
+      console.log("DealerComparison - Final comparison data:", result.length, "entries");
+      console.log("DealerComparison - Has Total Direct Expenses?", result.some(r => r.metricName === "Total Direct Expenses"));
+      console.log("DealerComparison - Total Direct Expenses entries:", result.filter(r => r.metricName === "Total Direct Expenses"));
       setComparisonData(result);
       setLastRefresh(new Date());
     }
