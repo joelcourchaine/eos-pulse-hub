@@ -7,6 +7,7 @@ import { Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { IssuesAndTodosPanel } from "@/components/issues/IssuesAndTodosPanel";
 
 interface MeetingSection {
   id: string;
@@ -20,8 +21,7 @@ const meetingSections: MeetingSection[] = [
   { id: "scorecard", title: "Scorecard Review", duration: "15 min", description: "Review KPIs and trends" },
   { id: "rocks", title: "Rock Review", duration: "10 min", description: "Quarterly priorities update" },
   { id: "headlines", title: "Headlines", duration: "5 min", description: "People or customer updates" },
-  { id: "todos", title: "To-Dos Review", duration: "5 min", description: "Action items status" },
-  { id: "issues", title: "Issues List (IDS)", duration: "15 min", description: "Identify, Discuss, Solve" },
+  { id: "issues-todos", title: "Issues & To-Dos", duration: "20 min", description: "IDS and action items" },
   { id: "conclude", title: "Conclude", duration: "5 min", description: "Recap and ratings" },
 ];
 
@@ -34,7 +34,16 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: NodeJS.Timeout }>({});
+  const [userId, setUserId] = useState<string>();
   const meetingDate = format(new Date(), 'yyyy-MM-dd');
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    };
+    getUser();
+  }, []);
 
   // Load existing notes from database
   useEffect(() => {
@@ -161,7 +170,7 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="segue" className="w-full">
-          <TabsList className="grid grid-cols-4 lg:grid-cols-7 gap-2 h-auto bg-transparent p-0">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-6 gap-2 h-auto bg-transparent p-0">
             {meetingSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -178,20 +187,24 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
           </TabsList>
           {meetingSections.map((section) => (
             <TabsContent key={section.id} value={section.id} className="mt-6">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-lg font-semibold">{section.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {section.description}
-                  </p>
+              {section.id === "issues-todos" ? (
+                <IssuesAndTodosPanel departmentId={departmentId} userId={userId} />
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold">{section.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {section.description}
+                    </p>
+                  </div>
+                  <RichTextEditor
+                    placeholder={`Add notes and images for ${section.title.toLowerCase()}...`}
+                    value={notes[section.id] || ""}
+                    onChange={(value) => handleNoteChange(section.id, value)}
+                    className="min-h-[100px]"
+                  />
                 </div>
-                <RichTextEditor
-                  placeholder={`Add notes and images for ${section.title.toLowerCase()}...`}
-                  value={notes[section.id] || ""}
-                  onChange={(value) => handleNoteChange(section.id, value)}
-                  className="min-h-[100px]"
-                />
-              </div>
+              )}
             </TabsContent>
           ))}
         </Tabs>
