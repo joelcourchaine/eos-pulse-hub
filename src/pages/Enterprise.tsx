@@ -113,13 +113,32 @@ export default function Enterprise() {
   const uniqueDepartmentNames = useMemo(() => {
     if (!departments) return [];
     const names = Array.from(new Set(departments.map(d => d.name)));
-    return names.sort();
+    // Add virtual "Fixed Combined" option
+    const sorted = names.sort();
+    // Only add Fixed Combined if both Parts and Service exist
+    const hasParts = sorted.some(n => n.toLowerCase().includes('parts'));
+    const hasService = sorted.some(n => n.toLowerCase().includes('service'));
+    if (hasParts && hasService) {
+      return ['Fixed Combined', ...sorted];
+    }
+    return sorted;
   }, [departments]);
 
   const departmentIds = useMemo(() => {
     if (!departments) return [];
     if (selectedDepartmentNames.length === 0) return departments.map(d => d.id);
-    return departments.filter(d => selectedDepartmentNames.includes(d.name)).map(d => d.id);
+    
+    // Handle "Fixed Combined" - include both Parts and Service
+    const expandedNames = selectedDepartmentNames.flatMap(name => {
+      if (name === 'Fixed Combined') {
+        return departments
+          .filter(d => d.name.toLowerCase().includes('parts') || d.name.toLowerCase().includes('service'))
+          .map(d => d.name);
+      }
+      return [name];
+    });
+    
+    return departments.filter(d => expandedNames.includes(d.name)).map(d => d.id);
   }, [departments, selectedDepartmentNames]);
 
   // Fetch KPI definitions
@@ -230,6 +249,7 @@ export default function Enterprise() {
     });
 
     let dataWithValues: any[] = [];
+    const isFixedCombined = selectedDepartmentNames.includes('Fixed Combined');
 
     if (metricType === "financial" && financialEntries && departments) {
       // Convert selected metric names to database keys
@@ -248,6 +268,7 @@ export default function Enterprise() {
         const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
         const departmentId = (entry as any)?.departments?.id;
         const storeId = (entry as any)?.departments?.store_id;
+        const departmentName = (entry as any)?.departments?.name;
         const key = `${storeId}-${departmentId}-${entry.metric_name}`;
         
         // Only keep the most recent entry (data is ordered by month descending)
@@ -256,8 +277,9 @@ export default function Enterprise() {
             storeId: storeId || "",
             storeName: (entry as any)?.departments?.stores?.name || "",
             departmentId: departmentId,
-            departmentName: (entry as any)?.departments?.name,
+            departmentName: departmentName,
             metricName: metricDisplayName,
+            metricKey: entry.metric_name,
             value: entry.value ? Number(entry.value) : null,
             target: null,
             variance: null,
@@ -266,7 +288,85 @@ export default function Enterprise() {
         return acc;
       }, {} as Record<string, any>);
       
-      dataWithValues = Object.values(groupedByKey);
+      let processedData = Object.values(groupedByKey);
+      
+      // If Fixed Combined is selected, aggregate Parts and Service data
+      if (isFixedCombined) {
+        const combinedByStore = new Map<string, Map<string, any>>();
+        
+        processedData.forEach(entry => {
+          const isParts = entry.departmentName?.toLowerCase().includes('parts');
+          const isService = entry.departmentName?.toLowerCase().includes('service');
+          
+          if (isParts || isService) {
+            if (!combinedByStore.has(entry.storeId)) {
+              combinedByStore.set(entry.storeId, new Map());
+            }
+            const storeMetrics = combinedByStore.get(entry.storeId)!;
+            
+            if (!storeMetrics.has(entry.metricName)) {
+              storeMetrics.set(entry.metricName, {
+                storeId: entry.storeId,
+                storeName: entry.storeName,
+                departmentName: 'Fixed Combined',
+                metricName: entry.metricName,
+                metricKey: entry.metricKey,
+                values: {},
+                target: null,
+                variance: null,
+              });
+            }
+            
+            const combined = storeMetrics.get(entry.metricName);
+            combined.values[entry.metricKey] = (combined.values[entry.metricKey] || 0) + (entry.value || 0);
+          }
+        });
+        
+        // Calculate final values and percentages
+        const combinedData: any[] = [];
+        combinedByStore.forEach((storeMetrics, storeId) => {
+          const allMetrics = new Map<string, number>();
+          
+          // First pass: collect all dollar values
+          storeMetrics.forEach((metric) => {
+            allMetrics.set(metric.metricKey, metric.values[metric.metricKey] || 0);
+          });
+          
+          // Second pass: calculate percentages using the metric config
+          storeMetrics.forEach((metric) => {
+            const firstStore = filteredStores[0];
+            const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
+            const brandMetrics = getMetricsForBrand(brand);
+            const metricConfig = brandMetrics.find((m: any) => m.name === metric.metricName);
+            let finalValue = metric.values[metric.metricKey] || 0;
+            
+            // If it's a percentage metric, recalculate
+            if (metricConfig?.type === 'percentage' && metricConfig?.calculation) {
+              const calc = metricConfig.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = allMetrics.get(calc.numerator) || 0;
+                const denom = allMetrics.get(calc.denominator) || 0;
+                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              }
+            }
+            
+            combinedData.push({
+              storeId: metric.storeId,
+              storeName: metric.storeName,
+              departmentId: undefined,
+              departmentName: 'Fixed Combined',
+              metricName: metric.metricName,
+              value: finalValue,
+              target: null,
+              variance: null,
+            });
+          });
+        });
+        
+        dataWithValues = combinedData;
+      } else {
+        dataWithValues = processedData;
+      }
     } else if (kpiDefinitions && scorecardEntries) {
       console.log("Processing KPI data");
       dataWithValues = scorecardEntries
