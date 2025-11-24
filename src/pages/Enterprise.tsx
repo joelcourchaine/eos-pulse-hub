@@ -13,33 +13,20 @@ import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 
-type FilterMode = "group" | "brand" | "custom";
+type FilterMode = "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
 type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
 
 export default function Enterprise() {
   const navigate = useNavigate();
-  const [filterMode, setFilterMode] = useState<FilterMode>("group");
+  const [filterMode, setFilterMode] = useState<FilterMode>("brand");
   const [metricType, setMetricType] = useState<MetricType>("weekly");
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
   const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("targets");
-
-  const { data: storeGroups } = useQuery({
-    queryKey: ["store_groups"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("store_groups")
-        .select("*")
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
 
   const { data: brands } = useQuery({
     queryKey: ["brands"],
@@ -69,11 +56,6 @@ export default function Enterprise() {
     if (!stores) return [];
     
     switch (filterMode) {
-      case "group":
-        if (selectedGroupIds.length === 0) return [];
-        return stores.filter(store => 
-          store.group_id && selectedGroupIds.includes(store.group_id)
-        );
       case "brand":
         if (selectedBrandIds.length === 0) return [];
         return stores.filter(store => 
@@ -84,7 +66,7 @@ export default function Enterprise() {
       default:
         return [];
     }
-  }, [stores, filterMode, selectedGroupIds, selectedBrandIds, selectedStoreIds]);
+  }, [stores, filterMode, selectedBrandIds, selectedStoreIds]);
 
   const storeIds = useMemo(() => {
     if (filteredStores.length > 0) {
@@ -449,14 +431,6 @@ export default function Enterprise() {
     );
   };
 
-  const toggleGroupSelection = (groupId: string) => {
-    setSelectedGroupIds(prev =>
-      prev.includes(groupId)
-        ? prev.filter(id => id !== groupId)
-        : [...prev, groupId]
-    );
-  };
-
   const toggleBrandSelection = (brandId: string) => {
     setSelectedBrandIds(prev =>
       prev.includes(brandId)
@@ -498,24 +472,6 @@ export default function Enterprise() {
               <h1 className="text-3xl font-bold">Enterprise View</h1>
             </div>
           </div>
-          <Button
-            onClick={() => {
-              const steveMarshallGroupId = "9fc8d816-7659-4b4b-9103-239901e69a25";
-              setFilterMode("group");
-              setSelectedGroupIds([steveMarshallGroupId]);
-              setMetricType("financial");
-              setSelectedMonth(new Date()); // Default to current month
-              
-              // Select all financial metrics
-              const firstStore = stores?.find(s => s.group_id === steveMarshallGroupId);
-              const brand = firstStore?.brand || firstStore?.brands?.name || null;
-              const metrics = getMetricsForBrand(brand);
-              setSelectedMetrics(metrics.map((m: any) => m.name));
-            }}
-            disabled={!stores || stores.length === 0}
-          >
-            Steve Marshall Group Financial Summary
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -528,33 +484,10 @@ export default function Enterprise() {
                 value={filterMode}
                 onValueChange={(v) => setFilterMode(v as FilterMode)}
               >
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="group">Group</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="brand">Brand</TabsTrigger>
                   <TabsTrigger value="custom">Custom</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="group" className="mt-4">
-                  <ScrollArea className="h-[300px] pr-4">
-                    <div className="space-y-3">
-                      {storeGroups?.map((group) => (
-                        <div key={group.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`group-${group.id}`}
-                            checked={selectedGroupIds.includes(group.id)}
-                            onCheckedChange={() => toggleGroupSelection(group.id)}
-                          />
-                          <label
-                            htmlFor={`group-${group.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {group.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
 
                 <TabsContent value="brand" className="mt-4">
                   <ScrollArea className="h-[300px] pr-4">
