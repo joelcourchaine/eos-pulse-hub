@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const SEND_EMAIL_HOOK_SECRET = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
 
 interface AuthEmailRequest {
   user: {
@@ -22,13 +19,27 @@ interface AuthEmailRequest {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
   }
 
   try {
-    const payload: AuthEmailRequest = await req.json();
-    const { user, email_data } = payload;
+    // Verify webhook signature
+    const payload = await req.text();
+    const headers = Object.fromEntries(req.headers);
+    
+    let parsedPayload: AuthEmailRequest;
+    
+    if (SEND_EMAIL_HOOK_SECRET) {
+      const wh = new Webhook(SEND_EMAIL_HOOK_SECRET);
+      parsedPayload = wh.verify(payload, headers) as AuthEmailRequest;
+    } else {
+      // Fallback if no secret is configured (for development)
+      console.warn("No SEND_EMAIL_HOOK_SECRET configured - webhook verification skipped");
+      parsedPayload = JSON.parse(payload);
+    }
+
+    const { user, email_data } = parsedPayload;
     const { email_action_type, token_hash, redirect_to } = email_data;
 
     let subject = "";
@@ -125,7 +136,6 @@ const handler = async (req: Request): Promise<Response> => {
         </html>
       `;
     } else {
-      // Default for other email types
       subject = "Action Required - Dealer Growth Solutions";
       html = `
         <!DOCTYPE html>
@@ -188,18 +198,20 @@ const handler = async (req: Request): Promise<Response> => {
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
+      headers: { "Content-Type": "application/json" },
     });
   } catch (error: any) {
     console.error("Error in send-auth-email function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: {
+          http_code: error.code || 500,
+          message: error.message
+        }
+      }),
       {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        status: error.code || 500,
+        headers: { "Content-Type": "application/json" },
       }
     );
   }
