@@ -177,7 +177,10 @@ export default function Enterprise() {
     if (metricType === "financial") {
       const firstStore = filteredStores[0];
       const brand = firstStore?.brand || firstStore?.brands?.name || null;
-      return getMetricsForBrand(brand);
+      console.log("Getting metrics for brand:", brand, "First store:", firstStore?.name);
+      const metrics = getMetricsForBrand(brand);
+      console.log("Available metrics for brand:", brand, metrics.length, metrics.map(m => m.name));
+      return metrics;
     } else if (kpiDefinitions) {
       return Array.from(new Set(kpiDefinitions.map(k => ({ name: k.name, key: k.name }))));
     }
@@ -231,8 +234,14 @@ export default function Enterprise() {
     if (metricType === "financial" && financialEntries && departments) {
       // Convert selected metric names to database keys
       const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
+      console.log("Financial comparison - Selected metrics:", selectedMetrics);
+      console.log("Financial comparison - Selected keys:", selectedKeys);
+      console.log("Financial comparison - All entries count:", financialEntries.length);
+      
       const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
-      console.log("Financial entries filtered:", filtered.length, "Selected keys:", selectedKeys);
+      console.log("Financial entries filtered:", filtered.length);
+      console.log("Filtered metric names:", Array.from(new Set(filtered.map(e => e.metric_name))));
+      console.log("Sample filtered entries:", filtered.slice(0, 3));
       
       // Group by store + department + metric to get the most recent entry
       const groupedByKey = filtered.reduce((acc, entry) => {
