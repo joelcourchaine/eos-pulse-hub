@@ -57,12 +57,16 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   const { toast } = useToast();
 
   useEffect(() => {
-    loadIssues();
-    loadTodos();
-    loadProfiles();
+    if (departmentId) {
+      loadIssues();
+      loadTodos();
+      loadProfiles();
+    }
   }, [departmentId]);
 
   const loadProfiles = async () => {
+    if (!departmentId) return;
+    
     try {
       const { data: department } = await supabase
         .from("departments")
@@ -100,6 +104,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   };
 
   const loadIssues = async () => {
+    if (!departmentId) return;
+    
     try {
       const { data, error } = await supabase
         .from("issues")
@@ -119,6 +125,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   };
 
   const loadTodos = async () => {
+    if (!departmentId) return;
+    
     try {
       const { data, error } = await supabase
         .from("todos")
