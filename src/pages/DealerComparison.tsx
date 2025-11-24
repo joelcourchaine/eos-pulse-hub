@@ -84,7 +84,7 @@ export default function DealerComparison() {
       // Fetch ALL entries for these departments in this month
       const { data, error } = await supabase
         .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name, brand, brand_id))")
+        .select("*, departments(id, name, store_id, stores(name, brand, brand_id, brands(name)))")
         .in("department_id", departmentIds)
         .eq("month", monthString);
       
@@ -130,7 +130,7 @@ export default function DealerComparison() {
       
       const { data, error } = await supabase
         .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name))")
+        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
         .in("department_id", departmentIds)
         .gte("month", `${year}-01`)
         .lte("month", `${year}-12`);
@@ -152,7 +152,7 @@ export default function DealerComparison() {
       
       const { data, error } = await supabase
         .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name))")
+        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
         .in("department_id", departmentIds)
         .eq("month", prevYearMonth);
       if (error) throw error;
@@ -202,8 +202,9 @@ export default function DealerComparison() {
       
       // Detect brand from first entry to get correct metrics
       const firstEntry = financialEntries[0];
-      const brand = (firstEntry as any)?.departments?.stores?.brand || null;
-      console.log("Detected brand for comparison:", brand);
+      const brand = (firstEntry as any)?.departments?.stores?.brands?.name || 
+                    (firstEntry as any)?.departments?.stores?.brand || null;
+      console.log("Detected brand for comparison:", brand, "from entry:", firstEntry);
       
       // Create metric maps
       const nameToKey = new Map<string, string>();
