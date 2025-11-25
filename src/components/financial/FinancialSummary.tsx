@@ -142,8 +142,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   // Calculate the month with highest department profit in current year
   const highestProfitMonth = useMemo(() => {
-    const currentYearMonths = months.filter(m => m.identifier.startsWith(`${year}-`));
-    if (currentYearMonths.length === 0) return null;
+    // Generate all months for the current year, not just displayed ones
+    const allCurrentYearMonths = Array.from({ length: 12 }, (_, i) => {
+      const monthNum = String(i + 1).padStart(2, '0');
+      return {
+        identifier: `${year}-${monthNum}`,
+        label: new Date(year, i).toLocaleString('default', { month: 'short' })
+      };
+    });
+    if (allCurrentYearMonths.length === 0) return null;
 
     const departmentProfitMetric = FINANCIAL_METRICS.find(m => m.key === 'department_profit');
     if (!departmentProfitMetric) return null;
@@ -187,7 +194,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     let maxProfit = -Infinity;
     let maxMonth: string | null = null;
 
-    for (const month of currentYearMonths) {
+    for (const month of allCurrentYearMonths) {
       const profitValue = getValueForMetric('department_profit', month.identifier);
       if (profitValue !== null && profitValue !== undefined && profitValue > maxProfit) {
         maxProfit = profitValue;
@@ -196,7 +203,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
 
     return maxMonth;
-  }, [months, year, entries, FINANCIAL_METRICS]);
+  }, [year, entries, FINANCIAL_METRICS]);
 
   useEffect(() => {
     const loadData = async () => {
