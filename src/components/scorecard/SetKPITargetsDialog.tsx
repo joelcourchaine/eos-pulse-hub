@@ -103,11 +103,10 @@ export const SetKPITargetsDialog = ({
     if (updates.length > 0) {
       const { error } = await supabase
         .from("kpi_targets")
-        .upsert(updates, {
-          onConflict: "kpi_id,quarter,year,entry_type",
-        });
+        .upsert(updates);
 
       if (error) {
+        console.error("Target save error:", error);
         toast({
           title: "Error",
           description: "Failed to save targets",
