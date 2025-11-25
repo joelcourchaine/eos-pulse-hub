@@ -21,6 +21,9 @@ verify_jwt = false
 [functions.send-scorecard-email]
 verify_jwt = true
 
+[functions.send-questionnaire-email]
+verify_jwt = true
+
 [functions.create-user]
 verify_jwt = true
 

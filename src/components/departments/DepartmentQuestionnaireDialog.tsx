@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useUserRole } from "@/hooks/use-user-role";
 import { supabase } from "@/integrations/supabase/client";
 import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2, Plus, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -97,6 +98,17 @@ export const DepartmentQuestionnaireDialog = ({
   });
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(null);
   const { toast } = useToast();
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+  
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id);
+    };
+    getCurrentUser();
+  }, []);
+  
+  const { isSuperAdmin: isCurrentUserSuperAdmin, isStoreGM } = useUserRole(currentUserId);
 
   useEffect(() => {
     if (open) {
@@ -892,38 +904,40 @@ export const DepartmentQuestionnaireDialog = ({
                   Add Question
                 </Button>
               )}
-              <div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg border">
-                <Label className="text-sm font-medium">Send Questionnaire via Email</Label>
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1 space-y-1">
-                    <Label htmlFor="recipient-select" className="text-xs text-muted-foreground">
-                      Select Recipient
-                    </Label>
-                    <Select
-                      value={selectedRecipientEmail}
-                      onValueChange={setSelectedRecipientEmail}
+              {(isSuperAdmin || isCurrentUserSuperAdmin || isStoreGM) && (
+                <div className="flex flex-col gap-2 p-3 bg-muted/50 rounded-lg border">
+                  <Label className="text-sm font-medium">Send Questionnaire via Email</Label>
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1 space-y-1">
+                      <Label htmlFor="recipient-select" className="text-xs text-muted-foreground">
+                        Select Recipient
+                      </Label>
+                      <Select
+                        value={selectedRecipientEmail}
+                        onValueChange={setSelectedRecipientEmail}
+                      >
+                        <SelectTrigger id="recipient-select">
+                          <SelectValue placeholder="Choose who to send to..." />
+                        </SelectTrigger>
+                      <SelectContent>
+                        {profiles.map((profile) => (
+                          <SelectItem key={profile.id} value={profile.email}>
+                            {profile.full_name} - {profile.is_super_admin ? 'Growth Advisor' : (profile.stores?.name || 'No Store')} ({profile.email})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      onClick={handleSendEmail}
+                      disabled={isSendingEmail || !selectedRecipientEmail}
                     >
-                      <SelectTrigger id="recipient-select">
-                        <SelectValue placeholder="Choose who to send to..." />
-                      </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map((profile) => (
-                        <SelectItem key={profile.id} value={profile.email}>
-                          {profile.full_name} - {profile.is_super_admin ? 'Growth Advisor' : (profile.stores?.name || 'No Store')} ({profile.email})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                    </Select>
+                      <Mail className="mr-2 h-4 w-4" />
+                      {isSendingEmail ? "Sending..." : "Send Email"}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={handleSendEmail}
-                    disabled={isSendingEmail || !selectedRecipientEmail}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    {isSendingEmail ? "Sending..." : "Send Email"}
-                  </Button>
                 </div>
-              </div>
+              )}
             </div>
 
             {isAddingNew && isSuperAdmin && (
