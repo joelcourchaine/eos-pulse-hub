@@ -10,22 +10,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useUserRole } from "@/hooks/use-user-role";
 
-const PRESET_KPIS = [
-  { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Total ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Total Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "CP Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Warranty Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Internal Labour Sales", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Total Service Gross", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "Total Service Gross %", metricType: "percentage" as const, targetDirection: "above" as const, dependencies: ["Total Service Gross"] },
-  { name: "CP Hours", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "CP RO's", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "CP Labour Sales Per RO", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: ["CP Labour Sales", "CP RO's"] },
-  { name: "CP Hours Per RO", metricType: "unit" as const, targetDirection: "above" as const, dependencies: [] },
-  { name: "CP ELR", metricType: "dollar" as const, targetDirection: "above" as const, dependencies: [] },
-];
+interface PresetKPI {
+  id: string;
+  name: string;
+  metric_type: "dollar" | "percentage" | "unit";
+  target_direction: "above" | "below";
+  dependencies: string[];
+  display_order: number;
+}
 
 interface KPI {
   id: string;
@@ -63,13 +57,44 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [customKPIType, setCustomKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [customKPIDirection, setCustomKPIDirection] = useState<"above" | "below">("above");
   const [addingPresetKpi, setAddingPresetKpi] = useState<string | null>(null);
+  const [presetKpis, setPresetKpis] = useState<PresetKPI[]>([]);
+  const [newPresetName, setNewPresetName] = useState("");
+  const [newPresetType, setNewPresetType] = useState<"dollar" | "percentage" | "unit">("dollar");
+  const [newPresetDirection, setNewPresetDirection] = useState<"above" | "below">("above");
+  const [isAddingPreset, setIsAddingPreset] = useState(false);
+  const [userId, setUserId] = useState<string | undefined>();
   const { toast } = useToast();
+  
+  const { isSuperAdmin } = useUserRole(userId);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUserId(session?.user?.id);
+    };
+    getUser();
+  }, []);
 
   useEffect(() => {
     if (open) {
       loadProfiles();
+      loadPresetKpis();
     }
   }, [open]);
+
+  const loadPresetKpis = async () => {
+    const { data, error } = await supabase
+      .from("preset_kpis")
+      .select("*")
+      .order("display_order");
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    setPresetKpis((data || []) as PresetKPI[]);
+  };
 
   const loadProfiles = async () => {
     // First get the store_id from the department
@@ -100,26 +125,23 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     setProfiles((data || []).filter(p => p.id && p.id.trim() !== ""));
   };
 
-  const handleAddPresetKPI = async (presetName: string) => {
-    const preset = PRESET_KPIS.find(p => p.name === presetName);
-    if (!preset) return;
-
-    setAddingPresetKpi(presetName);
+  const handleAddPresetKPI = async (preset: PresetKPI) => {
+    setAddingPresetKpi(preset.name);
 
     try {
       // Check if dependencies exist, add them first if needed
       for (const depName of preset.dependencies) {
         const dependencyExists = kpis.some(k => k.name === depName);
         if (!dependencyExists) {
-          const depPreset = PRESET_KPIS.find(p => p.name === depName);
+          const depPreset = presetKpis.find(p => p.name === depName);
           if (depPreset) {
             const { error: depError } = await supabase
               .from("kpi_definitions")
               .insert({
                 name: depPreset.name,
-                metric_type: depPreset.metricType,
+                metric_type: depPreset.metric_type,
                 target_value: 0,
-                target_direction: depPreset.targetDirection,
+                target_direction: depPreset.target_direction,
                 department_id: departmentId,
                 display_order: kpis.length + 1
               });
@@ -138,9 +160,9 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         .from("kpi_definitions")
         .insert({
           name: preset.name,
-          metric_type: preset.metricType,
+          metric_type: preset.metric_type,
           target_value: 0,
-          target_direction: preset.targetDirection,
+          target_direction: preset.target_direction,
           department_id: departmentId,
           display_order: kpis.length + preset.dependencies.length + 1
         });
@@ -159,6 +181,63 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     } finally {
       setAddingPresetKpi(null);
     }
+  };
+
+  const handleAddNewPreset = async () => {
+    if (!newPresetName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a preset name",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAddingPreset(true);
+
+    const { error } = await supabase
+      .from("preset_kpis")
+      .insert({
+        name: newPresetName.trim(),
+        metric_type: newPresetType,
+        target_direction: newPresetDirection,
+        dependencies: [],
+        display_order: presetKpis.length + 1
+      });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      setIsAddingPreset(false);
+      return;
+    }
+
+    toast({ 
+      title: "Success", 
+      description: "New preset KPI added successfully" 
+    });
+    
+    // Reset form
+    setNewPresetName("");
+    setNewPresetType("dollar");
+    setNewPresetDirection("above");
+    setIsAddingPreset(false);
+    
+    loadPresetKpis();
+  };
+
+  const handleDeletePreset = async (presetId: string) => {
+    const { error } = await supabase
+      .from("preset_kpis")
+      .delete()
+      .eq("id", presetId);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "Preset KPI deleted successfully" });
+    loadPresetKpis();
   };
 
   const handleAddCustomKPI = async () => {
@@ -318,16 +397,72 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           <div className="space-y-6">
             {/* Preset KPIs Section */}
             <div className="border rounded-lg p-4 space-y-4">
-              <h3 className="font-semibold text-sm">Add Preset KPIs</h3>
-              <p className="text-xs text-muted-foreground">You can add the same KPI multiple times with different owners</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm">Add Preset KPIs</h3>
+                  <p className="text-xs text-muted-foreground">You can add the same KPI multiple times with different owners</p>
+                </div>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="border-t pt-4 space-y-3">
+                  <h4 className="text-sm font-medium">Create New Preset (Super Admin)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <Label htmlFor="new-preset-name">Name</Label>
+                      <Input
+                        id="new-preset-name"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        placeholder="e.g., Total Parts Sales"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="new-preset-type">Type</Label>
+                      <Select value={newPresetType} onValueChange={(v: any) => setNewPresetType(v)}>
+                        <SelectTrigger id="new-preset-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dollar">Dollar ($)</SelectItem>
+                          <SelectItem value="percentage">Percentage (%)</SelectItem>
+                          <SelectItem value="unit">Unit Count</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="new-preset-direction">Goal</Label>
+                      <Select value={newPresetDirection} onValueChange={(v: any) => setNewPresetDirection(v)}>
+                        <SelectTrigger id="new-preset-direction">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="above">Above Target</SelectItem>
+                          <SelectItem value="below">Below Target</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        onClick={handleAddNewPreset} 
+                        disabled={isAddingPreset}
+                        className="w-full"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Preset
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {PRESET_KPIS.map((preset) => {
+                {presetKpis.map((preset) => {
                   const isAdding = addingPresetKpi === preset.name;
                   
                   return (
                     <div 
-                      key={preset.name}
+                      key={preset.id}
                       className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/30"
                     >
                       <div className="flex-1">
@@ -335,7 +470,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           {preset.name}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Type: {preset.metricType === "dollar" ? "$" : preset.metricType === "percentage" ? "%" : "units"}
+                          Type: {preset.metric_type === "dollar" ? "$" : preset.metric_type === "percentage" ? "%" : "units"}
                           {preset.dependencies.length > 0 && (
                             <span className="ml-2">
                               • Requires: {preset.dependencies.join(", ")}
@@ -343,16 +478,26 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           )}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleAddPresetKPI(preset.name)}
-                        disabled={isAdding}
-                        className="ml-3"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add
-                      </Button>
+                      <div className="flex items-center gap-2 ml-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddPresetKPI(preset)}
+                          disabled={isAdding}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Add
+                        </Button>
+                        {isSuperAdmin && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeletePreset(preset.id)}
+                          >
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -448,7 +593,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
                           <TableCell>
-                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                      {presetKpis.some(p => p.name === kpi.name) ? (
                               <div className="text-sm font-medium min-w-[250px] px-3 py-2">
                                 {kpi.name}
                               </div>
@@ -471,7 +616,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             )}
                           </TableCell>
                           <TableCell>
-                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                            {presetKpis.some(p => p.name === kpi.name) ? (
                               <div className="text-sm text-muted-foreground">
                                 {safeMetricType === "dollar" ? "Dollar ($)" : safeMetricType === "percentage" ? "Percentage (%)" : "Unit Count"}
                               </div>
@@ -492,7 +637,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             )}
                           </TableCell>
                           <TableCell>
-                            {PRESET_KPIS.some(p => p.name === kpi.name) ? (
+                            {presetKpis.some(p => p.name === kpi.name) ? (
                               <div className="text-sm text-muted-foreground">
                                 {safeTargetDirection === "above" ? "Above Target" : "Below Target"}
                               </div>
