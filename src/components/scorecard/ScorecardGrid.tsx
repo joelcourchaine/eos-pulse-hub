@@ -1756,8 +1756,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           </TableRow>
         </TableHeader>
         <TableBody>
-          {kpis.map((kpi, index) => {
-            const showOwnerHeader = index === 0 || kpi.assigned_to !== kpis[index - 1]?.assigned_to;
+          {[...kpis].sort((a, b) => {
+            // Sort by owner, keeping unassigned at the end, then by display_order within each owner
+            const ownerA = a.assigned_to || 'zzz_unassigned'; // Put unassigned last
+            const ownerB = b.assigned_to || 'zzz_unassigned';
+            if (ownerA === ownerB) {
+              return a.display_order - b.display_order;
+            }
+            return ownerA.localeCompare(ownerB);
+          }).map((kpi, index, sortedKpis) => {
+            const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
             const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
             const ownerName = owner?.full_name || "Unassigned";
             const ownerInitials = owner?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || "U";
@@ -1871,10 +1879,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
-                                const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
+                                // Use sortedKpis index instead of original kpis
+                                const currentKpiIndex = index;
                                 const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
                                 
-                                if (currentKpiIndex < kpis.length - 1) {
+                                if (currentKpiIndex < sortedKpis.length - 1) {
                                   const nextInput = document.querySelector(
                                     `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
                                   ) as HTMLInputElement;
@@ -2067,21 +2076,22 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 onChange={(e) =>
                                   handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
                                 }
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const currentKpiIndex = kpis.findIndex(k => k.id === kpi.id);
-                                    const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
-                                    
-                                    if (currentKpiIndex < kpis.length - 1) {
-                                      const nextInput = document.querySelector(
-                                        `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                      ) as HTMLInputElement;
-                                      nextInput?.focus();
-                                      nextInput?.select();
-                                    }
-                                  }
-                                }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                // Use sortedKpis index instead of original kpis
+                                const currentKpiIndex = index;
+                                const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
+                                
+                                if (currentKpiIndex < sortedKpis.length - 1) {
+                                  const nextInput = document.querySelector(
+                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                  ) as HTMLInputElement;
+                                  nextInput?.focus();
+                                  nextInput?.select();
+                                }
+                              }
+                            }}
                                  onFocus={() => setFocusedInput(key)}
                                  onBlur={() => {
                                    // Clear local value on blur so display shows saved value
