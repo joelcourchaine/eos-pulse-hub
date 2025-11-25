@@ -592,6 +592,13 @@ const handler = async (req: Request): Promise<Response> => {
             let value = null;
             if (metric.calc) {
               value = metric.calc(monthData);
+              // Debug logging for Return on Gross
+              if (metric.display === "Return on Gross") {
+                console.log(`Return on Gross calc for ${p.identifier}:`, {
+                  monthData,
+                  calculatedValue: value
+                });
+              }
             } else {
               const entry = financialEntries.find(e => 
                 e.metric_name === metric.dbName && e.month === p.identifier
