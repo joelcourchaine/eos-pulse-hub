@@ -1618,35 +1618,42 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             </>
                                           ) : (
                                             // Manual input for non-calculated metrics
-                                            <>
-                                              {value !== null && value !== undefined ? (
-                                                // Display formatted value when data exists
-                                                <div 
-                                                  className={cn(
-                                                    "h-full w-full flex items-center justify-center cursor-text",
-                                                    status === "success" && "text-success font-medium",
-                                                    status === "warning" && "text-warning font-medium",
-                                                    status === "destructive" && "text-destructive font-medium"
-                                                  )}
-                                                  onClick={(e) => {
-                                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                    input?.focus();
-                                                    input?.select();
-                                                  }}
-                                                >
-                                                  {formatTarget(value, metric.type)}
-                                                </div>
-                                              ) : (
-                                                // Empty state - just show symbols
-                                                <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                                                  onClick={(e) => {
-                                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                    input?.focus();
-                                                  }}
-                                                >
-                                                  {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
-                                                </div>
-                                              )}
+                                             <>
+                                              {(() => {
+                                                // Prioritize localValues for immediate display after typing
+                                                const displayValue = localValues[key] !== undefined && localValues[key] !== '' 
+                                                  ? parseFloat(localValues[key])
+                                                  : value;
+                                                
+                                                return displayValue !== null && displayValue !== undefined ? (
+                                                  // Display formatted value when data exists
+                                                  <div 
+                                                    className={cn(
+                                                      "h-full w-full flex items-center justify-center cursor-text",
+                                                      status === "success" && "text-success font-medium",
+                                                      status === "warning" && "text-warning font-medium",
+                                                      status === "destructive" && "text-destructive font-medium"
+                                                    )}
+                                                    onClick={(e) => {
+                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                      input?.focus();
+                                                      input?.select();
+                                                    }}
+                                                  >
+                                                    {formatTarget(displayValue, metric.type)}
+                                                  </div>
+                                                ) : (
+                                                  // Empty state - just show symbols
+                                                  <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                    onClick={(e) => {
+                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                      input?.focus();
+                                                    }}
+                                                  >
+                                                    {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                                  </div>
+                                                );
+                                              })()}
                                               <Input
                                                 type="number"
                                                 step="any"
