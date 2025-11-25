@@ -1007,7 +1007,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
   const isCalculatedKPI = (kpiName: string): boolean => {
     const calculatedKPIs = [
       "CP Labour Sales Per RO",
-      "CP Hours Per RO", 
       "CP ELR"
     ];
     return calculatedKPIs.includes(kpiName);
