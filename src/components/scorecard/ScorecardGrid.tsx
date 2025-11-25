@@ -250,6 +250,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const previousWeekDate = previousWeekMonday.toISOString().split('T')[0];
 
   useEffect(() => {
+    // Clear all state when department changes to prevent stale data
+    setEntries({});
+    setLocalValues({});
+    setKpiTargets({});
+    setProfiles({});
+    setStoreUsers([]);
+    setPrecedingQuartersData({});
+    setYearlyAverages({});
+    
+    // Then load fresh data
     loadUserRole();
     loadScorecardData();
     fetchProfiles();
@@ -400,9 +410,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     }
 
     setLoading(true);
-    // Clear existing data to prevent stale data from showing
-    setEntries({});
-    setLocalValues({});
     
     const kpiIds = kpis.map((k) => k.id);
     
