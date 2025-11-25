@@ -160,7 +160,7 @@ export default function Enterprise() {
   });
 
   // Fetch financial entries
-  const { data: financialEntries } = useQuery({
+  const { data: financialEntries, isLoading: isLoadingFinancialEntries } = useQuery({
     queryKey: ["financial_entries", departmentIds, selectedMonth, datePeriodType, selectedYear],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
@@ -247,7 +247,12 @@ export default function Enterprise() {
     let dataWithValues: any[] = [];
     const isFixedCombined = selectedDepartmentNames.includes('Fixed Combined');
 
-    if (metricType === "financial" && financialEntries && departments) {
+    if (metricType === "financial") {
+      // Don't process if data is still loading or empty
+      if (!financialEntries || financialEntries.length === 0 || !departments) {
+        console.log("Financial data not ready yet, returning empty array");
+        return [];
+      }
       // Convert selected metric names to database keys
       const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
       console.log("Financial comparison - Selected metrics:", selectedMetrics);
@@ -823,6 +828,7 @@ export default function Enterprise() {
                   data={comparisonData}
                   metricType={metricType}
                   selectedMetrics={selectedMetrics}
+                  isLoading={metricType === "financial" && isLoadingFinancialEntries}
                 />
               </CardContent>
             </Card>
