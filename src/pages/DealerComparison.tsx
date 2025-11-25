@@ -39,7 +39,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [] } = location.state as {
+  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth } = location.state as {
     data: ComparisonData[];
     metricType: string;
     selectedMetrics: string[];
@@ -48,6 +48,10 @@ export default function DealerComparison() {
     departmentIds?: string[];
     isFixedCombined?: boolean;
     selectedDepartmentNames?: string[];
+    datePeriodType?: string;
+    selectedYear?: number;
+    startMonth?: string;
+    endMonth?: string;
   };
 
   // Initialize with passed data
@@ -77,18 +81,43 @@ export default function DealerComparison() {
 
   // Fetch ALL financial entries for these departments (not filtered by month initially to get full context)
   const { data: financialEntries, refetch: refetchFinancial } = useQuery({
-    queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth],
+    queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const monthString = selectedMonth || format(new Date(), "yyyy-MM");
-      console.log("Fetching all financial data for departments:", departmentIds, "month:", monthString);
       
-      // Fetch ALL entries for these departments in this month
-      const { data, error } = await supabase
+      console.log("Fetching financial data for dealer comparison:", {
+        datePeriodType,
+        selectedMonth,
+        selectedYear,
+        startMonth,
+        endMonth,
+        departmentIds
+      });
+      
+      let query = supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name, brand, brand_id, brands(name)))")
-        .in("department_id", departmentIds)
-        .eq("month", monthString);
+        .in("department_id", departmentIds);
+      
+      // Apply date filtering based on period type
+      if (datePeriodType === "month") {
+        const monthString = selectedMonth || format(new Date(), "yyyy-MM");
+        query = query.eq("month", monthString);
+        console.log("Filtering by single month:", monthString);
+      } else if (datePeriodType === "full_year") {
+        const year = selectedYear || new Date().getFullYear();
+        query = query
+          .gte("month", `${year}-01`)
+          .lte("month", `${year}-12`);
+        console.log("Filtering by full year:", year);
+      } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+        query = query
+          .gte("month", startMonth)
+          .lte("month", endMonth);
+        console.log("Filtering by custom range:", startMonth, "to", endMonth);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error fetching financial entries:", error);
@@ -267,53 +296,134 @@ export default function DealerComparison() {
       // Build a map of all data by store+dept+metric key
       const dataMap: Record<string, ComparisonData> = {};
       
-      // First, add all direct database entries
-      financialEntries.forEach(entry => {
-        const metricName = keyToName.get(entry.metric_name) || entry.metric_name;
-        if (entry.metric_name === 'total_direct_expenses') {
-          console.log("Found total_direct_expenses entry:", {
-            metric_name: entry.metric_name,
-            mapped_name: metricName,
-            value: entry.value,
-            store: (entry as any)?.departments?.stores?.name,
-            dept: (entry as any)?.departments?.name
-          });
-        }
-        const storeId = (entry as any)?.departments?.store_id || "";
-        const storeName = (entry as any)?.departments?.stores?.name || "";
-        const deptId = (entry as any)?.departments?.id;
-        const deptName = (entry as any)?.departments?.name;
-        const key = `${storeId}-${deptId}-${entry.metric_name}`;
+      // For full_year and custom_range, we need to aggregate data first
+      if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
+        console.log("Aggregating data for multi-month period");
         
-        // Get comparison baseline for this metric
-        const comparisonKey = `${deptId}-${entry.metric_name}`;
-        const comparisonInfo = comparisonMap.get(comparisonKey);
+        // Group entries by store+dept and collect raw values
+        const aggregatedByStoreDept = new Map<string, Map<string, number>>();
         
-        dataMap[key] = {
-          storeId,
-          storeName,
-          departmentId: deptId,
-          departmentName: deptName,
-          metricName,
-          value: entry.value ? Number(entry.value) : null,
-          target: comparisonInfo?.value || null,
-          variance: null,
-        };
-        
-        // Calculate variance if both value and comparison baseline exist
-        if (dataMap[key].value !== null && dataMap[key].target !== null) {
-          const value = dataMap[key].value!;
-          const baseline = dataMap[key].target!;
-          const metricDef = keyToDef.get(entry.metric_name);
+        financialEntries.forEach(entry => {
+          const storeId = (entry as any)?.departments?.store_id || "";
+          const deptId = (entry as any)?.departments?.id;
+          const key = `${storeId}-${deptId}`;
           
-          if (baseline !== 0) {
-            const variance = ((value - baseline) / Math.abs(baseline)) * 100;
-            // Reverse sign if target direction is "below" (lower is better)
-            const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
-            dataMap[key].variance = shouldReverse ? -variance : variance;
+          if (!aggregatedByStoreDept.has(key)) {
+            aggregatedByStoreDept.set(key, new Map());
           }
-        }
-      });
+          
+          const storeMetrics = aggregatedByStoreDept.get(key)!;
+          const currentValue = storeMetrics.get(entry.metric_name) || 0;
+          storeMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+        });
+        
+        // Now create entries with recalculated percentages
+        aggregatedByStoreDept.forEach((storeMetrics, storeDeptKey) => {
+          // Find the first entry for this store/dept to get metadata
+          const sampleEntry = financialEntries.find(e => 
+            `${(e as any)?.departments?.store_id}-${(e as any)?.departments?.id}` === storeDeptKey
+          );
+          
+          if (!sampleEntry) return;
+          
+          const storeId = (sampleEntry as any)?.departments?.store_id || "";
+          const storeName = (sampleEntry as any)?.departments?.stores?.name || "";
+          const deptId = (sampleEntry as any)?.departments?.id;
+          const deptName = (sampleEntry as any)?.departments?.name;
+          
+          // Process each metric
+          storeMetrics.forEach((aggregatedValue, metricKey) => {
+            const metricDef = keyToDef.get(metricKey);
+            let finalValue = aggregatedValue;
+            
+            // Recalculate percentages from aggregated dollar values
+            if (metricDef?.type === 'percentage' && metricDef?.calculation) {
+              const calc = metricDef.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = storeMetrics.get(calc.numerator) || 0;
+                const denom = storeMetrics.get(calc.denominator) || 0;
+                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              }
+            }
+            
+            const metricName = keyToName.get(metricKey) || metricKey;
+            const entryKey = `${storeId}-${deptId}-${metricKey}`;
+            
+            // Get comparison baseline for this metric
+            const comparisonKey = `${deptId}-${metricKey}`;
+            const comparisonInfo = comparisonMap.get(comparisonKey);
+            
+            dataMap[entryKey] = {
+              storeId,
+              storeName,
+              departmentId: deptId,
+              departmentName: deptName,
+              metricName,
+              value: finalValue,
+              target: comparisonInfo?.value || null,
+              variance: null,
+            };
+            
+            // Calculate variance
+            if (finalValue !== null && comparisonInfo?.value) {
+              const baseline = comparisonInfo.value;
+              if (baseline !== 0) {
+                const variance = ((finalValue - baseline) / Math.abs(baseline)) * 100;
+                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+                dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+              }
+            }
+          });
+        });
+      } else {
+        // Single month - process entries directly
+        financialEntries.forEach(entry => {
+          const metricName = keyToName.get(entry.metric_name) || entry.metric_name;
+          if (entry.metric_name === 'total_direct_expenses') {
+            console.log("Found total_direct_expenses entry:", {
+              metric_name: entry.metric_name,
+              mapped_name: metricName,
+              value: entry.value,
+              store: (entry as any)?.departments?.stores?.name,
+              dept: (entry as any)?.departments?.name
+            });
+          }
+          const storeId = (entry as any)?.departments?.store_id || "";
+          const storeName = (entry as any)?.departments?.stores?.name || "";
+          const deptId = (entry as any)?.departments?.id;
+          const deptName = (entry as any)?.departments?.name;
+          const key = `${storeId}-${deptId}-${entry.metric_name}`;
+          
+          // Get comparison baseline for this metric
+          const comparisonKey = `${deptId}-${entry.metric_name}`;
+          const comparisonInfo = comparisonMap.get(comparisonKey);
+          
+          dataMap[key] = {
+            storeId,
+            storeName,
+            departmentId: deptId,
+            departmentName: deptName,
+            metricName,
+            value: entry.value ? Number(entry.value) : null,
+            target: comparisonInfo?.value || null,
+            variance: null,
+          };
+          
+          // Calculate variance if both value and comparison baseline exist
+          if (dataMap[key].value !== null && dataMap[key].target !== null) {
+            const value = dataMap[key].value!;
+            const baseline = dataMap[key].target!;
+            const metricDef = keyToDef.get(entry.metric_name);
+            
+            if (baseline !== 0) {
+              const variance = ((value - baseline) / Math.abs(baseline)) * 100;
+              // Reverse sign if target direction is "below" (lower is better)
+              const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+              dataMap[key].variance = shouldReverse ? -variance : variance;
+            }
+          }
+        });
+      }
       
       // If Fixed Combined, aggregate Parts and Service data
       if (isFixedCombined) {
@@ -731,12 +841,9 @@ export default function DealerComparison() {
               <div className="text-center py-12 space-y-4">
                 <p className="text-lg font-semibold text-muted-foreground">No data available</p>
                 <p className="text-sm text-muted-foreground">
-                  There are no financial entries for{' '}
-                  {selectedMonth && (selectedMonth.substring(0, 7) === selectedMonth ? 
-                    format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
-                    format(new Date(selectedMonth), 'MMMM yyyy'))}.
+                  There are no financial entries for the selected period.
                   <br />
-                  Please select a different month or add financial data for this period.
+                  Please select a different date range or add financial data.
                 </p>
                 <Button onClick={() => navigate("/enterprise")} variant="outline">
                   Return to Enterprise View
