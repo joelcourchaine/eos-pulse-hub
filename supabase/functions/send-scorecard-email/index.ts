@@ -168,7 +168,8 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Department loaded:", {
       department: department.name,
       store: department.stores?.name,
-      brand: department.stores?.brands?.name
+      brand: department.stores?.brands?.name,
+      departmentId: department.id
     });
 
     // Fetch profiles
@@ -184,6 +185,8 @@ const handler = async (req: Request): Promise<Response> => {
       .select("*")
       .eq("department_id", departmentId)
       .order("display_order");
+    
+    console.log(`Fetched ${kpis?.length || 0} KPIs for department ${departmentId}`);
 
     // Fetch KPI targets for the specific quarter (for monthly/weekly modes) or all quarters (for yearly mode)
     let kpiTargetsMap = new Map<string, number>();
@@ -228,10 +231,20 @@ const handler = async (req: Request): Promise<Response> => {
       ? getAllMonthsForYear({ year })
       : getMonthsForQuarter({ year, quarter: quarter! });
 
+    // CRITICAL: Verify KPI IDs belong to THIS department to prevent data leakage
+    const kpiIds = kpis?.map(k => k.id) || [];
+    console.log(`Fetching scorecard entries for ${kpiIds.length} KPIs from department ${departmentId}`);
+    
     const { data: entries } = await supabaseClient
       .from("scorecard_entries")
-      .select("*")
-      .in("kpi_id", kpis?.map(k => k.id) || []);
+      .select(`
+        *,
+        kpi_definitions!inner(department_id)
+      `)
+      .in("kpi_id", kpiIds)
+      .eq("kpi_definitions.department_id", departmentId);
+    
+    console.log(`Fetched ${entries?.length || 0} scorecard entries for department ${departmentId}`);
 
     // Fetch financial entries for monthly and yearly modes
     let financialEntries: any[] = [];
