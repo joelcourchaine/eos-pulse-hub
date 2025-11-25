@@ -565,7 +565,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       `${previousYear}-05`, `${previousYear}-06`, `${previousYear}-07`, `${previousYear}-08`, 
       `${previousYear}-09`, `${previousYear}-10`, `${previousYear}-11`, `${previousYear}-12`
     ];
-    const allMonthIds = [...new Set([...monthIds, ...monthsPreviousYear])];
+    
+    // Also load all months from current year for highest profit calculation
+    const monthsCurrentYear = [
+      `${year}-01`, `${year}-02`, `${year}-03`, `${year}-04`, 
+      `${year}-05`, `${year}-06`, `${year}-07`, `${year}-08`, 
+      `${year}-09`, `${year}-10`, `${year}-11`, `${year}-12`
+    ];
+    
+    const allMonthIds = [...new Set([...monthIds, ...monthsPreviousYear, ...monthsCurrentYear])];
 
     const { data, error } = await supabase
       .from("financial_entries")
