@@ -983,19 +983,21 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         kpi_id: kpiId,
         quarter: q,
         year: year,
+        entry_type: viewMode,
         target_value: currentTarget,
       }));
 
     const { error } = await supabase
       .from("kpi_targets")
       .upsert(updates, {
-        onConflict: "kpi_id,quarter,year",
+        onConflict: "kpi_id,quarter,year,entry_type",
       });
 
     if (error) {
+      console.error("Failed to copy targets:", error);
       toast({
         title: "Error",
-        description: "Failed to copy targets",
+        description: `Failed to copy targets: ${error.message}`,
         variant: "destructive",
       });
       return;
