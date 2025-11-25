@@ -83,42 +83,61 @@ export const SetKPITargetsDialog = ({
   };
 
   const handleSaveTargets = async () => {
-    const updates = [];
+    try {
+      // Process each target individually to avoid conflicts
+      for (const q of [1, 2, 3, 4]) {
+        for (const kpi of kpis) {
+          const value = editTargets[q]?.[kpi.id];
+          if (value && value !== "") {
+            // First check if a target exists
+            const { data: existing } = await supabase
+              .from("kpi_targets")
+              .select("id")
+              .eq("kpi_id", kpi.id)
+              .eq("quarter", q)
+              .eq("year", targetYear)
+              .eq("entry_type", targetType)
+              .single();
 
-    for (const q of [1, 2, 3, 4]) {
-      for (const kpi of kpis) {
-        const value = editTargets[q]?.[kpi.id];
-        if (value && value !== "") {
-          updates.push({
-            kpi_id: kpi.id,
-            quarter: q,
-            year: targetYear,
-            entry_type: targetType,
-            target_value: parseFloat(value),
-          });
+            const targetData = {
+              kpi_id: kpi.id,
+              quarter: q,
+              year: targetYear,
+              entry_type: targetType,
+              target_value: parseFloat(value),
+            };
+
+            if (existing) {
+              // Update existing target
+              const { error } = await supabase
+                .from("kpi_targets")
+                .update({ target_value: parseFloat(value) })
+                .eq("id", existing.id);
+
+              if (error) throw error;
+            } else {
+              // Insert new target
+              const { error } = await supabase
+                .from("kpi_targets")
+                .insert(targetData);
+
+              if (error) throw error;
+            }
+          }
         }
       }
+
+      toast({ title: "Success", description: "KPI targets saved successfully" });
+      onTargetsChange();
+      setOpen(false);
+    } catch (error) {
+      console.error("Target save error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save targets",
+        variant: "destructive",
+      });
     }
-
-    if (updates.length > 0) {
-      const { error } = await supabase
-        .from("kpi_targets")
-        .upsert(updates);
-
-      if (error) {
-        console.error("Target save error:", error);
-        toast({
-          title: "Error",
-          description: "Failed to save targets",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
-    toast({ title: "Success", description: "KPI targets saved successfully" });
-    onTargetsChange();
-    setOpen(false);
   };
 
   return (
