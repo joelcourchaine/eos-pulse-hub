@@ -250,6 +250,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const previousWeekDate = previousWeekMonday.toISOString().split('T')[0];
 
   useEffect(() => {
+    // Set loading immediately to prevent rendering stale data
+    setLoading(true);
+    
     // Clear all state when department changes to prevent stale data
     setEntries({});
     setLocalValues({});
