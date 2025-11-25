@@ -631,7 +631,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     // Define calculation rules
     const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
       "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" },
-      "CP Hours Per RO": { numerator: "CP Hours", denominator: "CP RO's" },
       "CP ELR": { numerator: "CP Labour Sales", denominator: "CP Hours" },
     };
 
@@ -665,11 +664,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (numeratorValue && denominatorValue && denominatorValue !== 0) {
         console.log('✅ Calculating:', kpi.name, '=', numeratorValue, '/', denominatorValue);
         let calculatedValue = numeratorValue / denominatorValue;
-        
-        // Round CP Hours Per RO to 2 decimal places
-        if (kpi.name === "CP Hours Per RO") {
-          calculatedValue = Math.round(calculatedValue * 100) / 100;
-        }
         
         // Round CP Labour Sales Per RO and CP ELR to nearest dollar
         if (kpi.name === "CP Labour Sales Per RO" || kpi.name === "CP ELR") {
