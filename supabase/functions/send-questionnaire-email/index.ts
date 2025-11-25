@@ -32,10 +32,72 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { departmentId, departmentName, managerEmail, questions, senderName }: RequestBody = await req.json();
+    // Get the authorization token from the request
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
-    // Create Supabase client
+    // Create Supabase client with the user's token for authentication
+    const jwtToken = authHeader.replace('Bearer ', '');
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      global: {
+        headers: {
+          Authorization: authHeader,
+        },
+      },
+    });
+
+    // Verify the user is authenticated
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(jwtToken);
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Check if user has super_admin or store_gm role
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { data: userRoles, error: roleError } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id);
+
+    if (roleError) {
+      console.error('Error fetching user roles:', roleError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to verify permissions' }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const roles = userRoles?.map(r => r.role) || [];
+    const canSendEmail = roles.includes('super_admin') || roles.includes('store_gm');
+
+    if (!canSendEmail) {
+      return new Response(
+        JSON.stringify({ error: 'Insufficient permissions. Only super admins and store GMs can send questionnaire emails.' }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const { departmentId, departmentName, managerEmail, questions, senderName }: RequestBody = await req.json();
 
     // Generate secure token
     const token = crypto.randomUUID();
