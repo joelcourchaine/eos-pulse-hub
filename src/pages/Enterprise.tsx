@@ -283,27 +283,78 @@ export default function Enterprise() {
             };
           }
         } else {
-          // For full year view, sum up all values
-          if (!acc[key]) {
-            acc[key] = {
+          // For full year view, collect all raw values to sum/recalculate later
+          const storeKey = `${storeId}-${departmentId}`;
+          if (!acc[storeKey]) {
+            acc[storeKey] = {
               storeId: storeId || "",
               storeName: (entry as any)?.departments?.stores?.name || "",
               departmentId: departmentId,
               departmentName: departmentName,
-              metricName: metricDisplayName,
+              rawValues: {},
+            };
+          }
+          
+          // Sum dollar values
+          if (!acc[storeKey].rawValues[entry.metric_name]) {
+            acc[storeKey].rawValues[entry.metric_name] = {
               metricKey: entry.metric_name,
+              metricDisplayName: metricDisplayName,
               value: entry.value ? Number(entry.value) : 0,
-              target: null,
-              variance: null,
             };
           } else {
-            acc[key].value = (acc[key].value || 0) + (entry.value ? Number(entry.value) : 0);
+            acc[storeKey].rawValues[entry.metric_name].value += entry.value ? Number(entry.value) : 0;
           }
         }
         return acc;
       }, {} as Record<string, any>);
       
-      let processedData = Object.values(groupedByKey);
+      let processedData: any[] = [];
+      
+      if (datePeriodType === "month") {
+        processedData = Object.values(groupedByKey);
+      } else {
+        // For full year, recalculate percentages from summed values
+        const firstStore = filteredStores[0];
+        const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
+        const brandMetrics = getMetricsForBrand(brand);
+        
+        Object.values(groupedByKey).forEach((storeData: any) => {
+          const allMetrics = new Map<string, number>();
+          
+          // First pass: collect all dollar values
+          Object.values(storeData.rawValues).forEach((metric: any) => {
+            allMetrics.set(metric.metricKey, metric.value);
+          });
+          
+          // Second pass: create entries with recalculated percentages
+          Object.values(storeData.rawValues).forEach((metric: any) => {
+            const metricConfig = brandMetrics.find((m: any) => m.name === metric.metricDisplayName);
+            let finalValue = metric.value;
+            
+            // If it's a percentage metric, recalculate from dollar values
+            if (metricConfig?.type === 'percentage' && metricConfig?.calculation) {
+              const calc = metricConfig.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = allMetrics.get(calc.numerator) || 0;
+                const denom = allMetrics.get(calc.denominator) || 0;
+                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              }
+            }
+            
+            processedData.push({
+              storeId: storeData.storeId,
+              storeName: storeData.storeName,
+              departmentId: storeData.departmentId,
+              departmentName: storeData.departmentName,
+              metricName: metric.metricDisplayName,
+              value: finalValue,
+              target: null,
+              variance: null,
+            });
+          });
+        });
+      }
       
       // If Fixed Combined is selected, aggregate Parts and Service data
       if (isFixedCombined) {
