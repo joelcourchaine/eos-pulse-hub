@@ -601,6 +601,39 @@ export type Database = {
           },
         ]
       }
+      preset_kpis: {
+        Row: {
+          created_at: string
+          dependencies: string[] | null
+          display_order: number
+          id: string
+          metric_type: string
+          name: string
+          target_direction: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dependencies?: string[] | null
+          display_order?: number
+          id?: string
+          metric_type: string
+          name: string
+          target_direction?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dependencies?: string[] | null
+          display_order?: number
+          id?: string
+          metric_type?: string
+          name?: string
+          target_direction?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           birthday_day: number | null
