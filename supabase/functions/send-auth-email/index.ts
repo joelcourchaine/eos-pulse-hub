@@ -70,10 +70,11 @@ const handler = async (req: Request): Promise<Response> => {
                 <h1 style="margin: 0;">Dealer Growth Solutions</h1>
               </div>
               <div class="content">
-                <h2>Welcome to Dealer Growth Solutions!</h2>
-                <p>You've been invited to join our platform. Click the button below to set your password and get started.</p>
+                <h2>You've been invited</h2>
+                <p>You've been invited to join the <strong>Growth Scorecard</strong> app.</p>
+                <p>Click the button below to accept the invitation and create your account:</p>
                 <div style="text-align: center;">
-                  <a href="${actionLink}" class="button">Set Your Password</a>
+                  <a href="${actionLink}" class="button">Accept Invitation</a>
                 </div>
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
                   If the button doesn't work, copy and paste this link into your browser:<br>
@@ -81,6 +82,9 @@ const handler = async (req: Request): Promise<Response> => {
                 </p>
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
                   This link will expire in 24 hours for security reasons.
+                </p>
+                <p style="margin-top: 20px; color: #999; font-size: 13px;">
+                  If you weren't expecting this invitation, you can safely ignore this email.
                 </p>
               </div>
               <div class="footer">
