@@ -248,9 +248,15 @@ export default function Enterprise() {
     const isFixedCombined = selectedDepartmentNames.includes('Fixed Combined');
 
     if (metricType === "financial") {
-      // Don't process if data is still loading or empty
-      if (!financialEntries || financialEntries.length === 0 || !departments) {
-        console.log("Financial data not ready yet, returning empty array");
+      // Don't process if data structures aren't ready yet
+      if (!financialEntries || !departments) {
+        console.log("Financial data structures not ready yet, returning empty array");
+        return [];
+      }
+      
+      // For full year, aggregate whatever data exists - don't require all months
+      if (financialEntries.length === 0 && datePeriodType !== "full_year") {
+        console.log("No financial data available for selected period");
         return [];
       }
       // Convert selected metric names to database keys
