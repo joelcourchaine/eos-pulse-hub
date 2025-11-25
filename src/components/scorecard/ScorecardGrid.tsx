@@ -947,15 +947,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         kpi_id: kpiId,
         quarter: quarter,
         year: year,
+        entry_type: viewMode,
         target_value: newValue,
       }, {
-        onConflict: "kpi_id,quarter,year",
+        onConflict: "kpi_id,quarter,year,entry_type",
       });
 
     if (error) {
+      console.error("Failed to update target:", error);
       toast({
         title: "Error",
-        description: "Failed to update target",
+        description: `Failed to update target: ${error.message}`,
         variant: "destructive",
       });
       return;
