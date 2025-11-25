@@ -451,6 +451,7 @@ const handler = async (req: Request): Promise<Response> => {
         const isNissan = brand?.toLowerCase().includes('nissan');
         const isFord = brand?.toLowerCase().includes('ford');
         const isMazda = brand?.toLowerCase().includes('mazda');
+        const isStellantis = brand ? ['ram', 'dodge', 'chrysler', 'jeep', 'fiat', 'alfa romeo', 'stellantis'].some(b => brand.toLowerCase().includes(b)) : false;
         
         if (isFord) {
           // Ford-specific metrics - exact order from financialMetrics.ts
@@ -492,6 +493,33 @@ const handler = async (req: Request): Promise<Response> => {
           ];
         } else if (isMazda) {
           // Mazda-specific metrics - no Parts Transfer or Net Operating Profit
+          return [
+            { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
+            { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
+            { display: "GP %", dbName: "gp_percent", type: "percentage" as const, calc: (data: any) => 
+              (data.gp_net != null && data.total_sales != null && data.total_sales !== 0) ? (data.gp_net / data.total_sales) * 100 : null },
+            { display: "Sales Expense", dbName: "sales_expense", type: "dollar" as const },
+            { display: "Sales Expense %", dbName: "sales_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              (data.sales_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.sales_expense / data.gp_net) * 100 : null },
+            { display: "Semi Fixed Expense", dbName: "semi_fixed_expense", type: "dollar" as const },
+            { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
+              (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
+            { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null) ? 
+              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+            { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
+            { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null && data.total_fixed_expense != null) ?
+              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+            { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
+              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
+              const semiFixed = data.semi_fixed_expense ?? 0;
+              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
+              return (departmentProfit / data.gp_net) * 100;
+            }}
+          ];
+        } else if (isStellantis) {
+          // Stellantis brands (Ram, Dodge, Chrysler, Jeep) - no Parts Transfer or Net Operating Profit
           return [
             { display: "Total Sales", dbName: "total_sales", type: "dollar" as const },
             { display: "GP Net", dbName: "gp_net", type: "dollar" as const },
