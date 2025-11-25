@@ -511,8 +511,9 @@ const handler = async (req: Request): Promise<Response> => {
               (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null && data.total_fixed_expense != null) ?
               data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.semi_fixed_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const departmentProfit = data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense;
+              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
+              const semiFixed = data.semi_fixed_expense ?? 0;
+              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
               return (departmentProfit / data.gp_net) * 100;
             }}
           ];
