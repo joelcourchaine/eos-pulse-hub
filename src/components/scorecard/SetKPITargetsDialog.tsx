@@ -90,14 +90,19 @@ export const SetKPITargetsDialog = ({
           const value = editTargets[q]?.[kpi.id];
           if (value && value !== "") {
             // First check if a target exists
-            const { data: existing } = await supabase
+            const { data: existing, error: fetchError } = await supabase
               .from("kpi_targets")
               .select("id")
               .eq("kpi_id", kpi.id)
               .eq("quarter", q)
               .eq("year", targetYear)
               .eq("entry_type", targetType)
-              .single();
+              .maybeSingle();
+
+            if (fetchError) {
+              console.error("Error checking existing target:", fetchError);
+              throw fetchError;
+            }
 
             const targetData = {
               kpi_id: kpi.id,
@@ -114,14 +119,20 @@ export const SetKPITargetsDialog = ({
                 .update({ target_value: parseFloat(value) })
                 .eq("id", existing.id);
 
-              if (error) throw error;
+              if (error) {
+                console.error("Error updating target:", error);
+                throw error;
+              }
             } else {
               // Insert new target
               const { error } = await supabase
                 .from("kpi_targets")
                 .insert(targetData);
 
-              if (error) throw error;
+              if (error) {
+                console.error("Error inserting target:", error);
+                throw error;
+              }
             }
           }
         }
