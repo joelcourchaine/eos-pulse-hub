@@ -16,6 +16,7 @@ import { format } from "date-fns";
 type FilterMode = "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
 type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
+type DatePeriodType = "month" | "full_year";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -27,6 +28,8 @@ export default function Enterprise() {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("targets");
+  const [datePeriodType, setDatePeriodType] = useState<DatePeriodType>("month");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
 
   const { data: brands } = useQuery({
     queryKey: ["brands"],
@@ -158,15 +161,26 @@ export default function Enterprise() {
 
   // Fetch financial entries
   const { data: financialEntries } = useQuery({
-    queryKey: ["financial_entries", departmentIds, selectedMonth],
+    queryKey: ["financial_entries", departmentIds, selectedMonth, datePeriodType, selectedYear],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const monthString = format(selectedMonth, "yyyy-MM");
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name))")
-        .in("department_id", departmentIds)
-        .eq("month", monthString);
+        .in("department_id", departmentIds);
+      
+      if (datePeriodType === "month") {
+        const monthString = format(selectedMonth, "yyyy-MM");
+        query = query.eq("month", monthString);
+      } else {
+        // Full year: fetch all months for the selected year
+        const yearStart = `${selectedYear}-01`;
+        const yearEnd = `${selectedYear}-12`;
+        query = query.gte("month", yearStart).lte("month", yearEnd);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -245,7 +259,7 @@ export default function Enterprise() {
       console.log("Filtered metric names:", Array.from(new Set(filtered.map(e => e.metric_name))));
       console.log("Sample filtered entries:", filtered.slice(0, 3));
       
-      // Group by store + department + metric to get the most recent entry
+      // Group by store + department + metric
       const groupedByKey = filtered.reduce((acc, entry) => {
         const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
         const departmentId = (entry as any)?.departments?.id;
@@ -253,19 +267,38 @@ export default function Enterprise() {
         const departmentName = (entry as any)?.departments?.name;
         const key = `${storeId}-${departmentId}-${entry.metric_name}`;
         
-        // Only keep the most recent entry (data is ordered by month descending)
-        if (!acc[key]) {
-          acc[key] = {
-            storeId: storeId || "",
-            storeName: (entry as any)?.departments?.stores?.name || "",
-            departmentId: departmentId,
-            departmentName: departmentName,
-            metricName: metricDisplayName,
-            metricKey: entry.metric_name,
-            value: entry.value ? Number(entry.value) : null,
-            target: null,
-            variance: null,
-          };
+        if (datePeriodType === "month") {
+          // For monthly view, only keep the most recent entry
+          if (!acc[key]) {
+            acc[key] = {
+              storeId: storeId || "",
+              storeName: (entry as any)?.departments?.stores?.name || "",
+              departmentId: departmentId,
+              departmentName: departmentName,
+              metricName: metricDisplayName,
+              metricKey: entry.metric_name,
+              value: entry.value ? Number(entry.value) : null,
+              target: null,
+              variance: null,
+            };
+          }
+        } else {
+          // For full year view, sum up all values
+          if (!acc[key]) {
+            acc[key] = {
+              storeId: storeId || "",
+              storeName: (entry as any)?.departments?.stores?.name || "",
+              departmentId: departmentId,
+              departmentName: departmentName,
+              metricName: metricDisplayName,
+              metricKey: entry.metric_name,
+              value: entry.value ? Number(entry.value) : 0,
+              target: null,
+              variance: null,
+            };
+          } else {
+            acc[key].value = (acc[key].value || 0) + (entry.value ? Number(entry.value) : 0);
+          }
         }
         return acc;
       }, {} as Record<string, any>);
@@ -421,7 +454,7 @@ export default function Enterprise() {
 
     console.log("Final comparison data length:", dataWithValues.length);
     return dataWithValues;
-  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap, filteredStores, selectedDepartmentNames]);
+  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap, filteredStores, selectedDepartmentNames, datePeriodType, selectedYear]);
 
   const toggleStoreSelection = (storeId: string) => {
     setSelectedStoreIds(prev =>
@@ -604,35 +637,73 @@ export default function Enterprise() {
               )}
 
               {metricType === "financial" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Month</label>
-                  <Select 
-                    value={format(selectedMonth, "yyyy-MM")} 
-                    onValueChange={(value) => {
-                      // Parse yyyy-MM and set to the 1st of that month in local time
-                      const [year, month] = value.split('-');
-                      setSelectedMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
-                    }}
-                  >
-                    <SelectTrigger className="bg-background z-50">
-                      <SelectValue>
-                        {format(selectedMonth, "MMMM yyyy")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50 max-h-[300px]">
-                      {Array.from({ length: 24 }, (_, i) => {
-                        const date = new Date();
-                        date.setMonth(date.getMonth() - i);
-                        const value = format(date, "yyyy-MM");
-                        return (
-                          <SelectItem key={value} value={value}>
-                            {format(date, "MMMM yyyy")}
+                <>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Date Period</label>
+                    <Select value={datePeriodType} onValueChange={(v) => setDatePeriodType(v as DatePeriodType)}>
+                      <SelectTrigger className="bg-background z-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="month">Single Month</SelectItem>
+                        <SelectItem value="full_year">Full Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {datePeriodType === "month" ? (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Month</label>
+                      <Select 
+                        value={format(selectedMonth, "yyyy-MM")} 
+                        onValueChange={(value) => {
+                          const [year, month] = value.split('-');
+                          setSelectedMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                        }}
+                      >
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue>
+                            {format(selectedMonth, "MMMM yyyy")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50 max-h-[300px]">
+                          {Array.from({ length: 24 }, (_, i) => {
+                            const date = new Date();
+                            date.setMonth(date.getMonth() - i);
+                            const value = format(date, "yyyy-MM");
+                            return (
+                              <SelectItem key={value} value={value}>
+                                {format(date, "MMMM yyyy")}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Year</label>
+                      <Select 
+                        value={selectedYear.toString()} 
+                        onValueChange={(value) => setSelectedYear(parseInt(value))}
+                      >
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue>
+                            {selectedYear}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value={new Date().getFullYear().toString()}>
+                            Current Year ({new Date().getFullYear()})
                           </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
+                          <SelectItem value={(new Date().getFullYear() - 1).toString()}>
+                            Prior Year ({new Date().getFullYear() - 1})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
               )}
 
               <div>
@@ -686,6 +757,8 @@ export default function Enterprise() {
                         departmentIds,
                         isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
                         selectedDepartmentNames,
+                        datePeriodType,
+                        selectedYear,
                       }
                     })}
                     disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
