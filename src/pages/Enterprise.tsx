@@ -873,25 +873,39 @@ export default function Enterprise() {
                       ({filteredStores.length} stores, {selectedMetrics.length} metrics)
                     </span>
                   </CardTitle>
-                  <Button
-                     onClick={() => navigate("/dealer-comparison", {
-                      state: {
-                        data: comparisonData,
-                        metricType,
-                        selectedMetrics,
-                        selectedMonth: format(selectedMonth, "yyyy-MM"),
-                        comparisonMode,
-                        departmentIds,
-                        isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
-                        selectedDepartmentNames,
-                        datePeriodType,
-                        selectedYear,
-                      }
-                    })}
-                    disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                  >
-                    View Dashboard
-                  </Button>
+                   <Button
+                     onClick={() => {
+                       // Prepare date parameters based on period type
+                       const dateParams: any = {
+                         datePeriodType,
+                       };
+                       
+                       if (datePeriodType === "month") {
+                         dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
+                       } else if (datePeriodType === "full_year") {
+                         dateParams.selectedYear = selectedYear;
+                       } else if (datePeriodType === "custom_range") {
+                         dateParams.startMonth = format(startMonth, "yyyy-MM");
+                         dateParams.endMonth = format(endMonth, "yyyy-MM");
+                       }
+                       
+                       navigate("/dealer-comparison", {
+                         state: {
+                           data: comparisonData,
+                           metricType,
+                           selectedMetrics,
+                           ...dateParams,
+                           comparisonMode,
+                           departmentIds,
+                           isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                           selectedDepartmentNames,
+                         }
+                       });
+                     }}
+                     disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                   >
+                     View Dashboard
+                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
