@@ -631,7 +631,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     // Define calculation rules
     const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
       "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" },
-      "CP ELR": { numerator: "CP Labour Sales", denominator: "CP Hours" },
     };
 
     // Find KPIs that need to be calculated based on the changed KPI
@@ -665,8 +664,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         console.log('✅ Calculating:', kpi.name, '=', numeratorValue, '/', denominatorValue);
         let calculatedValue = numeratorValue / denominatorValue;
         
-        // Round CP Labour Sales Per RO and CP ELR to nearest dollar
-        if (kpi.name === "CP Labour Sales Per RO" || kpi.name === "CP ELR") {
+        // Round CP Labour Sales Per RO to nearest dollar
+        if (kpi.name === "CP Labour Sales Per RO") {
           calculatedValue = Math.round(calculatedValue);
         }
         
@@ -1007,7 +1006,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
   const isCalculatedKPI = (kpiName: string): boolean => {
     const calculatedKPIs = [
       "CP Labour Sales Per RO",
-      "CP ELR"
     ];
     return calculatedKPIs.includes(kpiName);
   };
