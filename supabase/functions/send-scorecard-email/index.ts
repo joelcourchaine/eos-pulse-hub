@@ -660,7 +660,7 @@ const handler = async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Scorecard <onboarding@resend.dev>",
+        from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
         to: [user.email!],
         subject: mode === "yearly" 
           ? `${department.name} Scorecard - ${year} Annual Report`
