@@ -6,17 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft } from "lucide-react";
+import { Building2, ArrowLeft, CalendarIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MetricComparisonTable from "@/components/enterprise/MetricComparisonTable";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
 type FilterMode = "brand" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
 type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
-type DatePeriodType = "month" | "full_year";
+type DatePeriodType = "month" | "full_year" | "custom_range";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -30,6 +32,8 @@ export default function Enterprise() {
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("targets");
   const [datePeriodType, setDatePeriodType] = useState<DatePeriodType>("month");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [startMonth, setStartMonth] = useState<Date>(new Date(new Date().getFullYear(), 0, 1)); // Jan 1st
+  const [endMonth, setEndMonth] = useState<Date>(new Date());
 
   const { data: brands } = useQuery({
     queryKey: ["brands"],
@@ -161,7 +165,7 @@ export default function Enterprise() {
 
   // Fetch financial entries
   const { data: financialEntries, isLoading: isLoadingFinancialEntries } = useQuery({
-    queryKey: ["financial_entries", departmentIds, selectedMonth, datePeriodType, selectedYear],
+    queryKey: ["financial_entries", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       
@@ -173,11 +177,22 @@ export default function Enterprise() {
       if (datePeriodType === "month") {
         const monthString = format(selectedMonth, "yyyy-MM");
         query = query.eq("month", monthString);
-      } else {
-        // Full year: fetch all months for the selected year
-        const yearStart = `${selectedYear}-01`;
-        const yearEnd = `${selectedYear}-12`;
-        query = query.gte("month", yearStart).lte("month", yearEnd);
+        console.log("Fetching financial entries for month:", monthString);
+      } else if (datePeriodType === "full_year") {
+        // For full year, fetch all months for that year
+        const yearString = selectedYear.toString();
+        query = query
+          .gte("month", `${yearString}-01`)
+          .lte("month", `${yearString}-12`);
+        console.log("Fetching financial entries for full year:", yearString);
+      } else if (datePeriodType === "custom_range") {
+        // For custom range, fetch between start and end months
+        const startMonthString = format(startMonth, "yyyy-MM");
+        const endMonthString = format(endMonth, "yyyy-MM");
+        query = query
+          .gte("month", startMonthString)
+          .lte("month", endMonthString);
+        console.log("Fetching financial entries for range:", startMonthString, "to", endMonthString);
       }
       
       const { data, error } = await query;
@@ -324,7 +339,7 @@ export default function Enterprise() {
       
       if (datePeriodType === "month") {
         processedData = Object.values(groupedByKey);
-      } else {
+      } else if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
         // For full year, recalculate percentages from summed values
         const firstStore = filteredStores[0];
         const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
@@ -709,6 +724,7 @@ export default function Enterprise() {
                       <SelectContent className="bg-background z-50">
                         <SelectItem value="month">Single Month</SelectItem>
                         <SelectItem value="full_year">Full Year</SelectItem>
+                        <SelectItem value="custom_range">Custom Range</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -742,7 +758,7 @@ export default function Enterprise() {
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : (
+                  ) : datePeriodType === "full_year" ? (
                     <div>
                       <label className="text-sm font-medium mb-2 block">Year</label>
                       <Select 
@@ -763,6 +779,55 @@ export default function Enterprise() {
                           </SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Start Month</label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal bg-background z-50"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {format(startMonth, "MMM yyyy")}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={startMonth}
+                              onSelect={(date) => date && setStartMonth(date)}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">End Month</label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start text-left font-normal bg-background z-50"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {format(endMonth, "MMM yyyy")}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={endMonth}
+                              onSelect={(date) => date && setEndMonth(date)}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                   )}
                 </>
