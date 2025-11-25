@@ -17,24 +17,37 @@ interface MetricComparisonTableProps {
   data: MetricData[];
   metricType: "weekly" | "monthly" | "financial";
   selectedMetrics: string[];
+  isLoading?: boolean;
 }
 
 export default function MetricComparisonTable({
   data,
   metricType,
   selectedMetrics,
+  isLoading = false,
 }: MetricComparisonTableProps) {
   console.log("MetricComparisonTable render:", {
     dataLength: data.length,
     selectedMetricsCount: selectedMetrics.length,
     metricType,
+    isLoading,
     sampleData: data.slice(0, 2),
   });
+
+  if (isLoading) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <div className="animate-pulse">Loading financial data...</div>
+      </div>
+    );
+  }
 
   if (selectedMetrics.length === 0 || data.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        Select metrics and stores to view comparison
+        {selectedMetrics.length === 0 
+          ? "Select metrics to view comparison"
+          : "No data available for the selected criteria"}
         <div className="text-xs mt-2">
           (Data: {data.length}, Metrics: {selectedMetrics.length})
         </div>
