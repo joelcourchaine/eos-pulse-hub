@@ -10,7 +10,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -139,6 +139,64 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     );
     return metrics;
   }, [storeBrand]);
+
+  // Calculate the month with highest department profit in current year
+  const highestProfitMonth = useMemo(() => {
+    const currentYearMonths = months.filter(m => m.identifier.startsWith(`${year}-`));
+    if (currentYearMonths.length === 0) return null;
+
+    const departmentProfitMetric = FINANCIAL_METRICS.find(m => m.key === 'department_profit');
+    if (!departmentProfitMetric) return null;
+
+    const getValueForMetric = (metricKey: string, monthIdentifier: string): number | undefined => {
+      const entryKey = `${metricKey}-${monthIdentifier}`;
+      const existingValue = entries[entryKey];
+      
+      if (existingValue !== null && existingValue !== undefined) {
+        return existingValue;
+      }
+      
+      const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+      if (!sourceMetric || !sourceMetric.calculation) {
+        return undefined;
+      }
+      
+      if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
+        const baseValue = getValueForMetric(sourceMetric.calculation.base, monthIdentifier);
+        if (baseValue === null || baseValue === undefined) return undefined;
+        
+        let calculatedValue = baseValue;
+        for (const deduction of sourceMetric.calculation.deductions) {
+          const deductionValue = getValueForMetric(deduction, monthIdentifier);
+          calculatedValue -= (deductionValue || 0);
+        }
+        
+        if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
+          for (const addition of sourceMetric.calculation.additions) {
+            const additionValue = getValueForMetric(addition, monthIdentifier);
+            calculatedValue += (additionValue || 0);
+          }
+        }
+        
+        return calculatedValue;
+      }
+      
+      return undefined;
+    };
+
+    let maxProfit = -Infinity;
+    let maxMonth: string | null = null;
+
+    for (const month of currentYearMonths) {
+      const profitValue = getValueForMetric('department_profit', month.identifier);
+      if (profitValue !== null && profitValue !== undefined && profitValue > maxProfit) {
+        maxProfit = profitValue;
+        maxMonth = month.identifier;
+      }
+    }
+
+    return maxMonth;
+  }, [months, year, entries, FINANCIAL_METRICS]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -1086,7 +1144,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     </TableHead>
                     {months.map((month) => (
                       <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                        {month.label}
+                        <div className="flex items-center justify-center gap-1">
+                          {month.label}
+                          {highestProfitMonth === month.identifier && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Highest Department Profit</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </TableHead>
                     ))}
                   </TableRow>
