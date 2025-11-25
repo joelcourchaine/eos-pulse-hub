@@ -1661,10 +1661,47 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 onChange={(e) =>
                                                   handleValueChange(metric.key, month.identifier, e.target.value)
                                                 }
-                                                onKeyDown={(e) => {
+                                                onKeyDown={async (e) => {
                                                   if (e.key === 'Enter') {
                                                     e.preventDefault();
                                                     
+                                                    // Clear debounce timeout and save immediately
+                                                    if (saveTimeoutRef.current[key]) {
+                                                      clearTimeout(saveTimeoutRef.current[key]);
+                                                      delete saveTimeoutRef.current[key];
+                                                    }
+                                                    
+                                                    // Save the value immediately before moving focus
+                                                    const currentValue = localValues[key];
+                                                    if (currentValue !== undefined && currentValue !== '') {
+                                                      let numValue = parseFloat(currentValue);
+                                                      if (!isNaN(numValue)) {
+                                                        numValue = Math.round(numValue);
+                                                        setSaving(prev => ({ ...prev, [key]: true }));
+                                                        
+                                                        const { data: session } = await supabase.auth.getSession();
+                                                        const userId = session.session?.user?.id;
+                                                        
+                                                        await supabase
+                                                          .from("financial_entries")
+                                                          .upsert({
+                                                            department_id: departmentId,
+                                                            month: month.identifier,
+                                                            metric_name: metric.key,
+                                                            value: numValue,
+                                                            created_by: userId,
+                                                          }, {
+                                                            onConflict: "department_id,month,metric_name"
+                                                          });
+                                                        
+                                                        // Update both entries and localValues immediately
+                                                        setEntries(prev => ({ ...prev, [key]: numValue }));
+                                                        setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+                                                        setSaving(prev => ({ ...prev, [key]: false }));
+                                                      }
+                                                    }
+                                                    
+                                                    // Move to next input
                                                     if (metricIndex < FINANCIAL_METRICS.length - 1) {
                                                       const nextInput = document.querySelector(
                                                         `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
