@@ -603,7 +603,7 @@ const handler = async (req: Request): Promise<Response> => {
       let FINANCIAL_METRICS = getFinancialMetrics(brandName);
       
       // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
-      const isStellantis = brandName ? ['ram', 'dodge', 'chrysler', 'jeep', 'fiat', 'alfa romeo', 'stellantis'].some(b => brandName.toLowerCase().includes(b)) : false;
+      const isStellantis = brandName ? brandName.toLowerCase().includes('stellantis') : false;
       const isServiceOrParts = department?.name ? ['service', 'parts'].some(d => department.name.toLowerCase().includes(d)) : false;
       
       if (isStellantis && isServiceOrParts) {
