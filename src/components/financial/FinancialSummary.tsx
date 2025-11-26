@@ -1618,35 +1618,50 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               )}
                                             </>
                                           ) : (
-                                            // Manual input for non-calculated metrics
+                                             // Manual input for non-calculated metrics
                                              <>
                                               {(() => {
-                                                 // Prioritize localValues for immediate display after typing
-                                                 const displayValue = localValues[key] !== undefined && localValues[key] !== '' 
-                                                   ? parseFloat(localValues[key])
-                                                   : value;
-                                                 
                                                  const isFocused = focusedCell === key;
                                                  
-                                                 return !isFocused && (displayValue !== null && displayValue !== undefined) ? (
-                                                   // Display formatted value when data exists and not focused
-                                                   <div 
-                                                     className={cn(
-                                                       "h-full w-full flex items-center justify-center cursor-text",
-                                                       status === "success" && "text-success font-medium",
-                                                       status === "warning" && "text-warning font-medium",
-                                                       status === "destructive" && "text-destructive font-medium"
-                                                     )}
-                                                     onClick={(e) => {
-                                                       const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                       input?.focus();
-                                                       input?.select();
-                                                     }}
-                                                   >
-                                                     {formatTarget(displayValue, metric.type)}
-                                                   </div>
-                                                 ) : !isFocused ? (
-                                                   // Empty state - just show symbols when not focused
+                                                 // Determine display value - check entries first (source of truth), then localValues
+                                                 let displayValue: number | undefined;
+                                                 if (value !== null && value !== undefined) {
+                                                   displayValue = value;
+                                                 } else if (localValues[key] !== undefined && localValues[key] !== '') {
+                                                   const parsed = parseFloat(localValues[key]);
+                                                   if (!isNaN(parsed)) {
+                                                     displayValue = parsed;
+                                                   }
+                                                 }
+                                                 
+                                                 // Only show display div when not focused
+                                                 if (isFocused) {
+                                                   return null;
+                                                 }
+                                                 
+                                                 // Show value if we have one
+                                                 if (displayValue !== null && displayValue !== undefined) {
+                                                   return (
+                                                     <div 
+                                                       className={cn(
+                                                         "h-full w-full flex items-center justify-center cursor-text",
+                                                         status === "success" && "text-success font-medium",
+                                                         status === "warning" && "text-warning font-medium",
+                                                         status === "destructive" && "text-destructive font-medium"
+                                                       )}
+                                                       onClick={(e) => {
+                                                         const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                         input?.focus();
+                                                         input?.select();
+                                                       }}
+                                                     >
+                                                       {formatTarget(displayValue, metric.type)}
+                                                     </div>
+                                                   );
+                                                 }
+                                                 
+                                                 // Empty state - show placeholder symbols
+                                                 return (
                                                    <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
                                                      onClick={(e) => {
                                                        const input = e.currentTarget.nextElementSibling as HTMLInputElement;
@@ -1655,7 +1670,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                    >
                                                      {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
                                                    </div>
-                                                 ) : null;
+                                                 );
                                                })()}
                                                <Input
                                                  type="number"
