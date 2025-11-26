@@ -576,13 +576,14 @@ const handler = async (req: Request): Promise<Response> => {
               data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null && data.total_fixed_expense != null) ?
-              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const },
             { display: "Net Operating Profit", dbName: "net", type: "dollar" as const },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.semi_fixed_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const departmentProfit = data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense;
+              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
+              const semiFixed = data.semi_fixed_expense ?? 0;
+              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
               return (departmentProfit / data.gp_net) * 100;
             }}
           ];
@@ -634,11 +635,16 @@ const handler = async (req: Request): Promise<Response> => {
             let value = null;
             if (metric.calc) {
               value = metric.calc(monthData);
-              // Debug logging for Return on Gross
-              if (metric.display === "Return on Gross") {
-                console.log(`Return on Gross calc for ${p.identifier}:`, {
+              // Debug logging for calculated metrics
+              if (metric.display === "Return on Gross" || metric.display === "Department Profit") {
+                console.log(`${metric.display} calc for ${p.identifier}:`, {
+                  metric: metric.dbName,
                   monthData,
-                  calculatedValue: value
+                  calculatedValue: value,
+                  hasGpNet: monthData.gp_net != null,
+                  hasSalesExpense: monthData.sales_expense != null,
+                  hasSemiFixed: monthData.semi_fixed_expense != null,
+                  hasFixedExpense: monthData.total_fixed_expense != null
                 });
               }
             } else {
