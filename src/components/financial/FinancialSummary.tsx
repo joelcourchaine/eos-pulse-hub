@@ -131,18 +131,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const months = getMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
   const FINANCIAL_METRICS = useMemo(() => {
-    console.log('Store brand for metrics:', storeBrand);
     const metrics = getMetricsForBrand(storeBrand);
-    console.log('Selected metrics template:', 
-      storeBrand?.toLowerCase().includes('nissan') ? 'NISSAN' :
-      storeBrand?.toLowerCase().includes('ford') ? 'FORD' : 
-      'GMC_CHEVROLET (default)',
-      'Metric count:', metrics.length
-    );
     
     // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
-    const isStellantis = storeBrand ? ['ram', 'dodge', 'chrysler', 'jeep', 'fiat', 'alfa romeo', 'stellantis'].some(b => storeBrand.toLowerCase().includes(b)) : false;
+    const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
     const isServiceOrParts = departmentName ? ['service', 'parts'].some(d => departmentName.toLowerCase().includes(d)) : false;
+    
+    console.log('Financial metrics filtering:', { 
+      storeBrand, 
+      departmentName, 
+      isStellantis, 
+      isServiceOrParts,
+      willFilter: isStellantis && isServiceOrParts 
+    });
     
     if (isStellantis && isServiceOrParts) {
       return metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key));
