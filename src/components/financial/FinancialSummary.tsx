@@ -123,6 +123,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [pasteMetric, setPasteMetric] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ month: string; value: number }[]>([]);
+  const [focusedCell, setFocusedCell] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -1620,122 +1621,116 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             // Manual input for non-calculated metrics
                                              <>
                                               {(() => {
-                                                // Prioritize localValues for immediate display after typing
-                                                const displayValue = localValues[key] !== undefined && localValues[key] !== '' 
-                                                  ? parseFloat(localValues[key])
-                                                  : value;
-                                                
-                                                return displayValue !== null && displayValue !== undefined ? (
-                                                  // Display formatted value when data exists
-                                                  <div 
-                                                    className={cn(
-                                                      "h-full w-full flex items-center justify-center cursor-text",
-                                                      status === "success" && "text-success font-medium",
-                                                      status === "warning" && "text-warning font-medium",
-                                                      status === "destructive" && "text-destructive font-medium"
-                                                    )}
-                                                    onClick={(e) => {
-                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                      input?.focus();
-                                                      input?.select();
-                                                    }}
-                                                  >
-                                                    {formatTarget(displayValue, metric.type)}
-                                                  </div>
-                                                ) : (
-                                                  // Empty state - just show symbols
-                                                  <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                                                    onClick={(e) => {
-                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                      input?.focus();
-                                                    }}
-                                                  >
-                                                    {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
-                                                  </div>
-                                                );
-                                              })()}
-                                              <Input
-                                                type="number"
-                                                step="any"
-                                                value={localValues[key] || ""}
-                                                onChange={(e) =>
-                                                  handleValueChange(metric.key, month.identifier, e.target.value)
-                                                }
-                                                onKeyDown={async (e) => {
-                                                  if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    
-                                                    // Clear debounce timeout and save immediately
-                                                    if (saveTimeoutRef.current[key]) {
-                                                      clearTimeout(saveTimeoutRef.current[key]);
-                                                      delete saveTimeoutRef.current[key];
-                                                    }
-                                                    
-                                                    // Save the value immediately before moving focus
-                                                    const currentValue = localValues[key];
-                                                    if (currentValue !== undefined && currentValue !== '') {
-                                                      let numValue = parseFloat(currentValue);
-                                                      if (!isNaN(numValue)) {
-                                                        numValue = Math.round(numValue);
-                                                        setSaving(prev => ({ ...prev, [key]: true }));
-                                                        
-                                                        const { data: session } = await supabase.auth.getSession();
-                                                        const userId = session.session?.user?.id;
-                                                        
-                                                        await supabase
-                                                          .from("financial_entries")
-                                                          .upsert({
-                                                            department_id: departmentId,
-                                                            month: month.identifier,
-                                                            metric_name: metric.key,
-                                                            value: numValue,
-                                                            created_by: userId,
-                                                          }, {
-                                                            onConflict: "department_id,month,metric_name"
-                                                          });
-                                                        
-                                                        // Update both entries and localValues immediately
-                                                        setEntries(prev => ({ ...prev, [key]: numValue }));
-                                                        setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
-                                                        setSaving(prev => ({ ...prev, [key]: false }));
-                                                      }
-                                                    }
-                                                    
-                                                    // Move to next input
-                                                    if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                                      const nextInput = document.querySelector(
-                                                        `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
-                                                      ) as HTMLInputElement;
-                                                      nextInput?.focus();
-                                                      nextInput?.select();
-                                                    }
-                                                  }
-                                                }}
-                                                onFocus={(e) => {
-                                                  const parent = e.target.parentElement;
-                                                  if (parent) {
-                                                    const display = parent.querySelector('div') as HTMLElement;
-                                                    if (display) display.style.display = 'none';
-                                                  }
-                                                }}
-                                                onBlur={(e) => {
-                                                  const parent = e.target.parentElement;
-                                                  if (parent) {
-                                                    const display = parent.querySelector('div') as HTMLElement;
-                                                    if (display) display.style.display = '';
-                                                  }
-                                                }}
-                                                data-metric-index={metricIndex}
-                                                data-month-index={monthIndex}
-                                                className={cn(
-                                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
-                                                  status === "success" && "text-success font-medium",
-                                                  status === "warning" && "text-warning font-medium",
-                                                  status === "destructive" && "text-destructive font-medium",
-                                                  saving[key] && "opacity-50"
-                                                )}
-                                                disabled={saving[key]}
-                                              />
+                                                 // Prioritize localValues for immediate display after typing
+                                                 const displayValue = localValues[key] !== undefined && localValues[key] !== '' 
+                                                   ? parseFloat(localValues[key])
+                                                   : value;
+                                                 
+                                                 const isFocused = focusedCell === key;
+                                                 
+                                                 return !isFocused && (displayValue !== null && displayValue !== undefined) ? (
+                                                   // Display formatted value when data exists and not focused
+                                                   <div 
+                                                     className={cn(
+                                                       "h-full w-full flex items-center justify-center cursor-text",
+                                                       status === "success" && "text-success font-medium",
+                                                       status === "warning" && "text-warning font-medium",
+                                                       status === "destructive" && "text-destructive font-medium"
+                                                     )}
+                                                     onClick={(e) => {
+                                                       const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                       input?.focus();
+                                                       input?.select();
+                                                     }}
+                                                   >
+                                                     {formatTarget(displayValue, metric.type)}
+                                                   </div>
+                                                 ) : !isFocused ? (
+                                                   // Empty state - just show symbols when not focused
+                                                   <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                     onClick={(e) => {
+                                                       const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                       input?.focus();
+                                                     }}
+                                                   >
+                                                     {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                                   </div>
+                                                 ) : null;
+                                               })()}
+                                               <Input
+                                                 type="number"
+                                                 step="any"
+                                                 value={localValues[key] || ""}
+                                                 onChange={(e) =>
+                                                   handleValueChange(metric.key, month.identifier, e.target.value)
+                                                 }
+                                                 onKeyDown={async (e) => {
+                                                   if (e.key === 'Enter') {
+                                                     e.preventDefault();
+                                                     
+                                                     // Clear debounce timeout and save immediately
+                                                     if (saveTimeoutRef.current[key]) {
+                                                       clearTimeout(saveTimeoutRef.current[key]);
+                                                       delete saveTimeoutRef.current[key];
+                                                     }
+                                                     
+                                                     // Save the value immediately before moving focus
+                                                     const currentValue = localValues[key];
+                                                     if (currentValue !== undefined && currentValue !== '') {
+                                                       let numValue = parseFloat(currentValue);
+                                                       if (!isNaN(numValue)) {
+                                                         numValue = Math.round(numValue);
+                                                         setSaving(prev => ({ ...prev, [key]: true }));
+                                                         
+                                                         const { data: session } = await supabase.auth.getSession();
+                                                         const userId = session.session?.user?.id;
+                                                         
+                                                         await supabase
+                                                           .from("financial_entries")
+                                                           .upsert({
+                                                             department_id: departmentId,
+                                                             month: month.identifier,
+                                                             metric_name: metric.key,
+                                                             value: numValue,
+                                                             created_by: userId,
+                                                           }, {
+                                                             onConflict: "department_id,month,metric_name"
+                                                           });
+                                                         
+                                                         // Update both entries and localValues immediately
+                                                         setEntries(prev => ({ ...prev, [key]: numValue }));
+                                                         setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+                                                         setSaving(prev => ({ ...prev, [key]: false }));
+                                                       }
+                                                     }
+                                                     
+                                                     // Move to next input
+                                                     if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                                       const nextInput = document.querySelector(
+                                                         `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
+                                                       ) as HTMLInputElement;
+                                                       nextInput?.focus();
+                                                       nextInput?.select();
+                                                     }
+                                                   }
+                                                 }}
+                                                 onFocus={() => {
+                                                   setFocusedCell(key);
+                                                 }}
+                                                 onBlur={() => {
+                                                   setFocusedCell(null);
+                                                 }}
+                                                 data-metric-index={metricIndex}
+                                                 data-month-index={monthIndex}
+                                                 className={cn(
+                                                   "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
+                                                   status === "success" && "text-success font-medium",
+                                                   status === "warning" && "text-warning font-medium",
+                                                   status === "destructive" && "text-destructive font-medium",
+                                                   saving[key] && "opacity-50"
+                                                 )}
+                                                 disabled={saving[key]}
+                                               />
                                               {saving[key] && (
                                                 <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                                               )}
