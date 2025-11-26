@@ -1683,24 +1683,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                    if (e.key === 'Enter') {
                                                      e.preventDefault();
                                                      
-                                                     // Clear debounce timeout and save immediately
+                                                     // Clear debounce timeout
                                                      if (saveTimeoutRef.current[key]) {
                                                        clearTimeout(saveTimeoutRef.current[key]);
                                                        delete saveTimeoutRef.current[key];
                                                      }
                                                      
-                                                     // Save the value immediately before moving focus
+                                                     // Get the value to save
                                                      const currentValue = localValues[key];
                                                      if (currentValue !== undefined && currentValue !== '') {
                                                        let numValue = parseFloat(currentValue);
                                                        if (!isNaN(numValue)) {
                                                          numValue = Math.round(numValue);
+                                                         
+                                                         // Update state IMMEDIATELY for instant UI feedback
+                                                         setEntries(prev => ({ ...prev, [key]: numValue }));
+                                                         setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+                                                         
+                                                         // Save to database in background
                                                          setSaving(prev => ({ ...prev, [key]: true }));
                                                          
                                                          const { data: session } = await supabase.auth.getSession();
                                                          const userId = session.session?.user?.id;
                                                          
-                                                         await supabase
+                                                         supabase
                                                            .from("financial_entries")
                                                            .upsert({
                                                              department_id: departmentId,
@@ -1710,22 +1716,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                              created_by: userId,
                                                            }, {
                                                              onConflict: "department_id,month,metric_name"
+                                                           })
+                                                           .then(({ error }) => {
+                                                             if (error) {
+                                                               console.error('Save error:', error);
+                                                             }
+                                                             setSaving(prev => ({ ...prev, [key]: false }));
                                                            });
-                                                         
-                                                         // Update both entries and localValues immediately
-                                                         setEntries(prev => ({ ...prev, [key]: numValue }));
-                                                         setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
-                                                         setSaving(prev => ({ ...prev, [key]: false }));
                                                        }
                                                      }
                                                      
-                                                     // Move to next input
+                                                     // Move to next input immediately (don't wait for save)
                                                      if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                                       const nextInput = document.querySelector(
-                                                         `input[data-metric-index="${metricIndex + 1}"][data-month-index="${monthIndex}"]`
-                                                       ) as HTMLInputElement;
-                                                       nextInput?.focus();
-                                                       nextInput?.select();
+                                                       // Find next editable input
+                                                       let nextIndex = metricIndex + 1;
+                                                       let nextInput: HTMLInputElement | null = null;
+                                                       
+                                                       while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
+                                                         nextInput = document.querySelector(
+                                                           `input[data-metric-index="${nextIndex}"][data-month-index="${monthIndex}"]`
+                                                         ) as HTMLInputElement;
+                                                         if (!nextInput) nextIndex++;
+                                                       }
+                                                       
+                                                       if (nextInput) {
+                                                         nextInput.focus();
+                                                         nextInput.select();
+                                                       }
                                                      }
                                                    }
                                                  }}
