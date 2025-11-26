@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
+import { DepartmentAccessDialog } from "./DepartmentAccessDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
@@ -210,6 +211,9 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
 
   const handleUpdateManagedDepartment = async (userId: string, newDepartmentId: string | null) => {
     try {
+      // Get current user for granted_by field
+      const { data: { user } } = await supabase.auth.getUser();
+
       // First, unassign this user from any departments they currently manage
       await supabase
         .from("departments")
@@ -231,6 +235,19 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
           .eq("id", newDepartmentId);
 
         if (error) throw error;
+
+        // Also add to user_department_access table
+        const { error: accessError } = await supabase
+          .from("user_department_access")
+          .upsert({
+            user_id: userId,
+            department_id: newDepartmentId,
+            granted_by: user?.id
+          }, {
+            onConflict: 'user_id,department_id'
+          });
+
+        if (accessError) throw accessError;
       }
 
       toast({ title: "Success", description: "Department assignment updated successfully" });
@@ -540,6 +557,12 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-2 justify-end">
+                        <DepartmentAccessDialog
+                          userId={profile.id}
+                          userName={profile.full_name}
+                          currentStoreId={currentStoreId}
+                          onAccessUpdated={loadProfiles}
+                        />
                         <Button
                           size="sm"
                           onClick={() => handleUpdateProfile(profile.id, {

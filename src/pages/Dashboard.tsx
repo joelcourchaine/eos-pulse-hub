@@ -35,7 +35,7 @@ const Dashboard = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { isSuperAdmin, isStoreGM, loading: rolesLoading } = useUserRole(user?.id);
+  const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(user?.id);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
     return localStorage.getItem('selectedDepartment') || "";
@@ -297,6 +297,52 @@ const Dashboard = () => {
 
   const fetchDepartments = async () => {
     try {
+      // For department managers, only fetch departments they have access to
+      if (isDepartmentManager && !isSuperAdmin && !isStoreGM) {
+        // First, get the department IDs the user has access to
+        const { data: accessData, error: accessError } = await supabase
+          .from("user_department_access")
+          .select("department_id")
+          .eq("user_id", user?.id);
+
+        if (accessError) throw accessError;
+
+        const accessibleDeptIds = accessData?.map(a => a.department_id) || [];
+
+        if (accessibleDeptIds.length === 0) {
+          // User has no department access
+          setDepartments([]);
+          setSelectedDepartment("");
+          localStorage.removeItem('selectedDepartment');
+          setKpis([]);
+          setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+          return;
+        }
+
+        // Fetch only the accessible departments
+        const { data, error } = await supabase
+          .from("departments")
+          .select("*, profiles(email, full_name), department_type_id")
+          .in("id", accessibleDeptIds)
+          .order("name");
+
+        if (error) throw error;
+
+        setDepartments(data || []);
+        if (data && data.length > 0) {
+          const savedDept = localStorage.getItem('selectedDepartment');
+          if (savedDept && data.find(d => d.id === savedDept)) {
+            setSelectedDepartment(savedDept);
+          } else if (!selectedDepartment) {
+            const firstDept = data[0].id;
+            setSelectedDepartment(firstDept);
+            localStorage.setItem('selectedDepartment', firstDept);
+          }
+        }
+        return;
+      }
+
+      // For super admins and store GMs, show all departments in the store
       let query = supabase
         .from("departments")
         .select("*, profiles(email, full_name), department_type_id")
@@ -309,7 +355,7 @@ const Dashboard = () => {
           query = query.eq("store_id", selectedStore);
         }
       } else {
-        // Other users: filter by their profile's store
+        // Store GMs: filter by their profile's store
         if (profile?.store_id) {
           query = query.eq("store_id", profile.store_id);
         }

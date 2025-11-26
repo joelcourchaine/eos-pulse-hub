@@ -1062,6 +1062,38 @@ export type Database = {
           },
         ]
       }
+      user_department_access: {
+        Row: {
+          department_id: string
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          department_id: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          department_id?: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_department_access_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           assigned_at: string | null
@@ -1093,6 +1125,12 @@ export type Database = {
     Functions: {
       get_current_user_store_group: { Args: never; Returns: string }
       get_user_department: { Args: { _user_id: string }; Returns: string }
+      get_user_departments: {
+        Args: { _user_id: string }
+        Returns: {
+          department_id: string
+        }[]
+      }
       get_user_store: { Args: { _user_id: string }; Returns: string }
       get_user_store_group: { Args: { _user_id: string }; Returns: string }
       get_user_store_group_no_rls: {

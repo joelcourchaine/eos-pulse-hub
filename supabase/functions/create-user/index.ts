@@ -169,6 +169,22 @@ Deno.serve(async (req) => {
         // Don't throw - user was created successfully, just log the error
       } else {
         console.log('User assigned as department manager for department:', department_id);
+        
+        // Also add to user_department_access table for access control
+        const { error: accessError } = await supabaseAdmin
+          .from('user_department_access')
+          .insert({
+            user_id: userData.user.id,
+            department_id: department_id,
+            granted_by: user.id
+          });
+
+        if (accessError) {
+          console.error('Error adding user department access:', accessError);
+          // Don't throw - user was created successfully, just log the error
+        } else {
+          console.log('User granted access to department:', department_id);
+        }
       }
     }
 
