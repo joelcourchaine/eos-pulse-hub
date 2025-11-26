@@ -632,6 +632,18 @@ const handler = async (req: Request): Promise<Response> => {
               }
             });
             
+            // Log all month data for debugging
+            console.log(`Financial data for ${p.identifier}:`, {
+              monthIdentifier: p.identifier,
+              dataKeys: Object.keys(monthData),
+              gp_net: monthData.gp_net,
+              sales_expense: monthData.sales_expense,
+              semi_fixed_expense: monthData.semi_fixed_expense,
+              total_fixed_expense: monthData.total_fixed_expense,
+              parts_transfer: monthData.parts_transfer,
+              net: monthData.net
+            });
+            
             let value = null;
             if (metric.calc) {
               value = metric.calc(monthData);
