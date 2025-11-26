@@ -518,12 +518,12 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null) ? 
-              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null) ? 
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null && data.total_fixed_expense != null) ?
-              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
               if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
               const semiFixed = data.semi_fixed_expense ?? 0;
@@ -545,12 +545,12 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null) ? 
-              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null) ? 
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null && data.total_fixed_expense != null) ?
-              data.gp_net - data.sales_expense - data.semi_fixed_expense - data.total_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
               if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
               const semiFixed = data.semi_fixed_expense ?? 0;
@@ -572,8 +572,8 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
-              (data.gp_net != null && data.sales_expense != null && data.semi_fixed_expense != null) ? 
-              data.gp_net - data.sales_expense - data.semi_fixed_expense : null },
+              (data.gp_net != null && data.sales_expense != null) ? 
+              data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
               (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
