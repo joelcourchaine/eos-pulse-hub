@@ -110,6 +110,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
+  const [departmentName, setDepartmentName] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(year);
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -138,8 +139,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       'GMC_CHEVROLET (default)',
       'Metric count:', metrics.length
     );
+    
+    // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
+    const isStellantis = storeBrand ? ['ram', 'dodge', 'chrysler', 'jeep', 'fiat', 'alfa romeo', 'stellantis'].some(b => storeBrand.toLowerCase().includes(b)) : false;
+    const isServiceOrParts = departmentName ? ['service', 'parts'].some(d => departmentName.toLowerCase().includes(d)) : false;
+    
+    if (isStellantis && isServiceOrParts) {
+      return metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key));
+    }
+    
     return metrics;
-  }, [storeBrand]);
+  }, [storeBrand, departmentName]);
 
   // Calculate the month with highest department profit in current year
   const highestProfitMonth = useMemo(() => {
@@ -247,21 +257,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     const { data: department } = await supabase
       .from("departments")
-      .select("store_id")
+      .select("name, store_id")
       .eq("id", departmentId)
       .single();
 
-    if (department?.store_id) {
-      const { data: store } = await supabase
-        .from("stores")
-        .select("brand, brand_id, brands(name)")
-        .eq("id", department.store_id)
-        .single();
+    if (department) {
+      setDepartmentName(department.name);
+      
+      if (department.store_id) {
+        const { data: store } = await supabase
+          .from("stores")
+          .select("brand, brand_id, brands(name)")
+          .eq("id", department.store_id)
+          .single();
 
-      // Use brand from relationship if available, fallback to text field
-      const brandName = (store?.brands as any)?.name || store?.brand || null;
-      console.log('Loaded brand name:', brandName, 'for store:', store);
-      setStoreBrand(brandName);
+        // Use brand from relationship if available, fallback to text field
+        const brandName = (store?.brands as any)?.name || store?.brand || null;
+        console.log('Loaded brand name:', brandName, 'for store:', store);
+        setStoreBrand(brandName);
+      }
     }
   };
 

@@ -150,7 +150,8 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: department } = await supabaseClient
       .from("departments")
       .select(`
-        *,
+        id,
+        name,
         stores!inner(
           name,
           brands!inner(
@@ -159,7 +160,16 @@ const handler = async (req: Request): Promise<Response> => {
         )
       `)
       .eq("id", departmentId)
-      .single();
+      .single() as { data: {
+        id: string;
+        name: string;
+        stores: {
+          name: string;
+          brands: {
+            name: string;
+          };
+        };
+      } | null };
 
     if (!department) {
       throw new Error("Department not found");
@@ -590,7 +600,15 @@ const handler = async (req: Request): Promise<Response> => {
         }
       };
       
-      const FINANCIAL_METRICS = getFinancialMetrics(brandName);
+      let FINANCIAL_METRICS = getFinancialMetrics(brandName);
+      
+      // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
+      const isStellantis = brandName ? ['ram', 'dodge', 'chrysler', 'jeep', 'fiat', 'alfa romeo', 'stellantis'].some(b => brandName.toLowerCase().includes(b)) : false;
+      const isServiceOrParts = department?.name ? ['service', 'parts'].some(d => department.name.toLowerCase().includes(d)) : false;
+      
+      if (isStellantis && isServiceOrParts) {
+        FINANCIAL_METRICS = FINANCIAL_METRICS.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.dbName));
+      }
       
       html += `<h2>Financial Metrics</h2><table><thead><tr><th>Metric</th>`;
       
