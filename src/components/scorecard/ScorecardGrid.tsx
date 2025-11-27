@@ -1688,6 +1688,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 >
                   KPI
                 </TableHead>
+                {viewMode === "weekly" && (
+                  <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                    Target
+                  </TableHead>
+                )}
             {viewMode === "weekly" ? weeks.map((week) => {
               const weekDate = week.start.toISOString().split('T')[0];
               const isCurrentWeek = weekDate === currentWeekDate;
@@ -1808,7 +1813,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={viewMode === "weekly" ? weeks.length : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -1818,6 +1823,44 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   >
                     {kpi.name}
                   </TableCell>
+                  {viewMode === "weekly" && (
+                    <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                      {canEditTargets() && editingTarget === kpi.id ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            step="any"
+                            value={targetEditValue}
+                            onChange={(e) => setTargetEditValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleTargetSave(kpi.id);
+                              if (e.key === 'Escape') setEditingTarget(null);
+                            }}
+                            className="w-20 h-7 text-center"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleTargetSave(kpi.id)}
+                            className="h-7 px-2"
+                          >
+                            ✓
+                          </Button>
+                        </div>
+                      ) : (
+                        <span
+                          className={cn(
+                            "text-muted-foreground",
+                            canEditTargets() && "cursor-pointer hover:text-foreground"
+                          )}
+                          onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
+                        >
+                          {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
                   {viewMode === "weekly" ? weeks.map((week) => {
                     const weekDate = week.start.toISOString().split('T')[0];
                     const key = `${kpi.id}-${weekDate}`;
