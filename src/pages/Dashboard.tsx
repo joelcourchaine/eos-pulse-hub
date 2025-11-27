@@ -124,6 +124,20 @@ const Dashboard = () => {
   useEffect(() => {
     // Only fetch data if departments and stores have been loaded and validated
     if (selectedDepartment && departmentsLoaded && storesLoaded) {
+      // CRITICAL: Verify department belongs to current store before fetching data
+      const dept = departments.find(d => d.id === selectedDepartment);
+      if (!dept || dept.store_id !== selectedStore) {
+        console.error('Department does not belong to current store!', {
+          selectedDepartment,
+          selectedStore,
+          deptStoreId: dept?.store_id
+        });
+        // Clear invalid selection
+        setSelectedDepartment("");
+        localStorage.removeItem('selectedDepartment');
+        return;
+      }
+      
       // Clear all department-specific data immediately when department changes
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
@@ -144,7 +158,7 @@ const Dashboard = () => {
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment, departmentsLoaded, storesLoaded]);
+  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
@@ -345,13 +359,17 @@ const Dashboard = () => {
         if (data && data.length > 0) {
           const savedDept = localStorage.getItem('selectedDepartment');
           // Validate saved department belongs to this store's accessible departments
-          if (savedDept && data.find(d => d.id === savedDept)) {
+          const foundDept = data.find(d => d.id === savedDept);
+          if (savedDept && foundDept) {
             setSelectedDepartment(savedDept);
           } else {
-            // Set first department if saved one is invalid
+            // Set first department if saved one is invalid or doesn't match current accessible departments
             const firstDept = data[0].id;
             setSelectedDepartment(firstDept);
             localStorage.setItem('selectedDepartment', firstDept);
+            if (savedDept) {
+              console.warn('Cleared invalid department from localStorage:', savedDept);
+            }
           }
         }
         setDepartmentsLoaded(true);
@@ -383,14 +401,19 @@ const Dashboard = () => {
       setDepartments(data || []);
       if (data && data.length > 0) {
         const savedDept = localStorage.getItem('selectedDepartment');
-        // Validate saved department belongs to this store's departments
-        if (savedDept && data.find(d => d.id === savedDept)) {
+        // CRITICAL: Validate saved department belongs to this store's departments
+        // Check both that department exists AND that it belongs to the current store
+        const foundDept = data.find(d => d.id === savedDept);
+        if (savedDept && foundDept && foundDept.store_id === selectedStore) {
           setSelectedDepartment(savedDept);
         } else {
           // Set first department if saved one is invalid or doesn't match store
           const firstDept = data[0].id;
           setSelectedDepartment(firstDept);
           localStorage.setItem('selectedDepartment', firstDept);
+          if (savedDept) {
+            console.warn('Cleared invalid department from localStorage - did not belong to current store:', savedDept, 'store:', selectedStore);
+          }
         }
       } else {
         // No departments in this store - clear everything
