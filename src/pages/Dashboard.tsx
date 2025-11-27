@@ -124,10 +124,16 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedDepartment) {
+      // Clear all department-specific data immediately when department changes
+      setKpis([]);
+      setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+      setActiveRocksCount(0);
+      setMyOpenTodosCount(0);
+      
       // Persist selected department
       localStorage.setItem('selectedDepartment', selectedDepartment);
       
-      // Ensure we fetch all data when department changes
+      // Fetch all data for the new department
       const fetchAllDepartmentData = async () => {
         await Promise.all([
           fetchKPIs(),
