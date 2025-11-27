@@ -412,13 +412,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setKpiTargets(targetsMap);
   };
 
-  const loadScorecardData = async () => {
+  const loadScorecardData = async (freshTargets?: { [key: string]: number }) => {
     if (!departmentId || kpis.length === 0) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    
+    // Use fresh targets if provided, otherwise use state
+    const targetsToUse = freshTargets || kpiTargets;
     
     const kpiIds = kpis.map((k) => k.id);
     
@@ -451,7 +454,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         // Recalculate status based on current target
         const kpi = kpis.find(k => k.id === entry.kpi_id);
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
-          const target = kpiTargets[kpi.id] || kpi.target_value;
+          const target = targetsToUse[kpi.id] || kpi.target_value;
           
           const variance = kpi.metric_type === "percentage" 
             ? entry.actual_value - target 
@@ -499,9 +502,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         // Recalculate status based on current target
         const kpi = kpis.find(k => k.id === entry.kpi_id);
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
-          const target = kpiTargets[kpi.id] || kpi.target_value;
+          const target = targetsToUse[kpi.id] || kpi.target_value;
           
-          const variance = kpi.metric_type === "percentage" 
+          const variance = kpi.metric_type === "percentage"
             ? entry.actual_value - target 
             : target !== 0 ? ((entry.actual_value - target) / target) * 100 : 0;
 
@@ -974,14 +977,28 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
     setEditingTarget(null);
     
-    // Reload targets first
-    await loadKPITargets();
+    // Fetch fresh targets from database
+    const { data: freshTargetsData } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("quarter", quarter)
+      .eq("year", year)
+      .eq("entry_type", viewMode);
+
+    const freshTargetsMap: { [key: string]: number } = {};
+    freshTargetsData?.forEach(target => {
+      freshTargetsMap[target.kpi_id] = target.target_value || 0;
+    });
+    
+    // Update state with fresh targets
+    setKpiTargets(freshTargetsMap);
     
     // Recalculate status for all existing entries with the new target
     await recalculateEntryStatuses(kpiId, newValue);
     
-    // Reload scorecard data to show updated statuses
-    await loadScorecardData();
+    // Reload scorecard data with fresh targets to ensure colors update
+    await loadScorecardData(freshTargetsMap);
     
     toast({
       title: "Success",
@@ -1019,14 +1036,28 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       return;
     }
 
-    // Reload targets first
-    await loadKPITargets();
+    // Fetch fresh targets from database
+    const { data: freshTargetsData } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("quarter", quarter)
+      .eq("year", year)
+      .eq("entry_type", viewMode);
+
+    const freshTargetsMap: { [key: string]: number } = {};
+    freshTargetsData?.forEach(target => {
+      freshTargetsMap[target.kpi_id] = target.target_value || 0;
+    });
+    
+    // Update state with fresh targets
+    setKpiTargets(freshTargetsMap);
     
     // Recalculate status for all existing entries with the new target
     await recalculateEntryStatuses(kpiId, currentTarget);
     
-    // Reload scorecard data to show updated statuses
-    await loadScorecardData();
+    // Reload scorecard data with fresh targets to ensure colors update
+    await loadScorecardData(freshTargetsMap);
     
     toast({
       title: "Success",
@@ -1105,10 +1136,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   // Recalculate statuses for all KPIs (used when bulk updating targets)
   const recalculateAllEntryStatuses = async () => {
-    // Reload targets first to ensure we have the latest
-    await loadKPITargets();
-    
-    // Get updated targets
+    // Get updated targets directly from database
     const { data: targets, error: targetsError } = await supabase
       .from("kpi_targets")
       .select("*")
@@ -1122,21 +1150,24 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       return;
     }
 
-    const targetsMap: { [key: string]: number } = {};
+    const freshTargetsMap: { [key: string]: number } = {};
     targets?.forEach(target => {
-      targetsMap[target.kpi_id] = target.target_value || 0;
+      freshTargetsMap[target.kpi_id] = target.target_value || 0;
     });
+    
+    // Update state with fresh targets
+    setKpiTargets(freshTargetsMap);
 
     // For KPIs without quarterly targets, use default target_value
     kpis.forEach(kpi => {
-      if (!targetsMap[kpi.id]) {
-        targetsMap[kpi.id] = kpi.target_value;
+      if (!freshTargetsMap[kpi.id]) {
+        freshTargetsMap[kpi.id] = kpi.target_value;
       }
     });
 
     // Recalculate each KPI's entries
     for (const kpi of kpis) {
-      await recalculateEntryStatuses(kpi.id, targetsMap[kpi.id]);
+      await recalculateEntryStatuses(kpi.id, freshTargetsMap[kpi.id]);
     }
   };
 
@@ -1759,7 +1790,21 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 currentQuarter={quarter}
                 onTargetsChange={async () => {
                   await recalculateAllEntryStatuses();
-                  await loadScorecardData();
+                  // Fetch fresh targets to pass to loadScorecardData
+                  const { data: freshTargetsData } = await supabase
+                    .from("kpi_targets")
+                    .select("*")
+                    .in("kpi_id", kpis.map(k => k.id))
+                    .eq("quarter", quarter)
+                    .eq("year", year)
+                    .eq("entry_type", viewMode);
+
+                  const freshTargetsMap: { [key: string]: number } = {};
+                  freshTargetsData?.forEach(target => {
+                    freshTargetsMap[target.kpi_id] = target.target_value || 0;
+                  });
+                  
+                  await loadScorecardData(freshTargetsMap);
                 }}
               />
               {canManageKPIs && (
