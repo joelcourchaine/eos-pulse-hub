@@ -967,12 +967,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     }
 
     setEditingTarget(null);
-    // Reload targets and scorecard data to recalculate statuses immediately
+    
+    // Reload targets first
     await loadKPITargets();
+    
+    // Recalculate status for all existing entries with the new target
+    await recalculateEntryStatuses(kpiId, newValue);
+    
+    // Reload scorecard data to show updated statuses
     await loadScorecardData();
+    
     toast({
       title: "Success",
-      description: "Target updated successfully",
+      description: "Target updated and statuses recalculated",
     });
   };
 
@@ -1006,14 +1013,125 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       return;
     }
 
-    // Reload targets and scorecard data to refresh visual indicators
+    // Reload targets first
     await loadKPITargets();
+    
+    // Recalculate status for all existing entries with the new target
+    await recalculateEntryStatuses(kpiId, currentTarget);
+    
+    // Reload scorecard data to show updated statuses
     await loadScorecardData();
     
     toast({
       title: "Success",
-      description: `Target copied to all quarters in ${year}`,
+      description: `Target copied to all quarters in ${year} and statuses recalculated`,
     });
+  };
+
+  // Recalculate status for all existing entries of a KPI when target changes
+  const recalculateEntryStatuses = async (kpiId: string, newTarget: number) => {
+    const kpi = kpis.find(k => k.id === kpiId);
+    if (!kpi) return;
+
+    // Fetch all existing entries for this KPI in the current quarter/year
+    const { data: existingEntries, error: fetchError } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .eq("kpi_id", kpiId)
+      .eq("entry_type", viewMode);
+
+    if (fetchError || !existingEntries) {
+      console.error("Error fetching entries for recalculation:", fetchError);
+      return;
+    }
+
+    // Filter entries for current quarter/year based on view mode
+    const relevantEntries = viewMode === "weekly" 
+      ? existingEntries.filter(e => {
+          if (!e.week_start_date) return false;
+          const entryDate = new Date(e.week_start_date);
+          const entryQuarterInfo = getQuarterInfo(entryDate);
+          return entryQuarterInfo.year === year && entryQuarterInfo.quarter === quarter;
+        })
+      : existingEntries.filter(e => {
+          if (!e.month) return false;
+          const [entryYear, entryMonth] = e.month.split('-').map(Number);
+          const entryQuarter = Math.ceil(entryMonth / 3);
+          return entryYear === year && entryQuarter === quarter;
+        });
+
+    // Recalculate status for each entry
+    const updates = relevantEntries.map(entry => {
+      const actualValue = entry.actual_value;
+      if (actualValue === null || actualValue === undefined) return null;
+
+      const variance = kpi.metric_type === "percentage" 
+        ? actualValue - newTarget 
+        : ((actualValue - newTarget) / newTarget) * 100;
+
+      let status: string;
+      if (kpi.target_direction === "above") {
+        status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+      } else {
+        status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+      }
+
+      return {
+        id: entry.id,
+        variance,
+        status,
+      };
+    }).filter(Boolean);
+
+    // Update all entries with new status
+    for (const update of updates) {
+      if (update) {
+        await supabase
+          .from('scorecard_entries')
+          .update({
+            variance: update.variance,
+            status: update.status,
+          })
+          .eq('id', update.id);
+      }
+    }
+  };
+
+  // Recalculate statuses for all KPIs (used when bulk updating targets)
+  const recalculateAllEntryStatuses = async () => {
+    // Reload targets first to ensure we have the latest
+    await loadKPITargets();
+    
+    // Get updated targets
+    const { data: targets, error: targetsError } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("quarter", quarter)
+      .eq("year", year)
+      .eq("entry_type", viewMode);
+
+    if (targetsError) {
+      console.error("Error loading targets for recalculation:", targetsError);
+      return;
+    }
+
+    const targetsMap: { [key: string]: number } = {};
+    targets?.forEach(target => {
+      targetsMap[target.kpi_id] = target.target_value || 0;
+    });
+
+    // For KPIs without quarterly targets, use default target_value
+    kpis.forEach(kpi => {
+      if (!targetsMap[kpi.id]) {
+        targetsMap[kpi.id] = kpi.target_value;
+      }
+    });
+
+    // Recalculate each KPI's entries
+    for (const kpi of kpis) {
+      await recalculateEntryStatuses(kpi.id, targetsMap[kpi.id]);
+    }
   };
 
   // Check if a KPI is automatically calculated
@@ -1633,9 +1751,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 kpis={kpis}
                 currentYear={year}
                 currentQuarter={quarter}
-                onTargetsChange={() => {
-                  loadKPITargets();
-                  loadScorecardData();
+                onTargetsChange={async () => {
+                  await recalculateAllEntryStatuses();
+                  await loadScorecardData();
                 }}
               />
               {canManageKPIs && (
