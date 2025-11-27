@@ -61,9 +61,8 @@ const Dashboard = () => {
   const [showDepartments, setShowDepartments] = useState(false);
   const [showDepartmentInfo, setShowDepartmentInfo] = useState(false);
   const [stores, setStores] = useState<any[]>([]);
-  const [selectedStore, setSelectedStore] = useState<string>(() => {
-    return localStorage.getItem('selectedStore') || "";
-  });
+  const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
+  const [storesLoaded, setStoresLoaded] = useState(false);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -105,7 +104,7 @@ const Dashboard = () => {
   }, [profile, isSuperAdmin, rolesLoading]);
 
   useEffect(() => {
-    if (selectedStore && profile) {
+    if (selectedStore && profile && storesLoaded) {
       // Clear all data when switching stores
       setSelectedDepartment("");
       setDepartmentsLoaded(false);
@@ -120,11 +119,11 @@ const Dashboard = () => {
       // Fetch departments for the new store
       fetchDepartments();
     }
-  }, [selectedStore, profile]);
+  }, [selectedStore, profile, storesLoaded]);
 
   useEffect(() => {
-    // Only fetch data if departments have been loaded and validated
-    if (selectedDepartment && departmentsLoaded) {
+    // Only fetch data if departments and stores have been loaded and validated
+    if (selectedDepartment && departmentsLoaded && storesLoaded) {
       // Clear all department-specific data immediately when department changes
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
@@ -145,7 +144,7 @@ const Dashboard = () => {
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment, departmentsLoaded]);
+  }, [selectedDepartment, departmentsLoaded, storesLoaded]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
@@ -283,22 +282,29 @@ const Dashboard = () => {
 
       if (data && data.length > 0) {
         setStores(data);
-        // Only set default if no store is selected
+        // Validate and restore selected store from localStorage
         const savedStore = localStorage.getItem('selectedStore');
+        
         if (savedStore && data.find(s => s.id === savedStore)) {
+          // Saved store is valid and user has access to it
           setSelectedStore(savedStore);
-        } else if (!selectedStore) {
+        } else {
+          // No saved store or invalid saved store, use first available
           const firstStore = data[0].id;
           setSelectedStore(firstStore);
           localStorage.setItem('selectedStore', firstStore);
         }
       }
+      
+      // Mark stores as loaded after validation
+      setStoresLoaded(true);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error fetching stores",
         description: error.message,
       });
+      setStoresLoaded(true);
     }
   };
 
