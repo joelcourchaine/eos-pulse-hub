@@ -262,12 +262,18 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setPrecedingQuartersData({});
     setYearlyAverages({});
     
-    // Then load fresh data
-    loadUserRole();
-    loadScorecardData();
-    fetchProfiles();
-    loadKPITargets();
-    loadStoreUsers();
+    // Load data in correct sequence - targets must be loaded before scorecard data
+    const loadData = async () => {
+      loadUserRole();
+      fetchProfiles();
+      loadStoreUsers();
+      
+      // Load targets first, then scorecard data
+      await loadKPITargets();
+      await loadScorecardData();
+    };
+    
+    loadData();
   }, [departmentId, kpis, year, quarter, viewMode]);
 
   useEffect(() => {
