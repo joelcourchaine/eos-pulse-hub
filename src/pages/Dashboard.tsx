@@ -37,9 +37,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(user?.id);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
-    return localStorage.getItem('selectedDepartment') || "";
-  });
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(""); // Don't load from localStorage until validated
+  const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
   const [kpis, setKpis] = useState<any[]>([]);
   
   // Calculate current quarter and year
@@ -109,6 +108,7 @@ const Dashboard = () => {
     if (selectedStore && profile) {
       // Clear all data when switching stores
       setSelectedDepartment("");
+      setDepartmentsLoaded(false);
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
       setActiveRocksCount(0);
@@ -123,7 +123,8 @@ const Dashboard = () => {
   }, [selectedStore, profile]);
 
   useEffect(() => {
-    if (selectedDepartment) {
+    // Only fetch data if departments have been loaded and validated
+    if (selectedDepartment && departmentsLoaded) {
       // Clear all department-specific data immediately when department changes
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
@@ -144,7 +145,7 @@ const Dashboard = () => {
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment]);
+  }, [selectedDepartment, departmentsLoaded]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
@@ -337,14 +338,17 @@ const Dashboard = () => {
         setDepartments(data || []);
         if (data && data.length > 0) {
           const savedDept = localStorage.getItem('selectedDepartment');
+          // Validate saved department belongs to this store's accessible departments
           if (savedDept && data.find(d => d.id === savedDept)) {
             setSelectedDepartment(savedDept);
-          } else if (!selectedDepartment) {
+          } else {
+            // Set first department if saved one is invalid
             const firstDept = data[0].id;
             setSelectedDepartment(firstDept);
             localStorage.setItem('selectedDepartment', firstDept);
           }
         }
+        setDepartmentsLoaded(true);
         return;
       }
 
@@ -372,11 +376,12 @@ const Dashboard = () => {
       if (error) throw error;
       setDepartments(data || []);
       if (data && data.length > 0) {
-        // Only set default if no department is selected
         const savedDept = localStorage.getItem('selectedDepartment');
+        // Validate saved department belongs to this store's departments
         if (savedDept && data.find(d => d.id === savedDept)) {
           setSelectedDepartment(savedDept);
-        } else if (!selectedDepartment) {
+        } else {
+          // Set first department if saved one is invalid or doesn't match store
           const firstDept = data[0].id;
           setSelectedDepartment(firstDept);
           localStorage.setItem('selectedDepartment', firstDept);
@@ -388,6 +393,7 @@ const Dashboard = () => {
         setKpis([]);
         setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
       }
+      setDepartmentsLoaded(true);
     } catch (error: any) {
       console.error("Error fetching departments:", error);
     }
