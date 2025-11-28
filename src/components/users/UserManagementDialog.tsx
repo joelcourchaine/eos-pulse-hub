@@ -347,11 +347,24 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   };
 
   const getInitials = (name: string) => {
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      return '??';
     }
-    return name.substring(0, 2).toUpperCase();
+    const trimmedName = name.trim();
+    const parts = trimmedName.split(/\s+/).filter(part => part.length > 0);
+    
+    if (parts.length >= 2) {
+      const firstInitial = parts[0][0] || '';
+      const lastInitial = parts[parts.length - 1][0] || '';
+      return `${firstInitial}${lastInitial}`.toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length >= 2) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+    if (parts.length === 1 && parts[0].length === 1) {
+      return parts[0].toUpperCase();
+    }
+    return '??';
   };
 
   return (
