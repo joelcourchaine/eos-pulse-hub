@@ -2066,7 +2066,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     onDrop={(e) => handleOwnerDrop(e, kpi.assigned_to || 'unassigned')}
                   >
                     <TableCell 
-                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      className="z-10 bg-muted py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: 0 }}
                     >
                       <div className="flex items-center gap-2">
@@ -2084,7 +2084,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-[7.2px]" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
