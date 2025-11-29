@@ -205,6 +205,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
   const [departmentManagerId, setDepartmentManagerId] = useState<string | null>(null);
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
@@ -1616,6 +1618,34 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   const canManageKPIs = userRole === "super_admin" || userRole === "store_gm" || userRole === "department_manager";
 
+  // Get unique KPI names for filter
+  const uniqueKpiNames = Array.from(new Set(kpis.map(k => k.name))).sort();
+  
+  // Get unique roles for filter
+  const uniqueRoles = Array.from(new Set(
+    kpis
+      .map(k => k.assigned_to ? profiles[k.assigned_to]?.role : null)
+      .filter(Boolean)
+  )).sort();
+
+  // Apply filters to KPIs
+  const filteredKpis = kpis.filter(kpi => {
+    // Filter by KPI name
+    if (selectedKpiFilter !== "all" && kpi.name !== selectedKpiFilter) {
+      return false;
+    }
+    
+    // Filter by role
+    if (selectedRoleFilter !== "all") {
+      const assignedProfile = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+      if (!assignedProfile || assignedProfile.role !== selectedRoleFilter) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -1628,7 +1658,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     <div className="space-y-4">
       {/* Quarter Controls - Always visible */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
               <SelectTrigger className="w-[100px]">
@@ -1679,6 +1709,44 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               <Calendar className="h-4 w-4" />
               Monthly
             </Button>
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            <Select value={selectedKpiFilter} onValueChange={setSelectedKpiFilter}>
+              <SelectTrigger className="w-[180px] bg-background">
+                <SelectValue placeholder="Filter by KPI" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">All KPIs</SelectItem>
+                {uniqueKpiNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+              <SelectTrigger className="w-[180px] bg-background">
+                <SelectValue placeholder="Filter by Role" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">All Roles</SelectItem>
+                {uniqueRoles.map((role) => (
+                  <SelectItem key={role} value={role as string}>
+                    {role === 'department_manager' ? 'Department Manager' :
+                     role === 'service_advisor' ? 'Service Advisor' :
+                     role === 'sales_advisor' ? 'Sales Advisor' :
+                     role === 'parts_advisor' ? 'Parts Advisor' :
+                     role === 'technician' ? 'Technician' :
+                     role === 'store_gm' ? 'Store GM' :
+                     role === 'super_admin' ? 'Super Admin' :
+                     role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         
@@ -1889,7 +1957,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               // Calculate status counts for this week
               const statusCounts = { green: 0, yellow: 0, red: 0, gray: 0 };
               if (isCurrentOrPast) {
-                kpis.forEach(kpi => {
+                filteredKpis.forEach(kpi => {
                   const key = `${kpi.id}-${weekDate}`;
                   const entry = entries[key];
                   
@@ -1951,7 +2019,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           </TableRow>
         </TableHeader>
         <TableBody>
-          {[...kpis].sort((a, b) => {
+          {[...filteredKpis].sort((a, b) => {
             // Sort by owner: regular users first, then department manager (like totals), then unassigned
             const isManagerA = a.assigned_to === departmentManagerId;
             const isManagerB = b.assigned_to === departmentManagerId;
