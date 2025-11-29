@@ -63,9 +63,23 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [newPresetDirection, setNewPresetDirection] = useState<"above" | "below">("above");
   const [isAddingPreset, setIsAddingPreset] = useState(false);
   const [userId, setUserId] = useState<string | undefined>();
+  const [selectedKpiIds, setSelectedKpiIds] = useState<Set<string>>(new Set());
+  const [bulkAssignRole, setBulkAssignRole] = useState<"department_manager" | "sales_advisor" | "service_advisor" | "parts_advisor" | "technician" | "read_only" | "">("");
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
   const { toast } = useToast();
   
-  const { isSuperAdmin } = useUserRole(userId);
+  const { isSuperAdmin, isStoreGM, isDepartmentManager } = useUserRole(userId);
+  
+  const canBulkAssign = isSuperAdmin || isStoreGM || isDepartmentManager;
+  
+  const availableRoles = [
+    { value: "department_manager", label: "Department Manager" },
+    { value: "sales_advisor", label: "Sales Advisor" },
+    { value: "service_advisor", label: "Service Advisor" },
+    { value: "parts_advisor", label: "Parts Advisor" },
+    { value: "technician", label: "Technician" },
+    { value: "read_only", label: "Read Only" },
+  ];
 
   useEffect(() => {
     const getUser = async () => {
@@ -376,6 +390,181 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     onKPIsChange();
   };
 
+  const handleBulkAssignKPIsToRole = async () => {
+    if (!bulkAssignRole || selectedKpiIds.size === 0) {
+      toast({
+        title: "Error",
+        description: "Please select a role and at least one KPI",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsBulkAssigning(true);
+
+    try {
+      // Get users with the selected role from this store
+      const { data: userRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", bulkAssignRole as any);
+
+      if (rolesError) throw rolesError;
+
+      // Filter to users in this store
+      const userIds = userRoles?.map(ur => ur.user_id) || [];
+      const storeUserIds = profiles
+        .filter(p => userIds.includes(p.id))
+        .map(p => p.id);
+
+      if (storeUserIds.length === 0) {
+        toast({
+          title: "No Users Found",
+          description: `No users with role "${availableRoles.find(r => r.value === bulkAssignRole)?.label}" found in this store`,
+          variant: "destructive"
+        });
+        setIsBulkAssigning(false);
+        return;
+      }
+
+      // For each selected KPI, create copies assigned to each user
+      const selectedKpis = kpis.filter(k => selectedKpiIds.has(k.id));
+      const insertions = [];
+
+      for (const kpi of selectedKpis) {
+        for (const userId of storeUserIds) {
+          insertions.push({
+            name: kpi.name,
+            metric_type: kpi.metric_type,
+            target_value: kpi.target_value,
+            target_direction: kpi.target_direction,
+            department_id: departmentId,
+            assigned_to: userId,
+            display_order: kpis.length + insertions.length + 1
+          });
+        }
+      }
+
+      const { error: insertError } = await supabase
+        .from("kpi_definitions")
+        .insert(insertions);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Success",
+        description: `Assigned ${selectedKpiIds.size} KPI(s) to ${storeUserIds.length} users with role "${availableRoles.find(r => r.value === bulkAssignRole)?.label}"`
+      });
+
+      setSelectedKpiIds(new Set());
+      setBulkAssignRole("");
+      onKPIsChange();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  };
+
+  const handleAssignAllKPIsToRole = async () => {
+    if (!bulkAssignRole) {
+      toast({
+        title: "Error",
+        description: "Please select a role",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsBulkAssigning(true);
+
+    try {
+      // Get users with the selected role from this store
+      const { data: userRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", bulkAssignRole as any);
+
+      if (rolesError) throw rolesError;
+
+      // Filter to users in this store
+      const userIds = userRoles?.map(ur => ur.user_id) || [];
+      const storeUserIds = profiles
+        .filter(p => userIds.includes(p.id))
+        .map(p => p.id);
+
+      if (storeUserIds.length === 0) {
+        toast({
+          title: "No Users Found",
+          description: `No users with role "${availableRoles.find(r => r.value === bulkAssignRole)?.label}" found in this store`,
+          variant: "destructive"
+        });
+        setIsBulkAssigning(false);
+        return;
+      }
+
+      // Create copies of ALL KPIs assigned to each user
+      const insertions = [];
+      for (const kpi of kpis) {
+        for (const userId of storeUserIds) {
+          insertions.push({
+            name: kpi.name,
+            metric_type: kpi.metric_type,
+            target_value: kpi.target_value,
+            target_direction: kpi.target_direction,
+            department_id: departmentId,
+            assigned_to: userId,
+            display_order: kpis.length + insertions.length + 1
+          });
+        }
+      }
+
+      const { error: insertError } = await supabase
+        .from("kpi_definitions")
+        .insert(insertions);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Success",
+        description: `Assigned all ${kpis.length} KPI(s) to ${storeUserIds.length} users with role "${availableRoles.find(r => r.value === bulkAssignRole)?.label}"`
+      });
+
+      setBulkAssignRole("");
+      onKPIsChange();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  };
+
+  const toggleKpiSelection = (kpiId: string) => {
+    const newSelection = new Set(selectedKpiIds);
+    if (newSelection.has(kpiId)) {
+      newSelection.delete(kpiId);
+    } else {
+      newSelection.add(kpiId);
+    }
+    setSelectedKpiIds(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedKpiIds.size === kpis.length) {
+      setSelectedKpiIds(new Set());
+    } else {
+      setSelectedKpiIds(new Set(kpis.map(k => k.id)));
+    }
+  };
+
 
   return (
     <>
@@ -551,6 +740,53 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
               </div>
             </div>
 
+            {/* Bulk Assignment Section */}
+            {canBulkAssign && kpis.length > 0 && (
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+                <div>
+                  <h3 className="font-semibold text-sm">Bulk Assignment by Role</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Assign selected KPIs to all users with a specific role in this store
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="md:col-span-1">
+                    <Label htmlFor="bulk-role">Select Role</Label>
+                    <Select value={bulkAssignRole} onValueChange={(v) => setBulkAssignRole(v as any)}>
+                      <SelectTrigger id="bulk-role">
+                        <SelectValue placeholder="Choose a role..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableRoles.map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="md:col-span-2 flex items-end gap-2">
+                    <Button
+                      onClick={handleBulkAssignKPIsToRole}
+                      disabled={!bulkAssignRole || selectedKpiIds.size === 0 || isBulkAssigning}
+                      variant="secondary"
+                    >
+                      Assign Selected KPIs ({selectedKpiIds.size}) to Role
+                    </Button>
+                    <Button
+                      onClick={handleAssignAllKPIsToRole}
+                      disabled={!bulkAssignRole || isBulkAssigning}
+                      variant="secondary"
+                    >
+                      Assign All KPIs to Role
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Current KPIs Table */}
             <div>
               <h3 className="font-semibold text-sm mb-3">Current KPIs ({kpis.length})</h3>
@@ -560,6 +796,12 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {canBulkAssign && <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedKpiIds.size === kpis.length && kpis.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>}
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
@@ -589,6 +831,15 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                           onDrop={(e) => handleDrop(e, kpi.id)}
                           className={`${isDragging ? "opacity-50" : "cursor-move"} ${isDragOver ? "border-t-2 border-primary" : ""}`}
                         >
+                          {canBulkAssign && (
+                            <TableCell className="text-center">
+                              <Checkbox
+                                checked={selectedKpiIds.has(kpi.id)}
+                                onCheckedChange={() => toggleKpiSelection(kpi.id)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell className="text-center">
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
