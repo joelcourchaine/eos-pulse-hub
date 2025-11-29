@@ -203,6 +203,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [storeUsers, setStoreUsers] = useState<Profile[]>([]);
   const [draggedOwnerId, setDraggedOwnerId] = useState<string | null>(null);
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
+  const [departmentManagerId, setDepartmentManagerId] = useState<string | null>(null);
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
@@ -366,10 +367,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   };
 
   const loadStoreUsers = async () => {
-    // Get the store_id from the department
+    // Get the store_id and manager_id from the department
     const { data: departmentData, error: deptError } = await supabase
       .from("departments")
-      .select("store_id")
+      .select("store_id, manager_id")
       .eq("id", departmentId)
       .maybeSingle();
 
@@ -377,6 +378,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       console.error("Error fetching department:", deptError);
       return;
     }
+
+    // Store the department manager ID
+    setDepartmentManagerId(departmentData.manager_id);
 
     // Get profiles for that store
     const { data, error } = await supabase
@@ -1948,13 +1952,29 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </TableHeader>
         <TableBody>
           {[...kpis].sort((a, b) => {
-            // Sort by owner, keeping unassigned at the end, then by display_order within each owner
-            const ownerA = a.assigned_to || 'zzz_unassigned'; // Put unassigned last
-            const ownerB = b.assigned_to || 'zzz_unassigned';
-            if (ownerA === ownerB) {
-              return a.display_order - b.display_order;
+            // Sort by owner: regular users first, then department manager (like totals), then unassigned
+            const isManagerA = a.assigned_to === departmentManagerId;
+            const isManagerB = b.assigned_to === departmentManagerId;
+            const isUnassignedA = !a.assigned_to;
+            const isUnassignedB = !b.assigned_to;
+            
+            // Unassigned goes to the very bottom
+            if (isUnassignedA && !isUnassignedB) return 1;
+            if (!isUnassignedA && isUnassignedB) return -1;
+            
+            // Department manager goes just before unassigned (bottom)
+            if (isManagerA && !isManagerB && !isUnassignedB) return 1;
+            if (!isManagerA && isManagerB && !isUnassignedA) return -1;
+            
+            // If both are the same category (both manager, both regular, both unassigned), sort by display_order
+            if (isManagerA === isManagerB && isUnassignedA === isUnassignedB) {
+              if (a.assigned_to === b.assigned_to) {
+                return a.display_order - b.display_order;
+              }
+              return (a.assigned_to || '').localeCompare(b.assigned_to || '');
             }
-            return ownerA.localeCompare(ownerB);
+            
+            return 0;
           }).map((kpi, index, sortedKpis) => {
             const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
             const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
