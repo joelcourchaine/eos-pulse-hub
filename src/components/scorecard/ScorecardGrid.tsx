@@ -281,9 +281,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       fetchProfiles();
       loadStoreUsers();
       
-      // Load targets first, then scorecard data
-      await loadKPITargets();
-      await loadScorecardData();
+      // Load targets first and pass them directly to scorecard data to avoid stale state
+      const freshTargets = await loadKPITargets();
+      await loadScorecardData(freshTargets);
     };
     
     loadData();
@@ -394,7 +394,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   };
 
   const loadKPITargets = async () => {
-    if (!kpis.length) return;
+    if (!kpis.length) return {};
 
     const kpiIds = kpis.map(k => k.id);
     const { data, error } = await supabase
@@ -407,7 +407,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
     if (error) {
       console.error("Error loading KPI targets:", error);
-      return;
+      return {};
     }
 
     const targetsMap: { [key: string]: number } = {};
@@ -423,6 +423,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     });
 
     setKpiTargets(targetsMap);
+    return targetsMap; // Return the targets for immediate use
   };
 
   const loadScorecardData = async (freshTargets?: { [key: string]: number }) => {
