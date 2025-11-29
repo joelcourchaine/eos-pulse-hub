@@ -2144,7 +2144,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       <TableCell
                         key={week.label}
                         className={cn(
-                          "p-1 relative min-w-[125px] max-w-[125px]",
+                          "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
                           status === "success" && "bg-success/10",
                           status === "warning" && "bg-warning/10",
                           status === "destructive" && "bg-destructive/10",
@@ -2345,7 +2345,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           <TableCell
                             key={month.identifier}
                             className={cn(
-                              "p-1 relative min-w-[125px] max-w-[125px]",
+                              "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
                               status === "success" && "bg-success/10",
                               status === "warning" && "bg-warning/10",
                               status === "destructive" && "bg-destructive/10"
