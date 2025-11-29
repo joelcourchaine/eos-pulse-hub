@@ -2066,7 +2066,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     onDrop={(e) => handleOwnerDrop(e, kpi.assigned_to || 'unassigned')}
                   >
                     <TableCell 
-                      className="z-10 bg-muted py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       style={{ position: 'sticky', left: 0 }}
                     >
                       <div className="flex items-center gap-2">
@@ -2084,18 +2084,18 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-[7.2px]" />
+                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
                   <TableCell 
-                    className="bg-background z-10 font-medium pl-8 py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                    className="bg-background z-10 font-medium pl-8 py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     style={{ position: 'sticky', left: 0 }}
                   >
                     {kpi.name}
                   </TableCell>
                   {viewMode === "weekly" && (
-                    <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                    <TableCell className="text-center py-1 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
                       {canEditTargets() && editingTarget === kpi.id ? (
                         <div className="flex items-center justify-center gap-1">
                           <Input
@@ -2250,7 +2250,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         return (
                           <TableCell 
                             key={`${pq.quarter}-${pq.year}`} 
-                            className="text-center py-[7.2px] min-w-[100px] text-muted-foreground"
+                            className="text-center py-1 min-w-[100px] text-muted-foreground"
                           >
                             {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
                           </TableCell>
@@ -2258,21 +2258,21 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       })}
                       
                       {/* AVG Year-1 */}
-                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
+                      <TableCell className="text-center py-1 min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
                         {yearlyAverages[kpi.id]?.prevYear !== null && yearlyAverages[kpi.id]?.prevYear !== undefined
                           ? formatQuarterAverage(yearlyAverages[kpi.id].prevYear!, kpi.metric_type, kpi.name)
                           : "-"}
                       </TableCell>
                       
                       {/* AVG Year */}
-                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
+                      <TableCell className="text-center py-1 min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
                         {yearlyAverages[kpi.id]?.currentYear !== null && yearlyAverages[kpi.id]?.currentYear !== undefined
                           ? formatQuarterAverage(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
                           : "-"}
                       </TableCell>
                       
                       {/* Q{quarter} Target */}
-                      <TableCell className="text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                      <TableCell className="text-center py-1 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
