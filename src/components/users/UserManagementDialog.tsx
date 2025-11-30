@@ -150,6 +150,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
 
   const handleUpdateProfile = async (profileId: string, updates: {
     full_name?: string;
+    email?: string;
     birthday_month?: number | null;
     birthday_day?: number | null;
     start_month?: number | null;
@@ -435,8 +436,13 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {profile.email}
+                    <TableCell>
+                      <Input
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) => updateProfileField(profile.id, "email", e.target.value)}
+                        className="h-8"
+                      />
                     </TableCell>
                     <TableCell>
                       <Select
@@ -580,6 +586,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                           size="sm"
                           onClick={() => handleUpdateProfile(profile.id, {
                             full_name: profile.full_name,
+                            email: profile.email,
                             birthday_month: profile.birthday_month,
                             birthday_day: profile.birthday_day,
                             start_month: profile.start_month,
