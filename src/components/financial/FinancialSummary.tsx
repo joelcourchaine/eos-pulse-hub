@@ -176,6 +176,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ month: string; value: number }[]>([]);
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ metric: string; period: string } | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -984,6 +986,64 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const currentTarget = targets[metricKey] || 0;
     setEditingTarget(metricKey);
     setTargetEditValue(currentTarget.toString());
+  };
+
+  const handleCellSave = async (metricKey: string, monthIdentifier: string) => {
+    const key = `${metricKey}-${monthIdentifier}`;
+    const trimmedValue = editValue.trim();
+    
+    if (trimmedValue === "") {
+      setEditingCell(null);
+      setEditValue("");
+      return;
+    }
+    
+    const numValue = parseFloat(trimmedValue);
+    if (isNaN(numValue)) {
+      toast({
+        title: "Invalid value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSaving(prev => ({ ...prev, [key]: true }));
+    
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+    
+    const { error } = await supabase
+      .from("financial_entries")
+      .upsert({
+        department_id: departmentId,
+        month: monthIdentifier,
+        metric_name: metricKey,
+        value: numValue,
+        created_by: userId,
+      }, {
+        onConflict: "department_id,month,metric_name"
+      });
+    
+    if (error) {
+      console.error('Save error:', error);
+      toast({
+        title: "Error saving value",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setEntries(prev => ({ ...prev, [key]: numValue }));
+      setPrecedingQuartersData(prev => ({ ...prev, [key]: numValue }));
+      toast({
+        title: "Saved",
+        description: "Value saved successfully",
+      });
+    }
+    
+    setSaving(prev => ({ ...prev, [key]: false }));
+    setEditingCell(null);
+    setEditValue("");
   };
 
   const handleTargetSave = async (metricKey: string) => {
