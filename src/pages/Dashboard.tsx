@@ -176,7 +176,7 @@ const Dashboard = () => {
         },
         () => {
           // Refresh KPI status counts when any entry changes
-          fetchKPIStatusCounts();
+          fetchKPIStatusCounts(selectedQuarter, selectedYear);
         }
       )
       .subscribe();
@@ -184,7 +184,7 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(scorecardChannel);
     };
-  }, [selectedDepartment]);
+  }, [selectedDepartment, scorecardViewMode, selectedQuarter, selectedYear]);
 
   // Real-time subscription for todos updates
   useEffect(() => {
