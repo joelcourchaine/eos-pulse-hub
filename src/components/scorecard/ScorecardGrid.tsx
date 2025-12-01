@@ -2054,7 +2054,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     key={month.identifier} 
                     className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
                   >
-                    {month.label}
+                    <div className="flex flex-col items-center">
+                      <div>{month.label}</div>
+                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                    </div>
                   </TableHead>
                 ))}
               </>
