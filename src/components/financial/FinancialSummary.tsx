@@ -2083,7 +2083,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           );
                          })}
                         </>
-                       )}
+                      )
+                      }
                       </TableRow>
                     );
                   })}
