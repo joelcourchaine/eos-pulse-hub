@@ -477,9 +477,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
           const target = targetsToUse[kpi.id] || kpi.target_value;
           
-          const variance = kpi.metric_type === "percentage" 
-            ? entry.actual_value - target 
-            : target !== 0 ? ((entry.actual_value - target) / target) * 100 : 0;
+          let variance: number;
+          if (kpi.metric_type === "percentage") {
+            variance = entry.actual_value - target;
+          } else if (target !== 0) {
+            variance = ((entry.actual_value - target) / target) * 100;
+          } else {
+            // Special handling when target is 0
+            if (kpi.target_direction === "below") {
+              // For "below" targets with 0 target, any positive value is bad
+              variance = entry.actual_value > 0 ? 100 : 0;
+            } else {
+              // For "above" targets with 0 target, any positive value is good
+              variance = entry.actual_value > 0 ? 100 : -100;
+            }
+          }
 
           let status: string;
           if (kpi.target_direction === "above") {
@@ -525,9 +537,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
           const target = targetsToUse[kpi.id] || kpi.target_value;
           
-          const variance = kpi.metric_type === "percentage"
-            ? entry.actual_value - target 
-            : target !== 0 ? ((entry.actual_value - target) / target) * 100 : 0;
+          let variance: number;
+          if (kpi.metric_type === "percentage") {
+            variance = entry.actual_value - target;
+          } else if (target !== 0) {
+            variance = ((entry.actual_value - target) / target) * 100;
+          } else {
+            // Special handling when target is 0
+            if (kpi.target_direction === "below") {
+              // For "below" targets with 0 target, any positive value is bad
+              variance = entry.actual_value > 0 ? 100 : 0;
+            } else {
+              // For "above" targets with 0 target, any positive value is good
+              variance = entry.actual_value > 0 ? 100 : -100;
+            }
+          }
 
           let status: string;
           if (kpi.target_direction === "above") {
@@ -809,9 +833,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         return;
       }
 
-      const variance = type === "percentage" 
-        ? actualValue - target 
-        : ((actualValue - target) / target) * 100;
+      let variance: number;
+      if (type === "percentage") {
+        variance = actualValue - target;
+      } else if (target !== 0) {
+        variance = ((actualValue - target) / target) * 100;
+      } else {
+        // Special handling when target is 0
+        if (targetDirection === "below") {
+          // For "below" targets with 0 target, any positive value is bad
+          variance = actualValue > 0 ? 100 : 0;
+        } else {
+          // For "above" targets with 0 target, any positive value is good
+          variance = actualValue > 0 ? 100 : -100;
+        }
+      }
 
       // Calculate status based on target direction
       let status: string;
