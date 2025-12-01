@@ -945,6 +945,12 @@ const Dashboard = () => {
           </Card>
         </div>
 
+        {/* Meeting Framework */}
+        <MeetingFramework 
+          key={`meeting-${selectedDepartment}`}
+          departmentId={selectedDepartment} 
+        />
+
         {/* Scorecard Section */}
         <Card>
           <CardHeader>
@@ -1005,12 +1011,6 @@ const Dashboard = () => {
         {/* Rocks Section */}
         <RocksPanel 
           key={`rocks-${selectedDepartment}`}
-          departmentId={selectedDepartment} 
-        />
-
-        {/* Meeting Framework */}
-        <MeetingFramework 
-          key={`meeting-${selectedDepartment}`}
           departmentId={selectedDepartment} 
         />
 
