@@ -97,6 +97,27 @@ const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count
   return quarters.reverse();
 };
 
+const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => {
+  const quarters = [];
+  const startYear = currentYear - 1;
+  
+  // Start from Q1 of last year
+  for (let y = startYear; y <= currentYear; y++) {
+    const startQ = y === startYear ? 1 : 1;
+    const endQ = y === currentYear ? currentQuarter : 4;
+    
+    for (let q = startQ; q <= endQ; q++) {
+      quarters.push({
+        quarter: q,
+        year: y,
+        label: `Q${q} ${y}`,
+      });
+    }
+  }
+  
+  return quarters;
+};
+
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
@@ -129,9 +150,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
-  const months = getMonthsForQuarter(quarter, year);
-  const previousYearMonths = getPreviousYearMonthsForQuarter(quarter, year);
-  const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
+  const isQuarterTrendMode = quarter === 0;
+  const currentDate = new Date();
+  const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
+  const currentYear = currentDate.getFullYear();
+  const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarter, currentYear) : [];
+  const months = getMonthsForQuarter(quarter || 1, year);
+  const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
+  const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
   const FINANCIAL_METRICS = useMemo(() => {
     const metrics = getMetricsForBrand(storeBrand);
     
@@ -1137,48 +1163,61 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                       Financial Metric
                     </TableHead>
-                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                      Q{quarter} {year - 1}
-                    </TableHead>
-                    {previousYearMonths.map((month) => (
-                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                        <div className="flex flex-col items-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {month.label.replace(/\s\d{4}$/, '')}
-                          </div>
-                          <div className="text-xs font-normal text-muted-foreground">
-                            {month.identifier.split('-')[0]}
-                          </div>
-                        </div>
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
-                      Q{quarter} Target
-                    </TableHead>
-                    {months.map((month) => (
-                      <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                        <div className="flex flex-col items-center">
-                          <div className="flex items-center justify-center gap-1">
-                            {month.label.replace(/\s\d{4}$/, '')}
-                            {highestProfitMonth === month.identifier && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>Highest Department Profit</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                          <div className="text-xs font-normal text-muted-foreground">
-                            {month.identifier.split('-')[0]}
-                          </div>
-                        </div>
-                      </TableHead>
-                    ))}
+                    {isQuarterTrendMode ? (
+                      quarterTrendPeriods.map((qtr) => (
+                        <TableHead 
+                          key={qtr.label} 
+                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                        >
+                          {qtr.label}
+                        </TableHead>
+                      ))
+                    ) : (
+                      <>
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                          Q{quarter} {year - 1}
+                        </TableHead>
+                        {previousYearMonths.map((month) => (
+                          <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {month.label.replace(/\s\d{4}$/, '')}
+                              </div>
+                              <div className="text-xs font-normal text-muted-foreground">
+                                {month.identifier.split('-')[0]}
+                              </div>
+                            </div>
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                          Q{quarter} Target
+                        </TableHead>
+                        {months.map((month) => (
+                          <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                            <div className="flex flex-col items-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {month.label.replace(/\s\d{4}$/, '')}
+                                {highestProfitMonth === month.identifier && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Highest Department Profit</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                              <div className="text-xs font-normal text-muted-foreground">
+                                {month.identifier.split('-')[0]}
+                              </div>
+                            </div>
+                          </TableHead>
+                        ))}
+                      </>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1209,46 +1248,62 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                         </TableCell>
-                        {(() => {
-                          // Previous Year Quarter Average
-                          const prevYearQuarter = quarter;
-                          const qKey = `${metric.key}-Q${prevYearQuarter}-${year - 1}`;
-                          const qValue = precedingQuartersData[qKey];
-                          const targetInfo = precedingQuarterTargets[qKey];
-                          
-                          let status: "success" | "warning" | "destructive" | null = null;
-                          
-                          if (qValue !== null && qValue !== undefined && targetInfo?.value) {
-                            const target = targetInfo.value;
-                            const targetDirection = targetInfo.direction || metric.targetDirection;
+                        {isQuarterTrendMode ? (
+                          quarterTrendPeriods.map((qtr) => {
+                            const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
+                            const qValue = precedingQuartersData[qKey];
                             
-                            const variance = metric.type === "percentage" 
-                              ? qValue - target 
-                              : ((qValue - target) / target) * 100;
-                            
-                            if (targetDirection === "above") {
-                              status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                            } else {
-                              status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                            }
-                          }
-                          
-                          return (
-                            <TableCell 
-                              className={cn(
-                                "text-center py-[7.2px] min-w-[100px]",
-                                isDepartmentProfit && "z-10 bg-background",
-                                status === "success" && "bg-success/10 text-success font-medium",
-                                status === "warning" && "bg-warning/10 text-warning font-medium",
-                                status === "destructive" && "bg-destructive/10 text-destructive font-medium",
-                                !status && "text-muted-foreground"
-                              )}
-                            >
-                              {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
-                            </TableCell>
-                          );
-                        })()}
-                        {previousYearMonths.map((month) => {
+                            return (
+                              <TableCell
+                                key={qtr.label}
+                                className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
+                              >
+                                {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                              </TableCell>
+                            );
+                          })
+                        ) : (
+                          <>
+                            {(() => {
+                              // Previous Year Quarter Average
+                              const prevYearQuarter = quarter;
+                              const qKey = `${metric.key}-Q${prevYearQuarter}-${year - 1}`;
+                              const qValue = precedingQuartersData[qKey];
+                              const targetInfo = precedingQuarterTargets[qKey];
+                              
+                              let status: "success" | "warning" | "destructive" | null = null;
+                              
+                              if (qValue !== null && qValue !== undefined && targetInfo?.value) {
+                                const target = targetInfo.value;
+                                const targetDirection = targetInfo.direction || metric.targetDirection;
+                                
+                                const variance = metric.type === "percentage" 
+                                  ? qValue - target 
+                                  : ((qValue - target) / target) * 100;
+                                
+                                if (targetDirection === "above") {
+                                  status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                                } else {
+                                  status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                                }
+                              }
+                              
+                              return (
+                                <TableCell 
+                                  className={cn(
+                                    "text-center py-[7.2px] min-w-[100px]",
+                                    isDepartmentProfit && "z-10 bg-background",
+                                    status === "success" && "bg-success/10 text-success font-medium",
+                                    status === "warning" && "bg-warning/10 text-warning font-medium",
+                                    status === "destructive" && "bg-destructive/10 text-destructive font-medium",
+                                    !status && "text-muted-foreground"
+                                  )}
+                                >
+                                  {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                                </TableCell>
+                              );
+                            })()}
+                            {previousYearMonths.map((month) => {
                           const key = `${metric.key}-${month.identifier}`;
                           let value = entries[key];
                           
@@ -1345,12 +1400,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
                             </TableCell>
                           );
-                         })}
-                        <TableCell className={cn(
-                          "text-center py-[7.2px] min-w-[100px] bg-background border-x-2 border-primary/30",
-                          isDepartmentProfit && "z-10"
-                        )}>
-                          {canEditTargets() && editingTarget === metric.key ? (
+                          })}
+                          <TableCell className={cn(
+                            "text-center py-[7.2px] min-w-[100px] bg-background border-x-2 border-primary/30",
+                            isDepartmentProfit && "z-10"
+                          )}>
+                            {canEditTargets() && editingTarget === metric.key ? (
                             <div className="flex items-center justify-center gap-1">
                               <Input
                                 type="number"
@@ -1728,6 +1783,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </ContextMenu>
                           );
                         })}
+                        </>
+                      )}
                       </TableRow>
                     );
                   })}
