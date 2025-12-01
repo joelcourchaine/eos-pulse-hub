@@ -512,68 +512,70 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (!departmentId) return;
 
     if (isMonthlyTrendMode) {
-      // Load data for all months in the monthly trend
+      // Load data for all months in the monthly trend in a single query
       const averages: { [key: string]: number } = {};
+      const monthIdentifiers = monthlyTrendPeriods.map(m => m.identifier);
       
-      for (const month of monthlyTrendPeriods) {
-        const { data, error } = await supabase
-          .from("financial_entries")
-          .select("*")
-          .eq("department_id", departmentId)
-          .eq("month", month.identifier);
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*")
+        .eq("department_id", departmentId)
+        .in("month", monthIdentifiers);
 
-        if (error) {
-          console.error(`Error loading data for ${month.label}:`, error);
-          continue;
-        }
-
-        // Process each metric for this month
-        FINANCIAL_METRICS.forEach(metric => {
-          const metricEntry = data?.find(e => e.metric_name === metric.key);
+      if (error) {
+        console.error("Error loading monthly trend data:", error);
+      } else {
+        // Process each metric for each month
+        monthlyTrendPeriods.forEach(month => {
+          const monthData = data?.filter(e => e.month === month.identifier);
           
-          if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
-            const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-            averages[mKey] = metricEntry.value;
-          } else if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
-            // Calculate percentage metrics from underlying dollar amounts
-            const { numerator, denominator } = metric.calculation;
+          FINANCIAL_METRICS.forEach(metric => {
+            const metricEntry = monthData?.find(e => e.metric_name === metric.key);
             
-            const numEntry = data?.find(e => e.metric_name === numerator);
-            const denEntry = data?.find(e => e.metric_name === denominator);
-            
-            if (numEntry && denEntry && denEntry.value && denEntry.value > 0) {
-              const calculatedPercentage = (numEntry.value / denEntry.value) * 100;
+            if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
               const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-              averages[mKey] = calculatedPercentage;
-            }
-          } else if (metric.calculation && 'type' in metric.calculation) {
-            // Calculate dollar metrics (subtract or complex)
-            const calc = metric.calculation;
-            const baseEntry = data?.find(e => e.metric_name === calc.base);
-            
-            if (baseEntry && baseEntry.value !== null && baseEntry.value !== undefined) {
-              let calculatedValue = baseEntry.value;
+              averages[mKey] = metricEntry.value;
+            } else if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+              // Calculate percentage metrics from underlying dollar amounts
+              const { numerator, denominator } = metric.calculation;
               
-              for (const deduction of calc.deductions) {
-                const deductEntry = data?.find(e => e.metric_name === deduction);
-                if (deductEntry && deductEntry.value !== null && deductEntry.value !== undefined) {
-                  calculatedValue -= deductEntry.value;
-                }
+              const numEntry = monthData?.find(e => e.metric_name === numerator);
+              const denEntry = monthData?.find(e => e.metric_name === denominator);
+              
+              if (numEntry && denEntry && denEntry.value && denEntry.value > 0) {
+                const calculatedPercentage = (numEntry.value / denEntry.value) * 100;
+                const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                averages[mKey] = calculatedPercentage;
               }
+            } else if (metric.calculation && 'type' in metric.calculation) {
+              // Calculate dollar metrics (subtract or complex)
+              const calc = metric.calculation;
+              const baseEntry = monthData?.find(e => e.metric_name === calc.base);
               
-              if (calc.type === 'complex' && 'additions' in calc) {
-                for (const addition of calc.additions) {
-                  const addEntry = data?.find(e => e.metric_name === addition);
-                  if (addEntry && addEntry.value !== null && addEntry.value !== undefined) {
-                    calculatedValue += addEntry.value;
+              if (baseEntry && baseEntry.value !== null && baseEntry.value !== undefined) {
+                let calculatedValue = baseEntry.value;
+                
+                for (const deduction of calc.deductions) {
+                  const deductEntry = monthData?.find(e => e.metric_name === deduction);
+                  if (deductEntry && deductEntry.value !== null && deductEntry.value !== undefined) {
+                    calculatedValue -= deductEntry.value;
                   }
                 }
+                
+                if (calc.type === 'complex' && 'additions' in calc) {
+                  for (const addition of calc.additions) {
+                    const addEntry = monthData?.find(e => e.metric_name === addition);
+                    if (addEntry && addEntry.value !== null && addEntry.value !== undefined) {
+                      calculatedValue += addEntry.value;
+                    }
+                  }
+                }
+                
+                const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                averages[mKey] = calculatedValue;
               }
-              
-              const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-              averages[mKey] = calculatedValue;
             }
-          }
+          });
         });
       }
       
@@ -582,101 +584,114 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
 
     if (isQuarterTrendMode) {
-      // Load data for all quarters in the trend
+      // Load data for all quarters in the trend in a single query
       const averages: { [key: string]: number } = {};
       
-      for (const qtr of quarterTrendPeriods) {
+      // Collect all month identifiers for all quarters
+      const allQuarterMonthIds: string[] = [];
+      const quarterMonthsMap: { [key: string]: string[] } = {};
+      
+      quarterTrendPeriods.forEach(qtr => {
         const quarterMonths = getQuarterMonthsForCalculation(qtr.quarter, qtr.year);
-        const quarterMonthIds = quarterMonths.map(m => m.identifier);
-        
-        const { data, error } = await supabase
-          .from("financial_entries")
-          .select("*")
-          .eq("department_id", departmentId)
-          .in("month", quarterMonthIds);
+        const monthIds = quarterMonths.map(m => m.identifier);
+        const qKey = `Q${qtr.quarter}-${qtr.year}`;
+        quarterMonthsMap[qKey] = monthIds;
+        allQuarterMonthIds.push(...monthIds);
+      });
+      
+      // Single query to fetch all data
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*")
+        .eq("department_id", departmentId)
+        .in("month", allQuarterMonthIds);
 
-        if (error) {
-          console.error(`Error loading data for ${qtr.label}:`, error);
-          continue;
-        }
-
-        // Helper function to recursively calculate metric values
-        const getMetricTotal = (metricKey: string, monthIds: string[]): number => {
-          const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-          if (!metric) return 0;
+      if (error) {
+        console.error("Error loading quarter trend data:", error);
+      } else {
+        // Process each quarter
+        quarterTrendPeriods.forEach(qtr => {
+          const qKey = `Q${qtr.quarter}-${qtr.year}`;
+          const quarterMonthIds = quarterMonthsMap[qKey];
           
-          // If it's a calculated metric
-          if (metric.calculation) {
-            if ('numerator' in metric.calculation) {
-              // Percentage calculation - not needed here as we handle percentages separately
-              return 0;
-            } else if ('type' in metric.calculation) {
-              // Dollar calculation (subtract or complex)
-              const calc = metric.calculation;
-              let total = getMetricTotal(calc.base, monthIds);
-              
-              for (const deduction of calc.deductions) {
-                total -= getMetricTotal(deduction, monthIds);
-              }
-              
-              if (calc.type === 'complex' && 'additions' in calc) {
-                for (const addition of calc.additions) {
-                  total += getMetricTotal(addition, monthIds);
+          // Helper function to recursively calculate metric values
+          const getMetricTotal = (metricKey: string, monthIds: string[]): number => {
+            const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+            if (!metric) return 0;
+            
+            // If it's a calculated metric
+            if (metric.calculation) {
+              if ('numerator' in metric.calculation) {
+                // Percentage calculation - not needed here as we handle percentages separately
+                return 0;
+              } else if ('type' in metric.calculation) {
+                // Dollar calculation (subtract or complex)
+                const calc = metric.calculation;
+                let total = getMetricTotal(calc.base, monthIds);
+                
+                for (const deduction of calc.deductions) {
+                  total -= getMetricTotal(deduction, monthIds);
                 }
+                
+                if (calc.type === 'complex' && 'additions' in calc) {
+                  for (const addition of calc.additions) {
+                    total += getMetricTotal(addition, monthIds);
+                  }
+                }
+                
+                return total;
               }
-              
-              return total;
             }
-          }
-          
-          // Direct value from database
-          const values = data
-            ?.filter(entry => 
-              entry.metric_name === metricKey && 
-              monthIds.includes(entry.month)
-            )
-            .map(entry => entry.value || 0) || [];
-          
-          return values.reduce((sum, val) => sum + val, 0);
-        };
-
-        // Calculate averages per metric for this quarter
-        FINANCIAL_METRICS.forEach(metric => {
-          // For percentage metrics, recalculate from underlying dollar amounts
-          if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
-            const { numerator, denominator } = metric.calculation;
             
-            const totalNumerator = getMetricTotal(numerator, quarterMonthIds);
-            const totalDenominator = getMetricTotal(denominator, quarterMonthIds);
-            
-            if (totalDenominator > 0) {
-              const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
-              averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = calculatedPercentage;
-            }
-          } else if (metric.calculation) {
-            // For calculated dollar metrics
-            const total = getMetricTotal(metric.key, quarterMonthIds);
-            if (total !== 0) {
-              // Divide by 3 (number of months in quarter)
-              const avg = total / 3;
-              averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
-            }
-          } else {
-            // For direct database values
+            // Direct value from database
             const values = data
               ?.filter(entry => 
-                entry.metric_name === metric.key && 
-                quarterMonthIds.includes(entry.month)
+                entry.metric_name === metricKey && 
+                monthIds.includes(entry.month)
               )
               .map(entry => entry.value || 0) || [];
             
-            if (values.length > 0) {
-              // For dollar metrics, sum all values and divide by 3 (months in quarter)
-              const total = values.reduce((sum, val) => sum + val, 0);
-              const avg = total / 3;
-              averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+            return values.reduce((sum, val) => sum + val, 0);
+          };
+
+          // Calculate averages per metric for this quarter
+          FINANCIAL_METRICS.forEach(metric => {
+            // For percentage metrics, recalculate from underlying dollar amounts
+            if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+              const { numerator, denominator } = metric.calculation;
+              
+              const totalNumerator = getMetricTotal(numerator, quarterMonthIds);
+              const totalDenominator = getMetricTotal(denominator, quarterMonthIds);
+              
+              if (totalDenominator > 0) {
+                const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
+                averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = calculatedPercentage;
+              }
+            } else if (metric.calculation) {
+              // For calculated dollar metrics
+              const total = getMetricTotal(metric.key, quarterMonthIds);
+              if (total !== 0) {
+                // Divide by 3 (number of months in quarter)
+                const avg = total / 3;
+                averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+              }
+            } else {
+              // For direct database values
+              const values = data
+                ?.filter(entry => 
+                  entry.metric_name === metric.key && 
+                  quarterMonthIds.includes(entry.month)
+                )
+                .map(entry => entry.value || 0) || [];
+              
+              if (values.length > 0) {
+                // For dollar metrics, sum all values and divide by 3 (months in quarter)
+                const total = values.reduce((sum, val) => sum + val, 0);
+                const avg = total / 3;
+                averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+              }
             }
-          }
+          });
         });
       }
       
