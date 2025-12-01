@@ -212,35 +212,6 @@ const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => 
   return quarters;
 };
 
-const getMonthlyTrendPeriods = (currentYear: number) => {
-  const months = [];
-  const startYear = currentYear - 1;
-  const currentMonth = new Date().getMonth() + 1; // 1-12
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  
-  // Add all 12 months from last year
-  for (let m = 1; m <= 12; m++) {
-    months.push({
-      month: m,
-      year: startYear,
-      identifier: `${startYear}-${String(m).padStart(2, '0')}`,
-      label: `${monthNames[m - 1]} ${startYear}`,
-    });
-  }
-  
-  // Add months from current year up to current month
-  for (let m = 1; m <= currentMonth; m++) {
-    months.push({
-      month: m,
-      year: currentYear,
-      identifier: `${currentYear}-${String(m).padStart(2, '0')}`,
-      label: `${monthNames[m - 1]} ${currentYear}`,
-    });
-  }
-  
-  return months;
-};
-
 const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange, onViewModeChange }: ScorecardGridProps) => {
   const [entries, setEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [loading, setLoading] = useState(true);
@@ -277,14 +248,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const isQuarterTrendMode = quarter === 0;
-  const isMonthlyTrendMode = quarter === -1;
   const weeks = getWeekDates({ year, quarter: quarter || 1 });
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year) : [];
-  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentQuarterInfo.year) : [];
-  const allPeriods = isQuarterTrendMode ? quarterTrendPeriods : isMonthlyTrendMode ? monthlyTrendPeriods : (viewMode === "weekly" ? weeks : months);
+  const allPeriods = isQuarterTrendMode ? quarterTrendPeriods : (viewMode === "weekly" ? weeks : months);
 
   const getRoleColor = (role?: string) => {
     if (!role) return 'hsl(var(--muted))';
@@ -359,10 +328,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   }, [departmentId, kpis, year, quarter, viewMode]);
 
   useEffect(() => {
-    if ((viewMode === "monthly" || isQuarterTrendMode || isMonthlyTrendMode) && kpis.length > 0) {
+    if ((viewMode === "monthly" || isQuarterTrendMode) && kpis.length > 0) {
       loadPrecedingQuartersData();
     }
-  }, [departmentId, kpis, year, quarter, viewMode, entries, isQuarterTrendMode, isMonthlyTrendMode]);
+  }, [departmentId, kpis, year, quarter, viewMode, entries, isQuarterTrendMode]);
 
   // Update local values when entries change
   useEffect(() => {
@@ -467,8 +436,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const loadKPITargets = async () => {
     if (!kpis.length) return {};
     
-    // Skip loading targets in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) return {};
+    // Skip loading targets in Quarter Trend mode
+    if (isQuarterTrendMode) return {};
 
     const kpiIds = kpis.map(k => k.id);
     const { data, error } = await supabase
@@ -682,32 +651,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           }
         });
       }
-    } else if (isMonthlyTrendMode) {
-      // Load data for all months from January last year to current month
-      const allMonthIds = monthlyTrendPeriods.map(m => m.identifier);
-      
-      const { data, error } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpis.map(k => k.id))
-        .eq("entry_type", "monthly")
-        .in("month", allMonthIds);
-
-      if (error) {
-        console.error("Error loading monthly trend data:", error);
-        return;
-      }
-
-      // Organize data by month for each KPI
-      kpis.forEach(kpi => {
-        monthlyTrendPeriods.forEach(month => {
-          const entry = data?.find(e => e.kpi_id === kpi.id && e.month === month.identifier);
-          if (entry && entry.actual_value !== null) {
-            const key = `${kpi.id}-${month.identifier}`;
-            quarterAverages[key] = entry.actual_value;
-          }
-        });
-      });
     } else {
       // Original logic: Load data only for the same quarter in the previous year
       const prevYearQuarter = { quarter: quarter || 1, year: year - 1 };
@@ -1854,13 +1797,12 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 <SelectItem value="3">Q3</SelectItem>
                 <SelectItem value="4">Q4</SelectItem>
                 <SelectItem value="0">Quarter Trend</SelectItem>
-                <SelectItem value="-1">Monthly Trend</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* View Mode Toggle - Prominent - Hide in Quarter Trend or Monthly Trend */}
-          {!isQuarterTrendMode && !isMonthlyTrendMode && (
+          {/* View Mode Toggle - Prominent - Hide in Quarter Trend */}
+          {!isQuarterTrendMode && (
             <div className="flex items-center border rounded-lg p-1 bg-muted/30">
               <Button
                 variant={viewMode === "weekly" ? "default" : "ghost"}
@@ -2122,10 +2064,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   KPI
                 </TableHead>
                 {viewMode === "weekly" && !isQuarterTrendMode && (
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
-                  Target
-                </TableHead>
-              )}
+                  <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                    Target
+                  </TableHead>
+                )}
             {isQuarterTrendMode ? (
               quarterTrendPeriods.map((qtr) => (
                 <TableHead 
@@ -2133,18 +2075,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
                 >
                   {qtr.label}
-                </TableHead>
-              ))
-            ) : isMonthlyTrendMode ? (
-              monthlyTrendPeriods.map((month) => (
-                <TableHead 
-                  key={month.identifier} 
-                  className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
-                >
-                  <div className="flex flex-col items-center">
-                    <div>{month.label.split(' ')[0]}</div>
-                    <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                  </div>
                 </TableHead>
               ))
             ) : viewMode === "weekly" ? weeks.map((week) => {
@@ -2289,7 +2219,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isQuarterTrendMode ? quarterTrendPeriods.length : isMonthlyTrendMode ? monthlyTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length)} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length)} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -2337,7 +2267,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       )}
                     </TableCell>
                   )}
-                   {isQuarterTrendMode ? quarterTrendPeriods.map((qtr) => {
+                  {isQuarterTrendMode ? quarterTrendPeriods.map((qtr) => {
                     const qKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
                     const qValue = precedingQuartersData[qKey];
                     
@@ -2347,95 +2277,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
                       >
                         {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
-                      </TableCell>
-                    );
-                  }) : isMonthlyTrendMode ? monthlyTrendPeriods.map((month) => {
-                    const key = `${kpi.id}-${month.identifier}`;
-                    const mValue = precedingQuartersData[key];
-                    const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(mValue || null, kpi.metric_type, kpi.name);
-                    
-                    return (
-                      <TableCell
-                        key={month.identifier}
-                        className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center"
-                      >
-                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (mValue !== null && mValue !== undefined) ? (
-                            <div 
-                              data-display-value
-                              className={cn(
-                                "h-full w-full flex items-center justify-center cursor-text",
-                                isCalculatedKPI(kpi.name) && "cursor-default"
-                              )}
-                              onClick={(e) => {
-                                if (!isCalculatedKPI(kpi.name)) {
-                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                  input?.focus();
-                                  input?.select();
-                                }
-                              }}
-                            >
-                              {formatTarget(mValue, kpi.metric_type, kpi.name)}
-                            </div>
-                          ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
-                            <div 
-                              data-display-value
-                              className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                              onClick={(e) => {
-                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                input?.focus();
-                              }}
-                            >
-                              {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
-                            </div>
-                          ) : null}
-                          <Input
-                            type="number"
-                            step="any"
-                            value={displayValue}
-                            onChange={(e) =>
-                              handleValueChange(kpi.id, month.identifier, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const currentKpiIndex = index;
-                                const currentPeriodIndex = monthlyTrendPeriods.findIndex(m => m.identifier === month.identifier);
-                                
-                                if (currentKpiIndex < sortedKpis.length - 1) {
-                                  const nextInput = document.querySelector(
-                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                  ) as HTMLInputElement;
-                                  nextInput?.focus();
-                                  nextInput?.select();
-                                }
-                              }
-                            }}
-                            onFocus={() => setFocusedInput(key)}
-                            onBlur={() => {
-                              setTimeout(() => {
-                                setFocusedInput(null);
-                                setLocalValues(prev => {
-                                  const newLocalValues = { ...prev };
-                                  delete newLocalValues[key];
-                                  return newLocalValues;
-                                });
-                              }, 100);
-                            }}
-                            data-kpi-index={index}
-                            data-period-index={monthlyTrendPeriods.findIndex(m => m.identifier === month.identifier)}
-                            className={cn(
-                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                              isCalculatedKPI(kpi.name) && "hidden"
-                            )}
-                            placeholder="-"
-                            disabled={saving[key] || isCalculatedKPI(kpi.name)}
-                            readOnly={isCalculatedKPI(kpi.name)}
-                          />
-                          {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
-                          )}
-                        </div>
                       </TableCell>
                     );
                   }) : viewMode === "weekly" ? weeks.map((week) => {

@@ -118,35 +118,6 @@ const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => 
   return quarters;
 };
 
-const getMonthlyTrendPeriods = (currentYear: number) => {
-  const months = [];
-  const startYear = currentYear - 1;
-  const currentMonth = new Date().getMonth() + 1; // 1-12
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  
-  // Add all 12 months from last year
-  for (let m = 1; m <= 12; m++) {
-    months.push({
-      month: m,
-      year: startYear,
-      identifier: `${startYear}-${String(m).padStart(2, '0')}`,
-      label: `${monthNames[m - 1]} ${startYear}`,
-    });
-  }
-  
-  // Add months from current year up to current month
-  for (let m = 1; m <= currentMonth; m++) {
-    months.push({
-      month: m,
-      year: currentYear,
-      identifier: `${currentYear}-${String(m).padStart(2, '0')}`,
-      label: `${monthNames[m - 1]} ${currentYear}`,
-    });
-  }
-  
-  return months;
-};
-
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
@@ -180,12 +151,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const isQuarterTrendMode = quarter === 0;
-  const isMonthlyTrendMode = quarter === -1;
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarter, currentYear) : [];
-  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentYear) : [];
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
@@ -364,15 +333,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     // Skip loading targets in Quarter Trend mode
     if (isQuarterTrendMode) return;
-
-  const loadTargets = async () => {
-    if (!departmentId) return;
-    
-    // Skip loading targets in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) {
-      setTargets({});
-      return;
-    }
 
     console.log(`Loading targets for department ${departmentId}, year ${year}, quarter ${quarter}`);
 
@@ -621,37 +581,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       setPrecedingQuartersData(averages);
       return;
     }
-    
-    // In Monthly Trend mode, fetch data for all months from January last year to current month
-    if (isMonthlyTrendMode) {
-      const averages: { [key: string]: number } = {};
-      const allMonthIds = monthlyTrendPeriods.map(m => m.identifier);
-      
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*")
-        .eq("department_id", departmentId)
-        .in("month", allMonthIds);
-
-      if (error) {
-        console.error("Error loading monthly trend data:", error);
-        setPrecedingQuartersData({});
-        return;
-      }
-
-      // Organize data by month for each metric
-      FINANCIAL_METRICS.forEach(metric => {
-        monthlyTrendPeriods.forEach(month => {
-          const entry = data?.find(e => e.metric_name === metric.key && e.month === month.identifier);
-          if (entry && entry.value !== null) {
-            averages[`${metric.key}-${month.identifier}`] = entry.value;
-          }
-        });
-      });
-      
-      setPrecedingQuartersData(averages);
-      return;
-    }
 
     // Original logic for non-trend mode: Only load the same quarter from the previous year
     const prevYearQuarter = { quarter, year: year - 1 };
@@ -767,8 +696,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setNotes({});
     setLocalValues({});
     
-    // Skip loading individual month data in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) {
+    // Skip loading individual month data in Quarter Trend mode
+    if (isQuarterTrendMode) {
       setLoading(false);
       return;
     }
@@ -1355,18 +1284,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           {qtr.label}
                         </TableHead>
                       ))
-                    ) : isMonthlyTrendMode ? (
-                      monthlyTrendPeriods.map((month) => (
-                        <TableHead 
-                          key={month.identifier} 
-                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
-                        >
-                          <div className="flex flex-col items-center">
-                            <div>{month.label.split(' ')[0]}</div>
-                            <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                          </div>
-                        </TableHead>
-                      ))
                     ) : (
                       <>
                         <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
@@ -1454,50 +1371,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
                               >
                                 {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
-                              </TableCell>
-                            );
-                          })
-                        ) : isMonthlyTrendMode ? (
-                          monthlyTrendPeriods.map((month) => {
-                            const key = `${metric.key}-${month.identifier}`;
-                            const value = precedingQuartersData[key];
-                            
-                            return (
-                              <TableCell
-                                key={month.identifier}
-                                className={cn(
-                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                                  !metric.calculated && "cursor-pointer hover:bg-muted/50"
-                                )}
-                                onClick={() => {
-                                  if (!metric.calculated) {
-                                    setEditingCell({ metric: metric.key, period: month.identifier });
-                                    setEditValue(value !== null && value !== undefined ? value.toString() : "");
-                                  }
-                                }}
-                              >
-                                {editingCell?.metric === metric.key && editingCell?.period === month.identifier ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onBlur={() => handleCellSave(metric.key, month.identifier)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") {
-                                        handleCellSave(metric.key, month.identifier);
-                                      } else if (e.key === "Escape") {
-                                        setEditingCell(null);
-                                      }
-                                    }}
-                                    className="w-full h-8 text-center"
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <span className="text-sm">
-                                    {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
-                                  </span>
-                                )}
                               </TableCell>
                             );
                           })
