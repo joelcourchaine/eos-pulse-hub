@@ -136,29 +136,38 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   
   const months = [];
   
-  // For Q1, show all 12 months to allow full year data entry
-  if (quarter === 1) {
-    for (let i = 0; i < 12; i++) {
-      months.push({
-        label: monthNames[i],
-        identifier: `${year}-${String(i + 1).padStart(2, '0')}`,
-        year: year,
-        month: i + 1,
-        type: 'month' as const,
-      });
-    }
-  } else {
-    // For Q2, Q3, Q4, show only the quarter's 3 months
-    for (let i = 0; i < 3; i++) {
-      const monthIndex = (quarter - 1) * 3 + i;
-      months.push({
-        label: monthNames[monthIndex],
-        identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
-        year: year,
-        month: monthIndex + 1,
-        type: 'month' as const,
-      });
-    }
+  // Always show only the 3 months for the selected quarter
+  for (let i = 0; i < 3; i++) {
+    const monthIndex = (quarter - 1) * 3 + i;
+    months.push({
+      label: monthNames[monthIndex],
+      identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
+      year: year,
+      month: monthIndex + 1,
+      type: 'month' as const,
+    });
+  }
+  
+  return months;
+};
+
+const getPreviousYearMonthsForQuarter = (quarter: number, year: number) => {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+  
+  const months = [];
+  const previousYear = year - 1;
+  
+  // Show the 3 months for the same quarter in the previous year
+  for (let i = 0; i < 3; i++) {
+    const monthIndex = (quarter - 1) * 3 + i;
+    months.push({
+      label: monthNames[monthIndex],
+      identifier: `${previousYear}-${String(monthIndex + 1).padStart(2, '0')}`,
+      year: previousYear,
+      month: monthIndex + 1,
+      type: 'month' as const,
+    });
   }
   
   return months;
@@ -218,6 +227,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const currentQuarterInfo = getQuarterInfo(new Date());
   const weeks = getWeekDates({ year, quarter });
   const months = getMonthsForQuarter(quarter, year);
+  const previousYearMonths = getPreviousYearMonthsForQuarter(quarter, year);
   const precedingQuarters = getPrecedingQuarters(quarter, year, 4);
   const allPeriods = viewMode === "weekly" ? weeks : months;
 
@@ -296,7 +306,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   useEffect(() => {
     if (viewMode === "monthly" && kpis.length > 0) {
       loadPrecedingQuartersData();
-      calculateYearlyAverages();
     }
   }, [departmentId, kpis, year, quarter, viewMode, entries]);
 
@@ -508,8 +517,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       });
       setEntries(newEntries);
     } else {
-      // For months: fetch monthly entries for last 13 months
-      const monthIdentifiers = months.map(m => m.identifier);
+      // For months: fetch monthly entries for current quarter and previous year's same quarter
+      const monthIdentifiers = [...months.map(m => m.identifier), ...previousYearMonths.map(m => m.identifier)];
       const { data: monthlyData, error: monthlyError } = await supabase
         .from("scorecard_entries")
         .select("*")
@@ -577,42 +586,40 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
 
     const quarterAverages: { [key: string]: number } = {};
     
-    // Load data for each preceding quarter
-    for (const pq of precedingQuarters) {
-      // Always get exactly 3 months for each quarter (for calculation purposes)
-      const startMonth = (pq.quarter - 1) * 3 + 1;
-      const quarterMonths = [
-        `${pq.year}-${String(startMonth).padStart(2, '0')}`,
-        `${pq.year}-${String(startMonth + 1).padStart(2, '0')}`,
-        `${pq.year}-${String(startMonth + 2).padStart(2, '0')}`
-      ];
-      
-      const { data, error } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpis.map(k => k.id))
-        .eq("entry_type", "monthly")
-        .in("month", quarterMonths);
+    // Load data only for the same quarter in the previous year
+    const prevYearQuarter = { quarter, year: year - 1 };
+    const startMonth = (prevYearQuarter.quarter - 1) * 3 + 1;
+    const quarterMonths = [
+      `${prevYearQuarter.year}-${String(startMonth).padStart(2, '0')}`,
+      `${prevYearQuarter.year}-${String(startMonth + 1).padStart(2, '0')}`,
+      `${prevYearQuarter.year}-${String(startMonth + 2).padStart(2, '0')}`
+    ];
+    
+    const { data, error } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpis.map(k => k.id))
+      .eq("entry_type", "monthly")
+      .in("month", quarterMonths);
 
-      if (error) {
-        console.error("Error loading preceding quarter data:", error);
-        continue;
-      }
-
-      // Calculate average for each KPI in this quarter
-      kpis.forEach(kpi => {
-        const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
-        const values = kpiEntries
-          .map(e => e.actual_value)
-          .filter((v): v is number => v !== null && v !== undefined);
-        
-        if (values.length > 0) {
-          const average = values.reduce((sum, v) => sum + v, 0) / values.length;
-          const key = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
-          quarterAverages[key] = average;
-        }
-      });
+    if (error) {
+      console.error("Error loading preceding quarter data:", error);
+      return;
     }
+
+    // Calculate average for each KPI in this quarter
+    kpis.forEach(kpi => {
+      const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
+      const values = kpiEntries
+        .map(e => e.actual_value)
+        .filter((v): v is number => v !== null && v !== undefined);
+      
+      if (values.length > 0) {
+        const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+        const key = `${kpi.id}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`;
+        quarterAverages[key] = average;
+      }
+    });
 
     setPrecedingQuartersData(quarterAverages);
   };
@@ -2035,17 +2042,20 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               );
             }) : (
               <>
-                {precedingQuarters.map((pq) => (
-                  <TableHead key={`${pq.quarter}-${pq.year}`} className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                    {pq.label}
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                  Q{quarter} {year - 1}
+                </TableHead>
+                {previousYearMonths.map((month) => (
+                  <TableHead 
+                    key={month.identifier} 
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                  >
+                    <div className="flex flex-col items-center">
+                      <div>{month.label}</div>
+                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                    </div>
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
-                  AVG {year - 1}
-                </TableHead>
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-accent/30 border-x-2 border-accent sticky top-0 z-10">
-                  AVG {year}
-                </TableHead>
                 <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                   Q{quarter} Target
                 </TableHead>
@@ -2130,7 +2140,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : precedingQuarters.length + 3 + months.length} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -2288,34 +2298,34 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     );
                   }) : (
                     <>
-                      {/* Preceding Quarters */}
-                      {precedingQuarters.map((pq) => {
-                        const qKey = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
-                        const qValue = precedingQuartersData[qKey];
+                      {/* Previous Year Quarter */}
+                      <TableCell 
+                        className="text-center py-0.5 min-w-[100px] text-muted-foreground"
+                      >
+                        {(() => {
+                          const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
+                          const qValue = precedingQuartersData[qKey];
+                          return qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-";
+                        })()}
+                      </TableCell>
+                      
+                      {/* Previous Year Months */}
+                      {previousYearMonths.map((month) => {
+                        const key = `${kpi.id}-month-${month.identifier}`;
+                        const entry = entries[key];
+                        const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
                         
                         return (
-                          <TableCell 
-                            key={`${pq.quarter}-${pq.year}`} 
-                            className="text-center py-0.5 min-w-[100px] text-muted-foreground"
+                          <TableCell
+                            key={month.identifier}
+                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground"
                           >
-                            {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
+                            {entry?.actual_value !== null && entry?.actual_value !== undefined 
+                              ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
+                              : "-"}
                           </TableCell>
                         );
                       })}
-                      
-                      {/* AVG Year-1 */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
-                        {yearlyAverages[kpi.id]?.prevYear !== null && yearlyAverages[kpi.id]?.prevYear !== undefined
-                          ? formatQuarterAverage(yearlyAverages[kpi.id].prevYear!, kpi.metric_type, kpi.name)
-                          : "-"}
-                      </TableCell>
-                      
-                      {/* AVG Year */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-accent/10 border-x-2 border-accent font-medium">
-                        {yearlyAverages[kpi.id]?.currentYear !== null && yearlyAverages[kpi.id]?.currentYear !== undefined
-                          ? formatQuarterAverage(yearlyAverages[kpi.id].currentYear!, kpi.metric_type, kpi.name)
-                          : "-"}
-                      </TableCell>
                       
                       {/* Q{quarter} Target */}
                       <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
