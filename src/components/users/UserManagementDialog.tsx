@@ -103,13 +103,6 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     let userIds: string[] = [];
     
     if (currentStoreId) {
-      // Get the store's group_id
-      const { data: storeData } = await supabase
-        .from("stores")
-        .select("group_id")
-        .eq("id", currentStoreId)
-        .single();
-      
       // Get users directly assigned to this store
       const { data: storeUsers } = await supabase
         .from("profiles")
@@ -117,17 +110,6 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         .eq("store_id", currentStoreId);
       
       userIds = storeUsers?.map(u => u.id) || [];
-      
-      // Get users assigned to the store's group
-      if (storeData?.group_id) {
-        const { data: groupUsers } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("store_group_id", storeData.group_id);
-        
-        const groupUserIds = groupUsers?.map(u => u.id) || [];
-        userIds = [...userIds, ...groupUserIds];
-      }
       
       // Get users who are assigned to KPIs in this store's departments
       const { data: departments } = await supabase
@@ -148,6 +130,15 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         userIds = [...userIds, ...kpiOwnerIds];
       }
       
+      // Always include super-admins (they can manage all stores)
+      const { data: superAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      
+      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
+      userIds = [...userIds, ...superAdminIds];
+      
       // Remove duplicates
       userIds = [...new Set(userIds)];
     }
@@ -157,8 +148,14 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       .from("profiles")
       .select("*");
     
-    if (currentStoreId && userIds.length > 0) {
-      query = query.in("id", userIds);
+    // Apply filter when viewing a specific store
+    if (currentStoreId) {
+      if (userIds.length > 0) {
+        query = query.in("id", userIds);
+      } else {
+        // If no users found, return empty result instead of all users
+        query = query.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
     }
     
     const { data, error } = await query.order("full_name");
