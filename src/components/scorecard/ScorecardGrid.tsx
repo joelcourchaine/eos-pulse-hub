@@ -274,6 +274,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
+  const [pasteStartIndex, setPasteStartIndex] = useState<number>(0);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1617,7 +1618,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     onKPIsChange();
   };
 
-  const handlePasteDataChange = (value: string) => {
+  const handlePasteDataChange = (value: string, startIdx: number = pasteStartIndex) => {
     setPasteData(value);
     
     if (!value.trim() || !pasteKpi) {
@@ -1630,12 +1631,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     const periods = viewMode === "weekly" ? weeks : months;
 
     values.forEach((val, idx) => {
-      if (idx < periods.length) {
+      const targetIdx = startIdx + idx;
+      if (targetIdx < periods.length) {
         const numValue = parseFloat(val);
         if (!isNaN(numValue)) {
           const periodIdentifier = viewMode === "weekly" 
-            ? periods[idx].start.toISOString().split('T')[0]
-            : (periods[idx] as any).identifier;
+            ? periods[targetIdx].start.toISOString().split('T')[0]
+            : (periods[targetIdx] as any).identifier;
           parsed.push({
             period: periodIdentifier,
             value: numValue
@@ -1704,6 +1706,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       setPasteData("");
       setPasteKpi("");
       setParsedPasteData([]);
+      setPasteStartIndex(0);
     } catch (error: any) {
       console.error('Error saving pasted data:', error);
       toast({
@@ -2727,7 +2730,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               <Label htmlFor="paste-kpi">Select KPI</Label>
               <Select value={pasteKpi} onValueChange={(value) => {
                 setPasteKpi(value);
-                handlePasteDataChange(pasteData);
+                handlePasteDataChange(pasteData, pasteStartIndex);
               }}>
                 <SelectTrigger id="paste-kpi">
                   <SelectValue placeholder="Choose a KPI..." />
@@ -2763,6 +2766,29 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="paste-start-period">Start From</Label>
+              <Select value={pasteStartIndex.toString()} onValueChange={(value) => {
+                const newStartIndex = parseInt(value);
+                setPasteStartIndex(newStartIndex);
+                handlePasteDataChange(pasteData, newStartIndex);
+              }}>
+                <SelectTrigger id="paste-start-period">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(viewMode === "weekly" ? weeks : months).map((period, idx) => (
+                    <SelectItem key={idx} value={idx.toString()}>
+                      {period.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choose which {viewMode === "weekly" ? "week" : "month"} to start pasting data from
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="paste-values">Paste Values</Label>
               <Input
                 id="paste-values"
@@ -2771,7 +2797,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 onChange={(e) => handlePasteDataChange(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Tip: In Google Sheets, select the cells for all {viewMode === "weekly" ? "weeks" : "months"}, copy (Ctrl+C), and paste here
+                Tip: In Google Sheets, copy values starting from the period you selected above
               </p>
             </div>
 
