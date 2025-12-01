@@ -903,7 +903,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                {scorecardViewMode === "monthly" ? "Last month's performance" : "Last week's performance"}
+                Q{selectedQuarter} {selectedYear} - {scorecardViewMode === "monthly" ? "Last month's performance" : "Last week's performance"}
               </p>
             </CardContent>
           </Card>
