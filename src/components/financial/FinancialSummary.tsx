@@ -118,6 +118,35 @@ const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => 
   return quarters;
 };
 
+const getMonthlyTrendPeriods = (currentYear: number) => {
+  const months = [];
+  const startYear = currentYear - 1;
+  const currentMonth = new Date().getMonth(); // 0-11
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  // Add all months from last year
+  for (let m = 0; m < 12; m++) {
+    months.push({
+      month: m,
+      year: startYear,
+      label: `${monthNames[m]} ${startYear}`,
+      identifier: `${startYear}-${String(m + 1).padStart(2, '0')}`,
+    });
+  }
+  
+  // Add months from current year up to current month
+  for (let m = 0; m <= currentMonth; m++) {
+    months.push({
+      month: m,
+      year: currentYear,
+      label: `${monthNames[m]} ${currentYear}`,
+      identifier: `${currentYear}-${String(m + 1).padStart(2, '0')}`,
+    });
+  }
+  
+  return months;
+};
+
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
@@ -151,10 +180,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   const isQuarterTrendMode = quarter === 0;
+  const isMonthlyTrendMode = quarter === -1;
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarter, currentYear) : [];
+  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentYear) : [];
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
@@ -331,8 +362,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadTargets = async () => {
     if (!departmentId) return;
     
-    // Skip loading targets in Quarter Trend mode
-    if (isQuarterTrendMode) return;
+    // Skip loading targets in Quarter Trend or Monthly Trend mode
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
 
     console.log(`Loading targets for department ${departmentId}, year ${year}, quarter ${quarter}`);
 
@@ -478,6 +509,76 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const loadPrecedingQuartersData = async () => {
     if (!departmentId) return;
+
+    if (isMonthlyTrendMode) {
+      // Load data for all months in the monthly trend
+      const averages: { [key: string]: number } = {};
+      
+      for (const month of monthlyTrendPeriods) {
+        const { data, error } = await supabase
+          .from("financial_entries")
+          .select("*")
+          .eq("department_id", departmentId)
+          .eq("month", month.identifier);
+
+        if (error) {
+          console.error(`Error loading data for ${month.label}:`, error);
+          continue;
+        }
+
+        // Process each metric for this month
+        FINANCIAL_METRICS.forEach(metric => {
+          const metricEntry = data?.find(e => e.metric_name === metric.key);
+          
+          if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
+            const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+            averages[mKey] = metricEntry.value;
+          } else if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+            // Calculate percentage metrics from underlying dollar amounts
+            const { numerator, denominator } = metric.calculation;
+            
+            const numEntry = data?.find(e => e.metric_name === numerator);
+            const denEntry = data?.find(e => e.metric_name === denominator);
+            
+            if (numEntry && denEntry && denEntry.value && denEntry.value > 0) {
+              const calculatedPercentage = (numEntry.value / denEntry.value) * 100;
+              const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+              averages[mKey] = calculatedPercentage;
+            }
+          } else if (metric.calculation && 'type' in metric.calculation) {
+            // Calculate dollar metrics (subtract or complex)
+            const calc = metric.calculation;
+            const baseEntry = data?.find(e => e.metric_name === calc.base);
+            
+            if (baseEntry && baseEntry.value !== null && baseEntry.value !== undefined) {
+              let calculatedValue = baseEntry.value;
+              
+              for (const deduction of calc.deductions) {
+                const deductEntry = data?.find(e => e.metric_name === deduction);
+                if (deductEntry && deductEntry.value !== null && deductEntry.value !== undefined) {
+                  calculatedValue -= deductEntry.value;
+                }
+              }
+              
+              if (calc.type === 'complex' && 'additions' in calc) {
+                for (const addition of calc.additions) {
+                  const addEntry = data?.find(e => e.metric_name === addition);
+                  if (addEntry && addEntry.value !== null && addEntry.value !== undefined) {
+                    calculatedValue += addEntry.value;
+                  }
+                }
+              }
+              
+              const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+              averages[mKey] = calculatedValue;
+            }
+          }
+        });
+      }
+      
+      setPrecedingQuartersData(averages);
+      return;
+    }
 
     if (isQuarterTrendMode) {
       // Load data for all quarters in the trend
@@ -696,8 +797,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setNotes({});
     setLocalValues({});
     
-    // Skip loading individual month data in Quarter Trend mode
-    if (isQuarterTrendMode) {
+    // Skip loading individual month data in Quarter Trend or Monthly Trend mode
+    if (isQuarterTrendMode || isMonthlyTrendMode) {
       setLoading(false);
       return;
     }
@@ -1275,7 +1376,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                       Financial Metric
                     </TableHead>
-                    {isQuarterTrendMode ? (
+                    {isMonthlyTrendMode ? (
+                      monthlyTrendPeriods.map((month) => (
+                        <TableHead 
+                          key={month.label} 
+                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                        >
+                          <div className="flex flex-col items-center">
+                            <div>{month.label.split(' ')[0]}</div>
+                            <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                          </div>
+                        </TableHead>
+                      ))
+                    ) : isQuarterTrendMode ? (
                       quarterTrendPeriods.map((qtr) => (
                         <TableHead 
                           key={qtr.label} 
@@ -1360,7 +1473,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                         </TableCell>
-                        {isQuarterTrendMode ? (
+                        {isMonthlyTrendMode ? (
+                          monthlyTrendPeriods.map((month) => {
+                            const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                            const mValue = precedingQuartersData[mKey];
+                            
+                            return (
+                              <TableCell
+                                key={month.label}
+                                className={cn(
+                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                  isDepartmentProfit && "bg-primary/5"
+                                )}
+                              >
+                                {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
+                              </TableCell>
+                            );
+                          })
+                        ) : isQuarterTrendMode ? (
                           quarterTrendPeriods.map((qtr) => {
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
