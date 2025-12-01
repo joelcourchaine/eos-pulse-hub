@@ -1628,16 +1628,26 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
     const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
     const parsed: { period: string; value: number }[] = [];
-    const periods = viewMode === "weekly" ? weeks : months;
 
     values.forEach((val, idx) => {
       const targetIdx = startIdx + idx;
-      if (targetIdx < periods.length) {
+      if (targetIdx < allPeriods.length) {
         const numValue = parseFloat(val);
         if (!isNaN(numValue)) {
-          const periodIdentifier = viewMode === "weekly" 
-            ? periods[targetIdx].start.toISOString().split('T')[0]
-            : (periods[targetIdx] as any).identifier;
+          const period = allPeriods[targetIdx];
+          let periodIdentifier: string;
+          
+          if ('start' in period) {
+            // Weekly period
+            periodIdentifier = period.start.toISOString().split('T')[0];
+          } else if ('identifier' in period) {
+            // Monthly period or trend period
+            periodIdentifier = period.identifier;
+          } else {
+            // Quarter trend period
+            periodIdentifier = `${period.year}-Q${period.quarter}`;
+          }
+          
           parsed.push({
             period: periodIdentifier,
             value: numValue
@@ -1683,14 +1693,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           .from("scorecard_entries")
           .upsert({
             kpi_id: pasteKpi,
-            [viewMode === "weekly" ? "week_start_date" : "month"]: entry.period,
-            entry_type: viewMode,
+            [isMonthlyTrendMode || isQuarterTrendMode || viewMode === "monthly" ? "month" : "week_start_date"]: entry.period,
+            entry_type: isMonthlyTrendMode || isQuarterTrendMode ? "monthly" : viewMode,
             actual_value: entry.value,
             variance: variance,
             status: status,
             created_by: user.id
           }, {
-            onConflict: viewMode === "weekly" ? 'kpi_id,week_start_date' : 'kpi_id,month'
+            onConflict: isMonthlyTrendMode || isQuarterTrendMode || viewMode === "monthly" ? 'kpi_id,month' : 'kpi_id,week_start_date'
           });
 
         if (error) throw error;
@@ -2721,7 +2731,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           <DialogHeader>
             <DialogTitle>Paste Row Data</DialogTitle>
             <DialogDescription>
-              Copy a row from Google Sheets and paste it here. The values should be tab-separated {viewMode === "weekly" ? "(weeks: " + weeks.map(w => w.label).join(', ') + ")" : "(months: " + months.map(m => m.label).join(', ') + ")"}
+              Copy a row from Google Sheets and paste it here. The values should be tab-separated ({allPeriods.length} periods)
             </DialogDescription>
           </DialogHeader>
 
@@ -2776,7 +2786,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(viewMode === "weekly" ? weeks : months).map((period, idx) => (
+                  {allPeriods.map((period, idx) => (
                     <SelectItem key={idx} value={idx.toString()}>
                       {period.label}
                     </SelectItem>
@@ -2784,7 +2794,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Choose which {viewMode === "weekly" ? "week" : "month"} to start pasting data from
+                Choose which period to start pasting data from
               </p>
             </div>
 
@@ -2814,9 +2824,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </TableHeader>
                     <TableBody>
                       {parsedPasteData.map((entry, idx) => {
-                        const periodLabel = viewMode === "weekly" 
-                          ? weeks.find(w => w.start.toISOString().split('T')[0] === entry.period)?.label
-                          : months.find(m => (m as any).identifier === entry.period)?.label;
+                        const periodLabel = allPeriods.find(p => {
+                          if ('start' in p) {
+                            return p.start.toISOString().split('T')[0] === entry.period;
+                          } else if ('identifier' in p) {
+                            return p.identifier === entry.period;
+                          } else {
+                            return `${p.year}-Q${p.quarter}` === entry.period;
+                          }
+                        })?.label;
                         return (
                           <TableRow key={idx}>
                             <TableCell>{periodLabel}</TableCell>
