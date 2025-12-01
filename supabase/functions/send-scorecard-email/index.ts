@@ -12,6 +12,7 @@ interface EmailRequest {
   quarter?: number;
   mode: "weekly" | "monthly" | "yearly";
   departmentId: string;
+  recipientEmails?: string[];
 }
 
 const YEAR_STARTS: Record<number, string> = {
@@ -137,9 +138,9 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { year, quarter, mode, departmentId }: EmailRequest = await req.json();
+    const { year, quarter, mode, departmentId, recipientEmails }: EmailRequest = await req.json();
 
-    console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId });
+    console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId, recipientEmails });
     
     // Validate that quarter is provided for non-yearly modes
     if (mode !== "yearly" && !quarter) {
@@ -735,6 +736,11 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("RESEND_API_KEY not configured");
     }
 
+    // Use provided recipients or fall back to the authenticated user
+    const recipients = recipientEmails && recipientEmails.length > 0 ? recipientEmails : [user.email!];
+    
+    console.log(`Sending email to ${recipients.length} recipient(s):`, recipients);
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -743,7 +749,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
-        to: [user.email!],
+        to: recipients,
         subject: mode === "yearly" 
           ? `${department.name} Scorecard - ${year} Annual Report`
           : `${department.name} Scorecard - Q${quarter} ${year}`,
