@@ -2081,9 +2081,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               </ContextMenuContent>
                             </ContextMenu>
                           );
-                        })}
+                         })}
                         </>
-                      )}
+                       )}
                       </TableRow>
                     );
                   })}
