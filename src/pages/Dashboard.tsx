@@ -507,11 +507,11 @@ const Dashboard = () => {
           }
         }
       } else {
-        // For monthly view, find the most recent month in the selected quarter that has data
+        // For monthly view, get the most recent status for each KPI
         const monthsInQuarter: string[] = [];
         
         if (targetQuarter === 1) {
-          // Q1 shows all 12 months
+          // Q1 shows all 12 months (check in reverse order to find most recent)
           for (let i = 11; i >= 0; i--) {
             monthsInQuarter.push(`${targetYear}-${String(i + 1).padStart(2, '0')}`);
           }
@@ -523,22 +523,27 @@ const Dashboard = () => {
           }
         }
         
-        // Try to find data for the most recent month in the quarter
-        for (const month of monthsInQuarter) {
-          const { data, error: entriesError } = await supabase
-            .from("scorecard_entries")
-            .select("kpi_id, status")
-            .in("kpi_id", kpiIds)
-            .eq("month", month)
-            .eq("entry_type", "monthly");
+        // Fetch ALL entries for these months to find the most recent entry per KPI
+        const { data: allMonthlyData, error: entriesError } = await supabase
+          .from("scorecard_entries")
+          .select("kpi_id, status, month")
+          .in("kpi_id", kpiIds)
+          .in("month", monthsInQuarter)
+          .eq("entry_type", "monthly")
+          .order("month", { ascending: false });
 
-          if (entriesError) throw entriesError;
-          
-          if (data && data.length > 0) {
-            entries = data;
-            break;
+        if (entriesError) throw entriesError;
+        
+        // For each KPI, find the most recent entry (first one since ordered by month desc)
+        const kpiMostRecentEntry = new Map<string, any>();
+        allMonthlyData?.forEach(entry => {
+          if (!kpiMostRecentEntry.has(entry.kpi_id)) {
+            kpiMostRecentEntry.set(entry.kpi_id, entry);
           }
-        }
+        });
+        
+        // Convert to array for compatibility with existing code
+        entries = Array.from(kpiMostRecentEntry.values());
       }
 
       // Create a map of kpi_id to status
