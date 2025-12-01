@@ -66,6 +66,7 @@ interface ScorecardGridProps {
   quarter: number;
   onYearChange: (year: number) => void;
   onQuarterChange: (quarter: number) => void;
+  onViewModeChange?: (mode: "weekly" | "monthly") => void;
 }
 
 // Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
@@ -180,7 +181,7 @@ const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count
   return quarters.reverse();
 };
 
-const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange }: ScorecardGridProps) => {
+const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange, onViewModeChange }: ScorecardGridProps) => {
   const [entries, setEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<{ [key: string]: boolean }>({});
@@ -1694,7 +1695,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             <Button
               variant={viewMode === "weekly" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setViewMode("weekly")}
+              onClick={() => {
+                setViewMode("weekly");
+                onViewModeChange?.("weekly");
+              }}
               className="gap-2"
             >
               <CalendarDays className="h-4 w-4" />
@@ -1703,7 +1707,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             <Button
               variant={viewMode === "monthly" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setViewMode("monthly")}
+              onClick={() => {
+                setViewMode("monthly");
+                onViewModeChange?.("monthly");
+              }}
               className="gap-2"
             >
               <Calendar className="h-4 w-4" />
