@@ -648,72 +648,78 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const quarterAverages: { [key: string]: number } = {};
     
     if (isMonthlyTrendMode) {
-      // Load data for all months in the monthly trend
-      const monthsToLoad = monthlyTrendPeriods;
+      // Load data for all months in the monthly trend in a single query
+      const monthIdentifiers = monthlyTrendPeriods.map(m => m.identifier);
       
-      for (const month of monthsToLoad) {
-        const { data, error } = await supabase
-          .from("scorecard_entries")
-          .select("*")
-          .in("kpi_id", kpis.map(k => k.id))
-          .eq("entry_type", "monthly")
-          .eq("month", month.identifier);
+      const { data, error } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpis.map(k => k.id))
+        .eq("entry_type", "monthly")
+        .in("month", monthIdentifiers);
 
-        if (error) {
-          console.error(`Error loading month ${month.label} data:`, error);
-          continue;
-        }
-
-        // Calculate average for each KPI in this month
-        kpis.forEach(kpi => {
-          const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
-          const values = kpiEntries
-            .map(e => e.actual_value)
-            .filter((v): v is number => v !== null && v !== undefined);
-          
-          if (values.length > 0) {
-            const average = values.reduce((sum, v) => sum + v, 0) / values.length;
-            const key = `${kpi.id}-M${month.month + 1}-${month.year}`;
-            quarterAverages[key] = average;
-          }
+      if (error) {
+        console.error("Error loading monthly trend data:", error);
+      } else {
+        // Calculate average for each KPI in each month
+        monthlyTrendPeriods.forEach(month => {
+          kpis.forEach(kpi => {
+            const kpiEntries = data?.filter(e => e.kpi_id === kpi.id && e.month === month.identifier) || [];
+            const values = kpiEntries
+              .map(e => e.actual_value)
+              .filter((v): v is number => v !== null && v !== undefined);
+            
+            if (values.length > 0) {
+              const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+              const key = `${kpi.id}-M${month.month + 1}-${month.year}`;
+              quarterAverages[key] = average;
+            }
+          });
         });
       }
     } else if (isQuarterTrendMode) {
-      // Load data for all quarters from Q1 last year to current quarter
-      const quartersToLoad = quarterTrendPeriods;
-      
-      for (const qtr of quartersToLoad) {
+      // Load data for all quarters in a single query
+      const allQuarterMonths: string[] = [];
+      quarterTrendPeriods.forEach(qtr => {
         const startMonth = (qtr.quarter - 1) * 3 + 1;
-        const quarterMonths = [
+        allQuarterMonths.push(
           `${qtr.year}-${String(startMonth).padStart(2, '0')}`,
           `${qtr.year}-${String(startMonth + 1).padStart(2, '0')}`,
           `${qtr.year}-${String(startMonth + 2).padStart(2, '0')}`
-        ];
-        
-        const { data, error } = await supabase
-          .from("scorecard_entries")
-          .select("*")
-          .in("kpi_id", kpis.map(k => k.id))
-          .eq("entry_type", "monthly")
-          .in("month", quarterMonths);
+        );
+      });
+      
+      const { data, error } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpis.map(k => k.id))
+        .eq("entry_type", "monthly")
+        .in("month", allQuarterMonths);
 
-        if (error) {
-          console.error(`Error loading quarter ${qtr.label} data:`, error);
-          continue;
-        }
-
-        // Calculate average for each KPI in this quarter
-        kpis.forEach(kpi => {
-          const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
-          const values = kpiEntries
-            .map(e => e.actual_value)
-            .filter((v): v is number => v !== null && v !== undefined);
+      if (error) {
+        console.error("Error loading quarter trend data:", error);
+      } else {
+        // Calculate average for each KPI in each quarter
+        quarterTrendPeriods.forEach(qtr => {
+          const startMonth = (qtr.quarter - 1) * 3 + 1;
+          const quarterMonths = [
+            `${qtr.year}-${String(startMonth).padStart(2, '0')}`,
+            `${qtr.year}-${String(startMonth + 1).padStart(2, '0')}`,
+            `${qtr.year}-${String(startMonth + 2).padStart(2, '0')}`
+          ];
           
-          if (values.length > 0) {
-            const average = values.reduce((sum, v) => sum + v, 0) / values.length;
-            const key = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
-            quarterAverages[key] = average;
-          }
+          kpis.forEach(kpi => {
+            const kpiEntries = data?.filter(e => e.kpi_id === kpi.id && quarterMonths.includes(e.month || '')) || [];
+            const values = kpiEntries
+              .map(e => e.actual_value)
+              .filter((v): v is number => v !== null && v !== undefined);
+            
+            if (values.length > 0) {
+              const average = values.reduce((sum, v) => sum + v, 0) / values.length;
+              const key = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
+              quarterAverages[key] = average;
+            }
+          });
         });
       }
     } else {
