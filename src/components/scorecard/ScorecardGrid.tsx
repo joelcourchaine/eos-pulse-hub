@@ -13,6 +13,7 @@ import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Sparkline } from "@/components/ui/sparkline";
 
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
@@ -2133,19 +2134,24 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     Target
                   </TableHead>
                 )}
-            {isMonthlyTrendMode ? (
-              monthlyTrendPeriods.map((month) => (
-                <TableHead 
-                  key={month.label} 
-                  className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
-                >
-                  <div className="flex flex-col items-center">
-                    <div>{month.label.split(' ')[0]}</div>
-                    <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                  </div>
-                </TableHead>
-              ))
-            ) : isQuarterTrendMode ? (
+             {isMonthlyTrendMode ? (
+               <>
+                 <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                   Trend
+                 </TableHead>
+                 {monthlyTrendPeriods.map((month) => (
+                   <TableHead 
+                     key={month.label} 
+                     className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                   >
+                     <div className="flex flex-col items-center">
+                       <div>{month.label.split(' ')[0]}</div>
+                       <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                     </div>
+                   </TableHead>
+                 ))}
+               </>
+             ) : isQuarterTrendMode ? (
               quarterTrendPeriods.map((qtr) => (
                 <TableHead 
                   key={qtr.label} 
@@ -2344,19 +2350,31 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       )}
                     </TableCell>
                   )}
-                  {isMonthlyTrendMode ? monthlyTrendPeriods.map((month) => {
-                    const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
-                    const mValue = precedingQuartersData[mKey];
-                    
-                    return (
-                      <TableCell
-                        key={month.label}
-                        className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
-                      >
-                        {mValue !== null && mValue !== undefined ? formatQuarterAverage(mValue, kpi.metric_type, kpi.name) : "-"}
-                      </TableCell>
-                    );
-                  }) : isQuarterTrendMode ? quarterTrendPeriods.map((qtr) => {
+                   {isMonthlyTrendMode ? (
+                     <>
+                       <TableCell className="px-1 py-0.5 min-w-[100px] max-w-[100px]">
+                         <Sparkline 
+                           data={monthlyTrendPeriods.map(month => {
+                             const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
+                             return precedingQuartersData[mKey];
+                           })}
+                         />
+                       </TableCell>
+                       {monthlyTrendPeriods.map((month) => {
+                         const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
+                         const mValue = precedingQuartersData[mKey];
+                         
+                         return (
+                           <TableCell
+                             key={month.label}
+                             className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
+                           >
+                             {mValue !== null && mValue !== undefined ? formatQuarterAverage(mValue, kpi.metric_type, kpi.name) : "-"}
+                           </TableCell>
+                         );
+                       })}
+                     </>
+                   ) : isQuarterTrendMode ? quarterTrendPeriods.map((qtr) => {
                     const qKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
                     const qValue = precedingQuartersData[qKey];
                     

@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
 import { FinancialDataImport } from "./FinancialDataImport";
+import { Sparkline } from "@/components/ui/sparkline";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -1373,22 +1374,27 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
-                      Financial Metric
-                    </TableHead>
-                    {isMonthlyTrendMode ? (
-                      monthlyTrendPeriods.map((month) => (
-                        <TableHead 
-                          key={month.label} 
-                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
-                        >
-                          <div className="flex flex-col items-center">
-                            <div>{month.label.split(' ')[0]}</div>
-                            <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                          </div>
-                        </TableHead>
-                      ))
-                    ) : isQuarterTrendMode ? (
+                     <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                       Financial Metric
+                     </TableHead>
+                     {isMonthlyTrendMode ? (
+                       <>
+                         <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                           Trend
+                         </TableHead>
+                         {monthlyTrendPeriods.map((month) => (
+                           <TableHead 
+                             key={month.label} 
+                             className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                           >
+                             <div className="flex flex-col items-center">
+                               <div>{month.label.split(' ')[0]}</div>
+                               <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                             </div>
+                           </TableHead>
+                         ))}
+                       </>
+                     ) : isQuarterTrendMode ? (
                       quarterTrendPeriods.map((qtr) => (
                         <TableHead 
                           key={qtr.label} 
@@ -1472,25 +1478,38 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </p>
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
-                        </TableCell>
-                        {isMonthlyTrendMode ? (
-                          monthlyTrendPeriods.map((month) => {
-                            const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-                            const mValue = precedingQuartersData[mKey];
-                            
-                            return (
-                              <TableCell
-                                key={month.label}
-                                className={cn(
-                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                                  isDepartmentProfit && "bg-primary/5"
-                                )}
-                              >
-                                {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
-                              </TableCell>
-                            );
-                          })
-                        ) : isQuarterTrendMode ? (
+                         </TableCell>
+                         {isMonthlyTrendMode ? (
+                           <>
+                             <TableCell className={cn(
+                               "px-1 py-0.5 min-w-[100px] max-w-[100px]",
+                               isDepartmentProfit && "bg-primary/5"
+                             )}>
+                               <Sparkline 
+                                 data={monthlyTrendPeriods.map(month => {
+                                   const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                                   return precedingQuartersData[mKey];
+                                 })}
+                               />
+                             </TableCell>
+                             {monthlyTrendPeriods.map((month) => {
+                               const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                               const mValue = precedingQuartersData[mKey];
+                               
+                               return (
+                                 <TableCell
+                                   key={month.label}
+                                   className={cn(
+                                     "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                     isDepartmentProfit && "bg-primary/5"
+                                   )}
+                                 >
+                                   {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
+                                 </TableCell>
+                               );
+                             })}
+                           </>
+                         ) : isQuarterTrendMode ? (
                           quarterTrendPeriods.map((qtr) => {
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
