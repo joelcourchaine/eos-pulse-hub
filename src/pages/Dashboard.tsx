@@ -887,7 +887,9 @@ const Dashboard = () => {
                   <span className="text-2xl font-bold text-muted-foreground">{kpiStatusCounts.missing}</span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Last week's performance</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {scorecardViewMode === "monthly" ? "Last month's performance" : "Last week's performance"}
+              </p>
             </CardContent>
           </Card>
           <Card>
