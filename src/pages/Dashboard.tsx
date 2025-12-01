@@ -534,6 +534,10 @@ const Dashboard = () => {
 
         if (entriesError) throw entriesError;
         
+        console.log("=== KPI Status Debug ===");
+        console.log("Months in quarter:", monthsInQuarter);
+        console.log("All monthly data fetched:", allMonthlyData);
+        
         // For each KPI, find the most recent entry that HAS a status value
         const kpiMostRecentEntry = new Map<string, any>();
         allMonthlyData?.forEach(entry => {
@@ -541,6 +545,8 @@ const Dashboard = () => {
             kpiMostRecentEntry.set(entry.kpi_id, entry);
           }
         });
+        
+        console.log("KPI most recent entries:", Array.from(kpiMostRecentEntry.entries()));
         
         // Convert to array for compatibility with existing code
         entries = Array.from(kpiMostRecentEntry.values());
@@ -565,6 +571,9 @@ const Dashboard = () => {
         else counts.missing++; // No entry = missing
       });
 
+      console.log("Final KPI status counts:", counts);
+      console.log("=== End Debug ===");
+      
       setKpiStatusCounts(counts);
     } catch (error: any) {
       console.error("Error fetching KPI status counts:", error);
