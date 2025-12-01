@@ -517,6 +517,11 @@ const Dashboard = () => {
           monthsInQuarter.push(`${targetYear}-${String(monthIndex + 1).padStart(2, '0')}`);
         }
         
+        console.log(`=== KPI Status Gauge Debug for Q${targetQuarter} ${targetYear} ===`);
+        console.log("Months to check:", monthsInQuarter);
+        console.log("Department ID:", selectedDepartment);
+        console.log("Total KPIs:", kpiIds.length);
+        
         // Fetch ALL entries for these months to find the most recent entry per KPI
         const { data: allMonthlyData, error: entriesError } = await supabase
           .from("scorecard_entries")
@@ -528,9 +533,8 @@ const Dashboard = () => {
 
         if (entriesError) throw entriesError;
         
-        console.log("=== KPI Status Debug ===");
-        console.log("Months in quarter:", monthsInQuarter);
-        console.log("All monthly data fetched:", allMonthlyData);
+        console.log("Scorecard entries found:", allMonthlyData?.length || 0);
+        console.log("Sample entries:", allMonthlyData?.slice(0, 5));
         
         // For each KPI, find the most recent entry that HAS a status value
         const kpiMostRecentEntry = new Map<string, any>();
@@ -540,7 +544,8 @@ const Dashboard = () => {
           }
         });
         
-        console.log("KPI most recent entries:", Array.from(kpiMostRecentEntry.entries()));
+        console.log("KPIs with status found:", kpiMostRecentEntry.size);
+        console.log("Sample KPI statuses:", Array.from(kpiMostRecentEntry.entries()).slice(0, 3).map(([id, entry]) => ({ kpi_id: id, status: entry.status, month: entry.month })));
         
         // Convert to array for compatibility with existing code
         entries = Array.from(kpiMostRecentEntry.values());
@@ -566,7 +571,7 @@ const Dashboard = () => {
       });
 
       console.log("Final KPI status counts:", counts);
-      console.log("=== End Debug ===");
+      console.log("=== End KPI Status Gauge Debug ===");
       
       setKpiStatusCounts(counts);
     } catch (error: any) {
