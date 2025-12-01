@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,6 +65,8 @@ const Dashboard = () => {
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
   const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
+  const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -669,6 +672,15 @@ const Dashboard = () => {
       return;
     }
 
+    if (selectedEmailRecipients.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Please select at least one recipient",
+      });
+      return;
+    }
+
     setIsEmailLoading(true);
     try {
       const session = await supabase.auth.getSession();
@@ -692,6 +704,7 @@ const Dashboard = () => {
             ...(printMode !== "yearly" && { quarter: selectedQuarter }),
             mode: printMode,
             departmentId: selectedDepartment,
+            recipientEmails: selectedEmailRecipients,
           }),
         }
       );
@@ -706,9 +719,10 @@ const Dashboard = () => {
 
       toast({
         title: "Email Sent",
-        description: "The scorecard has been emailed to you successfully.",
+        description: `The scorecard has been emailed to ${selectedEmailRecipients.length} recipient(s) successfully.`,
       });
       setPrintDialogOpen(false);
+      setSelectedEmailRecipients([]);
     } catch (error: any) {
       console.error("Error sending email:", error);
       toast({
@@ -817,14 +831,31 @@ const Dashboard = () => {
                   Department Info
                 </Button>
               )}
-              <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+              <Dialog open={printDialogOpen} onOpenChange={(open) => {
+                setPrintDialogOpen(open);
+                if (open) {
+                  // Load recipients when dialog opens
+                  const loadRecipients = async () => {
+                    if (!profile?.store_group_id) return;
+                    
+                    const { data: profiles } = await supabase
+                      .from("profiles")
+                      .select("id, full_name, email")
+                      .eq("store_group_id", profile.store_group_id)
+                      .order("full_name");
+                    
+                    setEmailRecipients(profiles || []);
+                  };
+                  loadRecipients();
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
                     <Mail className="h-4 w-4 mr-2" />
                     Email Report
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="no-print" aria-describedby="email-description">
+                <DialogContent className="no-print max-w-xl" aria-describedby="email-description">
                   <DialogTitle>Email Scorecard Report</DialogTitle>
                   <div id="email-description" className="sr-only">
                     Send scorecard report via email
@@ -852,11 +883,34 @@ const Dashboard = () => {
                       </div>
                     </RadioGroup>
                   </div>
+                  <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+                    <Label className="text-sm font-semibold mb-3 block">Recipients</Label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {emailRecipients.map((recipient) => (
+                        <div key={recipient.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`recipient-${recipient.id}`}
+                            checked={selectedEmailRecipients.includes(recipient.email)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedEmailRecipients([...selectedEmailRecipients, recipient.email]);
+                              } else {
+                                setSelectedEmailRecipients(selectedEmailRecipients.filter(email => email !== recipient.email));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`recipient-${recipient.id}`} className="cursor-pointer font-normal text-sm flex-1">
+                            {recipient.full_name} ({recipient.email})
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={handleEmailScorecard} disabled={isEmailLoading}>
+                    <Button onClick={handleEmailScorecard} disabled={isEmailLoading || selectedEmailRecipients.length === 0}>
                       <Mail className="h-4 w-4 mr-2" />
                       {isEmailLoading ? "Sending..." : "Send Email"}
                     </Button>
