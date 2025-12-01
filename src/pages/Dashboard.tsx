@@ -534,10 +534,10 @@ const Dashboard = () => {
 
         if (entriesError) throw entriesError;
         
-        // For each KPI, find the most recent entry (first one since ordered by month desc)
+        // For each KPI, find the most recent entry that HAS a status value
         const kpiMostRecentEntry = new Map<string, any>();
         allMonthlyData?.forEach(entry => {
-          if (!kpiMostRecentEntry.has(entry.kpi_id)) {
+          if (!kpiMostRecentEntry.has(entry.kpi_id) && entry.status) {
             kpiMostRecentEntry.set(entry.kpi_id, entry);
           }
         });
