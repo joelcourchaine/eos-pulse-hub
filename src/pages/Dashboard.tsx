@@ -63,6 +63,7 @@ const Dashboard = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
+  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -122,7 +123,7 @@ const Dashboard = () => {
   }, [selectedStore, profile, storesLoaded]);
 
   useEffect(() => {
-    // Only fetch data if departments and stores have been loaded and validated
+      // Only fetch data if departments and stores have been loaded and validated
     if (selectedDepartment && departmentsLoaded && storesLoaded) {
       // CRITICAL: Verify department belongs to current store before fetching data
       const dept = departments.find(d => d.id === selectedDepartment);
@@ -158,7 +159,7 @@ const Dashboard = () => {
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore]);
+  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore, scorecardViewMode]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
@@ -464,20 +465,58 @@ const Dashboard = () => {
 
       const kpiIds = kpiData.map(k => k.id);
       
-      // Calculate the previous week (review week) start date
-      const previousWeekStart = new Date(weekStart);
-      previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-      const reviewWeekStart = format(previousWeekStart, 'yyyy-MM-dd');
+      let entries;
+      
+      if (scorecardViewMode === "weekly") {
+        // Calculate the previous week (review week) start date
+        const previousWeekStart = new Date(weekStart);
+        previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+        const reviewWeekStart = format(previousWeekStart, 'yyyy-MM-dd');
 
-      // Fetch the most recent entries for the review week (previous week)
-      const { data: entries, error: entriesError } = await supabase
-        .from("scorecard_entries")
-        .select("kpi_id, status")
-        .in("kpi_id", kpiIds)
-        .eq("week_start_date", reviewWeekStart)
-        .eq("entry_type", "weekly");
+        // Fetch the most recent entries for the review week (previous week)
+        const { data, error: entriesError } = await supabase
+          .from("scorecard_entries")
+          .select("kpi_id, status")
+          .in("kpi_id", kpiIds)
+          .eq("week_start_date", reviewWeekStart)
+          .eq("entry_type", "weekly");
 
-      if (entriesError) throw entriesError;
+        if (entriesError) throw entriesError;
+        entries = data;
+      } else {
+        // For monthly view, get the most recent month that has data
+        const currentDate = new Date();
+        const currentMonth = format(currentDate, 'yyyy-MM');
+        
+        // First try current month, if no data, try previous month
+        let { data, error: entriesError } = await supabase
+          .from("scorecard_entries")
+          .select("kpi_id, status")
+          .in("kpi_id", kpiIds)
+          .eq("month", currentMonth)
+          .eq("entry_type", "monthly");
+
+        if (entriesError) throw entriesError;
+        
+        // If no data for current month, try previous month
+        if (!data || data.length === 0) {
+          const prevDate = new Date(currentDate);
+          prevDate.setMonth(prevDate.getMonth() - 1);
+          const prevMonth = format(prevDate, 'yyyy-MM');
+          
+          const { data: prevData, error: prevError } = await supabase
+            .from("scorecard_entries")
+            .select("kpi_id, status")
+            .in("kpi_id", kpiIds)
+            .eq("month", prevMonth)
+            .eq("entry_type", "monthly");
+
+          if (prevError) throw prevError;
+          entries = prevData;
+        } else {
+          entries = data;
+        }
+      }
 
       // Create a map of kpi_id to status
       const entryMap = new Map<string, string>();
@@ -884,6 +923,10 @@ const Dashboard = () => {
                 quarter={selectedQuarter}
                 onYearChange={setSelectedYear}
                 onQuarterChange={setSelectedQuarter}
+                onViewModeChange={(mode) => {
+                  setScorecardViewMode(mode);
+                  fetchKPIStatusCounts();
+                }}
               />
             ) : (
               <p className="text-muted-foreground text-center py-8">
