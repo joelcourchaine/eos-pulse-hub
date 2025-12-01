@@ -102,7 +102,6 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     
     let userIds: string[] = [];
     
-    // Filter by current store if provided
     if (currentStoreId) {
       // Get the store's group_id
       const { data: storeData } = await supabase
@@ -111,40 +110,46 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         .eq("id", currentStoreId)
         .single();
       
+      // Get users directly assigned to this store
+      const { data: storeUsers } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("store_id", currentStoreId);
+      
+      userIds = storeUsers?.map(u => u.id) || [];
+      
+      // Get users assigned to the store's group
       if (storeData?.group_id) {
-        // Get all stores in this group
-        const { data: storesInGroup } = await supabase
-          .from("stores")
-          .select("id")
-          .eq("group_id", storeData.group_id);
-        
-        const storeIds = storesInGroup?.map(s => s.id) || [];
-        
-        // Get users from: current store, any store in the group, or assigned to the group level
         const { data: groupUsers } = await supabase
           .from("profiles")
           .select("id")
-          .or(`store_id.in.(${storeIds.join(",")}),store_group_id.eq.${storeData.group_id}`);
+          .eq("store_group_id", storeData.group_id);
         
-        userIds = groupUsers?.map(u => u.id) || [];
-      } else {
-        // No group, just get users from this store
-        const { data: storeUsers } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("store_id", currentStoreId);
-        
-        userIds = storeUsers?.map(u => u.id) || [];
+        const groupUserIds = groupUsers?.map(u => u.id) || [];
+        userIds = [...userIds, ...groupUserIds];
       }
       
-      // Always include super-admins
-      const { data: superAdmins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "super_admin");
+      // Get users who are assigned to KPIs in this store's departments
+      const { data: departments } = await supabase
+        .from("departments")
+        .select("id")
+        .eq("store_id", currentStoreId);
       
-      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
-      userIds = [...new Set([...userIds, ...superAdminIds])];
+      const departmentIds = departments?.map(d => d.id) || [];
+      
+      if (departmentIds.length > 0) {
+        const { data: kpiOwners } = await supabase
+          .from("kpi_definitions")
+          .select("assigned_to")
+          .in("department_id", departmentIds)
+          .not("assigned_to", "is", null);
+        
+        const kpiOwnerIds = kpiOwners?.map(k => k.assigned_to).filter(Boolean) as string[] || [];
+        userIds = [...userIds, ...kpiOwnerIds];
+      }
+      
+      // Remove duplicates
+      userIds = [...new Set(userIds)];
     }
     
     // Fetch all profiles
