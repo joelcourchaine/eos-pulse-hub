@@ -100,12 +100,9 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const loadProfiles = async () => {
     setLoading(true);
     
-    let query = supabase
-      .from("profiles")
-      .select("*");
+    let userIds: string[] = [];
     
     // Filter by current store if provided
-    // Show users from the current store or users in a store group that contains this store
     if (currentStoreId) {
       // Get the store's group_id
       const { data: storeData } = await supabase
@@ -114,12 +111,49 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         .eq("id", currentStoreId)
         .single();
       
-      // Build filter: users from this store OR users from this store's group
       if (storeData?.group_id) {
-        query = query.or(`store_id.eq.${currentStoreId},store_group_id.eq.${storeData.group_id}`);
+        // Get all stores in this group
+        const { data: storesInGroup } = await supabase
+          .from("stores")
+          .select("id")
+          .eq("group_id", storeData.group_id);
+        
+        const storeIds = storesInGroup?.map(s => s.id) || [];
+        
+        // Get users from: current store, any store in the group, or assigned to the group level
+        const { data: groupUsers } = await supabase
+          .from("profiles")
+          .select("id")
+          .or(`store_id.in.(${storeIds.join(",")}),store_group_id.eq.${storeData.group_id}`);
+        
+        userIds = groupUsers?.map(u => u.id) || [];
       } else {
-        query = query.eq("store_id", currentStoreId);
+        // No group, just get users from this store
+        const { data: storeUsers } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("store_id", currentStoreId);
+        
+        userIds = storeUsers?.map(u => u.id) || [];
       }
+      
+      // Always include super-admins
+      const { data: superAdmins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      
+      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
+      userIds = [...new Set([...userIds, ...superAdminIds])];
+    }
+    
+    // Fetch all profiles
+    let query = supabase
+      .from("profiles")
+      .select("*");
+    
+    if (currentStoreId && userIds.length > 0) {
+      query = query.in("id", userIds);
     }
     
     const { data, error } = await query.order("full_name");
