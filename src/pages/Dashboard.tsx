@@ -152,14 +152,14 @@ const Dashboard = () => {
       const fetchAllDepartmentData = async () => {
         await Promise.all([
           fetchKPIs(),
-          fetchKPIStatusCounts(),
+          fetchKPIStatusCounts(selectedQuarter, selectedYear),
           fetchActiveRocksCount(),
           fetchMyOpenTodosCount()
         ]);
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore, scorecardViewMode]);
+  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore, scorecardViewMode, selectedQuarter, selectedYear]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
@@ -446,8 +446,11 @@ const Dashboard = () => {
     }
   };
 
-  const fetchKPIStatusCounts = async () => {
+  const fetchKPIStatusCounts = async (quarter?: number, year?: number) => {
     if (!selectedDepartment) return;
+
+    const targetQuarter = quarter ?? selectedQuarter;
+    const targetYear = year ?? selectedYear;
 
     try {
       // Get all KPIs for this department
@@ -468,53 +471,73 @@ const Dashboard = () => {
       let entries;
       
       if (scorecardViewMode === "weekly") {
-        // Calculate the previous week (review week) start date
-        const previousWeekStart = new Date(weekStart);
-        previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-        const reviewWeekStart = format(previousWeekStart, 'yyyy-MM-dd');
-
-        // Fetch the most recent entries for the review week (previous week)
-        const { data, error: entriesError } = await supabase
-          .from("scorecard_entries")
-          .select("kpi_id, status")
-          .in("kpi_id", kpiIds)
-          .eq("week_start_date", reviewWeekStart)
-          .eq("entry_type", "weekly");
-
-        if (entriesError) throw entriesError;
-        entries = data;
-      } else {
-        // For monthly view, get the most recent month that has data
-        const currentDate = new Date();
-        const currentMonth = format(currentDate, 'yyyy-MM');
+        // For weekly view, find the most recent week in the selected quarter that has data
+        // Calculate weeks for the quarter using same logic as ScorecardGrid
+        const YEAR_STARTS: { [key: number]: Date } = {
+          2025: new Date(2024, 11, 30), // Dec 30, 2024
+          2026: new Date(2025, 11, 29), // Dec 29, 2025
+          2027: new Date(2026, 11, 28), // Dec 28, 2026
+        };
         
-        // First try current month, if no data, try previous month
-        let { data, error: entriesError } = await supabase
-          .from("scorecard_entries")
-          .select("kpi_id, status")
-          .in("kpi_id", kpiIds)
-          .eq("month", currentMonth)
-          .eq("entry_type", "monthly");
-
-        if (entriesError) throw entriesError;
+        const yearStart = YEAR_STARTS[targetYear] || new Date(targetYear, 0, 1);
+        const quarterStartWeek = (targetQuarter - 1) * 13;
         
-        // If no data for current month, try previous month
-        if (!data || data.length === 0) {
-          const prevDate = new Date(currentDate);
-          prevDate.setMonth(prevDate.getMonth() - 1);
-          const prevMonth = format(prevDate, 'yyyy-MM');
-          
-          const { data: prevData, error: prevError } = await supabase
+        // Build array of week start dates for this quarter (in reverse order to check most recent first)
+        const weekDates: string[] = [];
+        for (let i = 12; i >= 0; i--) {
+          const weekStartDate = new Date(yearStart);
+          weekStartDate.setDate(yearStart.getDate() + ((quarterStartWeek + i) * 7));
+          weekDates.push(format(weekStartDate, 'yyyy-MM-dd'));
+        }
+        
+        // Try to find data for the most recent week in the quarter
+        for (const weekDate of weekDates) {
+          const { data, error: entriesError } = await supabase
             .from("scorecard_entries")
             .select("kpi_id, status")
             .in("kpi_id", kpiIds)
-            .eq("month", prevMonth)
+            .eq("week_start_date", weekDate)
+            .eq("entry_type", "weekly");
+
+          if (entriesError) throw entriesError;
+          
+          if (data && data.length > 0) {
+            entries = data;
+            break;
+          }
+        }
+      } else {
+        // For monthly view, find the most recent month in the selected quarter that has data
+        const monthsInQuarter: string[] = [];
+        
+        if (targetQuarter === 1) {
+          // Q1 shows all 12 months
+          for (let i = 11; i >= 0; i--) {
+            monthsInQuarter.push(`${targetYear}-${String(i + 1).padStart(2, '0')}`);
+          }
+        } else {
+          // Q2, Q3, Q4 show only their 3 months (in reverse order)
+          for (let i = 2; i >= 0; i--) {
+            const monthIndex = (targetQuarter - 1) * 3 + i;
+            monthsInQuarter.push(`${targetYear}-${String(monthIndex + 1).padStart(2, '0')}`);
+          }
+        }
+        
+        // Try to find data for the most recent month in the quarter
+        for (const month of monthsInQuarter) {
+          const { data, error: entriesError } = await supabase
+            .from("scorecard_entries")
+            .select("kpi_id, status")
+            .in("kpi_id", kpiIds)
+            .eq("month", month)
             .eq("entry_type", "monthly");
 
-          if (prevError) throw prevError;
-          entries = prevData;
-        } else {
-          entries = data;
+          if (entriesError) throw entriesError;
+          
+          if (data && data.length > 0) {
+            entries = data;
+            break;
+          }
         }
       }
 
@@ -925,7 +948,7 @@ const Dashboard = () => {
                 onQuarterChange={setSelectedQuarter}
                 onViewModeChange={(mode) => {
                   setScorecardViewMode(mode);
-                  fetchKPIStatusCounts();
+                  fetchKPIStatusCounts(selectedQuarter, selectedYear);
                 }}
               />
             ) : (
