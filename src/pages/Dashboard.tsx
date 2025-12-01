@@ -509,19 +509,12 @@ const Dashboard = () => {
         }
       } else {
         // For monthly view, get the most recent status for each KPI
+        // All quarters now show only their 3 months (in reverse order to find most recent)
         const monthsInQuarter: string[] = [];
         
-        if (targetQuarter === 1) {
-          // Q1 shows all 12 months (check in reverse order to find most recent)
-          for (let i = 11; i >= 0; i--) {
-            monthsInQuarter.push(`${targetYear}-${String(i + 1).padStart(2, '0')}`);
-          }
-        } else {
-          // Q2, Q3, Q4 show only their 3 months (in reverse order)
-          for (let i = 2; i >= 0; i--) {
-            const monthIndex = (targetQuarter - 1) * 3 + i;
-            monthsInQuarter.push(`${targetYear}-${String(monthIndex + 1).padStart(2, '0')}`);
-          }
+        for (let i = 2; i >= 0; i--) {
+          const monthIndex = (targetQuarter - 1) * 3 + i;
+          monthsInQuarter.push(`${targetYear}-${String(monthIndex + 1).padStart(2, '0')}`);
         }
         
         // Fetch ALL entries for these months to find the most recent entry per KPI
