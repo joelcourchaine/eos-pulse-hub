@@ -1250,7 +1250,89 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         })()}
                         {previousYearMonths.map((month) => {
                           const key = `${metric.key}-${month.identifier}`;
-                          const value = entries[key];
+                          let value = entries[key];
+                          
+                          // Helper function to get value for a metric (handles calculated fields)
+                          const getValueForMetric = (metricKey: string): number | undefined => {
+                            const entryKey = `${metricKey}-${month.identifier}`;
+                            const existingValue = entries[entryKey];
+                            
+                            // If value exists in entries, return it
+                            if (existingValue !== null && existingValue !== undefined) {
+                              return existingValue;
+                            }
+                            
+                            // Check if this metric is calculated
+                            const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+                            if (!sourceMetric || !sourceMetric.calculation) {
+                              return undefined;
+                            }
+                            
+                            // Handle dollar subtraction/complex calculations
+                            if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
+                              const baseValue = getValueForMetric(sourceMetric.calculation.base);
+                              if (baseValue === null || baseValue === undefined) return undefined;
+                              
+                              let calculatedValue = baseValue;
+                              for (const deduction of sourceMetric.calculation.deductions) {
+                                const deductionValue = getValueForMetric(deduction);
+                                calculatedValue -= (deductionValue || 0);
+                              }
+                              
+                              // Handle additions for complex calculations
+                              if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
+                                for (const addition of sourceMetric.calculation.additions) {
+                                  const additionValue = getValueForMetric(addition);
+                                  calculatedValue += (additionValue || 0);
+                                }
+                              }
+                              
+                              return calculatedValue;
+                            }
+                            
+                            return undefined;
+                          };
+                          
+                          // Calculate percentage metrics automatically if calculation is defined
+                          const isPercentageCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
+                          if (isPercentageCalculated && metric.calculation && 'numerator' in metric.calculation) {
+                            const numeratorValue = getValueForMetric(metric.calculation.numerator);
+                            const denominatorValue = getValueForMetric(metric.calculation.denominator);
+                            
+                            if (numeratorValue !== null && numeratorValue !== undefined && 
+                                denominatorValue !== null && denominatorValue !== undefined && 
+                                denominatorValue !== 0) {
+                              value = (numeratorValue / denominatorValue) * 100;
+                            } else {
+                              value = undefined;
+                            }
+                          }
+                          
+                          // Calculate dollar subtraction/complex metrics automatically if calculation is defined
+                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
+                          if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
+                            const baseValue = getValueForMetric(metric.calculation.base);
+                            
+                            if (baseValue !== null && baseValue !== undefined) {
+                              let calculatedValue = baseValue;
+                              for (const deduction of metric.calculation.deductions) {
+                                const deductionValue = getValueForMetric(deduction);
+                                calculatedValue -= (deductionValue || 0);
+                              }
+                              
+                              // Handle additions for complex calculations
+                              if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
+                                for (const addition of metric.calculation.additions) {
+                                  const additionValue = getValueForMetric(addition);
+                                  calculatedValue += (additionValue || 0);
+                                }
+                              }
+                              
+                              value = calculatedValue;
+                            } else {
+                              value = undefined;
+                            }
+                          }
                           
                           return (
                             <TableCell
@@ -1381,21 +1463,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             const numeratorValue = getValueForMetric(metric.calculation.numerator);
                             const denominatorValue = getValueForMetric(metric.calculation.denominator);
                             
-                            console.log(`Calculating ${metric.key} for ${month.identifier}:`, {
-                              numerator: metric.calculation.numerator,
-                              numeratorValue,
-                              denominator: metric.calculation.denominator,
-                              denominatorValue
-                            });
-                            
                             if (numeratorValue !== null && numeratorValue !== undefined && 
                                 denominatorValue !== null && denominatorValue !== undefined && 
                                 denominatorValue !== 0) {
                               value = (numeratorValue / denominatorValue) * 100;
-                              console.log(`  -> Calculated value: ${value}`);
                             } else {
                               value = undefined;
-                              console.log(`  -> Value undefined (missing data)`);
                             }
                           }
                           
@@ -1404,17 +1477,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseValue = getValueForMetric(metric.calculation.base);
                             
-                            console.log(`Calculating ${metric.key} for ${month.identifier}:`, {
-                              base: metric.calculation.base,
-                              baseValue,
-                              deductions: metric.calculation.deductions
-                            });
-                            
                             if (baseValue !== null && baseValue !== undefined) {
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
                                 const deductionValue = getValueForMetric(deduction);
-                                console.log(`  Deducting ${deduction}: ${deductionValue}`);
                                 // Treat missing deductions as 0 (no expense = 0)
                                 calculatedValue -= (deductionValue || 0);
                               }
@@ -1423,16 +1489,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
                                 for (const addition of metric.calculation.additions) {
                                   const additionValue = getValueForMetric(addition);
-                                  console.log(`  Adding ${addition}: ${additionValue}`);
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
                               
                               value = calculatedValue;
-                              console.log(`  -> Calculated value: ${value}`);
                             } else {
                               value = undefined;
-                              console.log(`  -> Value undefined (missing base)`);
                             }
                           }
                           
