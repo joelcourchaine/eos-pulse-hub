@@ -454,10 +454,10 @@ const Dashboard = () => {
     const targetYear = year ?? selectedYear;
 
     try {
-      // Get all KPIs for this department
+      // Get all KPIs for this department with their properties
       const { data: kpiData, error: kpiError } = await supabase
         .from("kpi_definitions")
-        .select("id")
+        .select("id, target_value, metric_type, target_direction")
         .eq("department_id", selectedDepartment);
 
       if (kpiError) throw kpiError;
@@ -517,15 +517,10 @@ const Dashboard = () => {
           monthsInQuarter.push(`${targetYear}-${String(monthIndex + 1).padStart(2, '0')}`);
         }
         
-        console.log(`=== KPI Status Gauge Debug for Q${targetQuarter} ${targetYear} ===`);
-        console.log("Months to check:", monthsInQuarter);
-        console.log("Department ID:", selectedDepartment);
-        console.log("Total KPIs:", kpiIds.length);
-        
         // Fetch ALL entries for these months to find the most recent entry per KPI
         const { data: allMonthlyData, error: entriesError } = await supabase
           .from("scorecard_entries")
-          .select("kpi_id, status, month")
+          .select("kpi_id, actual_value, month")
           .in("kpi_id", kpiIds)
           .in("month", monthsInQuarter)
           .eq("entry_type", "monthly")
@@ -533,19 +528,42 @@ const Dashboard = () => {
 
         if (entriesError) throw entriesError;
         
-        console.log("Scorecard entries found:", allMonthlyData?.length || 0);
-        console.log("Sample entries:", allMonthlyData?.slice(0, 5));
+        // Fetch targets for all KPIs in this quarter
+        const { data: targetsData } = await supabase
+          .from("kpi_targets")
+          .select("kpi_id, target_value")
+          .in("kpi_id", kpiIds)
+          .eq("quarter", targetQuarter)
+          .eq("year", targetYear)
+          .eq("entry_type", "monthly");
         
-        // For each KPI, find the most recent entry that HAS a status value
+        const targetsByKpi = new Map(targetsData?.map(t => [t.kpi_id, t.target_value]) || []);
+        
+        // For each KPI, find the most recent entry and recalculate its status
         const kpiMostRecentEntry = new Map<string, any>();
-        allMonthlyData?.forEach(entry => {
-          if (!kpiMostRecentEntry.has(entry.kpi_id) && entry.status) {
-            kpiMostRecentEntry.set(entry.kpi_id, entry);
+        allMonthlyData?.forEach((entry) => {
+          if (entry.actual_value !== null && !kpiMostRecentEntry.has(entry.kpi_id)) {
+            // Find the KPI definition to get target_direction and metric_type
+            const kpiDef = kpiData.find(k => k.id === entry.kpi_id);
+            const target = targetsByKpi.get(entry.kpi_id) || kpiDef?.target_value || 0;
+            
+            if (kpiDef && target > 0) {
+              // Recalculate status based on current target (matching scorecard logic)
+              const variance = kpiDef.metric_type === "percentage" 
+                ? entry.actual_value - target 
+                : ((entry.actual_value - target) / target) * 100;
+              
+              let status: string;
+              if (kpiDef.target_direction === "above") {
+                status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+              } else {
+                status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+              }
+              
+              kpiMostRecentEntry.set(entry.kpi_id, { ...entry, status });
+            }
           }
         });
-        
-        console.log("KPIs with status found:", kpiMostRecentEntry.size);
-        console.log("Sample KPI statuses:", Array.from(kpiMostRecentEntry.entries()).slice(0, 3).map(([id, entry]) => ({ kpi_id: id, status: entry.status, month: entry.month })));
         
         // Convert to array for compatibility with existing code
         entries = Array.from(kpiMostRecentEntry.values());
