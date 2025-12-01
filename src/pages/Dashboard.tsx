@@ -68,7 +68,8 @@ const Dashboard = () => {
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-  const weekDateRange = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d')}`;
+  const weekDateRange = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`;
+
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
