@@ -827,16 +827,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setNotes({});
     setLocalValues({});
     
-    // Skip loading individual month data in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) {
+    // Skip loading individual month data in Quarter Trend mode only
+    if (isQuarterTrendMode) {
       setLoading(false);
       return;
     }
     
-    const monthIds = months.map(m => m.identifier);
-    const previousYearMonthIds = previousYearMonths.map(m => m.identifier);
+    // For monthly trend mode, we need to load all the months in the trend
+    const monthIds = isMonthlyTrendMode 
+      ? monthlyTrendPeriods.map(m => m.identifier)
+      : [...months.map(m => m.identifier), ...previousYearMonths.map(m => m.identifier)];
     
-    const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds])];
+    const allMonthIds = [...new Set(monthIds)];
 
     const { data, error } = await supabase
       .from("financial_entries")
@@ -1532,20 +1534,207 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                  })}
                                />
                              </TableCell>
-                             {monthlyTrendPeriods.map((month) => {
+                             {monthlyTrendPeriods.map((month, monthIndex) => {
+                               const key = `${metric.key}-${month.identifier}`;
+                               const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                                const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-                               const mValue = precedingQuartersData[mKey];
+                               
+                               // Try to get value from entries first (for edits), then precedingQuartersData
+                               let value = entries[key];
+                               if (value === null || value === undefined) {
+                                 value = precedingQuartersData[mKey];
+                               }
+                               
+                               const isCalculated = metric.calculation !== undefined;
                                
                                return (
-                                 <TableCell
-                                   key={month.label}
-                                   className={cn(
-                                     "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                                     isDepartmentProfit && "bg-primary/5"
-                                   )}
-                                 >
-                                   {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
-                                 </TableCell>
+                                 <ContextMenu key={month.label}>
+                                   <ContextMenuTrigger>
+                                     <TableCell
+                                       className={cn(
+                                         "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
+                                         isDepartmentProfit && "bg-primary/5"
+                                       )}
+                                     >
+                                       <TooltipProvider delayDuration={300}>
+                                         <Tooltip>
+                                           <TooltipTrigger asChild>
+                                             <div className="h-full w-full relative flex items-center justify-center min-h-[32px]">
+                                               {isCalculated ? (
+                                                 // Calculated metrics are read-only
+                                                 <>
+                                                   <div className="text-muted-foreground">
+                                                     {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
+                                                   </div>
+                                                   {notes[key] && (
+                                                     <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary" />
+                                                   )}
+                                                 </>
+                                               ) : (
+                                                 // Manual input for non-calculated metrics
+                                                 <>
+                                                   {(() => {
+                                                     const isFocused = focusedCell === key;
+                                                     
+                                                     // Determine display value
+                                                     let displayValue: number | undefined;
+                                                     if (value !== null && value !== undefined) {
+                                                       displayValue = value;
+                                                     } else if (localValues[key] !== undefined && localValues[key] !== '') {
+                                                       const parsed = parseFloat(localValues[key]);
+                                                       if (!isNaN(parsed)) {
+                                                         displayValue = parsed;
+                                                       }
+                                                     }
+                                                     
+                                                     // Only show display div when not focused
+                                                     if (isFocused) {
+                                                       return null;
+                                                     }
+                                                     
+                                                     // Show value if we have one
+                                                     if (displayValue !== null && displayValue !== undefined) {
+                                                       return (
+                                                         <div 
+                                                           className="h-full w-full flex items-center justify-center cursor-text"
+                                                           onClick={(e) => {
+                                                             const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                             input?.focus();
+                                                             input?.select();
+                                                           }}
+                                                         >
+                                                           {formatTarget(displayValue, metric.type)}
+                                                         </div>
+                                                       );
+                                                     }
+                                                     
+                                                     // Empty state
+                                                     return (
+                                                       <div className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                         onClick={(e) => {
+                                                           const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                           input?.focus();
+                                                         }}
+                                                       >
+                                                         {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                                       </div>
+                                                     );
+                                                   })()}
+                                                   <Input
+                                                     type="number"
+                                                     step="any"
+                                                     value={localValues[key] || ""}
+                                                     onChange={(e) =>
+                                                       handleValueChange(metric.key, month.identifier, e.target.value)
+                                                     }
+                                                     onKeyDown={async (e) => {
+                                                       if (e.key === 'Enter') {
+                                                         e.preventDefault();
+                                                         
+                                                         if (saveTimeoutRef.current[key]) {
+                                                           clearTimeout(saveTimeoutRef.current[key]);
+                                                           delete saveTimeoutRef.current[key];
+                                                         }
+                                                         
+                                                         const currentValue = localValues[key];
+                                                         if (currentValue !== undefined && currentValue !== '') {
+                                                           let numValue = parseFloat(currentValue);
+                                                           if (!isNaN(numValue)) {
+                                                             numValue = Math.round(numValue);
+                                                             
+                                                             setEntries(prev => ({ ...prev, [key]: numValue }));
+                                                             setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+                                                             
+                                                             setSaving(prev => ({ ...prev, [key]: true }));
+                                                             
+                                                             const { data: session } = await supabase.auth.getSession();
+                                                             const userId = session.session?.user?.id;
+                                                             
+                                                             supabase
+                                                               .from("financial_entries")
+                                                               .upsert({
+                                                                 department_id: departmentId,
+                                                                 month: month.identifier,
+                                                                 metric_name: metric.key,
+                                                                 value: numValue,
+                                                                 created_by: userId,
+                                                               }, {
+                                                                 onConflict: "department_id,month,metric_name"
+                                                               })
+                                                               .then(({ error }) => {
+                                                                 if (error) {
+                                                                   console.error('Save error:', error);
+                                                                 } else {
+                                                                   // Refresh trend data
+                                                                   loadPrecedingQuartersData();
+                                                                 }
+                                                                 setSaving(prev => ({ ...prev, [key]: false }));
+                                                               });
+                                                           }
+                                                         }
+                                                         
+                                                         // Move to next input
+                                                         if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                                           let nextIndex = metricIndex + 1;
+                                                           let nextInput: HTMLInputElement | null = null;
+                                                           
+                                                           while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
+                                                             nextInput = document.querySelector(
+                                                               `input[data-metric-index="${nextIndex}"][data-month-index="${monthIndex}"]`
+                                                             ) as HTMLInputElement;
+                                                             if (!nextInput) nextIndex++;
+                                                           }
+                                                           
+                                                           if (nextInput) {
+                                                             nextInput.focus();
+                                                             nextInput.select();
+                                                           }
+                                                         }
+                                                       }
+                                                     }}
+                                                     onFocus={() => {
+                                                       setFocusedCell(key);
+                                                     }}
+                                                     onBlur={() => {
+                                                       setFocusedCell(null);
+                                                     }}
+                                                     data-metric-index={metricIndex}
+                                                     data-month-index={monthIndex}
+                                                     className={cn(
+                                                       "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
+                                                       saving[key] && "opacity-50"
+                                                     )}
+                                                     disabled={saving[key]}
+                                                   />
+                                                   {saving[key] && (
+                                                     <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                                                   )}
+                                                   {notes[key] && (
+                                                     <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary z-20" />
+                                                   )}
+                                                 </>
+                                               )}
+                                             </div>
+                                           </TooltipTrigger>
+                                           {notes[key] && (
+                                             <TooltipContent className="max-w-xs bg-popover text-popover-foreground z-50">
+                                               <div 
+                                                 className="text-sm prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md" 
+                                                 dangerouslySetInnerHTML={{ __html: notes[key] }}
+                                               />
+                                             </TooltipContent>
+                                           )}
+                                         </Tooltip>
+                                       </TooltipProvider>
+                                     </TableCell>
+                                   </ContextMenuTrigger>
+                                   <ContextMenuContent className="w-48 bg-popover z-50">
+                                     <ContextMenuItem onClick={() => handleOpenNoteDialog(metric.key, month.identifier)}>
+                                       <StickyNote className="h-4 w-4 mr-2" />
+                                       {notes[key] ? "Edit Note" : "Add Note"}
+                                     </ContextMenuItem>
+                                   </ContextMenuContent>
+                                 </ContextMenu>
                                );
                              })}
                            </>
