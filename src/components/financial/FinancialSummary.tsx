@@ -827,8 +827,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setNotes({});
     setLocalValues({});
     
-    // Skip loading individual month data only in Quarter Trend mode
-    if (isQuarterTrendMode) {
+    // Skip loading individual month data in Quarter Trend or Monthly Trend mode
+    if (isQuarterTrendMode || isMonthlyTrendMode) {
       setLoading(false);
       return;
     }
@@ -1519,234 +1519,37 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                          </TableCell>
-                          {isMonthlyTrendMode ? (
-                            <>
-                              <TableCell className={cn(
-                                "px-1 py-0.5 min-w-[100px] max-w-[100px]",
-                                isDepartmentProfit && "bg-primary/5"
-                              )}>
-                                <Sparkline 
-                                  data={monthlyTrendPeriods.map(month => {
-                                    const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-                                    return precedingQuartersData[mKey];
-                                  })}
-                                />
-                              </TableCell>
-                              {monthlyTrendPeriods.map((month) => {
-                                const monthIdentifier = month.identifier;
-                                const key = `${metric.key}-${monthIdentifier}`;
-                                let value = entries[key];
-                                
-                                // Helper function to get value for a metric (handles calculated fields)
-                                const getValueForMetric = (metricKey: string): number | undefined => {
-                                  const entryKey = `${metricKey}-${monthIdentifier}`;
-                                  const existingValue = entries[entryKey];
-                                  
-                                  if (existingValue !== null && existingValue !== undefined) {
-                                    return existingValue;
-                                  }
-                                  
-                                  const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-                                  if (!sourceMetric || !sourceMetric.calculation) {
-                                    return undefined;
-                                  }
-                                  
-                                  if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
-                                    const baseValue = getValueForMetric(sourceMetric.calculation.base);
-                                    if (baseValue === null || baseValue === undefined) return undefined;
-                                    
-                                    let calculatedValue = baseValue;
-                                    for (const deduction of sourceMetric.calculation.deductions) {
-                                      const deductionValue = getValueForMetric(deduction);
-                                      calculatedValue -= (deductionValue || 0);
-                                    }
-                                    
-                                    if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
-                                      for (const addition of sourceMetric.calculation.additions) {
-                                        const additionValue = getValueForMetric(addition);
-                                        calculatedValue += (additionValue || 0);
-                                      }
-                                    }
-                                    
-                                    return calculatedValue;
-                                  }
-                                  
-                                  return undefined;
-                                };
-                                
-                                // Calculate percentage metrics automatically
-                                const isPercentageCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
-                                if (isPercentageCalculated && metric.calculation && 'numerator' in metric.calculation) {
-                                  const numeratorValue = getValueForMetric(metric.calculation.numerator);
-                                  const denominatorValue = getValueForMetric(metric.calculation.denominator);
-                                  
-                                  if (numeratorValue !== null && numeratorValue !== undefined && 
-                                      denominatorValue !== null && denominatorValue !== undefined && 
-                                      denominatorValue !== 0) {
-                                    value = (numeratorValue / denominatorValue) * 100;
-                                  } else {
-                                    value = undefined;
-                                  }
-                                }
-                                
-                                // Calculate dollar metrics automatically
-                                const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
-                                if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
-                                  const baseValue = getValueForMetric(metric.calculation.base);
-                                  
-                                  if (baseValue !== null && baseValue !== undefined) {
-                                    let calculatedValue = baseValue;
-                                    for (const deduction of metric.calculation.deductions) {
-                                      const deductionValue = getValueForMetric(deduction);
-                                      calculatedValue -= (deductionValue || 0);
-                                    }
-                                    
-                                    if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
-                                      for (const addition of metric.calculation.additions) {
-                                        const additionValue = getValueForMetric(addition);
-                                        calculatedValue += (additionValue || 0);
-                                      }
-                                    }
-                                    
-                                    value = calculatedValue;
-                                  } else {
-                                    value = undefined;
-                                  }
-                                }
-                                
-                                const isCalculated = isPercentageCalculated || isDollarCalculated;
-                                
-                                return (
-                                  <ContextMenu key={monthIdentifier}>
-                                    <ContextMenuTrigger asChild>
-                                      <TableCell
-                                        className={cn(
-                                          "p-1 relative min-w-[125px] max-w-[125px]",
-                                          isDepartmentProfit && "bg-primary/5"
-                                        )}
-                                      >
-                                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                                          {isCalculated ? (
-                                            <div className="text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px] text-muted-foreground">
-                                              {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
-                                            </div>
-                                          ) : (
-                                            <>
-                                              {(() => {
-                                                const isFocused = focusedCell === key;
-                                                let displayValue: number | undefined;
-                                                
-                                                if (value !== null && value !== undefined) {
-                                                  displayValue = value;
-                                                } else if (localValues[key] !== undefined && localValues[key] !== '') {
-                                                  const parsed = parseFloat(localValues[key]);
-                                                  if (!isNaN(parsed)) {
-                                                    displayValue = parsed;
-                                                  }
-                                                }
-                                                
-                                                if (isFocused) {
-                                                  return null;
-                                                }
-                                                
-                                                if (displayValue !== null && displayValue !== undefined) {
-                                                  return (
-                                                    <div 
-                                                      className="h-full w-full flex items-center justify-center cursor-text"
-                                                      onClick={(e) => {
-                                                        const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                        input?.focus();
-                                                        input?.select();
-                                                      }}
-                                                    >
-                                                      {formatTarget(displayValue, metric.type)}
-                                                    </div>
-                                                  );
-                                                }
-                                                
-                                                return (
-                                                  <div 
-                                                    className="h-full w-full flex items-center justify-center cursor-text text-muted-foreground/30"
-                                                    onClick={(e) => {
-                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                      input?.focus();
-                                                      input?.select();
-                                                    }}
-                                                  >
-                                                    -
-                                                  </div>
-                                                );
-                                              })()}
-                              <Input
-                                                type="number"
-                                                step="any"
-                                                value={localValues[key] || ""}
-                                                onChange={(e) =>
-                                                  handleValueChange(metric.key, monthIdentifier, e.target.value)
-                                                }
-                                                onFocus={() => setFocusedCell(key)}
-                                                onBlur={() => setFocusedCell(null)}
-                                                onKeyDown={async (e) => {
-                                                  if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    if (saveTimeoutRef.current[key]) {
-                                                      clearTimeout(saveTimeoutRef.current[key]);
-                                                      delete saveTimeoutRef.current[key];
-                                                    }
-                                                    const currentValue = localValues[key];
-                                                    if (currentValue !== undefined && currentValue !== '') {
-                                                      let numValue = parseFloat(currentValue);
-                                                      if (!isNaN(numValue)) {
-                                                        numValue = Math.round(numValue);
-                                                        setEntries(prev => ({ ...prev, [key]: numValue }));
-                                                        setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
-                                                        const { data: session } = await supabase.auth.getSession();
-                                                        const userId = session.session?.user?.id;
-                                                        const { error } = await supabase
-                                                          .from("financial_entries")
-                                                          .upsert({
-                                                            department_id: departmentId,
-                                                            month: monthIdentifier,
-                                                            metric_name: metric.key,
-                                                            value: numValue,
-                                                            created_by: userId,
-                                                          }, {
-                                                            onConflict: "department_id,month,metric_name"
-                                                          });
-                                                        if (error) {
-                                                          toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
-                                                        } else {
-                                                          await loadPrecedingQuartersData();
-                                                        }
-                                                      }
-                                                    }
-                                                    setFocusedCell(null);
-                                                  }
-                                                }}
-                                                className={cn(
-                                                  "h-8 text-center border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0",
-                                                  focusedCell === key ? "opacity-100" : "opacity-0"
-                                                )}
-                                              />
-                                              {saving[key] && (
-                                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-primary" />
-                                              )}
-                                            </>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </ContextMenuTrigger>
-                                    <ContextMenuContent>
-                                      <ContextMenuItem onClick={() => handleOpenNoteDialog(metric.key, monthIdentifier)}>
-                                        <StickyNote className="h-4 w-4 mr-2" />
-                                        {notes[key] ? "Edit Note" : "Add Note"}
-                                      </ContextMenuItem>
-                                    </ContextMenuContent>
-                                  </ContextMenu>
-                                );
-                              })}
-                            </>
-                          ) : isQuarterTrendMode ? (
+                         {isMonthlyTrendMode ? (
+                           <>
+                             <TableCell className={cn(
+                               "px-1 py-0.5 min-w-[100px] max-w-[100px]",
+                               isDepartmentProfit && "bg-primary/5"
+                             )}>
+                               <Sparkline 
+                                 data={monthlyTrendPeriods.map(month => {
+                                   const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                                   return precedingQuartersData[mKey];
+                                 })}
+                               />
+                             </TableCell>
+                             {monthlyTrendPeriods.map((month) => {
+                               const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
+                               const mValue = precedingQuartersData[mKey];
+                               
+                               return (
+                                 <TableCell
+                                   key={month.label}
+                                   className={cn(
+                                     "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                     isDepartmentProfit && "bg-primary/5"
+                                   )}
+                                 >
+                                   {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
+                                 </TableCell>
+                               );
+                             })}
+                           </>
+                         ) : isQuarterTrendMode ? (
                           quarterTrendPeriods.map((qtr) => {
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
