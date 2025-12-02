@@ -1931,15 +1931,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               {(() => {
                                                  const isFocused = focusedCell === key;
                                                  
-                                                 // Determine display value - check entries first (source of truth), then localValues
+                                                 // Determine display value - check localValues first (most current), then entries
                                                  let displayValue: number | undefined;
-                                                 if (value !== null && value !== undefined) {
-                                                   displayValue = value;
-                                                 } else if (localValues[key] !== undefined && localValues[key] !== '') {
+                                                 if (localValues[key] !== undefined && localValues[key] !== '') {
                                                    const parsed = parseFloat(localValues[key]);
                                                    if (!isNaN(parsed)) {
                                                      displayValue = parsed;
                                                    }
+                                                 } else if (value !== null && value !== undefined) {
+                                                   displayValue = value;
                                                  }
                                                  
                                                  // Only show display div when not focused
