@@ -527,6 +527,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       if (error) {
         console.error("Error loading monthly trend data:", error);
       } else {
+        // Helper to get value from either raw data or already calculated values
+        const getValueForMetric = (monthData: any[], metricKey: string, month: any): number | undefined => {
+          // First check if already calculated
+          const calculatedKey = `${metricKey}-M${month.month + 1}-${month.year}`;
+          if (averages[calculatedKey] !== undefined) {
+            return averages[calculatedKey];
+          }
+          // Otherwise check raw data
+          const entry = monthData?.find(e => e.metric_name === metricKey);
+          return entry?.value;
+        };
+
         // Process each metric for each month
         monthlyTrendPeriods.forEach(month => {
           const monthData = data?.filter(e => e.month === month.identifier);
@@ -541,34 +553,34 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               // Calculate percentage metrics from underlying dollar amounts
               const { numerator, denominator } = metric.calculation;
               
-              const numEntry = monthData?.find(e => e.metric_name === numerator);
-              const denEntry = monthData?.find(e => e.metric_name === denominator);
+              const numValue = getValueForMetric(monthData, numerator, month);
+              const denValue = getValueForMetric(monthData, denominator, month);
               
-              if (numEntry && denEntry && denEntry.value && denEntry.value > 0) {
-                const calculatedPercentage = (numEntry.value / denEntry.value) * 100;
+              if (numValue !== undefined && denValue !== undefined && denValue > 0) {
+                const calculatedPercentage = (numValue / denValue) * 100;
                 const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
                 averages[mKey] = calculatedPercentage;
               }
             } else if (metric.calculation && 'type' in metric.calculation) {
               // Calculate dollar metrics (subtract or complex)
               const calc = metric.calculation;
-              const baseEntry = monthData?.find(e => e.metric_name === calc.base);
+              const baseValue = getValueForMetric(monthData, calc.base, month);
               
-              if (baseEntry && baseEntry.value !== null && baseEntry.value !== undefined) {
-                let calculatedValue = baseEntry.value;
+              if (baseValue !== null && baseValue !== undefined) {
+                let calculatedValue = baseValue;
                 
                 for (const deduction of calc.deductions) {
-                  const deductEntry = monthData?.find(e => e.metric_name === deduction);
-                  if (deductEntry && deductEntry.value !== null && deductEntry.value !== undefined) {
-                    calculatedValue -= deductEntry.value;
+                  const deductValue = getValueForMetric(monthData, deduction, month);
+                  if (deductValue !== null && deductValue !== undefined) {
+                    calculatedValue -= deductValue;
                   }
                 }
                 
                 if (calc.type === 'complex' && 'additions' in calc) {
                   for (const addition of calc.additions) {
-                    const addEntry = monthData?.find(e => e.metric_name === addition);
-                    if (addEntry && addEntry.value !== null && addEntry.value !== undefined) {
-                      calculatedValue += addEntry.value;
+                    const addValue = getValueForMetric(monthData, addition, month);
+                    if (addValue !== null && addValue !== undefined) {
+                      calculatedValue += addValue;
                     }
                   }
                 }
