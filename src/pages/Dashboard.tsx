@@ -368,10 +368,11 @@ const Dashboard = () => {
           if (savedDept && foundDept) {
             setSelectedDepartment(savedDept);
           } else {
-            // Set first department if saved one is invalid or doesn't match current accessible departments
-            const firstDept = data[0].id;
-            setSelectedDepartment(firstDept);
-            localStorage.setItem('selectedDepartment', firstDept);
+            // Prioritize Service Department, otherwise use first department
+            const serviceDept = data.find(d => d.name.toLowerCase().includes('service'));
+            const defaultDept = serviceDept ? serviceDept.id : data[0].id;
+            setSelectedDepartment(defaultDept);
+            localStorage.setItem('selectedDepartment', defaultDept);
             if (savedDept) {
               console.warn('Cleared invalid department from localStorage:', savedDept);
             }
@@ -412,10 +413,11 @@ const Dashboard = () => {
         if (savedDept && foundDept && foundDept.store_id === selectedStore) {
           setSelectedDepartment(savedDept);
         } else {
-          // Set first department if saved one is invalid or doesn't match store
-          const firstDept = data[0].id;
-          setSelectedDepartment(firstDept);
-          localStorage.setItem('selectedDepartment', firstDept);
+          // Prioritize Service Department, otherwise use first department
+          const serviceDept = data.find(d => d.name.toLowerCase().includes('service'));
+          const defaultDept = serviceDept ? serviceDept.id : data[0].id;
+          setSelectedDepartment(defaultDept);
+          localStorage.setItem('selectedDepartment', defaultDept);
           if (savedDept) {
             console.warn('Cleared invalid department from localStorage - did not belong to current store:', savedDept, 'store:', selectedStore);
           }
