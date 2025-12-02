@@ -219,8 +219,8 @@ const getMonthlyTrendPeriods = (currentYear: number) => {
   const currentMonth = new Date().getMonth(); // 0-11
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  // Add all months from last year
-  for (let m = 0; m < 12; m++) {
+  // Add months from last year starting from the same month as current month
+  for (let m = currentMonth; m < 12; m++) {
     months.push({
       month: m,
       year: startYear,
