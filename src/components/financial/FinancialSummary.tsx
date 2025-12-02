@@ -1023,6 +1023,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
       // Refresh data and close dialog
       await loadFinancialData();
+      await loadPrecedingQuartersData();
       setPasteDialogOpen(false);
       setPasteData("");
       setPasteMetric("");
