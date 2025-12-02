@@ -176,6 +176,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [pasteMetric, setPasteMetric] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ month: string; value: number }[]>([]);
+  const [pasteMonth, setPasteMonth] = useState<string>("");
+  const [pasteYear, setPasteYear] = useState<number>(year);
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -949,28 +951,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setPasteData(value);
     
     // Parse the pasted data
-    if (!value.trim() || !pasteMetric) {
+    if (!value.trim() || !pasteMetric || !pasteMonth || !pasteYear) {
       setParsedPasteData([]);
       return;
     }
 
-    // Split by tabs or spaces (supporting both tab-separated and space-separated)
-    const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
-    const parsed: { month: string; value: number }[] = [];
-
-    values.forEach((val, idx) => {
-      if (idx < months.length) {
-        const numValue = parseFloat(val);
-        if (!isNaN(numValue)) {
-          parsed.push({
-            month: months[idx].identifier,
-            value: numValue
-          });
-        }
-      }
-    });
-
-    setParsedPasteData(parsed);
+    // For single month paste mode, just parse the single value
+    const cleanValue = value.trim().replace(/[,$]/g, '');
+    const numValue = parseFloat(cleanValue);
+    
+    if (!isNaN(numValue)) {
+      const monthIdentifier = `${pasteYear}-${pasteMonth.padStart(2, '0')}`;
+      setParsedPasteData([{
+        month: monthIdentifier,
+        value: numValue
+      }]);
+    } else {
+      setParsedPasteData([]);
+    }
   };
 
   const handlePasteSave = async () => {
@@ -2114,13 +2112,66 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       <Dialog open={pasteDialogOpen} onOpenChange={setPasteDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Paste Row Data</DialogTitle>
+            <DialogTitle>Paste Financial Data</DialogTitle>
             <DialogDescription>
-              Copy a row from Google Sheets and paste it here. The values should be tab-separated (months: {months.map(m => m.label).join(', ')})
+              Paste a value for a specific metric, month, and year
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="paste-year">Year</Label>
+                <Select value={pasteYear.toString()} onValueChange={(value) => {
+                  setPasteYear(parseInt(value));
+                  handlePasteDataChange(pasteData);
+                }}>
+                  <SelectTrigger id="paste-year">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[year - 1, year, year + 1].map((y) => (
+                      <SelectItem key={y} value={y.toString()}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paste-month">Month</Label>
+                <Select value={pasteMonth} onValueChange={(value) => {
+                  setPasteMonth(value);
+                  handlePasteDataChange(pasteData);
+                }}>
+                  <SelectTrigger id="paste-month">
+                    <SelectValue placeholder="Select month..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { value: "01", label: "January" },
+                      { value: "02", label: "February" },
+                      { value: "03", label: "March" },
+                      { value: "04", label: "April" },
+                      { value: "05", label: "May" },
+                      { value: "06", label: "June" },
+                      { value: "07", label: "July" },
+                      { value: "08", label: "August" },
+                      { value: "09", label: "September" },
+                      { value: "10", label: "October" },
+                      { value: "11", label: "November" },
+                      { value: "12", label: "December" }
+                    ].map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="paste-metric">Select Metric</Label>
               <Select value={pasteMetric} onValueChange={(value) => {
@@ -2141,38 +2192,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="paste-values">Paste Values</Label>
+              <Label htmlFor="paste-values">Paste Value</Label>
               <Input
                 id="paste-values"
-                placeholder="Paste tab-separated values here (e.g., 150000  160000  155000...)"
+                placeholder="Paste value here (e.g., 150000)"
                 value={pasteData}
                 onChange={(e) => handlePasteDataChange(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Tip: In Google Sheets, select the cells for all months in the row, copy (Ctrl+C), and paste here
+                Paste a single value for the selected metric, month, and year
               </p>
             </div>
 
             {parsedPasteData.length > 0 && (
               <div className="space-y-2">
-                <Label>Preview ({parsedPasteData.length} values)</Label>
-                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Month</TableHead>
-                        <TableHead>Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {parsedPasteData.map((entry, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{months.find(m => m.identifier === entry.month)?.label}</TableCell>
-                          <TableCell>{entry.value.toLocaleString()}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <Label>Preview</Label>
+                <div className="border rounded-lg p-3">
+                  <div className="text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Metric:</span>
+                      <span className="font-medium">{FINANCIAL_METRICS.find(m => m.key === pasteMetric)?.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Date:</span>
+                      <span className="font-medium">{parsedPasteData[0].month}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Value:</span>
+                      <span className="font-medium">{parsedPasteData[0].value.toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -2183,6 +2232,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               setPasteDialogOpen(false);
               setPasteData("");
               setPasteMetric("");
+              setPasteMonth("");
               setParsedPasteData([]);
             }}>
               Cancel
@@ -2191,7 +2241,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               onClick={handlePasteSave}
               disabled={parsedPasteData.length === 0}
             >
-              Save {parsedPasteData.length} Entries
+              Save Entry
             </Button>
           </div>
         </DialogContent>
