@@ -956,19 +956,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       return;
     }
 
-    // For single month paste mode, just parse the single value
-    const cleanValue = value.trim().replace(/[,$]/g, '');
-    const numValue = parseFloat(cleanValue);
+    // Split by tabs or spaces (supporting both tab-separated and space-separated)
+    const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
+    const parsed: { month: string; value: number }[] = [];
     
-    if (!isNaN(numValue)) {
-      const monthIdentifier = `${pasteYear}-${pasteMonth.padStart(2, '0')}`;
-      setParsedPasteData([{
-        month: monthIdentifier,
-        value: numValue
-      }]);
-    } else {
-      setParsedPasteData([]);
-    }
+    // Start from the selected month and year
+    let currentMonth = parseInt(pasteMonth);
+    let currentYear = pasteYear;
+
+    values.forEach((val) => {
+      const numValue = parseFloat(val);
+      if (!isNaN(numValue)) {
+        const monthIdentifier = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+        parsed.push({
+          month: monthIdentifier,
+          value: numValue
+        });
+        
+        // Move to next month
+        currentMonth++;
+        if (currentMonth > 12) {
+          currentMonth = 1;
+          currentYear++;
+        }
+      }
+    });
+
+    setParsedPasteData(parsed);
   };
 
   const handlePasteSave = async () => {
@@ -2114,14 +2128,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           <DialogHeader>
             <DialogTitle>Paste Financial Data</DialogTitle>
             <DialogDescription>
-              Paste a value for a specific metric, month, and year
+              Paste tab-separated values starting from a specific month and year
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="paste-year">Year</Label>
+                <Label htmlFor="paste-year">Starting Year</Label>
                 <Select value={pasteYear.toString()} onValueChange={(value) => {
                   setPasteYear(parseInt(value));
                   handlePasteDataChange(pasteData);
@@ -2140,7 +2154,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paste-month">Month</Label>
+                <Label htmlFor="paste-month">Starting Month</Label>
                 <Select value={pasteMonth} onValueChange={(value) => {
                   setPasteMonth(value);
                   handlePasteDataChange(pasteData);
@@ -2192,36 +2206,38 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="paste-values">Paste Value</Label>
+              <Label htmlFor="paste-values">Paste Values</Label>
               <Input
                 id="paste-values"
-                placeholder="Paste value here (e.g., 150000)"
+                placeholder="Paste tab-separated values here (e.g., 150000  160000  155000...)"
                 value={pasteData}
                 onChange={(e) => handlePasteDataChange(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Paste a single value for the selected metric, month, and year
+                Tip: In Google Sheets, select cells for consecutive months, copy (Ctrl+C), and paste here
               </p>
             </div>
 
             {parsedPasteData.length > 0 && (
               <div className="space-y-2">
-                <Label>Preview</Label>
-                <div className="border rounded-lg p-3">
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Metric:</span>
-                      <span className="font-medium">{FINANCIAL_METRICS.find(m => m.key === pasteMetric)?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Date:</span>
-                      <span className="font-medium">{parsedPasteData[0].month}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Value:</span>
-                      <span className="font-medium">{parsedPasteData[0].value.toLocaleString()}</span>
-                    </div>
-                  </div>
+                <Label>Preview ({parsedPasteData.length} values)</Label>
+                <div className="border rounded-lg p-3 max-h-48 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Month</TableHead>
+                        <TableHead>Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {parsedPasteData.map((entry, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{entry.month}</TableCell>
+                          <TableCell>{entry.value.toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             )}
@@ -2241,7 +2257,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               onClick={handlePasteSave}
               disabled={parsedPasteData.length === 0}
             >
-              Save Entry
+              Save {parsedPasteData.length} Entries
             </Button>
           </div>
         </DialogContent>
