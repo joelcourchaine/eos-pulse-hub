@@ -827,8 +827,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setNotes({});
     setLocalValues({});
     
-    // Skip loading individual month data in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) {
+    // Skip loading individual month data only in Quarter Trend mode
+    if (isQuarterTrendMode) {
       setLoading(false);
       return;
     }
