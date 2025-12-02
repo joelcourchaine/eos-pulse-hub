@@ -668,6 +668,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             return values.reduce((sum, val) => sum + val, 0);
           };
 
+          // Count how many months have data in this quarter
+          const monthsWithData = new Set<string>();
+          data?.forEach(entry => {
+            if (quarterMonthIds.includes(entry.month) && entry.value !== null) {
+              monthsWithData.add(entry.month);
+            }
+          });
+          const monthCount = monthsWithData.size || 1; // Avoid division by zero
+
           // Calculate averages per metric for this quarter
           FINANCIAL_METRICS.forEach(metric => {
             // For percentage metrics, recalculate from underlying dollar amounts
@@ -685,8 +694,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               // For calculated dollar metrics
               const total = getMetricTotal(metric.key, quarterMonthIds);
               if (total !== 0) {
-                // Divide by 3 (number of months in quarter)
-                const avg = total / 3;
+                // Divide by actual number of months with data
+                const avg = total / monthCount;
                 averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
               }
             } else {
@@ -699,9 +708,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 .map(entry => entry.value || 0) || [];
               
               if (values.length > 0) {
-                // For dollar metrics, sum all values and divide by 3 (months in quarter)
+                // For dollar metrics, sum all values and divide by actual months with data
                 const total = values.reduce((sum, val) => sum + val, 0);
-                const avg = total / 3;
+                const avg = total / monthCount;
                 averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
               }
             }
@@ -774,6 +783,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const quarterMonths = getQuarterMonthsForCalculation(prevYearQuarter.quarter, prevYearQuarter.year);
     const quarterMonthIds = quarterMonths.map(m => m.identifier);
     
+    // Count how many months have data in this quarter
+    const monthsWithData = new Set<string>();
+    data?.forEach(entry => {
+      if (quarterMonthIds.includes(entry.month) && entry.value !== null) {
+        monthsWithData.add(entry.month);
+      }
+    });
+    const monthCount = monthsWithData.size || 1; // Avoid division by zero
+    
     FINANCIAL_METRICS.forEach(metric => {
       // For percentage metrics, recalculate from underlying dollar amounts
       if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
@@ -790,8 +808,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         // For calculated dollar metrics
         const total = getMetricTotal(metric.key, quarterMonthIds);
         if (total !== 0) {
-          // Divide by 3 (number of months in quarter)
-          const avg = total / 3;
+          // Divide by actual number of months with data
+          const avg = total / monthCount;
           averages[`${metric.key}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`] = avg;
         }
       } else {
@@ -804,9 +822,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           .map(entry => entry.value || 0) || [];
         
         if (values.length > 0) {
-          // For dollar metrics, sum all values and divide by 3 (months in quarter)
+          // For dollar metrics, sum all values and divide by actual months with data
           const total = values.reduce((sum, val) => sum + val, 0);
-          const avg = total / 3;
+          const avg = total / monthCount;
           averages[`${metric.key}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`] = avg;
         }
       }
