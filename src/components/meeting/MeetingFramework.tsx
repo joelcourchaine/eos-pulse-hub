@@ -3,11 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
-import { Clock } from "lucide-react";
+import { Clock, LayoutGrid } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { IssuesAndTodosPanel } from "@/components/issues/IssuesAndTodosPanel";
+
+export type MeetingViewMode = "view-all" | "segue" | "scorecard" | "rocks" | "headlines" | "issues-todos" | "conclude";
 
 interface MeetingSection {
   id: string;
@@ -27,15 +29,23 @@ const meetingSections: MeetingSection[] = [
 
 interface MeetingFrameworkProps {
   departmentId: string;
+  onViewModeChange?: (mode: MeetingViewMode) => void;
 }
 
-const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
+const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkProps) => {
   const { toast } = useToast();
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const [userId, setUserId] = useState<string>();
+  const [activeTab, setActiveTab] = useState<string>("view-all");
   const meetingDate = format(new Date(), 'yyyy-MM-dd');
+
+  // Notify parent when view mode changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    onViewModeChange?.(value as MeetingViewMode);
+  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -169,8 +179,21 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="segue" className="w-full">
-          <TabsList className="grid grid-cols-3 lg:grid-cols-6 gap-2 h-auto bg-transparent p-0">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="grid grid-cols-4 lg:grid-cols-7 gap-2 h-auto bg-transparent p-0">
+            <TabsTrigger
+              value="view-all"
+              className="flex flex-col items-start p-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <span className="font-medium text-sm flex items-center gap-1">
+                <LayoutGrid className="h-3 w-3" />
+                View All
+              </span>
+              <Badge variant="secondary" className="mt-1 text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                60 min
+              </Badge>
+            </TabsTrigger>
             {meetingSections.map((section) => (
               <TabsTrigger
                 key={section.id}
@@ -185,6 +208,25 @@ const MeetingFramework = ({ departmentId }: MeetingFrameworkProps) => {
               </TabsTrigger>
             ))}
           </TabsList>
+          
+          {/* View All shows the segue notes only - other sections are shown externally */}
+          <TabsContent value="view-all" className="mt-6">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold">Segue</h3>
+                <p className="text-sm text-muted-foreground">
+                  Good news and wins
+                </p>
+              </div>
+              <RichTextEditor
+                placeholder="Add notes and images for segue..."
+                value={notes["segue"] || ""}
+                onChange={(value) => handleNoteChange("segue", value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </TabsContent>
+          
           {meetingSections.map((section) => (
             <TabsContent key={section.id} value={section.id} className="mt-6">
               {section.id === "issues-todos" ? (
