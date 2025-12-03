@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp } from "lucide-react";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
-import MeetingFramework from "@/components/meeting/MeetingFramework";
+import MeetingFramework, { MeetingViewMode } from "@/components/meeting/MeetingFramework";
 import RocksPanel from "@/components/rocks/RocksPanel";
 import { KPIManagementDialog } from "@/components/scorecard/KPIManagementDialog";
 import { FinancialSummary } from "@/components/financial/FinancialSummary";
@@ -64,7 +64,8 @@ const Dashboard = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
-  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
+const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
   
@@ -1004,58 +1005,61 @@ const Dashboard = () => {
         {/* Meeting Framework */}
         <MeetingFramework 
           key={`meeting-${selectedDepartment}`}
-          departmentId={selectedDepartment} 
+          departmentId={selectedDepartment}
+          onViewModeChange={setMeetingViewMode}
         />
 
-        {/* Scorecard Section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl">GO Scorecard</CardTitle>
-                <CardDescription>
-                  Track your department's key performance indicators
-                </CardDescription>
+        {/* Scorecard Section - show for view-all or scorecard tab */}
+        {(meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl">GO Scorecard</CardTitle>
+                  <CardDescription>
+                    Track your department's key performance indicators
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  {selectedDepartment && (
+                    <KPIManagementDialog 
+                      departmentId={selectedDepartment} 
+                      kpis={kpis}
+                      onKPIsChange={fetchKPIs}
+                      year={selectedYear}
+                      quarter={selectedQuarter}
+                    />
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {selectedDepartment && (
-                  <KPIManagementDialog 
-                    departmentId={selectedDepartment} 
-                    kpis={kpis}
-                    onKPIsChange={fetchKPIs}
-                    year={selectedYear}
-                    quarter={selectedQuarter}
-                  />
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {selectedDepartment ? (
-              <ScorecardGrid 
-                key={`scorecard-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
-                departmentId={selectedDepartment}
-                kpis={kpis}
-                onKPIsChange={fetchKPIs}
-                year={selectedYear}
-                quarter={selectedQuarter}
-                onYearChange={setSelectedYear}
-                onQuarterChange={setSelectedQuarter}
-                onViewModeChange={(mode) => {
-                  setScorecardViewMode(mode);
-                  fetchKPIStatusCounts(selectedQuarter, selectedYear);
-                }}
-              />
-            ) : (
-              <p className="text-muted-foreground text-center py-8">
-                Select a department to view the scorecard
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {selectedDepartment ? (
+                <ScorecardGrid 
+                  key={`scorecard-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
+                  departmentId={selectedDepartment}
+                  kpis={kpis}
+                  onKPIsChange={fetchKPIs}
+                  year={selectedYear}
+                  quarter={selectedQuarter}
+                  onYearChange={setSelectedYear}
+                  onQuarterChange={setSelectedQuarter}
+                  onViewModeChange={(mode) => {
+                    setScorecardViewMode(mode);
+                    fetchKPIStatusCounts(selectedQuarter, selectedYear);
+                  }}
+                />
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Select a department to view the scorecard
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Financial Summary Section */}
-        {selectedDepartment && (
+        {/* Financial Summary Section - show for view-all or scorecard tab */}
+        {selectedDepartment && (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
           <FinancialSummary 
             key={`financial-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
             departmentId={selectedDepartment}
@@ -1064,21 +1068,27 @@ const Dashboard = () => {
           />
         )}
 
-        {/* Rocks Section */}
-        <RocksPanel 
-          key={`rocks-${selectedDepartment}`}
-          departmentId={selectedDepartment} 
-        />
+        {/* Rocks Section - show for view-all or rocks tab */}
+        {(meetingViewMode === "view-all" || meetingViewMode === "rocks") && (
+          <RocksPanel 
+            key={`rocks-${selectedDepartment}`}
+            departmentId={selectedDepartment} 
+          />
+        )}
 
-        {/* Celebrations */}
-        <Celebrations currentStoreId={isSuperAdmin ? selectedStore : profile?.store_id} />
+        {/* Celebrations - show for view-all or headlines tab */}
+        {(meetingViewMode === "view-all" || meetingViewMode === "headlines") && (
+          <Celebrations currentStoreId={isSuperAdmin ? selectedStore : profile?.store_id} />
+        )}
 
-        {/* To-Dos Section */}
-        <TodosPanel 
-          key={`todos-${selectedDepartment}`}
-          departmentId={selectedDepartment} 
-          userId={user?.id} 
-        />
+        {/* To-Dos Section - show for view-all only (issues-todos has its own panel in meeting framework) */}
+        {meetingViewMode === "view-all" && (
+          <TodosPanel 
+            key={`todos-${selectedDepartment}`}
+            departmentId={selectedDepartment} 
+            userId={user?.id} 
+          />
+        )}
 
         {/* Director Notes Section */}
         {selectedDepartment && (isSuperAdmin || isStoreGM) && (
