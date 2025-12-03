@@ -189,10 +189,6 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
                 <LayoutGrid className="h-3 w-3" />
                 View All
               </span>
-              <Badge variant="secondary" className="mt-1 text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                60 min
-              </Badge>
             </TabsTrigger>
             {meetingSections.map((section) => (
               <TabsTrigger
