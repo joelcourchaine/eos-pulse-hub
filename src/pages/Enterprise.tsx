@@ -381,9 +381,9 @@ export default function Enterprise() {
     }
   }, [uniqueDepartmentNames]);
 
-  // Auto-select all metrics when switching to financial type
+  // Auto-select all metrics when switching to financial type (only if none are selected)
   useEffect(() => {
-    if (metricType === "financial" && availableMetrics.length > 0) {
+    if (metricType === "financial" && availableMetrics.length > 0 && selectedMetrics.length === 0) {
       const metricNames = availableMetrics.map((m: any) => m.name);
       setSelectedMetrics(metricNames);
     }
