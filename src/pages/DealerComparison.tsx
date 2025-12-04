@@ -11,7 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
-import { processFinancialData, FinancialEntry } from "@/utils/financialCalculations";
 
 interface ComparisonData {
   storeId: string;
@@ -236,6 +235,47 @@ export default function DealerComparison() {
     if (metricType === "financial" && financialEntries && selectedMetrics.length > 0) {
       console.log("Processing financial entries:", financialEntries.length);
       
+      // Detect brand from first entry to get correct metrics
+      const firstEntry = financialEntries[0];
+      const brand = (firstEntry as any)?.departments?.stores?.brands?.name || 
+                    (firstEntry as any)?.departments?.stores?.brand || null;
+      console.log("Detected brand for comparison:", brand, "from entry:", firstEntry);
+      
+      // Create metric maps - use all possible metrics for multi-brand comparison
+      const nameToKey = new Map<string, string>();
+      const keyToName = new Map<string, string>();
+      const keyToDef = new Map<string, any>();
+      
+      // Load metrics from all brands to support multi-brand comparison
+      const allBrandMetrics = [
+        ...getMetricsForBrand('GMC'),
+        ...getMetricsForBrand('Ford'),
+        ...getMetricsForBrand('Nissan'),
+        ...getMetricsForBrand('Mazda'),
+      ];
+      
+      // Deduplicate by key, preferring metrics that have calculations (more complete definitions)
+      const uniqueMetrics = new Map<string, any>();
+      allBrandMetrics.forEach((m: any) => {
+        const existing = uniqueMetrics.get(m.key);
+        if (!existing || (!existing.calculation && m.calculation)) {
+          uniqueMetrics.set(m.key, m);
+        }
+      });
+      
+      uniqueMetrics.forEach((m) => {
+        nameToKey.set(m.name, m.key);
+        keyToName.set(m.key, m.name);
+        keyToDef.set(m.key, m);
+      });
+      
+      // Also use the default metrics config for ordering
+      const metrics = Array.from(uniqueMetrics.values());
+      
+      console.log("DealerComparison - Using combined metrics from all brands");
+      console.log("DealerComparison - Total unique metrics:", metrics.length);
+      console.log("DealerComparison - Has semi_fixed_expense:", keyToDef.has('semi_fixed_expense'));
+      
       // Build comparison baseline map (targets, averages, or previous year)
       const comparisonMap = new Map<string, { value: number; direction?: string }>();
       
@@ -275,23 +315,516 @@ export default function DealerComparison() {
         });
       }
       
-      // Use centralized calculation utility
-      const result = processFinancialData(
-        financialEntries as unknown as FinancialEntry[],
-        {
-          datePeriodType: (datePeriodType || "month") as "month" | "full_year" | "custom_range",
-          isFixedCombined,
-          selectedMetrics,
-          comparisonMode,
-          comparisonMap,
+      // Build a map of all data by store+dept+metric key
+      const dataMap: Record<string, ComparisonData> = {};
+      
+      // For full_year and custom_range, we need to aggregate data first
+      if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
+        console.log("Aggregating data for multi-month period");
+        
+        // Group entries by store+dept and collect raw values
+        const aggregatedByStoreDept = new Map<string, Map<string, number>>();
+        
+        financialEntries.forEach(entry => {
+          const storeId = (entry as any)?.departments?.store_id || "";
+          const deptId = (entry as any)?.departments?.id;
+          const key = `${storeId}-${deptId}`;
+          
+          if (!aggregatedByStoreDept.has(key)) {
+            aggregatedByStoreDept.set(key, new Map());
+          }
+          
+          const storeMetrics = aggregatedByStoreDept.get(key)!;
+          const currentValue = storeMetrics.get(entry.metric_name) || 0;
+          storeMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+        });
+        
+        // Now create entries with recalculated percentages
+        aggregatedByStoreDept.forEach((storeMetrics, storeDeptKey) => {
+          // Find the first entry for this store/dept to get metadata
+          const sampleEntry = financialEntries.find(e => 
+            `${(e as any)?.departments?.store_id}-${(e as any)?.departments?.id}` === storeDeptKey
+          );
+          
+          if (!sampleEntry) return;
+          
+          const storeId = (sampleEntry as any)?.departments?.store_id || "";
+          const storeName = (sampleEntry as any)?.departments?.stores?.name || "";
+          const deptId = (sampleEntry as any)?.departments?.id;
+          const deptName = (sampleEntry as any)?.departments?.name;
+          
+          // Process each metric
+          storeMetrics.forEach((aggregatedValue, metricKey) => {
+            const metricDef = keyToDef.get(metricKey);
+            let finalValue = aggregatedValue;
+            
+            // Recalculate percentages from aggregated dollar values
+            if (metricDef?.type === 'percentage' && metricDef?.calculation) {
+              const calc = metricDef.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = storeMetrics.get(calc.numerator) || 0;
+                const denom = storeMetrics.get(calc.denominator) || 0;
+                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+              }
+            }
+            
+            const metricName = keyToName.get(metricKey) || metricKey;
+            const entryKey = `${storeId}-${deptId}-${metricKey}`;
+            
+            // Get comparison baseline for this metric
+            const comparisonKey = `${deptId}-${metricKey}`;
+            const comparisonInfo = comparisonMap.get(comparisonKey);
+            
+            dataMap[entryKey] = {
+              storeId,
+              storeName,
+              departmentId: deptId,
+              departmentName: deptName,
+              metricName,
+              value: finalValue,
+              target: comparisonInfo?.value || null,
+              variance: null,
+            };
+            
+            // Calculate variance
+            if (finalValue !== null && comparisonInfo?.value) {
+              const baseline = comparisonInfo.value;
+              if (baseline !== 0) {
+                const variance = ((finalValue - baseline) / Math.abs(baseline)) * 100;
+                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+                dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+              }
+            }
+          });
+          
+          // Calculate derived dollar metrics (like department_profit) from aggregated base values
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              let calculatedValue: number | null = null;
+              
+              if (calc.type === 'subtract') {
+                const base = storeMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = storeMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                }
+              } else if (calc.type === 'complex') {
+                const base = storeMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = storeMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                  (calc.additions || []).forEach((a: string) => {
+                    const val = storeMetrics.get(a);
+                    if (val !== undefined) calculatedValue! += val;
+                  });
+                }
+              }
+              
+              if (calculatedValue !== null) {
+                // Store calculated value for use in percentage calculations
+                storeMetrics.set(metricDef.key, calculatedValue);
+                
+                const metricName = metricDef.name;
+                const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
+                const comparisonKey = `${deptId}-${metricDef.key}`;
+                const comparisonInfo = comparisonMap.get(comparisonKey);
+                
+                dataMap[entryKey] = {
+                  storeId,
+                  storeName,
+                  departmentId: deptId,
+                  departmentName: deptName,
+                  metricName,
+                  value: calculatedValue,
+                  target: comparisonInfo?.value || null,
+                  variance: null,
+                };
+                
+                // Calculate variance
+                if (comparisonInfo?.value && comparisonInfo.value !== 0) {
+                  const variance = ((calculatedValue - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                  const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
+                  dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+                }
+              }
+            }
+          });
+          
+          // Recalculate percentages again after derived dollar metrics are computed
+          // This handles metrics like Return on Gross % that depend on department_profit
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'percentage' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = storeMetrics.get(calc.numerator);
+                const denom = storeMetrics.get(calc.denominator);
+                
+                if (num !== undefined && denom !== undefined && denom !== 0) {
+                  const finalValue = (num / denom) * 100;
+                  const metricName = metricDef.name;
+                  const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
+                  const comparisonKey = `${deptId}-${metricDef.key}`;
+                  const comparisonInfo = comparisonMap.get(comparisonKey);
+                  
+                  dataMap[entryKey] = {
+                    storeId,
+                    storeName,
+                    departmentId: deptId,
+                    departmentName: deptName,
+                    metricName,
+                    value: finalValue,
+                    target: comparisonInfo?.value || null,
+                    variance: null,
+                  };
+                  
+                  // Calculate variance
+                  if (comparisonInfo?.value && comparisonInfo.value !== 0) {
+                    const variance = ((finalValue - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                    const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
+                    dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+                  }
+                }
+              }
+            }
+          });
+        });
+      } else {
+        // Single month - process entries directly
+        financialEntries.forEach(entry => {
+          const metricName = keyToName.get(entry.metric_name) || entry.metric_name;
+          if (entry.metric_name === 'total_direct_expenses') {
+            console.log("Found total_direct_expenses entry:", {
+              metric_name: entry.metric_name,
+              mapped_name: metricName,
+              value: entry.value,
+              store: (entry as any)?.departments?.stores?.name,
+              dept: (entry as any)?.departments?.name
+            });
+          }
+          const storeId = (entry as any)?.departments?.store_id || "";
+          const storeName = (entry as any)?.departments?.stores?.name || "";
+          const deptId = (entry as any)?.departments?.id;
+          const deptName = (entry as any)?.departments?.name;
+          const key = `${storeId}-${deptId}-${entry.metric_name}`;
+          
+          // Get comparison baseline for this metric
+          const comparisonKey = `${deptId}-${entry.metric_name}`;
+          const comparisonInfo = comparisonMap.get(comparisonKey);
+          
+          dataMap[key] = {
+            storeId,
+            storeName,
+            departmentId: deptId,
+            departmentName: deptName,
+            metricName,
+            value: entry.value ? Number(entry.value) : null,
+            target: comparisonInfo?.value || null,
+            variance: null,
+          };
+          
+          // Calculate variance if both value and comparison baseline exist
+          if (dataMap[key].value !== null && dataMap[key].target !== null) {
+            const value = dataMap[key].value!;
+            const baseline = dataMap[key].target!;
+            const metricDef = keyToDef.get(entry.metric_name);
+            
+            if (baseline !== 0) {
+              const variance = ((value - baseline) / Math.abs(baseline)) * 100;
+              // Reverse sign if target direction is "below" (lower is better)
+              const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+              dataMap[key].variance = shouldReverse ? -variance : variance;
+            }
+          }
+        });
+      }
+      
+      // If Fixed Combined, aggregate Parts and Service data
+      if (isFixedCombined) {
+        const combinedByStore = new Map<string, Map<string, number>>();
+        
+        // First pass: aggregate base dollar values from Parts and Service (only metrics without calculations)
+        Object.values(dataMap).forEach(entry => {
+          const isParts = entry.departmentName?.toLowerCase().includes('parts');
+          const isService = entry.departmentName?.toLowerCase().includes('service');
+          
+          if (isParts || isService) {
+            const metricKey = nameToKey.get(entry.metricName);
+            const metricDef = metricKey ? keyToDef.get(metricKey) : null;
+            
+            // Only aggregate base dollar metrics (those without calculation formulas)
+            if (metricKey && metricDef?.type === 'dollar' && !metricDef.calculation) {
+              if (!combinedByStore.has(entry.storeId)) {
+                combinedByStore.set(entry.storeId, new Map());
+              }
+              const storeMetrics = combinedByStore.get(entry.storeId)!;
+              const currentValue = storeMetrics.get(metricKey) || 0;
+              storeMetrics.set(metricKey, currentValue + (entry.value || 0));
+            }
+          }
+        });
+        
+        // Helper function to calculate derived metrics
+        const calculateDerivedMetric = (storeMetrics: Map<string, number>, metricDef: any): number => {
+          if (!metricDef.calculation) return 0;
+          
+          const calc = metricDef.calculation;
+          
+          if ('numerator' in calc && 'denominator' in calc) {
+            // Simple ratio calculation (typically for percentages but could be dollar amounts)
+            const num = storeMetrics.get(calc.numerator) || 0;
+            const denom = storeMetrics.get(calc.denominator) || 0;
+            return denom !== 0 ? (num / denom) * 100 : 0;
+          } else if (calc.type === 'subtract') {
+            // Subtraction calculation
+            const base = storeMetrics.get(calc.base) || 0;
+            const deductions = (calc.deductions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            return base - deductions;
+          } else if (calc.type === 'complex') {
+            // Complex calculation with additions and deductions
+            const base = storeMetrics.get(calc.base) || 0;
+            const deductions = (calc.deductions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            const additions = (calc.additions || []).reduce((sum: number, key: string) => {
+              return sum + (storeMetrics.get(key) || 0);
+            }, 0);
+            return base - deductions + additions;
+          }
+          
+          return 0;
+        };
+        
+        // Second pass: calculate derived dollar metrics (those with calculation formulas)
+        combinedByStore.forEach((storeMetrics, storeId) => {
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calculatedValue = calculateDerivedMetric(storeMetrics, metricDef);
+              storeMetrics.set(metricDef.key, calculatedValue);
+            }
+          });
+        });
+        
+        // Third pass: create final data with both dollar and percentage metrics
+        const newDataMap: Record<string, ComparisonData> = {};
+        
+        combinedByStore.forEach((storeMetrics, storeId) => {
+          const storeName = Object.values(dataMap).find(d => d.storeId === storeId)?.storeName || '';
+          
+          // Process all selected metrics
+          selectedMetrics.forEach(metricName => {
+            const metricKey = nameToKey.get(metricName);
+            if (!metricKey) return;
+            
+            const metricDef = keyToDef.get(metricKey);
+            if (!metricDef) return;
+            
+            let finalValue: number;
+            
+            if (metricDef.type === 'dollar') {
+              // Use aggregated or calculated dollar value
+              finalValue = storeMetrics.get(metricKey) || 0;
+            } else if (metricDef.type === 'percentage') {
+              // Calculate percentage from dollar values
+              finalValue = calculateDerivedMetric(storeMetrics, metricDef);
+            } else {
+              finalValue = 0;
+            }
+            
+            const key = `${storeId}-fixed-combined-${metricKey}`;
+            newDataMap[key] = {
+              storeId,
+              storeName,
+              departmentId: undefined,
+              departmentName: 'Fixed Combined',
+              metricName,
+              value: finalValue,
+              target: null,
+              variance: null,
+            };
+          });
+        });
+        
+        // Replace dataMap with combined data
+        Object.keys(dataMap).forEach(key => delete dataMap[key]);
+        Object.assign(dataMap, newDataMap);
+      }
+      
+      // Group by store+department for calculations
+      const storeDeptPairs = new Set<string>();
+      Object.values(dataMap).forEach(item => {
+        storeDeptPairs.add(`${item.storeId}|${item.departmentId}`);
+      });
+      
+      // Calculate derived metrics for each store+dept (do this in 2 passes to handle dependencies)
+      for (let pass = 0; pass < 2; pass++) {
+        storeDeptPairs.forEach(pair => {
+          const [storeId, deptId] = pair.split('|');
+          
+          // Get all values (including previously calculated ones) for this store+dept
+          const allValues = new Map<string, number>();
+          Object.entries(dataMap).forEach(([key, data]) => {
+            if (data.storeId === storeId && data.departmentId === deptId && data.value !== null) {
+              const metricKey = nameToKey.get(data.metricName);
+              if (metricKey) {
+                allValues.set(metricKey, data.value);
+              }
+            }
+          });
+          
+          // Get sample entry for store/dept info
+          const sampleEntry = Object.values(dataMap).find(
+            d => d.storeId === storeId && d.departmentId === deptId
+          );
+          if (!sampleEntry) return;
+          
+          // Calculate each selected metric that has a calculation formula
+          selectedMetrics.forEach(metricName => {
+            const metricKey = nameToKey.get(metricName);
+            if (!metricKey) return;
+            
+            const key = `${storeId}-${deptId}-${metricKey}`;
+            if (dataMap[key]) return; // Already exists
+            
+            const metricDef = keyToDef.get(metricKey);
+            if (!metricDef?.calculation) return;
+            
+            let value: number | null = null;
+            const calc = metricDef.calculation;
+            
+            if ('numerator' in calc && 'denominator' in calc) {
+              const num = allValues.get(calc.numerator);
+              const denom = allValues.get(calc.denominator);
+              if (num !== undefined && denom !== undefined && denom !== 0) {
+                value = (num / denom) * 100;
+              }
+            } else if (calc.type === 'subtract') {
+              const base = allValues.get(calc.base);
+              if (base !== undefined) {
+                value = base;
+                calc.deductions.forEach((d: string) => {
+                  const val = allValues.get(d);
+                  if (val !== undefined) value! -= val;
+                });
+              }
+            } else if (calc.type === 'complex') {
+              const base = allValues.get(calc.base);
+              if (base !== undefined) {
+                value = base;
+                calc.deductions.forEach((d: string) => {
+                  const val = allValues.get(d);
+                  if (val !== undefined) value! -= val;
+                });
+                calc.additions.forEach((a: string) => {
+                  const val = allValues.get(a);
+                  if (val !== undefined) value! += val;
+                });
+              }
+            }
+            
+            if (value !== null) {
+              // Get comparison baseline for calculated metric
+              const comparisonKey = `${deptId}-${metricKey}`;
+              const comparisonInfo = comparisonMap.get(comparisonKey);
+              
+              dataMap[key] = {
+                storeId,
+                storeName: sampleEntry.storeName,
+                departmentId: deptId,
+                departmentName: sampleEntry.departmentName,
+                metricName,
+                value,
+                target: comparisonInfo?.value || null,
+                variance: null,
+              };
+              
+              // Calculate variance for calculated metrics
+              if (comparisonInfo && comparisonInfo.value !== 0) {
+                const variance = ((value - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+                dataMap[key].variance = shouldReverse ? -variance : variance;
+              }
+            }
+          });
+        });
+      }
+      
+      // Build complete list of all store+dept combinations from initial department IDs
+      const allDepts = new Map<string, { storeId: string; storeName: string; deptId: string; deptName: string }>();
+      
+      // First pass: collect all store+dept info from entries
+      financialEntries.forEach(entry => {
+        const storeId = (entry as any)?.departments?.store_id || "";
+        const storeName = (entry as any)?.departments?.stores?.name || "";
+        const deptId = (entry as any)?.departments?.id;
+        const deptName = (entry as any)?.departments?.name;
+        
+        if (storeId && deptId) {
+          const key = `${storeId}-${deptId}`;
+          if (!allDepts.has(key)) {
+            allDepts.set(key, { storeId, storeName, deptId, deptName });
+          }
         }
+      });
+      
+      // Ensure ALL metrics in dataMap are included (even if not in selectedMetrics) for proper calculations
+      // But only display selectedMetrics in final output
+      const allMetricKeys = Array.from(keyToName.keys());
+      
+      // For each store+dept, ensure placeholders exist for all base metrics needed for calculations
+      allDepts.forEach(({ storeId, storeName, deptId, deptName }) => {
+        allMetricKeys.forEach(metricKey => {
+          const metricName = keyToName.get(metricKey);
+          if (!metricName) return;
+          
+          const key = `${storeId}-${deptId}-${metricKey}`;
+          
+          // Only add placeholder if it doesn't exist
+          if (!dataMap[key]) {
+            // Check if this metric is in selectedMetrics - if not, only add if it's needed for calculations
+            const metricDef = keyToDef.get(metricKey);
+            const isSelected = selectedMetrics.includes(metricName);
+            
+            // Add placeholder for selected metrics or metrics needed for calculations
+            if (isSelected) {
+              const comparisonKey = `${deptId}-${metricKey}`;
+              const comparisonInfo = comparisonMap.get(comparisonKey);
+              
+              dataMap[key] = {
+                storeId,
+                storeName,
+                departmentId: deptId,
+                departmentName: deptName,
+                metricName,
+                value: null,
+                target: comparisonInfo?.value || null,
+                variance: null,
+              };
+            }
+          }
+        });
+      });
+      
+      // Filter to only selected metrics
+      const result = Object.values(dataMap).filter(item => 
+        selectedMetrics.includes(item.metricName)
       );
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
+      console.log("DealerComparison - Has Total Direct Expenses?", result.some(r => r.metricName === "Total Direct Expenses"));
+      console.log("DealerComparison - Total Direct Expenses entries:", result.filter(r => r.metricName === "Total Direct Expenses"));
       setComparisonData(result);
       setLastRefresh(new Date());
     }
-  }, [financialEntries, financialTargets, currentYearData, previousYearData, metricType, selectedMetrics, comparisonMode, datePeriodType, isFixedCombined]);
+  }, [financialEntries, financialTargets, currentYearData, previousYearData, metricType, selectedMetrics, comparisonMode]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
