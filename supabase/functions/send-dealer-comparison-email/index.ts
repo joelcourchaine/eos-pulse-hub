@@ -36,8 +36,20 @@ interface EmailRequest {
 function formatValue(value: number | null, metricName: string): string {
   if (value === null || value === undefined) return "-";
   
+  // Percentage metrics that don't have % in their name
+  const percentageMetrics = [
+    "Return on Gross",
+    "Service Absorption",
+    "Parts to Service Ratio",
+  ];
+  
   // Check if it's a percentage metric
-  if (metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
+  const lowerName = metricName.toLowerCase();
+  if (
+    metricName.includes("%") || 
+    lowerName.includes("percent") ||
+    percentageMetrics.some(m => lowerName === m.toLowerCase())
+  ) {
     return `${value.toFixed(1)}%`;
   }
   
