@@ -126,6 +126,33 @@ export default function Enterprise() {
     },
   });
 
+  // Update filter mutation
+  const updateFilterMutation = useMutation({
+    mutationFn: async (filterId: string) => {
+      const { error } = await supabase
+        .from("enterprise_filters")
+        .update({
+          filter_mode: filterMode,
+          selected_brand_ids: selectedBrandIds,
+          selected_group_ids: selectedGroupIds,
+          selected_store_ids: selectedStoreIds,
+          selected_department_names: selectedDepartmentNames,
+          metric_type: metricType,
+          date_period_type: datePeriodType,
+          selected_year: selectedYear,
+        })
+        .eq("id", filterId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enterprise_filters"] });
+      toast.success("Filter updated");
+    },
+    onError: () => {
+      toast.error("Failed to update filter");
+    },
+  });
+
   // Load a saved filter
   const loadFilter = (filter: any) => {
     setFilterMode(filter.filter_mode as FilterMode);
@@ -761,6 +788,15 @@ export default function Enterprise() {
                       onClick={() => loadFilter(filter)}
                     >
                       {filter.name}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-primary"
+                      onClick={() => updateFilterMutation.mutate(filter.id)}
+                      title="Update with current settings"
+                    >
+                      <Save className="h-3 w-3" />
                     </Button>
                     <Button
                       variant="ghost"
