@@ -130,63 +130,34 @@ const handler = async (req: Request): Promise<Response> => {
     else if (comparisonMode === "current_year_avg") comparisonDescription = "vs Current Year Average";
     else if (comparisonMode === "previous_year") comparisonDescription = "vs Previous Year";
 
-    // Build HTML email
+    // Build HTML email with all inline styles for forward compatibility
     let html = `
       <!DOCTYPE html>
       <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          h1 { color: #1a1a1a; font-size: 24px; margin-bottom: 8px; }
-          .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-          table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-          th, td { border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; }
-          th { background-color: #f8f8f8; font-weight: 600; }
-          th.metric { text-align: left; }
-          td.metric { text-align: left; font-weight: 500; }
-          .store-header { min-width: 180px; }
-          .data-status { font-size: 11px; color: #888; font-weight: normal; margin-top: 4px; }
-          .data-complete { color: #16a34a; }
-          .data-incomplete { color: #ca8a04; }
-          .variance-badge { 
-            display: inline-block; 
-            padding: 2px 8px; 
-            border-radius: 12px; 
-            font-size: 11px; 
-            font-weight: 500;
-            margin-top: 4px;
-          }
-          .variance-green { background-color: #dcfce7; color: #166534; }
-          .variance-yellow { background-color: #fef9c3; color: #854d0e; }
-          .variance-red { background-color: #fee2e2; color: #991b1b; }
-          .value { font-size: 15px; font-weight: 600; }
-          .target { font-size: 11px; color: #888; margin-top: 2px; }
-          .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888; }
-        </style>
-      </head>
-      <body>
-        <h1>Dealer Comparison Report</h1>
-        <p class="subtitle">
+      <head></head>
+      <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+        <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">Dealer Comparison Report</h1>
+        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
           ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
         </p>
         
-        <table>
+        <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
           <thead>
             <tr>
-              <th class="metric">Metric</th>
+              <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;">Metric</th>
     `;
 
     // Add store headers with data completeness
     stores.forEach(store => {
-      const statusClass = store.isComplete ? 'data-complete' : 'data-incomplete';
+      const statusColor = store.isComplete ? '#16a34a' : '#ca8a04';
       const statusText = store.lastCompleteMonth 
         ? `Thru ${formatMonthShort(store.lastCompleteMonth)}`
         : 'No data';
       
       html += `
-        <th class="store-header">
+        <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 180px;">
           ${store.storeName}
-          ${datePeriodType !== "month" ? `<div class="data-status ${statusClass}">${statusText}</div>` : ''}
+          ${datePeriodType !== "month" ? `<div style="font-size: 11px; color: ${statusColor}; font-weight: normal; margin-top: 4px;">${statusText}</div>` : ''}
         </th>
       `;
     });
@@ -197,28 +168,36 @@ const handler = async (req: Request): Promise<Response> => {
     selectedMetrics.forEach(metricName => {
       const metricData = metrics.find(m => m.metricName === metricName);
       
-      html += `<tr><td class="metric">${metricName}</td>`;
+      html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${metricName}</td>`;
       
       stores.forEach(store => {
         const storeValue = metricData?.storeValues[store.storeId];
         
         if (storeValue && storeValue.value !== null) {
-          let varianceClass = "";
+          let varianceBgColor = "";
+          let varianceTextColor = "";
           if (storeValue.variance !== null) {
-            if (storeValue.variance >= 10) varianceClass = "variance-green";
-            else if (storeValue.variance >= -10) varianceClass = "variance-yellow";
-            else varianceClass = "variance-red";
+            if (storeValue.variance >= 10) {
+              varianceBgColor = "#dcfce7";
+              varianceTextColor = "#166534";
+            } else if (storeValue.variance >= -10) {
+              varianceBgColor = "#fef9c3";
+              varianceTextColor = "#854d0e";
+            } else {
+              varianceBgColor = "#fee2e2";
+              varianceTextColor = "#991b1b";
+            }
           }
           
           html += `
-            <td>
-              <div class="value">${formatValue(storeValue.value, metricName)}</div>
-              ${storeValue.target !== null ? `<div class="target">Target: ${formatValue(storeValue.target, metricName)}</div>` : ''}
-              ${storeValue.variance !== null ? `<span class="variance-badge ${varianceClass}">${storeValue.variance >= 0 ? '+' : ''}${storeValue.variance.toFixed(1)}%</span>` : ''}
+            <td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px;">
+              <div style="font-size: 15px; font-weight: 600;">${formatValue(storeValue.value, metricName)}</div>
+              ${storeValue.target !== null ? `<div style="font-size: 11px; color: #888; margin-top: 2px;">Target: ${formatValue(storeValue.target, metricName)}</div>` : ''}
+              ${storeValue.variance !== null ? `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-top: 4px; background-color: ${varianceBgColor}; color: ${varianceTextColor};">${storeValue.variance >= 0 ? '+' : ''}${storeValue.variance.toFixed(1)}%</span>` : ''}
             </td>
           `;
         } else {
-          html += `<td style="color: #999;">No data</td>`;
+          html += `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; color: #999;">No data</td>`;
         }
       });
       
@@ -229,7 +208,7 @@ const handler = async (req: Request): Promise<Response> => {
           </tbody>
         </table>
         
-        <div class="footer">
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
           <p>This report was generated by the Growth Scorecard application.</p>
           <p>Generated on ${new Date().toLocaleString()}</p>
         </div>
