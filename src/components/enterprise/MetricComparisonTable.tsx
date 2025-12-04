@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { getMetricsForBrand } from "@/config/financialMetrics";
 
 interface MetricData {
   storeId: string;
@@ -77,18 +78,9 @@ export default function MetricComparisonTable({
   
   if (sortByMetric) {
     stores = stores.sort(([, aData], [, bData]) => {
-      // Find the metric value for sorting - check with and without department prefix
-      const aMetric = Object.values(aData.metrics).find(m => 
-        m.metricName === sortByMetric || 
-        `${m.departmentName} - ${m.metricName}` === sortByMetric
-      );
-      const bMetric = Object.values(bData.metrics).find(m => 
-        m.metricName === sortByMetric || 
-        `${m.departmentName} - ${m.metricName}` === sortByMetric
-      );
-      
-      const aValue = aMetric?.value ?? -Infinity;
-      const bValue = bMetric?.value ?? -Infinity;
+      // Find the metric value for sorting - match DealerComparison logic (just by metric name)
+      const aValue = aData.metrics[sortByMetric]?.value ?? -Infinity;
+      const bValue = bData.metrics[sortByMetric]?.value ?? -Infinity;
       
       // Sort descending (highest/best first on the left)
       return bValue - aValue;
@@ -102,29 +94,35 @@ export default function MetricComparisonTable({
     ))
   );
 
+  // Get metric definitions to determine type (matching DealerComparison)
+  const metrics = getMetricsForBrand(null);
+  const metricDefMap = new Map<string, any>();
+  metrics.forEach((m: any) => metricDefMap.set(m.name, m));
+
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
     
-    const lowerMetricName = metricName.toLowerCase();
+    // Get metric definition to check type (matching DealerComparison)
+    const metricDef = metricDefMap.get(metricName);
+    
+    // Check if it's a percentage metric by type or name
+    if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
+      return `${value.toFixed(1)}%`;
+    }
     
     // Total Hours should show whole numbers
     if (metricName === "Total Hours") {
       return Math.round(value).toLocaleString();
     }
     
-    // Check if it's a percentage metric
-    if (lowerMetricName.includes("%") || lowerMetricName.includes("percent")) {
-      return `${value.toFixed(1)}%`;
-    }
-    
-    // Check if it's a currency metric
-    if (metricType === "financial" || lowerMetricName.includes("$") || 
-        lowerMetricName.includes("sales") || lowerMetricName.includes("expense") ||
-        lowerMetricName.includes("profit") || lowerMetricName.includes("gross")) {
-      // Only format as currency if it's not a percentage
-      if (!lowerMetricName.includes("%") && !lowerMetricName.includes("percent")) {
-        return `$${value.toLocaleString()}`;
-      }
+    // Format as currency for dollar metrics (matching DealerComparison)
+    if (metricType === "financial") {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(value);
     }
     
     return value.toLocaleString();
