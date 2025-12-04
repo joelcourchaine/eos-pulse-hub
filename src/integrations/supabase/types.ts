@@ -323,6 +323,7 @@ export type Database = {
           selected_brand_ids: string[] | null
           selected_department_names: string[] | null
           selected_group_ids: string[] | null
+          selected_metrics: string[] | null
           selected_store_ids: string[] | null
           selected_year: number | null
           updated_at: string
@@ -338,6 +339,7 @@ export type Database = {
           selected_brand_ids?: string[] | null
           selected_department_names?: string[] | null
           selected_group_ids?: string[] | null
+          selected_metrics?: string[] | null
           selected_store_ids?: string[] | null
           selected_year?: number | null
           updated_at?: string
@@ -353,6 +355,7 @@ export type Database = {
           selected_brand_ids?: string[] | null
           selected_department_names?: string[] | null
           selected_group_ids?: string[] | null
+          selected_metrics?: string[] | null
           selected_store_ids?: string[] | null
           selected_year?: number | null
           updated_at?: string

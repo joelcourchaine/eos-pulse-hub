@@ -95,6 +95,7 @@ export default function Enterprise() {
         metric_type: metricType,
         date_period_type: datePeriodType,
         selected_year: selectedYear,
+        selected_metrics: selectedMetrics,
       });
       if (error) throw error;
     },
@@ -141,6 +142,7 @@ export default function Enterprise() {
           metric_type: metricType,
           date_period_type: datePeriodType,
           selected_year: selectedYear,
+          selected_metrics: selectedMetrics,
         })
         .eq("id", filterId);
       if (error) throw error;
@@ -164,6 +166,7 @@ export default function Enterprise() {
     setMetricType(filter.metric_type as MetricType);
     setDatePeriodType(filter.date_period_type as DatePeriodType || "month");
     if (filter.selected_year) setSelectedYear(filter.selected_year);
+    if (filter.selected_metrics) setSelectedMetrics(filter.selected_metrics);
     toast.success(`Loaded filter: ${filter.name}`);
   };
 
