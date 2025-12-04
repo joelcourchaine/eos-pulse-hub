@@ -426,10 +426,24 @@ export default function Enterprise() {
         console.log("No financial data available for selected period");
         return [];
       }
-      // Get brand metrics to identify which metrics are calculated vs stored
-      const firstStore = filteredStores[0];
-      const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
-      const brandMetrics = getMetricsForBrand(brand);
+      // Load metrics from all brands to support multi-brand comparison (matching DealerComparison)
+      const allBrandMetrics = [
+        ...getMetricsForBrand('GMC'),
+        ...getMetricsForBrand('Ford'),
+        ...getMetricsForBrand('Nissan'),
+        ...getMetricsForBrand('Mazda'),
+      ];
+      
+      // Deduplicate by key, preferring metrics that have calculations (more complete definitions)
+      const uniqueMetrics = new Map<string, any>();
+      allBrandMetrics.forEach((m: any) => {
+        const existing = uniqueMetrics.get(m.key);
+        if (!existing || (!existing.calculation && m.calculation)) {
+          uniqueMetrics.set(m.key, m);
+        }
+      });
+      
+      const brandMetrics = Array.from(uniqueMetrics.values());
       
       // Get all keys for metrics that are stored in the database (no calculation property OR dollar type with calculation)
       // We need base dollar values to calculate percentages
