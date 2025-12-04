@@ -2387,8 +2387,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                          const targetValue = kpi.target_value;
                          let trendStatus: "success" | "warning" | "destructive" | null = null;
                          
-                         if (mValue !== null && mValue !== undefined && targetValue) {
-                           const variance = ((mValue - targetValue) / targetValue) * 100;
+                         if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined) {
+                           let variance: number;
+                           if (kpi.metric_type === "percentage") {
+                             variance = mValue - targetValue;
+                           } else if (targetValue !== 0) {
+                             variance = ((mValue - targetValue) / targetValue) * 100;
+                           } else {
+                             // Handle target === 0
+                             variance = kpi.target_direction === "below" 
+                               ? (mValue > 0 ? -100 : 0) 
+                               : (mValue > 0 ? 100 : -100);
+                           }
+                           
                            const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
                            
                            if (adjustedVariance >= 0) {
