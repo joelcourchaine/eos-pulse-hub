@@ -41,6 +41,7 @@ export default function Enterprise() {
   const [endMonth, setEndMonth] = useState<Date>(new Date());
   const [saveFilterName, setSaveFilterName] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [sortByMetric, setSortByMetric] = useState<string>("");
 
   // Check authentication
   useEffect(() => {
@@ -1210,39 +1211,58 @@ export default function Enterprise() {
                       ({filteredStores.length} stores, {selectedMetrics.length} metrics)
                     </span>
                   </CardTitle>
-                   <Button
-                     onClick={() => {
-                       // Prepare date parameters based on period type
-                       const dateParams: any = {
-                         datePeriodType,
-                       };
-                       
-                       if (datePeriodType === "month") {
-                         dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
-                       } else if (datePeriodType === "full_year") {
-                         dateParams.selectedYear = selectedYear;
-                       } else if (datePeriodType === "custom_range") {
-                         dateParams.startMonth = format(startMonth, "yyyy-MM");
-                         dateParams.endMonth = format(endMonth, "yyyy-MM");
-                       }
-                       
-                       navigate("/dealer-comparison", {
-                         state: {
-                           data: comparisonData,
-                           metricType,
-                           selectedMetrics,
-                           ...dateParams,
-                           comparisonMode,
-                           departmentIds,
-                           isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
-                           selectedDepartmentNames,
-                         }
-                       });
-                     }}
-                     disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                   >
-                     View Dashboard
-                   </Button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Sort by:</span>
+                      <Select value={sortByMetric} onValueChange={setSortByMetric}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="No sorting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No sorting</SelectItem>
+                          {selectedMetrics.map((metric) => (
+                            <SelectItem key={metric} value={metric}>
+                              {metric}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        // Prepare date parameters based on period type
+                        const dateParams: any = {
+                          datePeriodType,
+                        };
+                        
+                        if (datePeriodType === "month") {
+                          dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
+                        } else if (datePeriodType === "full_year") {
+                          dateParams.selectedYear = selectedYear;
+                        } else if (datePeriodType === "custom_range") {
+                          dateParams.startMonth = format(startMonth, "yyyy-MM");
+                          dateParams.endMonth = format(endMonth, "yyyy-MM");
+                        }
+                        
+                        navigate("/dealer-comparison", {
+                          state: {
+                            data: comparisonData,
+                            metricType,
+                            selectedMetrics,
+                            ...dateParams,
+                            comparisonMode,
+                            departmentIds,
+                            isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                            selectedDepartmentNames,
+                            sortByMetric,
+                          }
+                        });
+                      }}
+                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                    >
+                      View Dashboard
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1251,6 +1271,7 @@ export default function Enterprise() {
                   metricType={metricType}
                   selectedMetrics={selectedMetrics}
                   isLoading={metricType === "financial" && isLoadingFinancialEntries}
+                  sortByMetric={sortByMetric}
                 />
               </CardContent>
             </Card>

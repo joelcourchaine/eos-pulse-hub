@@ -42,7 +42,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth } = location.state as {
+  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "" } = location.state as {
     data: ComparisonData[];
     metricType: string;
     selectedMetrics: string[];
@@ -55,6 +55,7 @@ export default function DealerComparison() {
     selectedYear?: number;
     startMonth?: string;
     endMonth?: string;
+    sortByMetric?: string;
   };
 
   // Initialize with passed data
@@ -880,7 +881,17 @@ export default function DealerComparison() {
     return acc;
   }, {} as Record<string, { storeName: string; metrics: Record<string, { value: number | null; target: number | null; variance: number | null }> }>);
 
-  const stores = Object.entries(storeData);
+  // Sort stores by the selected metric (best/highest values first = left side)
+  let stores = Object.entries(storeData);
+  
+  if (sortByMetric) {
+    stores = stores.sort(([, aData], [, bData]) => {
+      const aValue = aData.metrics[sortByMetric]?.value ?? -Infinity;
+      const bValue = bData.metrics[sortByMetric]?.value ?? -Infinity;
+      // Sort descending (highest/best first on the left)
+      return bValue - aValue;
+    });
+  }
 
   // Calculate data completeness for each store
   const storeDataCompleteness = useMemo(() => {
