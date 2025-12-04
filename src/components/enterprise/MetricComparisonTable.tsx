@@ -164,12 +164,14 @@ export default function MetricComparisonTable({
                 </tr>
               </thead>
               <tbody>
-                {allMetricKeys.map((metricKey, idx) => (
+                {allMetricKeys.map((metricKey, idx) => {
+                  const isSortedRow = sortByMetric && metricKey === sortByMetric;
+                  return (
                   <tr
                     key={metricKey}
-                    className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}
+                    className={`${isSortedRow ? "bg-primary/10 ring-1 ring-primary/30" : idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
                   >
-                    <td className="border-b border-r px-4 py-3 font-medium sticky left-0 bg-inherit z-10">
+                    <td className={`border-b border-r px-4 py-3 font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-inherit"}`}>
                       {metricKey}
                     </td>
                     {stores.map(([storeId, { metrics }]) => {
@@ -201,7 +203,7 @@ export default function MetricComparisonTable({
                       );
                     })}
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
