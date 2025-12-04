@@ -128,8 +128,8 @@ export function EmailComparisonDialog({
       });
 
       setRecipients(recipientList);
-      // Pre-select all recipients
-      setSelectedRecipients(recipientList.map(r => r.email));
+      // Default to no recipients selected
+      setSelectedRecipients([]);
     } catch (error) {
       console.error("Error fetching recipients:", error);
       toast.error("Failed to load recipients");
