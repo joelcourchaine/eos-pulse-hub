@@ -392,6 +392,104 @@ export default function DealerComparison() {
               }
             }
           });
+          
+          // Calculate derived dollar metrics (like department_profit) from aggregated base values
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              let calculatedValue: number | null = null;
+              
+              if (calc.type === 'subtract') {
+                const base = storeMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = storeMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                }
+              } else if (calc.type === 'complex') {
+                const base = storeMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = storeMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                  (calc.additions || []).forEach((a: string) => {
+                    const val = storeMetrics.get(a);
+                    if (val !== undefined) calculatedValue! += val;
+                  });
+                }
+              }
+              
+              if (calculatedValue !== null) {
+                // Store calculated value for use in percentage calculations
+                storeMetrics.set(metricDef.key, calculatedValue);
+                
+                const metricName = metricDef.name;
+                const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
+                const comparisonKey = `${deptId}-${metricDef.key}`;
+                const comparisonInfo = comparisonMap.get(comparisonKey);
+                
+                dataMap[entryKey] = {
+                  storeId,
+                  storeName,
+                  departmentId: deptId,
+                  departmentName: deptName,
+                  metricName,
+                  value: calculatedValue,
+                  target: comparisonInfo?.value || null,
+                  variance: null,
+                };
+                
+                // Calculate variance
+                if (comparisonInfo?.value && comparisonInfo.value !== 0) {
+                  const variance = ((calculatedValue - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                  const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
+                  dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+                }
+              }
+            }
+          });
+          
+          // Recalculate percentages again after derived dollar metrics are computed
+          // This handles metrics like Return on Gross % that depend on department_profit
+          metrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'percentage' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              if ('numerator' in calc && 'denominator' in calc) {
+                const num = storeMetrics.get(calc.numerator);
+                const denom = storeMetrics.get(calc.denominator);
+                
+                if (num !== undefined && denom !== undefined && denom !== 0) {
+                  const finalValue = (num / denom) * 100;
+                  const metricName = metricDef.name;
+                  const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
+                  const comparisonKey = `${deptId}-${metricDef.key}`;
+                  const comparisonInfo = comparisonMap.get(comparisonKey);
+                  
+                  dataMap[entryKey] = {
+                    storeId,
+                    storeName,
+                    departmentId: deptId,
+                    departmentName: deptName,
+                    metricName,
+                    value: finalValue,
+                    target: comparisonInfo?.value || null,
+                    variance: null,
+                  };
+                  
+                  // Calculate variance
+                  if (comparisonInfo?.value && comparisonInfo.value !== 0) {
+                    const variance = ((finalValue - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
+                    const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
+                    dataMap[entryKey].variance = shouldReverse ? -variance : variance;
+                  }
+                }
+              }
+            }
+          });
         });
       } else {
         // Single month - process entries directly
