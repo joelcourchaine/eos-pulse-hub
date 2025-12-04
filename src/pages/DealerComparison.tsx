@@ -1114,9 +1114,11 @@ export default function DealerComparison() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedMetrics.map((metric) => (
-                      <TableRow key={metric}>
-                        <TableCell className="font-medium sticky left-0 bg-background z-10">
+                    {selectedMetrics.map((metric) => {
+                      const isSortedRow = sortByMetric && metric === sortByMetric;
+                      return (
+                      <TableRow key={metric} className={isSortedRow ? "bg-primary/10" : ""}>
+                        <TableCell className={`font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-background"}`}>
                           {metric}
                         </TableCell>
                         {stores.map(([storeId, store]) => {
@@ -1147,7 +1149,7 @@ export default function DealerComparison() {
                           );
                         })}
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               </div>
