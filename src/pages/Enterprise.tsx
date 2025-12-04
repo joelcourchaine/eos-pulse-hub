@@ -1214,12 +1214,15 @@ export default function Enterprise() {
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Sort by:</span>
-                      <Select value={sortByMetric} onValueChange={setSortByMetric}>
+                      <Select 
+                        value={sortByMetric || "__none__"} 
+                        onValueChange={(val) => setSortByMetric(val === "__none__" ? "" : val)}
+                      >
                         <SelectTrigger className="w-[200px]">
                           <SelectValue placeholder="No sorting" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">No sorting</SelectItem>
+                          <SelectItem value="__none__">No sorting</SelectItem>
                           {selectedMetrics.map((metric) => (
                             <SelectItem key={metric} value={metric}>
                               {metric}
