@@ -18,6 +18,7 @@ interface MetricComparisonTableProps {
   metricType: "weekly" | "monthly" | "financial";
   selectedMetrics: string[];
   isLoading?: boolean;
+  sortByMetric?: string;
 }
 
 export default function MetricComparisonTable({
@@ -25,6 +26,7 @@ export default function MetricComparisonTable({
   metricType,
   selectedMetrics,
   isLoading = false,
+  sortByMetric = "",
 }: MetricComparisonTableProps) {
   console.log("MetricComparisonTable render:", {
     dataLength: data.length,
@@ -70,7 +72,28 @@ export default function MetricComparisonTable({
     return acc;
   }, {} as Record<string, { storeName: string; metrics: Record<string, MetricData> }>);
 
-  const stores = Object.entries(storeData);
+  // Sort stores by the selected metric (best/highest values first = left side)
+  let stores = Object.entries(storeData);
+  
+  if (sortByMetric) {
+    stores = stores.sort(([, aData], [, bData]) => {
+      // Find the metric value for sorting - check with and without department prefix
+      const aMetric = Object.values(aData.metrics).find(m => 
+        m.metricName === sortByMetric || 
+        `${m.departmentName} - ${m.metricName}` === sortByMetric
+      );
+      const bMetric = Object.values(bData.metrics).find(m => 
+        m.metricName === sortByMetric || 
+        `${m.departmentName} - ${m.metricName}` === sortByMetric
+      );
+      
+      const aValue = aMetric?.value ?? -Infinity;
+      const bValue = bMetric?.value ?? -Infinity;
+      
+      // Sort descending (highest/best first on the left)
+      return bValue - aValue;
+    });
+  }
   const allMetricKeys = Array.from(
     new Set(data.map(d => 
       d.departmentName 
