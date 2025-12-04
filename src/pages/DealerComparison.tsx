@@ -266,40 +266,44 @@ export default function DealerComparison() {
                     (firstEntry as any)?.departments?.stores?.brand || null;
       console.log("Detected brand for comparison:", brand, "from entry:", firstEntry);
       
-      // Create metric maps - use all possible metrics for multi-brand comparison
+      // Create metric maps - we need name/key mappings and brand-specific definitions
       const nameToKey = new Map<string, string>();
       const keyToName = new Map<string, string>();
-      const keyToDef = new Map<string, any>();
       
-      // Load metrics from all brands to support multi-brand comparison
-      const allBrandMetrics = [
-        ...getMetricsForBrand('GMC'),
-        ...getMetricsForBrand('Ford'),
-        ...getMetricsForBrand('Nissan'),
-        ...getMetricsForBrand('Mazda'),
-      ];
-      
-      // Deduplicate by key, preferring metrics that have calculations (more complete definitions)
-      const uniqueMetrics = new Map<string, any>();
-      allBrandMetrics.forEach((m: any) => {
-        const existing = uniqueMetrics.get(m.key);
-        if (!existing || (!existing.calculation && m.calculation)) {
-          uniqueMetrics.set(m.key, m);
-        }
+      // Build brand-specific metric definition maps
+      const brandMetricDefs = new Map<string, Map<string, any>>();
+      const brands = ['GMC', 'Ford', 'Nissan', 'Mazda'];
+      brands.forEach(brandName => {
+        const brandMetrics = getMetricsForBrand(brandName);
+        const brandMap = new Map<string, any>();
+        brandMetrics.forEach((m: any) => {
+          brandMap.set(m.key, m);
+          // Build global name/key mappings
+          nameToKey.set(m.name, m.key);
+          keyToName.set(m.key, m.name);
+        });
+        brandMetricDefs.set(brandName, brandMap);
       });
       
-      uniqueMetrics.forEach((m) => {
-        nameToKey.set(m.name, m.key);
-        keyToName.set(m.key, m.name);
-        keyToDef.set(m.key, m);
-      });
+      // Build a default keyToDef for non-brand-specific operations (use GMC as default)
+      const keyToDef = brandMetricDefs.get('GMC') || new Map<string, any>();
       
-      // Also use the default metrics config for ordering
-      const metrics = Array.from(uniqueMetrics.values());
+      // Helper to get brand-specific metric definition
+      const getMetricDef = (metricKey: string, storeBrand: string | null): any => {
+        const normalizedBrand = storeBrand?.toLowerCase() || '';
+        let brandKey = 'GMC'; // default
+        if (normalizedBrand.includes('ford')) brandKey = 'Ford';
+        else if (normalizedBrand.includes('nissan')) brandKey = 'Nissan';
+        else if (normalizedBrand.includes('mazda')) brandKey = 'Mazda';
+        else if (normalizedBrand.includes('gmc') || normalizedBrand.includes('chevrolet')) brandKey = 'GMC';
+        
+        return brandMetricDefs.get(brandKey)?.get(metricKey) || keyToDef.get(metricKey);
+      };
       
-      console.log("DealerComparison - Using combined metrics from all brands");
-      console.log("DealerComparison - Total unique metrics:", metrics.length);
-      console.log("DealerComparison - Has semi_fixed_expense:", keyToDef.has('semi_fixed_expense'));
+      // Use all metrics from all brands for the combined list
+      const metrics = Array.from(keyToDef.values());
+      
+      console.log("DealerComparison - Using brand-specific metrics for calculations");
       
       // Build comparison baseline map (targets, averages, or previous year)
       const comparisonMap = new Map<string, { value: number; direction?: string }>();
@@ -343,6 +347,17 @@ export default function DealerComparison() {
       // Build a map of all data by store+dept+metric key
       const dataMap: Record<string, ComparisonData> = {};
       
+      // Track brand for each store
+      const storeBrands = new Map<string, string>();
+      financialEntries.forEach(entry => {
+        const storeId = (entry as any)?.departments?.store_id || "";
+        const brand = (entry as any)?.departments?.stores?.brands?.name || 
+                      (entry as any)?.departments?.stores?.brand || null;
+        if (storeId && brand) {
+          storeBrands.set(storeId, brand);
+        }
+      });
+      
       // For full_year and custom_range, we need to aggregate data first
       if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
         console.log("Aggregating data for multi-month period");
@@ -377,10 +392,11 @@ export default function DealerComparison() {
           const storeName = (sampleEntry as any)?.departments?.stores?.name || "";
           const deptId = (sampleEntry as any)?.departments?.id;
           const deptName = (sampleEntry as any)?.departments?.name;
+          const storeBrand = storeBrands.get(storeId) || null;
           
           // Process each metric
           storeMetrics.forEach((aggregatedValue, metricKey) => {
-            const metricDef = keyToDef.get(metricKey);
+            const metricDef = getMetricDef(metricKey, storeBrand);
             let finalValue = aggregatedValue;
             
             // Recalculate percentages from aggregated dollar values
@@ -422,8 +438,14 @@ export default function DealerComparison() {
             }
           });
           
-          // Calculate derived dollar metrics (like department_profit) from aggregated base values
-          metrics.forEach((metricDef: any) => {
+          // Calculate derived dollar metrics using brand-specific formulas
+          const storeBrandMetrics = brandMetricDefs.get(
+            storeBrand?.toLowerCase()?.includes('ford') ? 'Ford' :
+            storeBrand?.toLowerCase()?.includes('nissan') ? 'Nissan' :
+            storeBrand?.toLowerCase()?.includes('mazda') ? 'Mazda' : 'GMC'
+          ) || keyToDef;
+          
+          storeBrandMetrics.forEach((metricDef: any) => {
             if (metricDef.type === 'dollar' && metricDef.calculation) {
               const calc = metricDef.calculation;
               let calculatedValue: number | null = null;
@@ -483,8 +505,7 @@ export default function DealerComparison() {
           });
           
           // Recalculate percentages again after derived dollar metrics are computed
-          // This handles metrics like Return on Gross % that depend on department_profit
-          metrics.forEach((metricDef: any) => {
+          storeBrandMetrics.forEach((metricDef: any) => {
             if (metricDef.type === 'percentage' && metricDef.calculation) {
               const calc = metricDef.calculation;
               if ('numerator' in calc && 'denominator' in calc) {
@@ -538,6 +559,7 @@ export default function DealerComparison() {
           const deptId = (entry as any)?.departments?.id;
           const deptName = (entry as any)?.departments?.name;
           const key = `${storeId}-${deptId}-${entry.metric_name}`;
+          const storeBrand = storeBrands.get(storeId) || null;
           
           // Get comparison baseline for this metric
           const comparisonKey = `${deptId}-${entry.metric_name}`;
@@ -558,7 +580,7 @@ export default function DealerComparison() {
           if (dataMap[key].value !== null && dataMap[key].target !== null) {
             const value = dataMap[key].value!;
             const baseline = dataMap[key].target!;
-            const metricDef = keyToDef.get(entry.metric_name);
+            const metricDef = getMetricDef(entry.metric_name, storeBrand);
             
             if (baseline !== 0) {
               const variance = ((value - baseline) / Math.abs(baseline)) * 100;
@@ -581,7 +603,8 @@ export default function DealerComparison() {
           
           if (isParts || isService) {
             const metricKey = nameToKey.get(entry.metricName);
-            const metricDef = metricKey ? keyToDef.get(metricKey) : null;
+            const storeBrand = storeBrands.get(entry.storeId) || null;
+            const metricDef = metricKey ? getMetricDef(metricKey, storeBrand) : null;
             
             // Only aggregate base dollar metrics (those without calculation formulas)
             if (metricKey && metricDef?.type === 'dollar' && !metricDef.calculation) {
@@ -595,7 +618,7 @@ export default function DealerComparison() {
           }
         });
         
-        // Helper function to calculate derived metrics
+        // Helper function to calculate derived metrics with brand-specific formulas
         const calculateDerivedMetric = (storeMetrics: Map<string, number>, metricDef: any): number => {
           if (!metricDef.calculation) return 0;
           
@@ -628,9 +651,16 @@ export default function DealerComparison() {
           return 0;
         };
         
-        // Second pass: calculate derived dollar metrics (those with calculation formulas)
+        // Second pass: calculate derived dollar metrics using brand-specific formulas
         combinedByStore.forEach((storeMetrics, storeId) => {
-          metrics.forEach((metricDef: any) => {
+          const storeBrand = storeBrands.get(storeId) || null;
+          const storeBrandMetrics = brandMetricDefs.get(
+            storeBrand?.toLowerCase()?.includes('ford') ? 'Ford' :
+            storeBrand?.toLowerCase()?.includes('nissan') ? 'Nissan' :
+            storeBrand?.toLowerCase()?.includes('mazda') ? 'Mazda' : 'GMC'
+          ) || keyToDef;
+          
+          storeBrandMetrics.forEach((metricDef: any) => {
             if (metricDef.type === 'dollar' && metricDef.calculation) {
               const calculatedValue = calculateDerivedMetric(storeMetrics, metricDef);
               storeMetrics.set(metricDef.key, calculatedValue);
@@ -643,13 +673,14 @@ export default function DealerComparison() {
         
         combinedByStore.forEach((storeMetrics, storeId) => {
           const storeName = Object.values(dataMap).find(d => d.storeId === storeId)?.storeName || '';
+          const storeBrand = storeBrands.get(storeId) || null;
           
           // Process all selected metrics
           selectedMetrics.forEach(metricName => {
             const metricKey = nameToKey.get(metricName);
             if (!metricKey) return;
             
-            const metricDef = keyToDef.get(metricKey);
+            const metricDef = getMetricDef(metricKey, storeBrand);
             if (!metricDef) return;
             
             let finalValue: number;
@@ -693,6 +724,7 @@ export default function DealerComparison() {
       for (let pass = 0; pass < 2; pass++) {
         storeDeptPairs.forEach(pair => {
           const [storeId, deptId] = pair.split('|');
+          const storeBrand = storeBrands.get(storeId) || null;
           
           // Get all values (including previously calculated ones) for this store+dept
           const allValues = new Map<string, number>();
@@ -711,7 +743,7 @@ export default function DealerComparison() {
           );
           if (!sampleEntry) return;
           
-          // Calculate each selected metric that has a calculation formula
+          // Calculate each selected metric that has a calculation formula using brand-specific definitions
           selectedMetrics.forEach(metricName => {
             const metricKey = nameToKey.get(metricName);
             if (!metricKey) return;
@@ -719,7 +751,7 @@ export default function DealerComparison() {
             const key = `${storeId}-${deptId}-${metricKey}`;
             if (dataMap[key]) return; // Already exists
             
-            const metricDef = keyToDef.get(metricKey);
+            const metricDef = getMetricDef(metricKey, storeBrand);
             if (!metricDef?.calculation) return;
             
             let value: number | null = null;
