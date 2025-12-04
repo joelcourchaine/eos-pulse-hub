@@ -422,13 +422,23 @@ export default function Enterprise() {
         console.log("No financial data available for selected period");
         return [];
       }
-      // Convert selected metric names to database keys
-      const selectedKeys = selectedMetrics.map(name => metricKeyMap.get(name) || name);
+      // Get brand metrics to identify which metrics are calculated vs stored
+      const firstStore = filteredStores[0];
+      const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
+      const brandMetrics = getMetricsForBrand(brand);
+      
+      // Get all keys for metrics that are stored in the database (no calculation property OR dollar type with calculation)
+      // We need base dollar values to calculate percentages
+      const storedMetricKeys = brandMetrics
+        .filter((m: any) => !m.calculation || m.type === 'dollar')
+        .map((m: any) => m.key);
+      
       console.log("Financial comparison - Selected metrics:", selectedMetrics);
-      console.log("Financial comparison - Selected keys:", selectedKeys);
+      console.log("Financial comparison - Stored metric keys:", storedMetricKeys);
       console.log("Financial comparison - All entries count:", financialEntries.length);
       
-      const filtered = financialEntries.filter(entry => selectedKeys.includes(entry.metric_name));
+      // Filter to get all base metrics we need for calculations
+      const filtered = financialEntries.filter(entry => storedMetricKeys.includes(entry.metric_name));
       console.log("Financial entries filtered:", filtered.length);
       console.log("Filtered metric names:", Array.from(new Set(filtered.map(e => e.metric_name))));
       console.log("Sample filtered entries:", filtered.slice(0, 3));
@@ -485,55 +495,141 @@ export default function Enterprise() {
       
       let processedData: any[] = [];
       
-      if (datePeriodType === "month") {
-        processedData = Object.values(groupedByKey);
-      } else if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
-        // For full year, recalculate percentages from summed values
-        const firstStore = filteredStores[0];
-        const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
-        const brandMetrics = getMetricsForBrand(brand);
+      // Helper function to calculate a metric value
+      const calculateMetricValue = (metricConfig: any, allMetrics: Map<string, number>, calculatedValues: Map<string, number>): number | null => {
+        if (!metricConfig.calculation) {
+          return allMetrics.get(metricConfig.key) ?? null;
+        }
         
+        const calc = metricConfig.calculation;
+        
+        // Percentage calculation
+        if ('numerator' in calc && 'denominator' in calc) {
+          const num = calculatedValues.get(calc.numerator) ?? allMetrics.get(calc.numerator) ?? 0;
+          const denom = calculatedValues.get(calc.denominator) ?? allMetrics.get(calc.denominator) ?? 0;
+          return denom !== 0 ? (num / denom) * 100 : 0;
+        }
+        
+        // Subtraction calculation
+        if (calc.type === 'subtract') {
+          const baseValue = calculatedValues.get(calc.base) ?? allMetrics.get(calc.base) ?? 0;
+          const deductions = calc.deductions.reduce((sum: number, key: string) => {
+            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
+          }, 0);
+          return baseValue - deductions;
+        }
+        
+        // Complex calculation (base - deductions + additions)
+        if (calc.type === 'complex') {
+          const baseValue = calculatedValues.get(calc.base) ?? allMetrics.get(calc.base) ?? 0;
+          const deductions = calc.deductions?.reduce((sum: number, key: string) => {
+            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
+          }, 0) || 0;
+          const additions = calc.additions?.reduce((sum: number, key: string) => {
+            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
+          }, 0) || 0;
+          return baseValue - deductions + additions;
+        }
+        
+        return null;
+      };
+      
+      if (datePeriodType === "month") {
+        // For monthly view, process each store's data
+        const storeGroups = new Map<string, any>();
+        
+        Object.values(groupedByKey).forEach((entry: any) => {
+          const storeKey = `${entry.storeId}-${entry.departmentId}`;
+          if (!storeGroups.has(storeKey)) {
+            storeGroups.set(storeKey, {
+              storeId: entry.storeId,
+              storeName: entry.storeName,
+              departmentId: entry.departmentId,
+              departmentName: entry.departmentName,
+              rawValues: new Map<string, number>(),
+            });
+          }
+          storeGroups.get(storeKey).rawValues.set(entry.metricKey, entry.value);
+        });
+        
+        // Calculate all selected metrics for each store/department
+        storeGroups.forEach((storeData) => {
+          const calculatedValues = new Map<string, number>();
+          
+          // Process metrics in order (dependencies first)
+          brandMetrics.forEach((metric: any) => {
+            const value = calculateMetricValue(metric, storeData.rawValues, calculatedValues);
+            if (value !== null) {
+              calculatedValues.set(metric.key, value);
+            }
+          });
+          
+          // Create output entries for selected metrics
+          selectedMetrics.forEach((metricName) => {
+            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
+            if (metricConfig) {
+              const value = calculatedValues.get(metricConfig.key);
+              if (value !== undefined) {
+                processedData.push({
+                  storeId: storeData.storeId,
+                  storeName: storeData.storeName,
+                  departmentId: storeData.departmentId,
+                  departmentName: storeData.departmentName,
+                  metricName: metricName,
+                  value: value,
+                  target: null,
+                  variance: null,
+                });
+              }
+            }
+          });
+        });
+      } else if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
+        // For full year, recalculate from summed values
         Object.values(groupedByKey).forEach((storeData: any) => {
           const allMetrics = new Map<string, number>();
+          const calculatedValues = new Map<string, number>();
           
-          // First pass: collect all dollar values
+          // First pass: collect all raw dollar values
           Object.values(storeData.rawValues).forEach((metric: any) => {
             allMetrics.set(metric.metricKey, metric.value);
           });
           
-          // Second pass: create entries with recalculated percentages
-          Object.values(storeData.rawValues).forEach((metric: any) => {
-            const metricConfig = brandMetrics.find((m: any) => m.name === metric.metricDisplayName);
-            let finalValue = metric.value;
-            
-            // If it's a percentage metric, recalculate from dollar values
-            if (metricConfig?.type === 'percentage' && metricConfig?.calculation) {
-              const calc = metricConfig.calculation;
-              if ('numerator' in calc && 'denominator' in calc) {
-                const num = allMetrics.get(calc.numerator) || 0;
-                const denom = allMetrics.get(calc.denominator) || 0;
-                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+          // Process metrics in order (dependencies first)
+          brandMetrics.forEach((metric: any) => {
+            const value = calculateMetricValue(metric, allMetrics, calculatedValues);
+            if (value !== null) {
+              calculatedValues.set(metric.key, value);
+            }
+          });
+          
+          // Create output entries for selected metrics
+          selectedMetrics.forEach((metricName) => {
+            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
+            if (metricConfig) {
+              const value = calculatedValues.get(metricConfig.key);
+              if (value !== undefined) {
+                processedData.push({
+                  storeId: storeData.storeId,
+                  storeName: storeData.storeName,
+                  departmentId: storeData.departmentId,
+                  departmentName: storeData.departmentName,
+                  metricName: metricName,
+                  value: value,
+                  target: null,
+                  variance: null,
+                });
               }
             }
-            
-            processedData.push({
-              storeId: storeData.storeId,
-              storeName: storeData.storeName,
-              departmentId: storeData.departmentId,
-              departmentName: storeData.departmentName,
-              metricName: metric.metricDisplayName,
-              value: finalValue,
-              target: null,
-              variance: null,
-            });
           });
         });
       }
       
       // If Fixed Combined is selected, aggregate Parts and Service data
       if (isFixedCombined) {
-        const combinedByStore = new Map<string, Map<string, any>>();
+        const combinedByStore = new Map<string, Map<string, number>>();
         
+        // Collect all raw dollar values from Parts and Service departments
         processedData.forEach(entry => {
           const isParts = entry.departmentName?.toLowerCase().includes('parts');
           const isService = entry.departmentName?.toLowerCase().includes('service');
@@ -543,63 +639,51 @@ export default function Enterprise() {
               combinedByStore.set(entry.storeId, new Map());
             }
             const storeMetrics = combinedByStore.get(entry.storeId)!;
+            const metricConfig = brandMetrics.find((m: any) => m.name === entry.metricName);
+            const metricKey = metricConfig?.key || entry.metricName;
             
-            if (!storeMetrics.has(entry.metricName)) {
-              storeMetrics.set(entry.metricName, {
-                storeId: entry.storeId,
-                storeName: entry.storeName,
-                departmentName: 'Fixed Combined',
-                metricName: entry.metricName,
-                metricKey: entry.metricKey,
-                values: {},
-                target: null,
-                variance: null,
-              });
-            }
-            
-            const combined = storeMetrics.get(entry.metricName);
-            combined.values[entry.metricKey] = (combined.values[entry.metricKey] || 0) + (entry.value || 0);
+            // Sum values for this metric
+            storeMetrics.set(metricKey, (storeMetrics.get(metricKey) || 0) + (entry.value || 0));
           }
         });
         
-        // Calculate final values and percentages
+        // Calculate final values for all selected metrics
         const combinedData: any[] = [];
-        combinedByStore.forEach((storeMetrics, storeId) => {
-          const allMetrics = new Map<string, number>();
+        const firstProcessedEntry = processedData.find(e => 
+          e.departmentName?.toLowerCase().includes('parts') || 
+          e.departmentName?.toLowerCase().includes('service')
+        );
+        
+        combinedByStore.forEach((rawMetrics, storeId) => {
+          const calculatedValues = new Map<string, number>();
+          const storeName = processedData.find(e => e.storeId === storeId)?.storeName || '';
           
-          // First pass: collect all dollar values
-          storeMetrics.forEach((metric) => {
-            allMetrics.set(metric.metricKey, metric.values[metric.metricKey] || 0);
+          // Calculate all metrics in order
+          brandMetrics.forEach((metric: any) => {
+            const value = calculateMetricValue(metric, rawMetrics, calculatedValues);
+            if (value !== null) {
+              calculatedValues.set(metric.key, value);
+            }
           });
           
-          // Second pass: calculate percentages using the metric config
-          storeMetrics.forEach((metric) => {
-            const firstStore = filteredStores[0];
-            const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
-            const brandMetrics = getMetricsForBrand(brand);
-            const metricConfig = brandMetrics.find((m: any) => m.name === metric.metricName);
-            let finalValue = metric.values[metric.metricKey] || 0;
-            
-            // If it's a percentage metric, recalculate
-            if (metricConfig?.type === 'percentage' && metricConfig?.calculation) {
-              const calc = metricConfig.calculation;
-              if ('numerator' in calc && 'denominator' in calc) {
-                const num = allMetrics.get(calc.numerator) || 0;
-                const denom = allMetrics.get(calc.denominator) || 0;
-                finalValue = denom !== 0 ? (num / denom) * 100 : 0;
+          // Create output entries for selected metrics
+          selectedMetrics.forEach((metricName) => {
+            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
+            if (metricConfig) {
+              const value = calculatedValues.get(metricConfig.key);
+              if (value !== undefined) {
+                combinedData.push({
+                  storeId: storeId,
+                  storeName: storeName,
+                  departmentId: undefined,
+                  departmentName: 'Fixed Combined',
+                  metricName: metricName,
+                  value: value,
+                  target: null,
+                  variance: null,
+                });
               }
             }
-            
-            combinedData.push({
-              storeId: metric.storeId,
-              storeName: metric.storeName,
-              departmentId: undefined,
-              departmentName: 'Fixed Combined',
-              metricName: metric.metricName,
-              value: finalValue,
-              target: null,
-              variance: null,
-            });
           });
         });
         
