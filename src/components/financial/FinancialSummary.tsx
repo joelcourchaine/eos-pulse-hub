@@ -126,6 +126,7 @@ interface MonthlyTrendPeriod {
   identifier: string;
   type: 'month' | 'year-avg' | 'year-total';
   summaryYear?: number;
+  isYTD?: boolean;
 }
 
 const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
@@ -173,6 +174,26 @@ const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
       type: 'month',
     });
   }
+  
+  // Add YTD summary columns for the current year (after last month)
+  periods.push({
+    month: -1,
+    year: currentYear,
+    label: `Avg YTD`,
+    identifier: `avg-${currentYear}`,
+    type: 'year-avg',
+    summaryYear: currentYear,
+    isYTD: true,
+  });
+  periods.push({
+    month: -1,
+    year: currentYear,
+    label: `Total YTD`,
+    identifier: `total-${currentYear}`,
+    type: 'year-total',
+    summaryYear: currentYear,
+    isYTD: true,
+  });
   
   return periods;
 };
@@ -1488,7 +1509,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                ) : (
                                  <>
                                    <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
-                                   <div className="text-xs font-normal text-muted-foreground">{period.summaryYear}</div>
+                                   <div className="text-xs font-normal text-muted-foreground">
+                                     {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                                   </div>
                                  </>
                                )}
                              </div>
