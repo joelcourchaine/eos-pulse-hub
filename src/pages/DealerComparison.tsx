@@ -2,8 +2,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -879,6 +880,78 @@ export default function DealerComparison() {
 
   const stores = Object.entries(storeData);
 
+  // Calculate data completeness for each store
+  const storeDataCompleteness = useMemo(() => {
+    if (!financialEntries || financialEntries.length === 0) return {};
+    
+    // Get months in the selected period
+    let expectedMonths: string[] = [];
+    const currentDate = new Date();
+    const currentMonth = format(currentDate, 'yyyy-MM');
+    
+    if (datePeriodType === "month") {
+      expectedMonths = [selectedMonth || currentMonth];
+    } else if (datePeriodType === "full_year") {
+      const year = selectedYear || currentDate.getFullYear();
+      // Only expect months up to current month if it's the current year
+      const maxMonth = year === currentDate.getFullYear() ? currentDate.getMonth() + 1 : 12;
+      for (let m = 1; m <= maxMonth; m++) {
+        expectedMonths.push(`${year}-${String(m).padStart(2, '0')}`);
+      }
+    } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+      let current = new Date(startMonth + '-01');
+      const end = new Date(endMonth + '-01');
+      while (current <= end) {
+        const monthStr = format(current, 'yyyy-MM');
+        // Don't expect future months
+        if (monthStr <= currentMonth) {
+          expectedMonths.push(monthStr);
+        }
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+    
+    // Group entries by store and track which months have data
+    const completeness: Record<string, { 
+      monthsWithData: Set<string>;
+      expectedMonths: string[];
+      lastCompleteMonth: string | null;
+      isComplete: boolean;
+    }> = {};
+    
+    financialEntries.forEach(entry => {
+      const storeId = (entry as any)?.departments?.store_id;
+      if (!storeId) return;
+      
+      if (!completeness[storeId]) {
+        completeness[storeId] = {
+          monthsWithData: new Set(),
+          expectedMonths,
+          lastCompleteMonth: null,
+          isComplete: false,
+        };
+      }
+      
+      if (entry.month && entry.value !== null) {
+        completeness[storeId].monthsWithData.add(entry.month);
+      }
+    });
+    
+    // Calculate last complete month for each store
+    Object.values(completeness).forEach(store => {
+      const sortedMonths = [...store.monthsWithData].sort();
+      store.lastCompleteMonth = sortedMonths.length > 0 ? sortedMonths[sortedMonths.length - 1] : null;
+      store.isComplete = expectedMonths.every(m => store.monthsWithData.has(m));
+    });
+    
+    return completeness;
+  }, [financialEntries, datePeriodType, selectedMonth, selectedYear, startMonth, endMonth]);
+
+  const formatMonthShort = (month: string) => {
+    const date = new Date(month + '-15');
+    return format(date, 'MMM yyyy');
+  };
+
   const getVarianceColor = (variance: number | null) => {
     if (variance === null) return "secondary";
     // Green: 10% or more above target
@@ -973,11 +1046,48 @@ export default function DealerComparison() {
                       <TableHead className="sticky left-0 bg-background z-10 border-b-2">
                         <div className="text-base font-bold">Metric</div>
                       </TableHead>
-                      {stores.map(([storeId, store]) => (
-                        <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
-                          <div className="text-base font-bold">{store.storeName}</div>
-                        </TableHead>
-                      ))}
+                      {stores.map(([storeId, store]) => {
+                        const completeness = storeDataCompleteness[storeId];
+                        return (
+                          <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
+                            <div className="text-base font-bold">{store.storeName}</div>
+                            {completeness && metricType === "financial" && datePeriodType !== "month" && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center justify-center gap-1 mt-1">
+                                      {completeness.isComplete ? (
+                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                      ) : (
+                                        <AlertCircle className="h-3 w-3 text-yellow-500" />
+                                      )}
+                                      <span className="text-xs text-muted-foreground">
+                                        {completeness.lastCompleteMonth 
+                                          ? `Thru ${formatMonthShort(completeness.lastCompleteMonth)}`
+                                          : 'No data'}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <div className="text-xs">
+                                      <p className="font-medium mb-1">
+                                        {completeness.isComplete 
+                                          ? 'All months have data' 
+                                          : `${completeness.monthsWithData.size} of ${completeness.expectedMonths.length} months have data`}
+                                      </p>
+                                      <p className="text-muted-foreground">
+                                        Latest: {completeness.lastCompleteMonth 
+                                          ? formatMonthShort(completeness.lastCompleteMonth) 
+                                          : 'None'}
+                                      </p>
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </TableHead>
+                        );
+                      })}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
