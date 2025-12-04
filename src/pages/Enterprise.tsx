@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 
-type FilterMode = "brand" | "custom";
+type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
 type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
@@ -26,6 +26,7 @@ export default function Enterprise() {
   const [metricType, setMetricType] = useState<MetricType>("weekly");
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
@@ -40,6 +41,18 @@ export default function Enterprise() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("brands")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: storeGroups } = useQuery({
+    queryKey: ["store_groups"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("store_groups")
         .select("*")
         .order("name");
       if (error) throw error;
@@ -68,12 +81,17 @@ export default function Enterprise() {
         return stores.filter(store => 
           store.brand_id && selectedBrandIds.includes(store.brand_id)
         );
+      case "group":
+        if (selectedGroupIds.length === 0) return [];
+        return stores.filter(store => 
+          store.group_id && selectedGroupIds.includes(store.group_id)
+        );
       case "custom":
         return stores.filter(store => selectedStoreIds.includes(store.id));
       default:
         return [];
     }
-  }, [stores, filterMode, selectedBrandIds, selectedStoreIds]);
+  }, [stores, filterMode, selectedBrandIds, selectedGroupIds, selectedStoreIds]);
 
   const storeIds = useMemo(() => {
     if (filteredStores.length > 0) {
@@ -549,6 +567,14 @@ export default function Enterprise() {
     );
   };
 
+  const toggleGroupSelection = (groupId: string) => {
+    setSelectedGroupIds(prev =>
+      prev.includes(groupId)
+        ? prev.filter(id => id !== groupId)
+        : [...prev, groupId]
+    );
+  };
+
   const toggleDepartmentSelection = (departmentName: string) => {
     setSelectedDepartmentNames(prev =>
       prev.includes(departmentName)
@@ -594,8 +620,9 @@ export default function Enterprise() {
                 value={filterMode}
                 onValueChange={(v) => setFilterMode(v as FilterMode)}
               >
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="brand">Brand</TabsTrigger>
+                  <TabsTrigger value="group">Group</TabsTrigger>
                   <TabsTrigger value="custom">Custom</TabsTrigger>
                 </TabsList>
 
@@ -614,6 +641,28 @@ export default function Enterprise() {
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                           >
                             {brand.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="group" className="mt-4">
+                  <ScrollArea className="h-[300px] pr-4">
+                    <div className="space-y-3">
+                      {storeGroups?.map((group) => (
+                        <div key={group.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`group-${group.id}`}
+                            checked={selectedGroupIds.includes(group.id)}
+                            onCheckedChange={() => toggleGroupSelection(group.id)}
+                          />
+                          <label
+                            htmlFor={`group-${group.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {group.name}
                           </label>
                         </div>
                       ))}
