@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import MetricComparisonTable from "@/components/enterprise/MetricComparisonTable";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -282,92 +281,17 @@ export default function Enterprise() {
     return departments.filter(d => expandedNames.includes(d.name)).map(d => d.id);
   }, [departments, selectedDepartmentNames]);
 
-  // Fetch KPI definitions
-  const { data: kpiDefinitions } = useQuery({
-    queryKey: ["kpi_definitions", departmentIds, metricType],
-    queryFn: async () => {
-      if (departmentIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("kpi_definitions")
-        .select("*, departments(name, store_id, stores(name))")
-        .in("department_id", departmentIds);
-      if (error) throw error;
-      return data;
-    },
-    enabled: departmentIds.length > 0 && metricType !== "financial",
-  });
-
-  // Fetch scorecard entries
-  const { data: scorecardEntries } = useQuery({
-    queryKey: ["scorecard_entries", kpiDefinitions, metricType],
-    queryFn: async () => {
-      if (!kpiDefinitions || kpiDefinitions.length === 0) return [];
-      const kpiIds = kpiDefinitions.map(k => k.id);
-      const { data, error } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", metricType === "weekly" ? "weekly" : "monthly")
-        .order("week_start_date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: kpiDefinitions && kpiDefinitions.length > 0 && metricType !== "financial",
-  });
-
-  // Fetch financial entries
-  const { data: financialEntries, isLoading: isLoadingFinancialEntries } = useQuery({
-    queryKey: ["financial_entries", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
-    queryFn: async () => {
-      if (departmentIds.length === 0) return [];
-      
-      let query = supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name))")
-        .in("department_id", departmentIds);
-      
-      if (datePeriodType === "month") {
-        const monthString = format(selectedMonth, "yyyy-MM");
-        query = query.eq("month", monthString);
-        console.log("Fetching financial entries for month:", monthString);
-      } else if (datePeriodType === "full_year") {
-        // For full year, fetch all months for that year
-        const yearString = selectedYear.toString();
-        query = query
-          .gte("month", `${yearString}-01`)
-          .lte("month", `${yearString}-12`);
-        console.log("Fetching financial entries for full year:", yearString);
-      } else if (datePeriodType === "custom_range") {
-        // For custom range, fetch between start and end months
-        const startMonthString = format(startMonth, "yyyy-MM");
-        const endMonthString = format(endMonth, "yyyy-MM");
-        query = query
-          .gte("month", startMonthString)
-          .lte("month", endMonthString);
-        console.log("Fetching financial entries for range:", startMonthString, "to", endMonthString);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
-    },
-    enabled: departmentIds.length > 0 && metricType === "financial",
-  });
-
   // Get available metrics based on metric type
   const availableMetrics = useMemo(() => {
     if (metricType === "financial") {
       const firstStore = filteredStores[0];
-      const brand = firstStore?.brand || firstStore?.brands?.name || null;
-      console.log("Getting metrics for brand:", brand, "First store:", firstStore?.name);
+      const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
       const metrics = getMetricsForBrand(brand);
-      console.log("Available metrics for brand:", brand, metrics.length, metrics.map(m => m.name));
       return metrics;
-    } else if (kpiDefinitions) {
-      return Array.from(new Set(kpiDefinitions.map(k => ({ name: k.name, key: k.name }))));
     }
+    // For weekly/monthly KPIs, we don't have the data here - DealerComparison will fetch it
     return [];
-  }, [metricType, kpiDefinitions, filteredStores]);
+  }, [metricType, filteredStores]);
 
   // Auto-select Service Department by default
   useEffect(() => {
@@ -388,400 +312,6 @@ export default function Enterprise() {
       setSelectedMetrics(metricNames);
     }
   }, [metricType, availableMetrics]);
-
-  // Create a map of metric names to keys for financial metrics
-  const metricKeyMap = useMemo(() => {
-    if (metricType === "financial") {
-      const map = new Map<string, string>();
-      availableMetrics.forEach((m: any) => map.set(m.name, m.key));
-      return map;
-    }
-    return new Map<string, string>();
-  }, [metricType, availableMetrics]);
-
-  // Prepare comparison data
-  const comparisonData = useMemo(() => {
-    console.log("Preparing comparison data:", {
-      metricType,
-      selectedMetrics,
-      financialEntriesCount: financialEntries?.length,
-      kpiDefinitionsCount: kpiDefinitions?.length,
-      scorecardEntriesCount: scorecardEntries?.length,
-      departmentsCount: departments?.length,
-      filteredStoresCount: filteredStores.length,
-    });
-
-    let dataWithValues: any[] = [];
-    const isFixedCombined = selectedDepartmentNames.includes('Fixed Combined');
-
-    if (metricType === "financial") {
-      // Don't process if data structures aren't ready yet
-      if (!financialEntries || !departments) {
-        console.log("Financial data structures not ready yet, returning empty array");
-        return [];
-      }
-      
-      // For full year, aggregate whatever data exists - don't require all months
-      if (financialEntries.length === 0 && datePeriodType !== "full_year") {
-        console.log("No financial data available for selected period");
-        return [];
-      }
-      // Load metrics from all brands to support multi-brand comparison (matching DealerComparison)
-      const allBrandMetrics = [
-        ...getMetricsForBrand('GMC'),
-        ...getMetricsForBrand('Ford'),
-        ...getMetricsForBrand('Nissan'),
-        ...getMetricsForBrand('Mazda'),
-      ];
-      
-      // Deduplicate by key, preferring metrics that have calculations (more complete definitions)
-      const uniqueMetrics = new Map<string, any>();
-      allBrandMetrics.forEach((m: any) => {
-        const existing = uniqueMetrics.get(m.key);
-        if (!existing || (!existing.calculation && m.calculation)) {
-          uniqueMetrics.set(m.key, m);
-        }
-      });
-      
-      const brandMetrics = Array.from(uniqueMetrics.values());
-      
-      // Get all keys for metrics that are stored in the database (no calculation property OR dollar type with calculation)
-      // We need base dollar values to calculate percentages
-      const storedMetricKeys = brandMetrics
-        .filter((m: any) => !m.calculation || m.type === 'dollar')
-        .map((m: any) => m.key);
-      
-      console.log("Financial comparison - Selected metrics:", selectedMetrics);
-      console.log("Financial comparison - Stored metric keys:", storedMetricKeys);
-      console.log("Financial comparison - All entries count:", financialEntries.length);
-      
-      // Filter to get all base metrics we need for calculations
-      const filtered = financialEntries.filter(entry => storedMetricKeys.includes(entry.metric_name));
-      console.log("Financial entries filtered:", filtered.length);
-      console.log("Filtered metric names:", Array.from(new Set(filtered.map(e => e.metric_name))));
-      console.log("Sample filtered entries:", filtered.slice(0, 3));
-      
-      // Group by store + department + metric
-      const groupedByKey = filtered.reduce((acc, entry) => {
-        const metricDisplayName = Array.from(metricKeyMap.entries()).find(([_, key]) => key === entry.metric_name)?.[0] || entry.metric_name;
-        const departmentId = (entry as any)?.departments?.id;
-        const storeId = (entry as any)?.departments?.store_id;
-        const departmentName = (entry as any)?.departments?.name;
-        const key = `${storeId}-${departmentId}-${entry.metric_name}`;
-        
-        if (datePeriodType === "month") {
-          // For monthly view, only keep the most recent entry
-          if (!acc[key]) {
-            acc[key] = {
-              storeId: storeId || "",
-              storeName: (entry as any)?.departments?.stores?.name || "",
-              departmentId: departmentId,
-              departmentName: departmentName,
-              metricName: metricDisplayName,
-              metricKey: entry.metric_name,
-              value: entry.value ? Number(entry.value) : null,
-              target: null,
-              variance: null,
-            };
-          }
-        } else {
-          // For full year view, collect all raw values to sum/recalculate later
-          const storeKey = `${storeId}-${departmentId}`;
-          if (!acc[storeKey]) {
-            acc[storeKey] = {
-              storeId: storeId || "",
-              storeName: (entry as any)?.departments?.stores?.name || "",
-              departmentId: departmentId,
-              departmentName: departmentName,
-              rawValues: {},
-            };
-          }
-          
-          // Sum dollar values
-          if (!acc[storeKey].rawValues[entry.metric_name]) {
-            acc[storeKey].rawValues[entry.metric_name] = {
-              metricKey: entry.metric_name,
-              metricDisplayName: metricDisplayName,
-              value: entry.value ? Number(entry.value) : 0,
-            };
-          } else {
-            acc[storeKey].rawValues[entry.metric_name].value += entry.value ? Number(entry.value) : 0;
-          }
-        }
-        return acc;
-      }, {} as Record<string, any>);
-      
-      let processedData: any[] = [];
-      
-      // Helper function to calculate a metric value
-      const calculateMetricValue = (metricConfig: any, allMetrics: Map<string, number>, calculatedValues: Map<string, number>): number | null => {
-        if (!metricConfig.calculation) {
-          return allMetrics.get(metricConfig.key) ?? null;
-        }
-        
-        const calc = metricConfig.calculation;
-        
-        // Percentage calculation
-        if ('numerator' in calc && 'denominator' in calc) {
-          const num = calculatedValues.get(calc.numerator) ?? allMetrics.get(calc.numerator) ?? 0;
-          const denom = calculatedValues.get(calc.denominator) ?? allMetrics.get(calc.denominator) ?? 0;
-          return denom !== 0 ? (num / denom) * 100 : 0;
-        }
-        
-        // Subtraction calculation
-        if (calc.type === 'subtract') {
-          const baseValue = calculatedValues.get(calc.base) ?? allMetrics.get(calc.base) ?? 0;
-          const deductions = calc.deductions.reduce((sum: number, key: string) => {
-            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
-          }, 0);
-          return baseValue - deductions;
-        }
-        
-        // Complex calculation (base - deductions + additions)
-        if (calc.type === 'complex') {
-          const baseValue = calculatedValues.get(calc.base) ?? allMetrics.get(calc.base) ?? 0;
-          const deductions = calc.deductions?.reduce((sum: number, key: string) => {
-            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
-          }, 0) || 0;
-          const additions = calc.additions?.reduce((sum: number, key: string) => {
-            return sum + (calculatedValues.get(key) ?? allMetrics.get(key) ?? 0);
-          }, 0) || 0;
-          return baseValue - deductions + additions;
-        }
-        
-        return null;
-      };
-      
-      if (datePeriodType === "month") {
-        // For monthly view, process each store's data
-        const storeGroups = new Map<string, any>();
-        
-        Object.values(groupedByKey).forEach((entry: any) => {
-          const storeKey = `${entry.storeId}-${entry.departmentId}`;
-          if (!storeGroups.has(storeKey)) {
-            storeGroups.set(storeKey, {
-              storeId: entry.storeId,
-              storeName: entry.storeName,
-              departmentId: entry.departmentId,
-              departmentName: entry.departmentName,
-              rawValues: new Map<string, number>(),
-            });
-          }
-          storeGroups.get(storeKey).rawValues.set(entry.metricKey, entry.value);
-        });
-        
-        // Calculate all selected metrics for each store/department
-        storeGroups.forEach((storeData) => {
-          const calculatedValues = new Map<string, number>();
-          
-          // Process metrics in order (dependencies first)
-          brandMetrics.forEach((metric: any) => {
-            const value = calculateMetricValue(metric, storeData.rawValues, calculatedValues);
-            if (value !== null) {
-              calculatedValues.set(metric.key, value);
-            }
-          });
-          
-          // Create output entries for selected metrics
-          selectedMetrics.forEach((metricName) => {
-            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
-            if (metricConfig) {
-              const value = calculatedValues.get(metricConfig.key);
-              if (value !== undefined) {
-                processedData.push({
-                  storeId: storeData.storeId,
-                  storeName: storeData.storeName,
-                  departmentId: storeData.departmentId,
-                  departmentName: storeData.departmentName,
-                  metricName: metricName,
-                  value: value,
-                  target: null,
-                  variance: null,
-                });
-              }
-            }
-          });
-        });
-      } else if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
-        // For full year, recalculate from summed values
-        Object.values(groupedByKey).forEach((storeData: any) => {
-          const allMetrics = new Map<string, number>();
-          const calculatedValues = new Map<string, number>();
-          
-          // First pass: collect all raw dollar values
-          Object.values(storeData.rawValues).forEach((metric: any) => {
-            allMetrics.set(metric.metricKey, metric.value);
-          });
-          
-          // Process metrics in order (dependencies first)
-          brandMetrics.forEach((metric: any) => {
-            const value = calculateMetricValue(metric, allMetrics, calculatedValues);
-            if (value !== null) {
-              calculatedValues.set(metric.key, value);
-            }
-          });
-          
-          // Create output entries for selected metrics
-          selectedMetrics.forEach((metricName) => {
-            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
-            if (metricConfig) {
-              const value = calculatedValues.get(metricConfig.key);
-              if (value !== undefined) {
-                processedData.push({
-                  storeId: storeData.storeId,
-                  storeName: storeData.storeName,
-                  departmentId: storeData.departmentId,
-                  departmentName: storeData.departmentName,
-                  metricName: metricName,
-                  value: value,
-                  target: null,
-                  variance: null,
-                });
-              }
-            }
-          });
-        });
-      }
-      
-      // If Fixed Combined is selected, aggregate Parts and Service data
-      if (isFixedCombined) {
-        const combinedByStore = new Map<string, Map<string, number>>();
-        
-        // Collect all raw dollar values from Parts and Service departments
-        processedData.forEach(entry => {
-          const isParts = entry.departmentName?.toLowerCase().includes('parts');
-          const isService = entry.departmentName?.toLowerCase().includes('service');
-          
-          if (isParts || isService) {
-            if (!combinedByStore.has(entry.storeId)) {
-              combinedByStore.set(entry.storeId, new Map());
-            }
-            const storeMetrics = combinedByStore.get(entry.storeId)!;
-            const metricConfig = brandMetrics.find((m: any) => m.name === entry.metricName);
-            const metricKey = metricConfig?.key || entry.metricName;
-            
-            // Sum values for this metric
-            storeMetrics.set(metricKey, (storeMetrics.get(metricKey) || 0) + (entry.value || 0));
-          }
-        });
-        
-        // Calculate final values for all selected metrics
-        const combinedData: any[] = [];
-        const firstProcessedEntry = processedData.find(e => 
-          e.departmentName?.toLowerCase().includes('parts') || 
-          e.departmentName?.toLowerCase().includes('service')
-        );
-        
-        combinedByStore.forEach((rawMetrics, storeId) => {
-          const calculatedValues = new Map<string, number>();
-          const storeName = processedData.find(e => e.storeId === storeId)?.storeName || '';
-          
-          // Calculate all metrics in order
-          brandMetrics.forEach((metric: any) => {
-            const value = calculateMetricValue(metric, rawMetrics, calculatedValues);
-            if (value !== null) {
-              calculatedValues.set(metric.key, value);
-            }
-          });
-          
-          // Create output entries for selected metrics
-          selectedMetrics.forEach((metricName) => {
-            const metricConfig = brandMetrics.find((m: any) => m.name === metricName);
-            if (metricConfig) {
-              const value = calculatedValues.get(metricConfig.key);
-              if (value !== undefined) {
-                combinedData.push({
-                  storeId: storeId,
-                  storeName: storeName,
-                  departmentId: undefined,
-                  departmentName: 'Fixed Combined',
-                  metricName: metricName,
-                  value: value,
-                  target: null,
-                  variance: null,
-                });
-              }
-            }
-          });
-        });
-        
-        dataWithValues = combinedData;
-      } else {
-        dataWithValues = processedData;
-      }
-    } else if (kpiDefinitions && scorecardEntries) {
-      console.log("Processing KPI data");
-      dataWithValues = scorecardEntries
-        .map(entry => {
-          const kpi = kpiDefinitions.find(k => k.id === entry.kpi_id);
-          if (!kpi || !selectedMetrics.includes(kpi.name)) return null;
-          
-          return {
-            storeId: (kpi as any)?.departments?.store_id || "",
-            storeName: (kpi as any)?.departments?.stores?.name || "",
-            departmentId: kpi.department_id,
-            departmentName: (kpi as any)?.departments?.name,
-            metricName: kpi.name,
-            value: entry.actual_value ? Number(entry.actual_value) : null,
-            target: kpi.target_value ? Number(kpi.target_value) : null,
-            variance: entry.variance ? Number(entry.variance) : null,
-          };
-        })
-        .filter(Boolean) as any[];
-      console.log("KPI entries mapped:", dataWithValues.length);
-    }
-
-    // Ensure all filtered stores appear in the output, even without data
-    if (filteredStores.length > 0 && selectedMetrics.length > 0) {
-      const storesWithData = new Set(dataWithValues.map(d => d.storeId));
-      const storesWithoutData = filteredStores.filter(store => !storesWithData.has(store.id));
-      
-      console.log("Stores with data:", storesWithData.size, "Stores without data:", storesWithoutData.length);
-      
-      // Add placeholder entries for stores without data
-      storesWithoutData.forEach(store => {
-        const storeDepartments = departments?.filter(d => d.store_id === store.id) || [];
-        const relevantDepartments = selectedDepartmentNames.length > 0
-          ? storeDepartments.filter(d => selectedDepartmentNames.includes(d.name))
-          : storeDepartments;
-        
-        // If store has no departments, add one entry per metric
-        if (relevantDepartments.length === 0) {
-          selectedMetrics.forEach(metricName => {
-            dataWithValues.push({
-              storeId: store.id,
-              storeName: store.name,
-              departmentId: undefined,
-              departmentName: undefined,
-              metricName: metricName,
-              value: null,
-              target: null,
-              variance: null,
-            });
-          });
-        } else {
-          // Add entries for each department + metric combination
-          relevantDepartments.forEach(dept => {
-            selectedMetrics.forEach(metricName => {
-              dataWithValues.push({
-                storeId: store.id,
-                storeName: store.name,
-                departmentId: dept.id,
-                departmentName: dept.name,
-                metricName: metricName,
-                value: null,
-                target: null,
-                variance: null,
-              });
-            });
-          });
-        }
-      });
-    }
-
-    console.log("Final comparison data length:", dataWithValues.length);
-    return dataWithValues;
-  }, [metricType, financialEntries, departments, kpiDefinitions, scorecardEntries, selectedMetrics, metricKeyMap, filteredStores, selectedDepartmentNames, datePeriodType, selectedYear]);
 
   const toggleStoreSelection = (storeId: string) => {
     setSelectedStoreIds(prev =>
@@ -915,7 +445,7 @@ export default function Enterprise() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <Card className="lg:col-span-1">
             <CardHeader>
               <CardTitle>Filter Stores</CardTitle>
@@ -1218,7 +748,7 @@ export default function Enterprise() {
             </CardContent>
           </Card>
 
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-2">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -1228,71 +758,75 @@ export default function Enterprise() {
                       ({filteredStores.length} stores, {selectedMetrics.length} metrics)
                     </span>
                   </CardTitle>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Sort by:</span>
-                      <Select 
-                        value={sortByMetric || "__none__"} 
-                        onValueChange={(val) => setSortByMetric(val === "__none__" ? "" : val)}
-                      >
-                        <SelectTrigger className="w-[200px]">
-                          <SelectValue placeholder="No sorting" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">No sorting</SelectItem>
-                          {selectedMetrics.map((metric) => (
-                            <SelectItem key={metric} value={metric}>
-                              {metric}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        // Prepare date parameters based on period type
-                        const dateParams: any = {
-                          datePeriodType,
-                        };
-                        
-                        if (datePeriodType === "month") {
-                          dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
-                        } else if (datePeriodType === "full_year") {
-                          dateParams.selectedYear = selectedYear;
-                        } else if (datePeriodType === "custom_range") {
-                          dateParams.startMonth = format(startMonth, "yyyy-MM");
-                          dateParams.endMonth = format(endMonth, "yyyy-MM");
-                        }
-                        
-                        navigate("/dealer-comparison", {
-                          state: {
-                            data: comparisonData,
-                            metricType,
-                            selectedMetrics,
-                            ...dateParams,
-                            comparisonMode,
-                            departmentIds,
-                            isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
-                            selectedDepartmentNames,
-                            sortByMetric,
-                          }
-                        });
-                      }}
-                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                    >
-                      View Dashboard
-                    </Button>
-                  </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <MetricComparisonTable
-                  data={comparisonData}
-                  metricType={metricType}
-                  selectedMetrics={selectedMetrics}
-                  isLoading={metricType === "financial" && isLoadingFinancialEntries}
-                  sortByMetric={sortByMetric}
-                />
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Building2 className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Ready to Compare</h3>
+                <p className="text-muted-foreground mb-6 max-w-md">
+                  {filteredStores.length === 0 
+                    ? "Select stores from the filter options to begin comparison."
+                    : selectedMetrics.length === 0
+                    ? "Select metrics to compare across your selected stores."
+                    : `Compare ${selectedMetrics.length} metrics across ${filteredStores.length} stores.`
+                  }
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Sort by:</span>
+                    <Select 
+                      value={sortByMetric || "__none__"} 
+                      onValueChange={(val) => setSortByMetric(val === "__none__" ? "" : val)}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="No sorting" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No sorting</SelectItem>
+                        {selectedMetrics.map((metric) => (
+                          <SelectItem key={metric} value={metric}>
+                            {metric}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      // Prepare date parameters based on period type
+                      const dateParams: any = {
+                        datePeriodType,
+                      };
+                      
+                      if (datePeriodType === "month") {
+                        dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
+                      } else if (datePeriodType === "full_year") {
+                        dateParams.selectedYear = selectedYear;
+                      } else if (datePeriodType === "custom_range") {
+                        dateParams.startMonth = format(startMonth, "yyyy-MM");
+                        dateParams.endMonth = format(endMonth, "yyyy-MM");
+                      }
+                      
+                      navigate("/dealer-comparison", {
+                        state: {
+                          metricType,
+                          selectedMetrics,
+                          ...dateParams,
+                          comparisonMode,
+                          departmentIds,
+                          isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                          selectedDepartmentNames,
+                          sortByMetric,
+                          storeIds: filteredStores.map(s => s.id),
+                        }
+                      });
+                    }}
+                    disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                    size="lg"
+                  >
+                    View Dashboard
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
