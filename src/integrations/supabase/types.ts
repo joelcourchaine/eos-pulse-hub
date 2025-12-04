@@ -312,6 +312,54 @@ export type Database = {
           },
         ]
       }
+      enterprise_filters: {
+        Row: {
+          created_at: string
+          date_period_type: string | null
+          filter_mode: string
+          id: string
+          metric_type: string
+          name: string
+          selected_brand_ids: string[] | null
+          selected_department_names: string[] | null
+          selected_group_ids: string[] | null
+          selected_store_ids: string[] | null
+          selected_year: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date_period_type?: string | null
+          filter_mode?: string
+          id?: string
+          metric_type?: string
+          name: string
+          selected_brand_ids?: string[] | null
+          selected_department_names?: string[] | null
+          selected_group_ids?: string[] | null
+          selected_store_ids?: string[] | null
+          selected_year?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date_period_type?: string | null
+          filter_mode?: string
+          id?: string
+          metric_type?: string
+          name?: string
+          selected_brand_ids?: string[] | null
+          selected_department_names?: string[] | null
+          selected_group_ids?: string[] | null
+          selected_store_ids?: string[] | null
+          selected_year?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       financial_entries: {
         Row: {
           created_at: string
