@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
-type ComparisonMode = "targets" | "current_year_avg" | "previous_year";
+type ComparisonMode = "none" | "targets" | "current_year_avg" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
 
 export default function Enterprise() {
@@ -34,7 +34,7 @@ export default function Enterprise() {
   const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("targets");
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("none");
   const [datePeriodType, setDatePeriodType] = useState<DatePeriodType>("month");
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startMonth, setStartMonth] = useState<Date>(new Date(new Date().getFullYear(), 0, 1)); // Jan 1st
@@ -921,6 +921,7 @@ export default function Enterprise() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-background z-50">
+                      <SelectItem value="none">No Comparison</SelectItem>
                       <SelectItem value="targets">Store Targets</SelectItem>
                       <SelectItem value="current_year_avg">Current Year Average</SelectItem>
                       <SelectItem value="previous_year">Same Month Last Year</SelectItem>
