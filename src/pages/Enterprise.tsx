@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft, CalendarIcon } from "lucide-react";
+import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import MetricComparisonTable from "@/components/enterprise/MetricComparisonTable";
 import { getMetricsForBrand } from "@/config/financialMetrics";
@@ -14,6 +14,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
@@ -22,6 +25,7 @@ type DatePeriodType = "month" | "full_year" | "custom_range";
 
 export default function Enterprise() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [filterMode, setFilterMode] = useState<FilterMode>("brand");
   const [metricType, setMetricType] = useState<MetricType>("weekly");
   const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
@@ -35,6 +39,8 @@ export default function Enterprise() {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [startMonth, setStartMonth] = useState<Date>(new Date(new Date().getFullYear(), 0, 1)); // Jan 1st
   const [endMonth, setEndMonth] = useState<Date>(new Date());
+  const [saveFilterName, setSaveFilterName] = useState("");
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -54,6 +60,84 @@ export default function Enterprise() {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  // Fetch saved filters
+  const { data: savedFilters } = useQuery({
+    queryKey: ["enterprise_filters"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("enterprise_filters")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Save filter mutation
+  const saveFilterMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      const { error } = await supabase.from("enterprise_filters").insert({
+        user_id: user.id,
+        name,
+        filter_mode: filterMode,
+        selected_brand_ids: selectedBrandIds,
+        selected_group_ids: selectedGroupIds,
+        selected_store_ids: selectedStoreIds,
+        selected_department_names: selectedDepartmentNames,
+        metric_type: metricType,
+        date_period_type: datePeriodType,
+        selected_year: selectedYear,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enterprise_filters"] });
+      toast.success("Filter saved successfully");
+      setSaveDialogOpen(false);
+      setSaveFilterName("");
+    },
+    onError: () => {
+      toast.error("Failed to save filter");
+    },
+  });
+
+  // Delete filter mutation
+  const deleteFilterMutation = useMutation({
+    mutationFn: async (filterId: string) => {
+      const { error } = await supabase
+        .from("enterprise_filters")
+        .delete()
+        .eq("id", filterId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enterprise_filters"] });
+      toast.success("Filter deleted");
+    },
+    onError: () => {
+      toast.error("Failed to delete filter");
+    },
+  });
+
+  // Load a saved filter
+  const loadFilter = (filter: any) => {
+    setFilterMode(filter.filter_mode as FilterMode);
+    setSelectedBrandIds(filter.selected_brand_ids || []);
+    setSelectedGroupIds(filter.selected_group_ids || []);
+    setSelectedStoreIds(filter.selected_store_ids || []);
+    setSelectedDepartmentNames(filter.selected_department_names || []);
+    setMetricType(filter.metric_type as MetricType);
+    setDatePeriodType(filter.date_period_type as DatePeriodType || "month");
+    if (filter.selected_year) setSelectedYear(filter.selected_year);
+    toast.success(`Loaded filter: ${filter.name}`);
+  };
 
   const { data: brands } = useQuery({
     queryKey: ["brands"],
@@ -627,7 +711,71 @@ export default function Enterprise() {
               <h1 className="text-3xl font-bold">Enterprise View</h1>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Filter
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Save Current Filter</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <Input
+                    placeholder="Filter name..."
+                    value={saveFilterName}
+                    onChange={(e) => setSaveFilterName(e.target.value)}
+                  />
+                  <Button 
+                    className="w-full"
+                    onClick={() => saveFilterMutation.mutate(saveFilterName)}
+                    disabled={!saveFilterName.trim() || saveFilterMutation.isPending}
+                  >
+                    {saveFilterMutation.isPending ? "Saving..." : "Save Filter"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
+
+        {/* Saved Filters */}
+        {savedFilters && savedFilters.length > 0 && (
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Bookmark className="h-4 w-4" />
+                Saved Filters
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="py-2">
+              <div className="flex flex-wrap gap-2">
+                {savedFilters.map((filter) => (
+                  <div key={filter.id} className="flex items-center gap-1">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => loadFilter(filter)}
+                    >
+                      {filter.name}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      onClick={() => deleteFilterMutation.mutate(filter.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <Card className="lg:col-span-1">
