@@ -42,8 +42,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { data: initialData, metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "" } = location.state as {
-    data: ComparisonData[];
+  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [] } = location.state as {
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
@@ -56,20 +55,46 @@ export default function DealerComparison() {
     startMonth?: string;
     endMonth?: string;
     sortByMetric?: string;
+    storeIds?: string[];
   };
 
-  // Initialize with passed data
-  useEffect(() => {
-    setComparisonData(initialData);
-  }, [initialData]);
+  // Fetch departments for selected stores
+  const { data: departments } = useQuery({
+    queryKey: ["dealer_comparison_departments", storeIds],
+    queryFn: async () => {
+      if (storeIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .in("store_id", storeIds);
+      if (error) throw error;
+      return data;
+    },
+    enabled: storeIds.length > 0,
+  });
 
-  // Extract department IDs from the data
+  // Extract department IDs from the fetched departments
   const departmentIds = useMemo(() => {
     if (initialDepartmentIds && initialDepartmentIds.length > 0) {
       return initialDepartmentIds;
     }
-    return Array.from(new Set(comparisonData.map(d => d.departmentId).filter(Boolean))) as string[];
-  }, [comparisonData, initialDepartmentIds]);
+    if (!departments) return [];
+    
+    // Filter by selected department names if specified
+    if (selectedDepartmentNames.length > 0) {
+      const expandedNames = selectedDepartmentNames.flatMap(name => {
+        if (name === 'Fixed Combined') {
+          return departments
+            .filter(d => d.name.toLowerCase().includes('parts') || d.name.toLowerCase().includes('service'))
+            .map(d => d.name);
+        }
+        return [name];
+      });
+      return departments.filter(d => expandedNames.includes(d.name)).map(d => d.id);
+    }
+    
+    return departments.map(d => d.id);
+  }, [departments, initialDepartmentIds, selectedDepartmentNames]);
 
   // Create metric key map for financial metrics
   const metricKeyMap = useMemo(() => {
@@ -859,10 +884,10 @@ export default function DealerComparison() {
     }
   };
 
-  // Group data by store (use initialData to get all selected stores)
+  // Group data by store (use storeIds passed from Enterprise)
   const uniqueStoreIds = useMemo(() => {
-    return Array.from(new Set(initialData.map(d => d.storeId)));
-  }, [initialData]);
+    return storeIds;
+  }, [storeIds]);
 
   const storeData = comparisonData.reduce((acc, item) => {
     if (!acc[item.storeId]) {
