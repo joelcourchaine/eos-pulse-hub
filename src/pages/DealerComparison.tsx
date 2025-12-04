@@ -2,9 +2,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Mail } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { EmailComparisonDialog } from "@/components/enterprise/EmailComparisonDialog";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,7 @@ export default function DealerComparison() {
   const navigate = useNavigate();
   const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
 
   // Check if state exists, redirect if not
   useEffect(() => {
@@ -1019,6 +1021,16 @@ export default function DealerComparison() {
             <RefreshCw className="h-4 w-4" />
             Refresh Now
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEmailDialogOpen(true)}
+            className="gap-2"
+            disabled={stores.length === 0}
+          >
+            <Mail className="h-4 w-4" />
+            Email Report
+          </Button>
         </div>
 
         <Card>
@@ -1132,6 +1144,38 @@ export default function DealerComparison() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Email Dialog */}
+      <EmailComparisonDialog
+        open={emailDialogOpen}
+        onOpenChange={setEmailDialogOpen}
+        storeIds={uniqueStoreIds}
+        stores={stores.map(([storeId, store]) => {
+          const completeness = storeDataCompleteness[storeId];
+          return {
+            storeId,
+            storeName: store.storeName,
+            monthsWithData: completeness ? Array.from(completeness.monthsWithData) : [],
+            lastCompleteMonth: completeness?.lastCompleteMonth || null,
+            isComplete: completeness?.isComplete || false,
+          };
+        })}
+        metrics={selectedMetrics.map(metricName => ({
+          metricName,
+          storeValues: stores.reduce((acc, [storeId, store]) => {
+            const metricData = store.metrics[metricName];
+            acc[storeId] = metricData || { value: null, target: null, variance: null };
+            return acc;
+          }, {} as Record<string, { value: number | null; target: number | null; variance: number | null }>),
+        }))}
+        selectedMetrics={selectedMetrics}
+        datePeriodType={datePeriodType}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+        startMonth={startMonth}
+        endMonth={endMonth}
+        comparisonMode={comparisonMode}
+      />
     </div>
   );
 }

@@ -29,3 +29,9 @@ verify_jwt = true
 
 [functions.resend-user-invite]
 verify_jwt = true
+
+[functions.delete-user]
+verify_jwt = true
+
+[functions.send-dealer-comparison-email]
+verify_jwt = true
