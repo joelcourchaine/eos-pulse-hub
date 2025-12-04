@@ -237,22 +237,40 @@ export default function DealerComparison() {
                     (firstEntry as any)?.departments?.stores?.brand || null;
       console.log("Detected brand for comparison:", brand, "from entry:", firstEntry);
       
-      // Create metric maps
+      // Create metric maps - use all possible metrics for multi-brand comparison
       const nameToKey = new Map<string, string>();
       const keyToName = new Map<string, string>();
       const keyToDef = new Map<string, any>();
-      const metrics = getMetricsForBrand(brand);
       
-      metrics.forEach((m: any) => {
+      // Load metrics from all brands to support multi-brand comparison
+      const allBrandMetrics = [
+        ...getMetricsForBrand('GMC'),
+        ...getMetricsForBrand('Ford'),
+        ...getMetricsForBrand('Nissan'),
+        ...getMetricsForBrand('Mazda'),
+      ];
+      
+      // Deduplicate by key, preferring metrics that have calculations (more complete definitions)
+      const uniqueMetrics = new Map<string, any>();
+      allBrandMetrics.forEach((m: any) => {
+        const existing = uniqueMetrics.get(m.key);
+        if (!existing || (!existing.calculation && m.calculation)) {
+          uniqueMetrics.set(m.key, m);
+        }
+      });
+      
+      uniqueMetrics.forEach((m) => {
         nameToKey.set(m.name, m.key);
         keyToName.set(m.key, m.name);
         keyToDef.set(m.key, m);
       });
       
-      console.log("DealerComparison - Detected brand:", brand);
-      console.log("DealerComparison - Total metrics loaded:", metrics.length);
-      console.log("DealerComparison - keyToName map has 'total_direct_expenses'?", keyToName.has('total_direct_expenses'));
-      console.log("DealerComparison - keyToName.get('total_direct_expenses'):", keyToName.get('total_direct_expenses'));
+      // Also use the default metrics config for ordering
+      const metrics = Array.from(uniqueMetrics.values());
+      
+      console.log("DealerComparison - Using combined metrics from all brands");
+      console.log("DealerComparison - Total unique metrics:", metrics.length);
+      console.log("DealerComparison - Has semi_fixed_expense:", keyToDef.has('semi_fixed_expense'));
       
       // Build comparison baseline map (targets, averages, or previous year)
       const comparisonMap = new Map<string, { value: number; direction?: string }>();
