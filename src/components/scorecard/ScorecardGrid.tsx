@@ -2190,28 +2190,29 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                     Trend
                   </TableHead>
-                  {/* Quarterly target columns - most recent first */}
-                  {Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
-                    .sort((a, b) => {
-                      const [qA, yA] = a.replace('Q', '').split('-').map(Number);
-                      const [qB, yB] = b.replace('Q', '').split('-').map(Number);
-                      if (yB !== yA) return yB - yA;
-                      return qB - qA;
-                    })
-                    .map(qKey => {
-                      const [q, y] = qKey.replace('Q', '').split('-');
-                      return (
-                        <TableHead 
-                          key={`target-${qKey}`}
-                          className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-primary/10 border-x border-primary/30 sticky top-0 z-10"
-                        >
-                          <div className="flex flex-col items-center">
-                            <div className="text-xs">Q{q} Target</div>
-                            <div className="text-xs font-normal text-muted-foreground">{y}</div>
-                          </div>
-                        </TableHead>
-                      );
-                    })}
+                  {/* Latest quarter target column only */}
+                  {(() => {
+                    const latestQuarter = Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
+                      .sort((a, b) => {
+                        const [qA, yA] = a.replace('Q', '').split('-').map(Number);
+                        const [qB, yB] = b.replace('Q', '').split('-').map(Number);
+                        if (yB !== yA) return yB - yA;
+                        return qB - qA;
+                      })[0];
+                    if (!latestQuarter) return null;
+                    const [q, y] = latestQuarter.replace('Q', '').split('-');
+                    return (
+                      <TableHead 
+                        key={`target-${latestQuarter}`}
+                        className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-primary/10 border-x border-primary/30 sticky top-0 z-10"
+                      >
+                        <div className="flex flex-col items-center">
+                          <div className="text-xs">Q{q} Target</div>
+                          <div className="text-xs font-normal text-muted-foreground">{y}</div>
+                        </div>
+                      </TableHead>
+                    );
+                  })()}
                   {monthlyTrendPeriods.map((month) => (
                     <TableHead 
                       key={month.label} 
@@ -2375,7 +2376,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (1 + Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`))).length + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length)} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length)} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -2433,29 +2434,30 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                            })}
                          />
                        </TableCell>
-                       {/* Quarterly target cells - most recent first */}
-                       {Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
-                         .sort((a, b) => {
-                           const [qA, yA] = a.replace('Q', '').split('-').map(Number);
-                           const [qB, yB] = b.replace('Q', '').split('-').map(Number);
-                           if (yB !== yA) return yB - yA;
-                           return qB - qA;
-                         })
-                         .map(qKey => {
-                           const [q, y] = qKey.replace('Q', '').split('-');
-                           const targetKey = `${kpi.id}-Q${q}-${y}`;
-                           const targetValue = trendTargets[targetKey] ?? kpi.target_value;
-                           return (
-                             <TableCell
-                               key={`target-${qKey}`}
-                               className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-primary/5 border-x border-primary/30 text-muted-foreground"
-                             >
-                               {targetValue !== null && targetValue !== undefined 
-                                 ? formatTarget(targetValue, kpi.metric_type, kpi.name) 
-                                 : "-"}
-                             </TableCell>
-                           );
-                         })}
+                       {/* Latest quarter target cell only */}
+                       {(() => {
+                         const latestQuarter = Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
+                           .sort((a, b) => {
+                             const [qA, yA] = a.replace('Q', '').split('-').map(Number);
+                             const [qB, yB] = b.replace('Q', '').split('-').map(Number);
+                             if (yB !== yA) return yB - yA;
+                             return qB - qA;
+                           })[0];
+                         if (!latestQuarter) return null;
+                         const [q, y] = latestQuarter.replace('Q', '').split('-');
+                         const targetKey = `${kpi.id}-Q${q}-${y}`;
+                         const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                         return (
+                           <TableCell
+                             key={`target-${latestQuarter}`}
+                             className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-primary/5 border-x border-primary/30 text-muted-foreground"
+                           >
+                             {targetValue !== null && targetValue !== undefined 
+                               ? formatTarget(targetValue, kpi.metric_type, kpi.name) 
+                               : "-"}
+                           </TableCell>
+                         );
+                       })()}
                        {monthlyTrendPeriods.map((month) => {
                          const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
                          const mValue = precedingQuartersData[mKey];
