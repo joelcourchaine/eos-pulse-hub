@@ -2383,12 +2383,41 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                          const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
                          const mValue = precedingQuartersData[mKey];
                          
+                         // Calculate status for monthly trend values
+                         const targetValue = kpi.target_value;
+                         let trendStatus: "success" | "warning" | "destructive" | null = null;
+                         
+                         if (mValue !== null && mValue !== undefined && targetValue) {
+                           const variance = ((mValue - targetValue) / targetValue) * 100;
+                           const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                           
+                           if (adjustedVariance >= 0) {
+                             trendStatus = "success";
+                           } else if (adjustedVariance >= -10) {
+                             trendStatus = "warning";
+                           } else {
+                             trendStatus = "destructive";
+                           }
+                         }
+                         
                          return (
                            <TableCell
                              key={month.label}
-                             className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
+                             className={cn(
+                               "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                               trendStatus === "success" && "bg-success/10",
+                               trendStatus === "warning" && "bg-warning/10",
+                               trendStatus === "destructive" && "bg-destructive/10",
+                               !trendStatus && "text-muted-foreground"
+                             )}
                            >
-                             {mValue !== null && mValue !== undefined ? formatQuarterAverage(mValue, kpi.metric_type, kpi.name) : "-"}
+                             <span className={cn(
+                               trendStatus === "success" && "text-success font-medium",
+                               trendStatus === "warning" && "text-warning font-medium",
+                               trendStatus === "destructive" && "text-destructive font-medium"
+                             )}>
+                               {mValue !== null && mValue !== undefined ? formatQuarterAverage(mValue, kpi.metric_type, kpi.name) : "-"}
+                             </span>
                            </TableCell>
                          );
                        })}
