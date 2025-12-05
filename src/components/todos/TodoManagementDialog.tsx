@@ -20,6 +20,7 @@ interface Todo {
   description: string | null;
   assigned_to: string | null;
   due_date: string | null;
+  severity: string;
 }
 
 interface TodoManagementDialogProps {
@@ -31,6 +32,7 @@ interface TodoManagementDialogProps {
   trigger?: React.ReactNode;
   linkedIssueId?: string;
   linkedIssueTitle?: string;
+  linkedIssueSeverity?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -44,6 +46,7 @@ export function TodoManagementDialog({
   trigger,
   linkedIssueId,
   linkedIssueTitle,
+  linkedIssueSeverity,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: TodoManagementDialogProps) {
@@ -52,6 +55,7 @@ export function TodoManagementDialog({
   const [description, setDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [dueDate, setDueDate] = useState("");
+  const [severity, setSeverity] = useState("medium");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
   
@@ -65,13 +69,15 @@ export function TodoManagementDialog({
       setDescription(todo.description || "");
       setAssignedTo(todo.assigned_to || "");
       setDueDate(todo.due_date || "");
+      setSeverity(todo.severity || "medium");
     } else if (!open) {
       setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
       setDescription("");
       setAssignedTo("");
       setDueDate("");
+      setSeverity(linkedIssueSeverity || "medium");
     }
-  }, [todo, open, linkedIssueTitle]);
+  }, [todo, open, linkedIssueTitle, linkedIssueSeverity]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,6 +102,7 @@ export function TodoManagementDialog({
             description: description.trim() || null,
             assigned_to: assignedTo || null,
             due_date: dueDate || null,
+            severity,
           })
           .eq("id", todo.id);
 
@@ -120,6 +127,7 @@ export function TodoManagementDialog({
             created_by: user?.id,
             status: "pending",
             issue_id: linkedIssueId || null,
+            severity,
           });
 
         if (error) throw error;
@@ -141,11 +149,12 @@ export function TodoManagementDialog({
       }
 
       // Reset form only if creating new
-      if (!isEditMode) {
+        if (!isEditMode) {
         setTitle("");
         setDescription("");
         setAssignedTo("");
         setDueDate("");
+        setSeverity("medium");
       }
       setOpen(false);
       onTodoAdded();
@@ -241,6 +250,35 @@ export function TodoManagementDialog({
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="severity">Severity</Label>
+            <Select value={severity} onValueChange={setSeverity}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    Low
+                  </span>
+                </SelectItem>
+                <SelectItem value="medium">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-warning" />
+                    Medium
+                  </span>
+                </SelectItem>
+                <SelectItem value="high">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-destructive" />
+                    High
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end gap-2">
