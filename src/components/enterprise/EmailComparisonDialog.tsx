@@ -41,6 +41,8 @@ interface EmailComparisonDialogProps {
   startMonth?: string;
   endMonth?: string;
   comparisonMode: string;
+  filterName?: string;
+  brandDisplayName?: string;
 }
 
 export function EmailComparisonDialog({
@@ -56,6 +58,8 @@ export function EmailComparisonDialog({
   startMonth,
   endMonth,
   comparisonMode,
+  filterName,
+  brandDisplayName,
 }: EmailComparisonDialogProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
@@ -174,6 +178,8 @@ export function EmailComparisonDialog({
           startMonth,
           endMonth,
           comparisonMode,
+          filterName,
+          brandDisplayName,
         },
       });
 

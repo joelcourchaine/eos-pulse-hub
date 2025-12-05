@@ -31,6 +31,8 @@ interface EmailRequest {
   startMonth?: string;
   endMonth?: string;
   comparisonMode: string;
+  filterName?: string;
+  brandDisplayName?: string;
 }
 
 function formatValue(value: number | null, metricName: string): string {
@@ -108,7 +110,9 @@ const handler = async (req: Request): Promise<Response> => {
       selectedYear,
       startMonth,
       endMonth,
-      comparisonMode 
+      comparisonMode,
+      filterName,
+      brandDisplayName,
     }: EmailRequest = await req.json();
 
     console.log("Sending dealer comparison email to:", recipientEmails);
@@ -130,15 +134,19 @@ const handler = async (req: Request): Promise<Response> => {
     else if (comparisonMode === "current_year_avg") comparisonDescription = "vs Current Year Average";
     else if (comparisonMode === "previous_year") comparisonDescription = "vs Previous Year";
 
+    // Build title based on filter name
+    const reportTitle = filterName ? filterName : "Dealer Comparison Report";
+    const brandLine = brandDisplayName || "All Brands";
+
     // Build HTML email with all inline styles for forward compatibility
     let html = `
       <!DOCTYPE html>
       <html>
       <head></head>
       <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">Dealer Comparison Report</h1>
+        <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
         <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-          ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
+          <strong>${brandLine}</strong> • ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
         </p>
         
         <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
@@ -231,7 +239,9 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Growth Scorecard <reports@dealergrowth.solutions>",
         to: recipientEmails,
-        subject: `Dealer Comparison Report - ${periodDescription}`,
+        subject: filterName 
+          ? `${filterName} - ${brandLine} - ${periodDescription}` 
+          : `Dealer Comparison Report - ${brandLine} - ${periodDescription}`,
         html,
       }),
     });
