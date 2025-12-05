@@ -155,6 +155,9 @@ export default function Enterprise() {
     },
   });
 
+  // Track currently loaded filter name
+  const [loadedFilterName, setLoadedFilterName] = useState<string>("");
+
   // Load a saved filter
   const loadFilter = (filter: any) => {
     setFilterMode(filter.filter_mode as FilterMode);
@@ -166,6 +169,7 @@ export default function Enterprise() {
     setDatePeriodType(filter.date_period_type as DatePeriodType || "month");
     if (filter.selected_year) setSelectedYear(filter.selected_year);
     if (filter.selected_metrics) setSelectedMetrics(filter.selected_metrics);
+    setLoadedFilterName(filter.name);
     toast.success(`Loaded filter: ${filter.name}`);
   };
 
@@ -807,6 +811,17 @@ export default function Enterprise() {
                         dateParams.endMonth = format(endMonth, "yyyy-MM");
                       }
                       
+                      // Determine brand display name
+                      let brandDisplayName = "All Brands";
+                      if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                        const selectedBrandNames = brands
+                          ?.filter(b => selectedBrandIds.includes(b.id))
+                          .map(b => b.name) || [];
+                        brandDisplayName = selectedBrandNames.length === 1 
+                          ? selectedBrandNames[0] 
+                          : selectedBrandNames.join(", ");
+                      }
+                      
                       navigate("/dealer-comparison", {
                         state: {
                           metricType,
@@ -818,6 +833,8 @@ export default function Enterprise() {
                           selectedDepartmentNames,
                           sortByMetric,
                           storeIds: filteredStores.map(s => s.id),
+                          brandDisplayName,
+                          filterName: loadedFilterName,
                         }
                       });
                     }}

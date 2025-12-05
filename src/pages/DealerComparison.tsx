@@ -42,7 +42,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [] } = location.state as {
+  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "" } = location.state as {
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
@@ -56,6 +56,8 @@ export default function DealerComparison() {
     endMonth?: string;
     sortByMetric?: string;
     storeIds?: string[];
+    brandDisplayName?: string;
+    filterName?: string;
   };
 
   // Fetch departments for selected stores
@@ -1065,9 +1067,12 @@ export default function DealerComparison() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold">Dealer Comparison Dashboard</h1>
+            <h1 className="text-3xl font-bold">
+              {filterName ? `${filterName}` : "Dealer Comparison Dashboard"}
+            </h1>
             <p className="text-muted-foreground">
-              Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} metrics
+              <span className="font-medium">{brandDisplayName}</span>
+              {" • "}Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} metrics
               {selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
                 format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
                 format(new Date(selectedMonth), 'MMMM yyyy')}`}
@@ -1245,6 +1250,8 @@ export default function DealerComparison() {
         startMonth={startMonth}
         endMonth={endMonth}
         comparisonMode={comparisonMode}
+        filterName={filterName}
+        brandDisplayName={brandDisplayName}
       />
     </div>
   );
