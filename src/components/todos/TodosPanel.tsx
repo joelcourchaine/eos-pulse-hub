@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TodoManagementDialog } from "./TodoManagementDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Todo {
   id: string;
@@ -204,11 +205,37 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     return profiles[assignedId]?.full_name || "Unknown";
   };
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityBorderColor = (severity: string) => {
+    switch (severity) {
+      case "low": return "border-success/50 bg-success/10";
+      case "high": return "border-destructive/50 bg-destructive/10";
+      default: return "border-warning/50 bg-warning/10";
+    }
+  };
+
+  const getSeverityDotColor = (severity: string) => {
     switch (severity) {
       case "low": return "bg-success";
       case "high": return "bg-destructive";
       default: return "bg-warning";
+    }
+  };
+
+  const handleUpdateTodoSeverity = async (todoId: string, newSeverity: string) => {
+    try {
+      const { error } = await supabase
+        .from("todos")
+        .update({ severity: newSeverity })
+        .eq("id", todoId);
+
+      if (error) throw error;
+      loadTodos();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     }
   };
 
@@ -239,9 +266,8 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
         {todoList.map((todo) => (
           <div
             key={todo.id}
-            className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+            className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(todo.severity)}`}
           >
-            <div className={`h-full w-1 rounded-full ${getSeverityColor(todo.severity)} flex-shrink-0`} />
             <Checkbox
               checked={todo.status === "completed"}
               onCheckedChange={() => handleToggleStatus(todo.id, todo.status)}
@@ -263,10 +289,32 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
               )}
               
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <Badge variant="outline" className="capitalize">
-                  <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(todo.severity)}`} />
-                  {todo.severity}
-                </Badge>
+                <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
+                  <SelectTrigger className="h-6 w-24 text-xs capitalize">
+                    <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-success" />
+                        Low
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="medium">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-warning" />
+                        Medium
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="high">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-destructive" />
+                        High
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-1">
                   <User className="h-3 w-3" />
                   <span>{getAssignedName(todo.assigned_to)}</span>
