@@ -14,6 +14,7 @@ interface Issue {
   title: string;
   description: string | null;
   status: string;
+  severity: string;
 }
 
 interface IssueManagementDialogProps {
@@ -28,6 +29,7 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("open");
+  const [severity, setSeverity] = useState("medium");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -38,10 +40,12 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
       setTitle(issue.title);
       setDescription(issue.description || "");
       setStatus(issue.status);
+      setSeverity(issue.severity || "medium");
     } else if (!open) {
       setTitle("");
       setDescription("");
       setStatus("open");
+      setSeverity("medium");
     }
   }, [issue, open]);
 
@@ -68,6 +72,7 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
             title,
             description: description || null,
             status,
+            severity,
           })
           .eq("id", issue.id);
 
@@ -97,6 +102,7 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
             title,
             description: description || null,
             status,
+            severity,
             display_order: nextOrder,
             created_by: user.id,
           });
@@ -158,6 +164,34 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
               placeholder="Detailed description"
               rows={4}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="severity">Severity</Label>
+            <Select value={severity} onValueChange={setSeverity}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-success" />
+                    Low
+                  </span>
+                </SelectItem>
+                <SelectItem value="medium">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-warning" />
+                    Medium
+                  </span>
+                </SelectItem>
+                <SelectItem value="high">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-destructive" />
+                    High
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>

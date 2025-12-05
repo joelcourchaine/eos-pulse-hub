@@ -16,6 +16,7 @@ interface Todo {
   title: string;
   description: string | null;
   status: string;
+  severity: string;
   due_date: string | null;
   assigned_to: string | null;
   created_by: string | null;
@@ -203,6 +204,14 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     return profiles[assignedId]?.full_name || "Unknown";
   };
 
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "low": return "bg-success";
+      case "high": return "bg-destructive";
+      default: return "bg-warning";
+    }
+  };
+
   const myTodos = todos.filter(t => t.assigned_to === userId);
   const teamTodos = todos;
   const createdByMe = todos.filter(t => t.created_by === userId);
@@ -232,6 +241,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
             key={todo.id}
             className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
           >
+            <div className={`h-full w-1 rounded-full ${getSeverityColor(todo.severity)} flex-shrink-0`} />
             <Checkbox
               checked={todo.status === "completed"}
               onCheckedChange={() => handleToggleStatus(todo.id, todo.status)}
@@ -253,6 +263,10 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
               )}
               
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <Badge variant="outline" className="capitalize">
+                  <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(todo.severity)}`} />
+                  {todo.severity}
+                </Badge>
                 <div className="flex items-center gap-1">
                   <User className="h-3 w-3" />
                   <span>{getAssignedName(todo.assigned_to)}</span>

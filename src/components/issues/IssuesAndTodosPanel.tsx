@@ -18,6 +18,7 @@ interface Issue {
   title: string;
   description: string | null;
   status: string;
+  severity: string;
   display_order: number;
   department_id: string;
   created_by: string | null;
@@ -29,6 +30,7 @@ interface Todo {
   title: string;
   description: string | null;
   status: string;
+  severity: string;
   due_date: string | null;
   assigned_to: string | null;
   created_by: string | null;
@@ -289,6 +291,19 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     return issues.find(i => i.id === issueId)?.title;
   };
 
+  const getIssueSeverity = (issueId: string | null) => {
+    if (!issueId) return null;
+    return issues.find(i => i.id === issueId)?.severity;
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case "low": return "bg-success";
+      case "high": return "bg-destructive";
+      default: return "bg-warning";
+    }
+  };
+
   const profilesList = Object.values(profiles);
 
   return (
@@ -331,6 +346,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                         onDragEnd={handleDragEnd}
                         className="flex items-start gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-move"
                       >
+                        <div className={`h-full w-1 rounded-full ${getSeverityColor(issue.severity)} flex-shrink-0`} />
                         <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium">{issue.title}</h4>
@@ -339,9 +355,15 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                               {issue.description}
                             </p>
                           )}
-                          <Badge variant={issue.status === "open" ? "default" : "secondary"} className="mt-2">
-                            {issue.status}
-                          </Badge>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge variant={issue.status === "open" ? "default" : "secondary"}>
+                              {issue.status}
+                            </Badge>
+                            <Badge variant="outline" className="capitalize">
+                              <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(issue.severity)}`} />
+                              {issue.severity}
+                            </Badge>
+                          </div>
                         </div>
                         <div className="flex gap-1">
                           <IssueManagementDialog
@@ -414,6 +436,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                     key={todo.id}
                     className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                   >
+                    <div className={`h-full w-1 rounded-full ${getSeverityColor(todo.severity)} flex-shrink-0`} />
                     <Checkbox
                       checked={todo.status === "completed"}
                       onCheckedChange={() => handleToggleTodoStatus(todo.id, todo.status)}
@@ -426,12 +449,18 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                       {todo.description && (
                         <p className="text-sm text-muted-foreground mt-1">{todo.description}</p>
                       )}
-                      {todo.issue_id && (
-                        <Badge variant="outline" className="mt-2">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          {getIssueTitle(todo.issue_id)}
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        {todo.issue_id && (
+                          <Badge variant="outline">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            {getIssueTitle(todo.issue_id)}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="capitalize">
+                          <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(todo.severity)}`} />
+                          {todo.severity}
                         </Badge>
-                      )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
                         <span>{getAssignedName(todo.assigned_to)}</span>
                         {todo.due_date && (
@@ -516,6 +545,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
           onDialogOpen={loadProfiles}
           linkedIssueId={selectedIssueForTodo.id}
           linkedIssueTitle={selectedIssueForTodo.title}
+          linkedIssueSeverity={selectedIssueForTodo.severity}
           open={true}
           onOpenChange={(open) => {
             if (!open) setSelectedIssueForTodo(null);
