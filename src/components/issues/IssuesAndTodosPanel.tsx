@@ -12,6 +12,7 @@ import { IssueManagementDialog } from "./IssueManagementDialog";
 import { TodoManagementDialog } from "../todos/TodoManagementDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Issue {
   id: string;
@@ -296,11 +297,55 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     return issues.find(i => i.id === issueId)?.severity;
   };
 
-  const getSeverityColor = (severity: string) => {
+  const getSeverityBorderColor = (severity: string) => {
+    switch (severity) {
+      case "low": return "border-success/50 bg-success/10";
+      case "high": return "border-destructive/50 bg-destructive/10";
+      default: return "border-warning/50 bg-warning/10";
+    }
+  };
+
+  const getSeverityDotColor = (severity: string) => {
     switch (severity) {
       case "low": return "bg-success";
       case "high": return "bg-destructive";
       default: return "bg-warning";
+    }
+  };
+
+  const handleUpdateIssueSeverity = async (issueId: string, newSeverity: string) => {
+    try {
+      const { error } = await supabase
+        .from("issues")
+        .update({ severity: newSeverity })
+        .eq("id", issueId);
+
+      if (error) throw error;
+      loadIssues();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleUpdateTodoSeverity = async (todoId: string, newSeverity: string) => {
+    try {
+      const { error } = await supabase
+        .from("todos")
+        .update({ severity: newSeverity })
+        .eq("id", todoId);
+
+      if (error) throw error;
+      loadTodos();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
     }
   };
 
@@ -344,9 +389,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                         onDragStart={() => handleDragStart(issue)}
                         onDragOver={(e) => handleDragOver(e, issue)}
                         onDragEnd={handleDragEnd}
-                        className="flex items-start gap-2 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors cursor-move"
+                        className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity)}`}
                       >
-                        <div className={`h-full w-1 rounded-full ${getSeverityColor(issue.severity)} flex-shrink-0`} />
                         <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium">{issue.title}</h4>
@@ -359,10 +403,32 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                             <Badge variant={issue.status === "open" ? "default" : "secondary"}>
                               {issue.status}
                             </Badge>
-                            <Badge variant="outline" className="capitalize">
-                              <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(issue.severity)}`} />
-                              {issue.severity}
-                            </Badge>
+                            <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
+                              <SelectTrigger className="h-6 w-24 text-xs capitalize">
+                                <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="low">
+                                  <span className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-success" />
+                                    Low
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="medium">
+                                  <span className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-warning" />
+                                    Medium
+                                  </span>
+                                </SelectItem>
+                                <SelectItem value="high">
+                                  <span className="flex items-center gap-2">
+                                    <span className="h-2 w-2 rounded-full bg-destructive" />
+                                    High
+                                  </span>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                         <div className="flex gap-1">
@@ -434,9 +500,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                 todos.map((todo) => (
                   <div
                     key={todo.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                    className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(todo.severity)}`}
                   >
-                    <div className={`h-full w-1 rounded-full ${getSeverityColor(todo.severity)} flex-shrink-0`} />
                     <Checkbox
                       checked={todo.status === "completed"}
                       onCheckedChange={() => handleToggleTodoStatus(todo.id, todo.status)}
@@ -456,10 +521,32 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                             {getIssueTitle(todo.issue_id)}
                           </Badge>
                         )}
-                        <Badge variant="outline" className="capitalize">
-                          <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityColor(todo.severity)}`} />
-                          {todo.severity}
-                        </Badge>
+                        <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
+                          <SelectTrigger className="h-6 w-24 text-xs capitalize">
+                            <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-success" />
+                                Low
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="medium">
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-warning" />
+                                Medium
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="high">
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-destructive" />
+                                High
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
                         <span>{getAssignedName(todo.assigned_to)}</span>
