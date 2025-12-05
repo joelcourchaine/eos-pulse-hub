@@ -113,11 +113,19 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       const { data, error } = await supabase
         .from("issues")
         .select("*")
-        .eq("department_id", departmentId)
-        .order("display_order", { ascending: true });
+        .eq("department_id", departmentId);
 
       if (error) throw error;
-      setIssues(data || []);
+      
+      // Sort by severity: high first, then medium, then low
+      const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      const sorted = (data || []).sort((a, b) => {
+        const orderA = severityOrder[a.severity] ?? 1;
+        const orderB = severityOrder[b.severity] ?? 1;
+        return orderA - orderB;
+      });
+      
+      setIssues(sorted);
     } catch (error: any) {
       toast({
         variant: "destructive",
