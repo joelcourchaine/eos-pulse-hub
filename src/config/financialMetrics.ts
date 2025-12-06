@@ -252,13 +252,12 @@ export const FORD_METRICS: FinancialMetric[] = [
     name: "Net Operating Profit", 
     key: "net", 
     type: "dollar", 
-    description: "Department Profit less Dealer Salary plus Parts Transfer", 
+    description: "Department Profit less Dealer Salary less Parts Transfer", 
     targetDirection: "above",
     calculation: {
-      type: "complex",
+      type: "subtract",
       base: "department_profit",
-      deductions: ["dealer_salary"],
-      additions: ["parts_transfer"]
+      deductions: ["dealer_salary", "parts_transfer"]
     }
   },
   { 
