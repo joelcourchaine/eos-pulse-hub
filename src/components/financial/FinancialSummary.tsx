@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -2226,24 +2227,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         <TooltipContent className="max-w-xs bg-popover text-popover-foreground z-50">
                                           <div 
                                             className="text-sm prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md" 
-                                            dangerouslySetInnerHTML={{ __html: (() => {
-                                              // Sanitize HTML to prevent XSS attacks
-                                              const tempDiv = document.createElement('div');
-                                              tempDiv.innerHTML = notes[key];
-                                              // Remove script tags and event handlers
-                                              const scripts = tempDiv.querySelectorAll('script');
-                                              scripts.forEach(s => s.remove());
-                                              // Remove on* event handlers from all elements
-                                              const allElements = tempDiv.querySelectorAll('*');
-                                              allElements.forEach(el => {
-                                                Array.from(el.attributes).forEach(attr => {
-                                                  if (attr.name.startsWith('on')) {
-                                                    el.removeAttribute(attr.name);
-                                                  }
-                                                });
-                                              });
-                                              return tempDiv.innerHTML;
-                                            })() }}
+                                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(notes[key]) }}
                                           />
                                         </TooltipContent>
                                       )}
