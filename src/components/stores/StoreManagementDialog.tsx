@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
   const [brandId, setBrandId] = useState<string>("");
   const [groupId, setGroupId] = useState<string | undefined>(undefined);
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const queryClient = useQueryClient();
 
   const { data: brands } = useQuery({
@@ -126,7 +127,11 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
     setBrandId(store.brand_id || "");
     setGroupId(store.group_id || undefined);
     setEditingStoreId(store.id);
-    console.log("Edit state updated, editingStoreId:", store.id);
+    // Scroll to form after state update
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    toast.info(`Editing "${store.name}" - scroll up to see the form`);
   };
 
   const handleCancelEdit = () => {
@@ -144,7 +149,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
           <DialogTitle>Manage Stores</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="store-name">Store Name</Label>
             <Input
