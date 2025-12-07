@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,14 +16,8 @@ interface Question {
   reference_image_url: string | null;
 }
 
-interface Answer {
-  question_id: string;
-  answer_value: string | null;
-}
-
 export default function Questionnaire() {
   const { token } = useParams();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -44,67 +38,29 @@ export default function Questionnaire() {
     }
 
     try {
-      // Verify token and get department
-      const { data: tokenData, error: tokenError } = await supabase
-        .from("questionnaire_tokens")
-        .select(`
-          department_id,
-          expires_at,
-          departments (
-            id,
-            name,
-            department_type_id
-          )
-        `)
-        .eq("token", token)
-        .maybeSingle();
-
-      if (tokenError || !tokenData) {
-        setTokenValid(false);
-        setLoading(false);
-        return;
-      }
-
-      // Check if token is expired
-      if (new Date(tokenData.expires_at) < new Date()) {
-        setTokenValid(false);
-        setLoading(false);
-        return;
-      }
-
-      const department = tokenData.departments as any;
-      setDepartmentName(department.name);
-
-      // Load questions for this department type
-      const { data: questionsData, error: questionsError } = await supabase
-        .from("department_questions")
-        .select("*")
-        .eq("is_active", true)
-        .order("display_order");
-
-      console.log("Questions lookup result:", { questionsData, questionsError });
-
-      if (questionsError) {
-        console.error("Questions error:", questionsError);
-        throw questionsError;
-      }
-
-      // Load existing answers
-      const { data: answersData, error: answersError } = await supabase
-        .from("department_answers")
-        .select("question_id, answer_value")
-        .eq("department_id", department.id);
-
-      console.log("Answers lookup result:", { answersData, answersError });
-
-      // Convert answers array to object
-      const answersMap: Record<string, string> = {};
-      answersData?.forEach((answer: Answer) => {
-        answersMap[answer.question_id] = answer.answer_value || "";
+      // Validate token and fetch all questionnaire data via secure edge function
+      const { data, error } = await supabase.functions.invoke('questionnaire-validate', {
+        body: { token },
       });
 
-      setQuestions(questionsData || []);
-      setAnswers(answersMap);
+      if (error) {
+        console.error("Error validating token:", error);
+        setTokenValid(false);
+        setLoading(false);
+        return;
+      }
+
+      if (!data?.valid) {
+        console.error("Token validation failed:", data?.error);
+        setTokenValid(false);
+        setLoading(false);
+        return;
+      }
+
+      // Set data from the secure API response
+      setDepartmentName(data.departmentName);
+      setQuestions(data.questions || []);
+      setAnswers(data.answers || {});
     } catch (error) {
       console.error("Error loading questionnaire:", error);
       toast.error("Failed to load questionnaire");
