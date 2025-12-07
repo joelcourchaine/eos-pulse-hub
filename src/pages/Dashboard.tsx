@@ -26,7 +26,6 @@ import { TodosPanel } from "@/components/todos/TodosPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
-import { MyTasksView } from "@/components/todos/MyTasksView";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -767,15 +766,12 @@ const Dashboard = () => {
     );
   }
 
-  // Show mobile tasks view on mobile devices
-  if (isMobile && showMobileTasksView && user) {
-    return (
-      <MyTasksView 
-        userId={user.id} 
-        onViewFullDashboard={handleViewFullDashboard}
-      />
-    );
-  }
+  // Redirect to my-tasks page on mobile when preference is set
+  useEffect(() => {
+    if (isMobile && showMobileTasksView && user && !loading) {
+      navigate("/my-tasks");
+    }
+  }, [isMobile, showMobileTasksView, user, loading, navigate]);
 
   return (
     <>
