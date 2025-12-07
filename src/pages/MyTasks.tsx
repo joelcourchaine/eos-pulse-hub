@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, Loader2, MapPin, AlertTriangle, CheckCircle2, User } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Todo {
   id: string;
@@ -37,6 +38,7 @@ interface Profile {
 
 const MyTasks = () => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -213,6 +215,14 @@ const MyTasks = () => {
     }
   };
 
+  const handleBackToDashboard = () => {
+    // On mobile, update preference to show dashboard
+    if (isMobile) {
+      localStorage.setItem('showMobileTasksView', 'false');
+    }
+    navigate("/dashboard");
+  };
+
   const getSeverityStyles = (severity: string) => {
     switch (severity) {
       case "low": return "border-l-success bg-success/5";
@@ -229,12 +239,12 @@ const MyTasks = () => {
     return "text-muted-foreground";
   };
 
-  const getDueDateLabel = (dueDate: string | null) => {
+  const getDueDateLabel = (dueDate: string | null, short: boolean = false) => {
     if (!dueDate) return null;
     const date = new Date(dueDate);
     if (isPast(date) && !isToday(date)) return "Overdue";
     if (isToday(date)) return "Due Today";
-    return format(date, "MMM d, yyyy");
+    return short ? format(date, "MMM d") : format(date, "MMM d, yyyy");
   };
 
   if (loading) {
@@ -253,39 +263,48 @@ const MyTasks = () => {
   const upcomingTasks = todos.filter(t => !t.due_date || (!isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date))));
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 pb-16 sm:pb-0">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
+              <img src={goLogo} alt="GO Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg hidden sm:block" />
               <div>
-                <h1 className="text-xl font-bold text-foreground">My Tasks</h1>
-                <p className="text-sm text-muted-foreground">
+                <h1 className="text-lg sm:text-xl font-bold text-foreground">My Tasks</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   {todos.length} pending {todos.length === 1 ? 'task' : 'tasks'} across all stores
                 </p>
               </div>
             </div>
-            <Button onClick={() => navigate("/dashboard")} variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+            <Button onClick={handleBackToDashboard} variant="outline" size={isMobile ? "sm" : "default"}>
+              {isMobile ? (
+                <>
+                  Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Dashboard
+                </>
+              )}
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {todos.length === 0 ? (
           <Card>
-            <CardContent className="py-16">
+            <CardContent className="py-12 sm:py-16">
               <div className="text-center">
-                <CheckCircle2 className="h-20 w-20 mx-auto mb-4 text-success opacity-80" />
-                <h3 className="text-xl font-semibold mb-2">All caught up!</h3>
-                <p className="text-muted-foreground mb-6">
+                <CheckCircle2 className="h-16 w-16 sm:h-20 sm:w-20 mx-auto mb-4 text-success opacity-80" />
+                <h3 className="text-lg sm:text-xl font-semibold mb-2">All caught up!</h3>
+                <p className="text-muted-foreground mb-4 sm:mb-6">
                   You have no pending tasks assigned to you.
                 </p>
-                <Button onClick={() => navigate("/dashboard")} variant="default">
+                <Button onClick={handleBackToDashboard} variant="default">
                   Go to Dashboard
                 </Button>
               </div>
@@ -296,16 +315,18 @@ const MyTasks = () => {
             {/* Overdue Tasks */}
             {overdueTasks.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-3 text-destructive">
-                  <AlertTriangle className="h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Overdue ({overdueTasks.length})</h2>
+                <div className="flex items-center gap-2 mb-2 sm:mb-3 text-destructive">
+                  <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <h2 className="text-base sm:text-lg font-semibold">Overdue ({overdueTasks.length})</h2>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {overdueTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
                       profiles={profiles}
+                      userId={userId || ""}
+                      isMobile={isMobile}
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
@@ -321,16 +342,18 @@ const MyTasks = () => {
             {/* Today's Tasks */}
             {todayTasks.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-3 text-warning">
-                  <CalendarIcon className="h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Due Today ({todayTasks.length})</h2>
+                <div className="flex items-center gap-2 mb-2 sm:mb-3 text-warning">
+                  <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <h2 className="text-base sm:text-lg font-semibold">Due Today ({todayTasks.length})</h2>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {todayTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
                       profiles={profiles}
+                      userId={userId || ""}
+                      isMobile={isMobile}
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
@@ -346,16 +369,18 @@ const MyTasks = () => {
             {/* Upcoming Tasks */}
             {upcomingTasks.length > 0 && (
               <div>
-                <div className="flex items-center gap-2 mb-3 text-foreground">
-                  <CheckSquare className="h-5 w-5" />
-                  <h2 className="text-lg font-semibold">Upcoming ({upcomingTasks.length})</h2>
+                <div className="flex items-center gap-2 mb-2 sm:mb-3 text-foreground">
+                  <CheckSquare className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <h2 className="text-base sm:text-lg font-semibold">Upcoming ({upcomingTasks.length})</h2>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {upcomingTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
                       profiles={profiles}
+                      userId={userId || ""}
+                      isMobile={isMobile}
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
@@ -377,22 +402,24 @@ const MyTasks = () => {
 interface TaskCardProps {
   todo: Todo;
   profiles: Profile[];
+  userId: string;
+  isMobile: boolean;
   onComplete: (id: string) => void;
   onUpdateOwner: (id: string, newOwnerId: string) => void;
   onUpdateDueDate: (id: string, newDate: Date | undefined) => void;
   getSeverityStyles: (severity: string) => string;
   getDueDateStyles: (dueDate: string | null) => string;
-  getDueDateLabel: (dueDate: string | null) => string | null;
+  getDueDateLabel: (dueDate: string | null, short?: boolean) => string | null;
 }
 
-function TaskCard({ todo, profiles, onComplete, onUpdateOwner, onUpdateDueDate, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
-  const dueLabel = getDueDateLabel(todo.due_date);
+function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner, onUpdateDueDate, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
+  const dueLabel = getDueDateLabel(todo.due_date, isMobile);
   const currentOwner = profiles.find(p => p.id === todo.assigned_to);
   
   return (
     <Card className={`border-l-4 ${getSeverityStyles(todo.severity)}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-4">
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           <Checkbox
             checked={false}
             onCheckedChange={() => onComplete(todo.id)}
@@ -403,27 +430,27 @@ function TaskCard({ todo, profiles, onComplete, onUpdateOwner, onUpdateDueDate, 
               {todo.title}
             </h3>
             {todo.description && (
-              <p className="text-sm text-muted-foreground mb-2">
+              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                 {todo.description}
               </p>
             )}
-            <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-3">
               <div className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-4 w-4" />
+                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{todo.store_name} • {todo.department_name}</span>
               </div>
             </div>
             
             {/* Editable fields */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Owner Select */}
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                 <Select
                   value={todo.assigned_to || ""}
                   onValueChange={(value) => onUpdateOwner(todo.id, value)}
                 >
-                  <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectTrigger className="h-7 sm:h-8 w-[140px] sm:w-[180px] text-xs">
                     <SelectValue placeholder="Assign to...">
                       {currentOwner?.full_name || "Unassigned"}
                     </SelectValue>
@@ -445,12 +472,12 @@ function TaskCard({ todo, profiles, onComplete, onUpdateOwner, onUpdateDueDate, 
                     variant="outline"
                     size="sm"
                     className={cn(
-                      "h-8 text-xs justify-start",
+                      "h-7 sm:h-8 text-xs justify-start px-2",
                       getDueDateStyles(todo.due_date)
                     )}
                   >
                     <CalendarIcon className="h-3 w-3 mr-1" />
-                    {dueLabel || "Set due date"}
+                    {dueLabel || (isMobile ? "Set date" : "Set due date")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
