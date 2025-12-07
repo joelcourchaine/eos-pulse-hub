@@ -207,9 +207,12 @@ const Dashboard = () => {
     };
   }, [selectedDepartment, scorecardViewMode, selectedQuarter, selectedYear]);
 
-  // Real-time subscription for todos updates
+  // Real-time subscription for todos updates (across all stores for the user)
   useEffect(() => {
-    if (!selectedDepartment || !user) return;
+    if (!user) return;
+
+    // Fetch initial count when user is available
+    fetchMyOpenTodosCount();
 
     const todosChannel = supabase
       .channel('todos-changes')
@@ -218,8 +221,7 @@ const Dashboard = () => {
         {
           event: '*',
           schema: 'public',
-          table: 'todos',
-          filter: `department_id=eq.${selectedDepartment}`
+          table: 'todos'
         },
         () => {
           // Refresh todos count when any todo changes
@@ -231,7 +233,7 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(todosChannel);
     };
-  }, [selectedDepartment, user]);
+  }, [user]);
 
   // Real-time subscription for stores updates
   useEffect(() => {
@@ -643,13 +645,13 @@ const Dashboard = () => {
   };
 
   const fetchMyOpenTodosCount = async () => {
-    if (!selectedDepartment || !user) return;
+    if (!user) return;
 
     try {
+      // Fetch count of ALL pending todos assigned to user across all stores/departments
       const { count, error } = await supabase
         .from("todos")
         .select("*", { count: "exact", head: true })
-        .eq("department_id", selectedDepartment)
         .eq("assigned_to", user.id)
         .eq("status", "pending");
 
