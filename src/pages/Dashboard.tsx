@@ -291,6 +291,13 @@ const Dashboard = () => {
     }
   }, [selectedDepartment]);
 
+  // Redirect to my-tasks page on mobile when preference is set
+  useEffect(() => {
+    if (isMobile && showMobileTasksView && user && !loading) {
+      navigate("/my-tasks");
+    }
+  }, [isMobile, showMobileTasksView, user, loading, navigate]);
+
   const fetchProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -766,12 +773,6 @@ const Dashboard = () => {
     );
   }
 
-  // Redirect to my-tasks page on mobile when preference is set
-  useEffect(() => {
-    if (isMobile && showMobileTasksView && user && !loading) {
-      navigate("/my-tasks");
-    }
-  }, [isMobile, showMobileTasksView, user, loading, navigate]);
 
   return (
     <>
