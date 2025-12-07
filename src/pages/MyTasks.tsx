@@ -101,7 +101,7 @@ const MyTasks = () => {
     };
   }, [userId]);
 
-  const loadProfilesForDepartments = async (departmentIds: string[]) => {
+  const loadProfilesForDepartments = async (departmentIds: string[], includeGroupLevel: boolean = false) => {
     try {
       const uniqueDeptIds = [...new Set(departmentIds)];
       const profilesMap: Record<string, Profile[]> = {};
@@ -121,6 +121,11 @@ const MyTasks = () => {
           .select("id, full_name, email")
           .in("id", superAdminIds);
         superAdminProfiles = superAdmins || [];
+      }
+      
+      // For group-level tasks, only super admins can be assigned
+      if (includeGroupLevel) {
+        profilesMap['__group__'] = superAdminProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
       }
       
       // For each department, fetch profiles that have access
@@ -224,8 +229,10 @@ const MyTasks = () => {
       
       // Load profiles for all departments that have tasks
       const deptIds = mappedTodos.filter(t => t.department_id).map(t => t.department_id as string);
-      if (deptIds.length > 0) {
-        loadProfilesForDepartments(deptIds);
+      const hasGroupLevelTasks = mappedTodos.some(t => !t.department_id);
+      
+      if (deptIds.length > 0 || hasGroupLevelTasks) {
+        loadProfilesForDepartments(deptIds, hasGroupLevelTasks);
       }
     } catch (error: any) {
       console.error("Error loading tasks:", error);
@@ -442,7 +449,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={departmentProfiles[todo.department_id] || []}
+                      profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
@@ -469,7 +476,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={departmentProfiles[todo.department_id] || []}
+                      profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
@@ -496,7 +503,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={departmentProfiles[todo.department_id] || []}
+                      profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
