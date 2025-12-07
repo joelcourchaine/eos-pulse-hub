@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { CreateTaskDialog } from "@/components/todos/CreateTaskDialog";
 
 interface Todo {
   id: string;
@@ -25,7 +26,7 @@ interface Todo {
   assigned_to: string | null;
   created_by: string | null;
   created_at: string;
-  department_id: string;
+  department_id: string | null;
   department_name?: string;
   store_name?: string;
 }
@@ -43,6 +44,8 @@ const MyTasks = () => {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [departmentProfiles, setDepartmentProfiles] = useState<Record<string, Profile[]>>({});
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,6 +56,14 @@ const MyTasks = () => {
         return;
       }
       setUserId(session.user.id);
+      
+      // Check if user is super admin
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .eq("role", "super_admin");
+      setIsSuperAdmin((roles?.length || 0) > 0);
     };
     checkAuth();
   }, [navigate]);
@@ -184,13 +195,14 @@ const MyTasks = () => {
     setLoading(true);
     
     try {
+      // Fetch tasks with department (left join - remove !inner to allow null department_id)
       const { data, error } = await supabase
         .from("todos")
         .select(`
           *,
-          departments!inner(
+          departments(
             name,
-            stores!inner(name)
+            stores(name)
           )
         `)
         .eq("assigned_to", userId)
@@ -201,14 +213,14 @@ const MyTasks = () => {
 
       const mappedTodos = (data || []).map(todo => ({
         ...todo,
-        department_name: todo.departments?.name,
-        store_name: todo.departments?.stores?.name,
+        department_name: todo.departments?.name || null,
+        store_name: todo.departments?.stores?.name || null,
       }));
 
       setTodos(mappedTodos);
       
       // Load profiles for all departments that have tasks
-      const deptIds = mappedTodos.map(t => t.department_id);
+      const deptIds = mappedTodos.filter(t => t.department_id).map(t => t.department_id as string);
       if (deptIds.length > 0) {
         loadProfilesForDepartments(deptIds);
       }
@@ -360,19 +372,27 @@ const MyTasks = () => {
                 </p>
               </div>
             </div>
-            <Button onClick={handleBackToDashboard} variant="outline" size={isMobile ? "sm" : "default"}>
-              {isMobile ? (
-                <>
-                  Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to Dashboard
-                </>
+            <div className="flex items-center gap-2">
+              {isSuperAdmin && (
+                <Button onClick={() => setShowCreateDialog(true)} size={isMobile ? "sm" : "default"}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  {isMobile ? "New" : "Create Task"}
+                </Button>
               )}
-            </Button>
+              <Button onClick={handleBackToDashboard} variant="outline" size={isMobile ? "sm" : "default"}>
+                {isMobile ? (
+                  <>
+                    Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Dashboard
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -478,6 +498,15 @@ const MyTasks = () => {
           </>
         )}
       </div>
+      
+      {isSuperAdmin && userId && (
+        <CreateTaskDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          userId={userId}
+          onTaskCreated={loadMyTasks}
+        />
+      )}
     </div>
   );
 };
@@ -520,7 +549,13 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-3">
               <div className="flex items-center gap-1 text-muted-foreground">
                 <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{todo.store_name} • {todo.department_name}</span>
+                <span>
+                  {todo.store_name && todo.department_name 
+                    ? `${todo.store_name} • ${todo.department_name}`
+                    : todo.store_name 
+                      ? todo.store_name
+                      : "Group-level task"}
+                </span>
               </div>
             </div>
             

@@ -1050,7 +1050,7 @@ export type Database = {
           assigned_to: string | null
           created_at: string
           created_by: string | null
-          department_id: string
+          department_id: string | null
           description: string | null
           due_date: string | null
           id: string
@@ -1064,7 +1064,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string
           created_by?: string | null
-          department_id: string
+          department_id?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
@@ -1078,7 +1078,7 @@ export type Database = {
           assigned_to?: string | null
           created_at?: string
           created_by?: string | null
-          department_id?: string
+          department_id?: string | null
           description?: string | null
           due_date?: string | null
           id?: string
