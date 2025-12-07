@@ -35,3 +35,6 @@ verify_jwt = true
 
 [functions.send-dealer-comparison-email]
 verify_jwt = true
+
+[functions.questionnaire-submit]
+verify_jwt = false

@@ -119,35 +119,22 @@ export default function Questionnaire() {
     setSubmitting(true);
 
     try {
-      // Get department ID from token
-      const { data: tokenData } = await supabase
-        .from("questionnaire_tokens")
-        .select("department_id")
-        .eq("token", token)
-        .single();
-
-      if (!tokenData) throw new Error("Invalid token");
-
-      // Upsert answers
+      // Prepare answers for the edge function
       const answerUpdates = Object.entries(answers).map(([questionId, value]) => ({
-        department_id: tokenData.department_id,
         question_id: questionId,
         answer_value: value || null,
       }));
 
-      const { error } = await supabase
-        .from("department_answers")
-        .upsert(answerUpdates, {
-          onConflict: "department_id,question_id",
-        });
+      // Submit via edge function which validates the token server-side
+      const { data, error } = await supabase.functions.invoke('questionnaire-submit', {
+        body: {
+          token,
+          answers: answerUpdates,
+        },
+      });
 
       if (error) throw error;
-
-      // Mark token as used
-      await supabase
-        .from("questionnaire_tokens")
-        .update({ used_at: new Date().toISOString() })
-        .eq("token", token);
+      if (data?.error) throw new Error(data.error);
 
       setSubmitted(true);
       toast.success("Questionnaire submitted successfully!");
