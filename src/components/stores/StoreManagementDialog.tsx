@@ -120,11 +120,13 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
   };
 
   const handleEdit = (store: any) => {
+    console.log("handleEdit called with store:", store);
     setName(store.name);
     setLocation(store.location || "");
     setBrandId(store.brand_id || "");
     setGroupId(store.group_id || undefined);
     setEditingStoreId(store.id);
+    console.log("Edit state updated, editingStoreId:", store.id);
   };
 
   const handleCancelEdit = () => {
@@ -234,9 +236,11 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                   <div className="flex gap-2">
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="sm"
+                      variant="default"
+                      size="icon"
+                      className="bg-success hover:bg-success/90"
                       onClick={(e) => {
+                        console.log("Edit button clicked for store:", store.name);
                         e.preventDefault();
                         e.stopPropagation();
                         handleEdit(store);
