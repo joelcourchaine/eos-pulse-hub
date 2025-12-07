@@ -329,9 +329,15 @@ const MyTasks = () => {
     }
   };
 
+  // Parse date string as local date (not UTC)
+  const parseLocalDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const getDueDateStyles = (dueDate: string | null) => {
     if (!dueDate) return "text-muted-foreground";
-    const date = new Date(dueDate);
+    const date = parseLocalDate(dueDate);
     if (isPast(date) && !isToday(date)) return "text-destructive font-medium";
     if (isToday(date)) return "text-warning font-medium";
     return "text-muted-foreground";
@@ -339,7 +345,7 @@ const MyTasks = () => {
 
   const getDueDateLabel = (dueDate: string | null, short: boolean = false) => {
     if (!dueDate) return null;
-    const date = new Date(dueDate);
+    const date = parseLocalDate(dueDate);
     if (isPast(date) && !isToday(date)) return "Overdue";
     if (isToday(date)) return "Due Today";
     return short ? format(date, "MMM d") : format(date, "MMM d, yyyy");
@@ -356,9 +362,15 @@ const MyTasks = () => {
     );
   }
 
-  const overdueTasks = todos.filter(t => t.due_date && isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date)));
-  const todayTasks = todos.filter(t => t.due_date && isToday(new Date(t.due_date)));
-  const upcomingTasks = todos.filter(t => !t.due_date || (!isPast(new Date(t.due_date)) && !isToday(new Date(t.due_date))));
+  // Parse date as local for categorization
+  const parseLocal = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
+  const overdueTasks = todos.filter(t => t.due_date && isPast(parseLocal(t.due_date)) && !isToday(parseLocal(t.due_date)));
+  const todayTasks = todos.filter(t => t.due_date && isToday(parseLocal(t.due_date)));
+  const upcomingTasks = todos.filter(t => !t.due_date || (!isPast(parseLocal(t.due_date)) && !isToday(parseLocal(t.due_date))));
 
   return (
     <div className="min-h-screen bg-muted/30 pb-16 sm:pb-0">
