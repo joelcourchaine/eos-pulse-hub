@@ -42,7 +42,7 @@ const MyTasks = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [departmentProfiles, setDepartmentProfiles] = useState<Record<string, Profile[]>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,7 +60,6 @@ const MyTasks = () => {
   useEffect(() => {
     if (userId) {
       loadMyTasks();
-      loadProfiles();
     }
   }, [userId]);
 
@@ -88,17 +87,74 @@ const MyTasks = () => {
     };
   }, [userId]);
 
-  const loadProfiles = async () => {
+  const loadProfilesForDepartments = async (departmentIds: string[]) => {
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .order("full_name");
-
-      if (error) throw error;
-      setProfiles(data || []);
+      const uniqueDeptIds = [...new Set(departmentIds)];
+      const profilesMap: Record<string, Profile[]> = {};
+      
+      // Fetch super admins (they should be available in all departments)
+      const { data: superAdminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      
+      const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
+      
+      let superAdminProfiles: Profile[] = [];
+      if (superAdminIds.length > 0) {
+        const { data: superAdmins } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", superAdminIds);
+        superAdminProfiles = superAdmins || [];
+      }
+      
+      // For each department, fetch profiles that have access
+      for (const deptId of uniqueDeptIds) {
+        // Get the store_id for this department
+        const { data: dept } = await supabase
+          .from("departments")
+          .select("store_id")
+          .eq("id", deptId)
+          .single();
+        
+        if (!dept) continue;
+        
+        // Get profiles belonging to this store
+        const { data: storeProfiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("store_id", dept.store_id);
+        
+        // Get profiles with explicit department access
+        const { data: deptAccess } = await supabase
+          .from("user_department_access")
+          .select("user_id")
+          .eq("department_id", deptId);
+        
+        const deptAccessUserIds = deptAccess?.map(a => a.user_id) || [];
+        
+        let deptAccessProfiles: Profile[] = [];
+        if (deptAccessUserIds.length > 0) {
+          const { data: accessProfiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .in("id", deptAccessUserIds);
+          deptAccessProfiles = accessProfiles || [];
+        }
+        
+        // Combine all profiles (store profiles + dept access + super admins), removing duplicates
+        const allProfiles = [...(storeProfiles || []), ...deptAccessProfiles, ...superAdminProfiles];
+        const uniqueProfiles = allProfiles.filter((p, i, arr) => 
+          arr.findIndex(x => x.id === p.id) === i
+        );
+        
+        profilesMap[deptId] = uniqueProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
+      }
+      
+      setDepartmentProfiles(profilesMap);
     } catch (error: any) {
-      console.error("Error loading profiles:", error);
+      console.error("Error loading department profiles:", error);
     }
   };
 
@@ -129,6 +185,12 @@ const MyTasks = () => {
       }));
 
       setTodos(mappedTodos);
+      
+      // Load profiles for all departments that have tasks
+      const deptIds = mappedTodos.map(t => t.department_id);
+      if (deptIds.length > 0) {
+        loadProfilesForDepartments(deptIds);
+      }
     } catch (error: any) {
       console.error("Error loading tasks:", error);
       toast({
@@ -324,7 +386,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={profiles}
+                      profiles={departmentProfiles[todo.department_id] || []}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
@@ -351,7 +413,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={profiles}
+                      profiles={departmentProfiles[todo.department_id] || []}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
@@ -378,7 +440,7 @@ const MyTasks = () => {
                     <TaskCard 
                       key={todo.id} 
                       todo={todo} 
-                      profiles={profiles}
+                      profiles={departmentProfiles[todo.department_id] || []}
                       userId={userId || ""}
                       isMobile={isMobile}
                       onComplete={handleToggleComplete}
