@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { CheckSquare, Calendar, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface Todo {
   id: string;
@@ -23,6 +26,12 @@ interface Todo {
   store_name?: string;
 }
 
+interface Profile {
+  id: string;
+  full_name: string;
+  email: string;
+}
+
 interface MyTasksViewProps {
   userId: string;
   onViewFullDashboard: () => void;
@@ -31,11 +40,13 @@ interface MyTasksViewProps {
 export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     if (userId) {
       loadMyTasks();
+      loadProfiles();
     }
   }, [userId]);
 
@@ -62,6 +73,20 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
       supabase.removeChannel(channel);
     };
   }, [userId]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name");
+
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (error: any) {
+      console.error("Error loading profiles:", error);
+    }
+  };
 
   const loadMyTasks = async () => {
     setLoading(true);
@@ -119,6 +144,56 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
       
       // Remove from local state immediately for snappy UX
       setTodos(prev => prev.filter(t => t.id !== todoId));
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleUpdateOwner = async (todoId: string, newOwnerId: string) => {
+    try {
+      const { error } = await supabase
+        .from("todos")
+        .update({ assigned_to: newOwnerId })
+        .eq("id", todoId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Owner updated",
+        description: "Task has been reassigned",
+      });
+      
+      // If reassigned to someone else, remove from this list
+      if (newOwnerId !== userId) {
+        setTodos(prev => prev.filter(t => t.id !== todoId));
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleUpdateDueDate = async (todoId: string, newDate: Date | undefined) => {
+    try {
+      const { error } = await supabase
+        .from("todos")
+        .update({ due_date: newDate ? format(newDate, "yyyy-MM-dd") : null })
+        .eq("id", todoId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Due date updated",
+      });
+      
+      loadMyTasks();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -216,8 +291,12 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
                   {overdueTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
-                      todo={todo} 
+                      todo={todo}
+                      profiles={profiles}
+                      userId={userId}
                       onComplete={handleToggleComplete}
+                      onUpdateOwner={handleUpdateOwner}
+                      onUpdateDueDate={handleUpdateDueDate}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -231,15 +310,19 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
             {todayTasks.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2 text-warning">
-                  <Calendar className="h-4 w-4" />
+                  <CalendarIcon className="h-4 w-4" />
                   <h2 className="font-semibold">Due Today ({todayTasks.length})</h2>
                 </div>
                 <div className="space-y-2">
                   {todayTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
-                      todo={todo} 
+                      todo={todo}
+                      profiles={profiles}
+                      userId={userId}
                       onComplete={handleToggleComplete}
+                      onUpdateOwner={handleUpdateOwner}
+                      onUpdateDueDate={handleUpdateDueDate}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -260,8 +343,12 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
                   {upcomingTasks.map((todo) => (
                     <TaskCard 
                       key={todo.id} 
-                      todo={todo} 
+                      todo={todo}
+                      profiles={profiles}
+                      userId={userId}
                       onComplete={handleToggleComplete}
+                      onUpdateOwner={handleUpdateOwner}
+                      onUpdateDueDate={handleUpdateDueDate}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -279,14 +366,19 @@ export function MyTasksView({ userId, onViewFullDashboard }: MyTasksViewProps) {
 
 interface TaskCardProps {
   todo: Todo;
+  profiles: Profile[];
+  userId: string;
   onComplete: (id: string) => void;
+  onUpdateOwner: (id: string, newOwnerId: string) => void;
+  onUpdateDueDate: (id: string, newDate: Date | undefined) => void;
   getSeverityStyles: (severity: string) => string;
   getDueDateStyles: (dueDate: string | null) => string;
   getDueDateLabel: (dueDate: string | null) => string | null;
 }
 
-function TaskCard({ todo, onComplete, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
+function TaskCard({ todo, profiles, userId, onComplete, onUpdateOwner, onUpdateDueDate, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
   const dueLabel = getDueDateLabel(todo.due_date);
+  const currentOwner = profiles.find(p => p.id === todo.assigned_to);
   
   return (
     <Card className={`border-l-4 ${getSeverityStyles(todo.severity)}`}>
@@ -306,20 +398,61 @@ function TaskCard({ todo, onComplete, getSeverityStyles, getDueDateStyles, getDu
                 {todo.description}
               </p>
             )}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2 text-xs mb-3">
               <div className="flex items-center gap-1 text-muted-foreground">
                 <MapPin className="h-3 w-3" />
                 <span>{todo.store_name} • {todo.department_name}</span>
               </div>
-              {dueLabel && (
-                <Badge 
-                  variant="outline" 
-                  className={`${getDueDateStyles(todo.due_date)} border-current`}
+            </div>
+            
+            {/* Editable fields */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Owner Select */}
+              <div className="flex items-center gap-1">
+                <User className="h-3 w-3 text-muted-foreground" />
+                <Select
+                  value={todo.assigned_to || ""}
+                  onValueChange={(value) => onUpdateOwner(todo.id, value)}
                 >
-                  <Calendar className="h-3 w-3 mr-1" />
-                  {dueLabel}
-                </Badge>
-              )}
+                  <SelectTrigger className="h-7 w-[140px] text-xs">
+                    <SelectValue placeholder="Assign to...">
+                      {currentOwner?.full_name || "Unassigned"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Due Date Picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-7 text-xs justify-start px-2",
+                      getDueDateStyles(todo.due_date)
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {dueLabel || "Set date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={todo.due_date ? new Date(todo.due_date) : undefined}
+                    onSelect={(date) => onUpdateDueDate(todo.id, date)}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>
