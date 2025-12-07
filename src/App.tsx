@@ -12,6 +12,7 @@ import DealerComparison from "./pages/DealerComparison";
 import ResetPassword from "./pages/ResetPassword";
 import SetPassword from "./pages/SetPassword";
 import Questionnaire from "./pages/Questionnaire";
+import MyTasks from "./pages/MyTasks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/set-password" element={<SetPassword />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/my-tasks" element={<MyTasks />} />
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/dealer-comparison" element={<DealerComparison />} />
           <Route path="/questionnaire/:token" element={<Questionnaire />} />
