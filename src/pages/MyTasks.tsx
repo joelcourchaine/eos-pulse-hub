@@ -114,11 +114,32 @@ const MyTasks = () => {
         // Get the store_id for this department
         const { data: dept } = await supabase
           .from("departments")
-          .select("store_id")
+          .select("store_id, stores!inner(group_id)")
           .eq("id", deptId)
           .single();
         
         if (!dept) continue;
+        
+        const storeGroupId = (dept.stores as any)?.group_id;
+        
+        // Get store GMs for this store's group
+        const { data: storeGmRoles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("role", "store_gm");
+        
+        const storeGmIds = storeGmRoles?.map(r => r.user_id) || [];
+        
+        let storeGmProfiles: Profile[] = [];
+        if (storeGmIds.length > 0 && storeGroupId) {
+          // Get store GM profiles that belong to the same store group
+          const { data: gmProfiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, email")
+            .in("id", storeGmIds)
+            .eq("store_group_id", storeGroupId);
+          storeGmProfiles = gmProfiles || [];
+        }
         
         // Get profiles belonging to this store
         const { data: storeProfiles } = await supabase
@@ -143,8 +164,8 @@ const MyTasks = () => {
           deptAccessProfiles = accessProfiles || [];
         }
         
-        // Combine all profiles (store profiles + dept access + super admins), removing duplicates
-        const allProfiles = [...(storeProfiles || []), ...deptAccessProfiles, ...superAdminProfiles];
+        // Combine all profiles (store profiles + dept access + store GMs + super admins), removing duplicates
+        const allProfiles = [...(storeProfiles || []), ...deptAccessProfiles, ...storeGmProfiles, ...superAdminProfiles];
         const uniqueProfiles = allProfiles.filter((p, i, arr) => 
           arr.findIndex(x => x.id === p.id) === i
         );
