@@ -233,9 +233,14 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                   </div>
                   <div className="flex gap-2">
                     <Button
+                      type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleEdit(store)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleEdit(store);
+                      }}
                       disabled={deleteMutation.isPending}
                     >
                       <Pencil className="h-4 w-4" />
