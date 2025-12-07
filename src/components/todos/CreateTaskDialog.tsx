@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Repeat } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 interface Store {
   id: string;
@@ -51,6 +52,9 @@ export function CreateTaskDialog({ open, onOpenChange, userId, onTaskCreated }: 
   const [selectedStore, setSelectedStore] = useState<string>("");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [assignedTo, setAssignedTo] = useState<string>("");
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState("1");
+  const [recurrenceUnit, setRecurrenceUnit] = useState<"days" | "weeks" | "months">("weeks");
 
   useEffect(() => {
     if (open) {
@@ -257,6 +261,9 @@ export function CreateTaskDialog({ open, onOpenChange, userId, onTaskCreated }: 
         assigned_to: assignedTo || null,
         created_by: userId,
         status: "pending",
+        is_recurring: isRecurring,
+        recurrence_interval: isRecurring ? parseInt(recurrenceInterval) : null,
+        recurrence_unit: isRecurring ? recurrenceUnit : null,
       });
       
       if (error) throw error;
@@ -280,6 +287,9 @@ export function CreateTaskDialog({ open, onOpenChange, userId, onTaskCreated }: 
     setSelectedStore("");
     setSelectedDepartment("");
     setAssignedTo("");
+    setIsRecurring(false);
+    setRecurrenceInterval("1");
+    setRecurrenceUnit("weeks");
   };
 
   return (
@@ -349,6 +359,44 @@ export function CreateTaskDialog({ open, onOpenChange, userId, onTaskCreated }: 
                 />
               </PopoverContent>
             </Popover>
+          </div>
+          
+          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Repeat className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="recurring" className="font-medium">Recurring Task</Label>
+              </div>
+              <Switch
+                id="recurring"
+                checked={isRecurring}
+                onCheckedChange={setIsRecurring}
+              />
+            </div>
+            
+            {isRecurring && (
+              <div className="flex items-center gap-2 pt-2">
+                <span className="text-sm text-muted-foreground">Repeat every</span>
+                <Input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={recurrenceInterval}
+                  onChange={(e) => setRecurrenceInterval(e.target.value)}
+                  className="w-16 text-center"
+                />
+                <Select value={recurrenceUnit} onValueChange={(v) => setRecurrenceUnit(v as "days" | "weeks" | "months")}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="days">days</SelectItem>
+                    <SelectItem value="weeks">weeks</SelectItem>
+                    <SelectItem value="months">months</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           
           <div className="space-y-2">

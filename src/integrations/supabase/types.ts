@@ -1054,7 +1054,11 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_recurring: boolean
           issue_id: string | null
+          parent_todo_id: string | null
+          recurrence_interval: number | null
+          recurrence_unit: string | null
           severity: string
           status: string | null
           title: string
@@ -1068,7 +1072,11 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_recurring?: boolean
           issue_id?: string | null
+          parent_todo_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_unit?: string | null
           severity?: string
           status?: string | null
           title: string
@@ -1082,7 +1090,11 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_recurring?: boolean
           issue_id?: string | null
+          parent_todo_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_unit?: string | null
           severity?: string
           status?: string | null
           title?: string
@@ -1115,6 +1127,13 @@ export type Database = {
             columns: ["issue_id"]
             isOneToOne: false
             referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_parent_todo_id_fkey"
+            columns: ["parent_todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
             referencedColumns: ["id"]
           },
         ]

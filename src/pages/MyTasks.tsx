@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
@@ -29,6 +29,9 @@ interface Todo {
   department_id: string | null;
   department_name?: string;
   store_name?: string;
+  is_recurring?: boolean;
+  recurrence_interval?: number | null;
+  recurrence_unit?: string | null;
 }
 
 interface Profile {
@@ -538,9 +541,17 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
             className="mt-1"
           />
           <div className="flex-1 min-w-0">
-            <h3 className="font-medium text-foreground leading-tight mb-1">
-              {todo.title}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-foreground leading-tight">
+                {todo.title}
+              </h3>
+              {todo.is_recurring && (
+                <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 gap-1">
+                  <Repeat className="h-3 w-3" />
+                  {todo.recurrence_interval} {todo.recurrence_unit}
+                </Badge>
+              )}
+            </div>
             {todo.description && (
               <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                 {todo.description}
