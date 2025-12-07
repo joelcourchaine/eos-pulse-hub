@@ -241,11 +241,9 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                   <div className="flex gap-2">
                     <Button
                       type="button"
-                      variant="default"
+                      variant="ghost"
                       size="icon"
-                      className="bg-success hover:bg-success/90"
                       onClick={(e) => {
-                        console.log("Edit button clicked for store:", store.name);
                         e.preventDefault();
                         e.stopPropagation();
                         handleEdit(store);
