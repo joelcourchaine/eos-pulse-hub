@@ -207,11 +207,27 @@ const Dashboard = () => {
   }, [selectedDepartment, scorecardViewMode, selectedQuarter, selectedYear]);
 
   // Real-time subscription for todos updates (across all stores for the user)
+  // Fetch my todos count and setup realtime subscription
   useEffect(() => {
     if (!user) return;
 
     // Fetch initial count when user is available
-    fetchMyOpenTodosCount();
+    const fetchTodos = async () => {
+      try {
+        const { count, error } = await supabase
+          .from("todos")
+          .select("*", { count: "exact", head: true })
+          .eq("assigned_to", user.id)
+          .eq("status", "pending");
+
+        if (error) throw error;
+        setMyOpenTodosCount(count || 0);
+      } catch (error: any) {
+        console.error("Error fetching my open todos count:", error);
+      }
+    };
+
+    fetchTodos();
 
     const todosChannel = supabase
       .channel('todos-changes')
@@ -224,7 +240,7 @@ const Dashboard = () => {
         },
         () => {
           // Refresh todos count when any todo changes
-          fetchMyOpenTodosCount();
+          fetchTodos();
         }
       )
       .subscribe();
