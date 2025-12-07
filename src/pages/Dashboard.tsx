@@ -26,12 +26,15 @@ import { TodosPanel } from "@/components/todos/TodosPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
+import { MyTasksView } from "@/components/todos/MyTasksView";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -41,6 +44,13 @@ const Dashboard = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>(""); // Don't load from localStorage until validated
   const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
   const [kpis, setKpis] = useState<any[]>([]);
+  
+  // Mobile tasks view state - default to true on mobile, persisted in localStorage
+  const [showMobileTasksView, setShowMobileTasksView] = useState(() => {
+    const saved = localStorage.getItem('showMobileTasksView');
+    // If never set, default to true (show tasks first on mobile)
+    return saved === null ? true : saved === 'true';
+  });
   
   // Calculate current quarter and year
   const getCurrentQuarter = () => {
@@ -64,10 +74,16 @@ const Dashboard = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
-const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
+  
+  // Handler to toggle mobile tasks view
+  const handleViewFullDashboard = () => {
+    setShowMobileTasksView(false);
+    localStorage.setItem('showMobileTasksView', 'false');
+  };
   
   const currentWeek = getWeek(new Date());
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -746,6 +762,16 @@ const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
+    );
+  }
+
+  // Show mobile tasks view on mobile devices
+  if (isMobile && showMobileTasksView && user) {
+    return (
+      <MyTasksView 
+        userId={user.id} 
+        onViewFullDashboard={handleViewFullDashboard}
+      />
     );
   }
 
