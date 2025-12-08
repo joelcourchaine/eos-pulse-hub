@@ -110,14 +110,14 @@ export const Fireworks = ({ className }: FireworksProps) => {
         </div>
       )}
 
-      {/* Persistent celebration indicator */}
-      <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 rounded-full px-2.5 py-1 animate-pulse">
+      {/* Persistent celebration indicator - positioned at bottom left to avoid overlapping controls */}
+      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 rounded-full px-2.5 py-1 shadow-sm">
         <Trophy className="h-3.5 w-3.5 text-yellow-500" />
-        <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Complete!</span>
+        <span className="text-xs font-semibold text-yellow-600 dark:text-yellow-400">Goal Achieved!</span>
       </div>
 
       {/* Subtle corner glow effect */}
-      <div className="absolute -top-10 -right-10 w-32 h-32 bg-gradient-to-br from-yellow-400/20 to-transparent rounded-full blur-2xl" />
+      <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-tr from-yellow-400/20 to-transparent rounded-full blur-2xl" />
     </div>
   );
 };
