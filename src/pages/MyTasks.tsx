@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat, Building2 } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat, Building2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
@@ -15,6 +15,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CreateTaskDialog } from "@/components/todos/CreateTaskDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface Todo {
   id: string;
@@ -383,6 +387,29 @@ const MyTasks = () => {
     }
   };
 
+  const handleUpdateTask = async (todoId: string, title: string, description: string | null) => {
+    try {
+      const { error } = await supabase
+        .from("todos")
+        .update({ title, description })
+        .eq("id", todoId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Task updated",
+      });
+      
+      loadTasks();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message,
+      });
+    }
+  };
+
   const handleBackToDashboard = () => {
     // On mobile, update preference to show dashboard
     if (isMobile) {
@@ -551,6 +578,7 @@ const MyTasks = () => {
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
+                      onUpdateTask={handleUpdateTask}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -578,6 +606,7 @@ const MyTasks = () => {
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
+                      onUpdateTask={handleUpdateTask}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -605,6 +634,7 @@ const MyTasks = () => {
                       onComplete={handleToggleComplete}
                       onUpdateOwner={handleUpdateOwner}
                       onUpdateDueDate={handleUpdateDueDate}
+                      onUpdateTask={handleUpdateTask}
                       getSeverityStyles={getSeverityStyles}
                       getDueDateStyles={getDueDateStyles}
                       getDueDateLabel={getDueDateLabel}
@@ -637,42 +667,64 @@ interface TaskCardProps {
   onComplete: (id: string) => void;
   onUpdateOwner: (id: string, newOwnerId: string) => void;
   onUpdateDueDate: (id: string, newDate: Date | undefined) => void;
+  onUpdateTask: (id: string, title: string, description: string | null) => void;
   getSeverityStyles: (severity: string) => string;
   getDueDateStyles: (dueDate: string | null) => string;
   getDueDateLabel: (dueDate: string | null, short?: boolean) => string | null;
 }
 
-function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner, onUpdateDueDate, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
+function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner, onUpdateDueDate, onUpdateTask, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
   const dueLabel = getDueDateLabel(todo.due_date, isMobile);
   const currentOwner = profiles.find(p => p.id === todo.assigned_to);
   const ownerDisplayName = currentOwner?.full_name || todo.assigned_to_name || "Unassigned";
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState(todo.title);
+  const [editDescription, setEditDescription] = useState(todo.description || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!editTitle.trim()) return;
+    setSaving(true);
+    await onUpdateTask(todo.id, editTitle.trim(), editDescription.trim() || null);
+    setSaving(false);
+    setEditDialogOpen(false);
+  };
+
+  const handleOpenEdit = () => {
+    setEditTitle(todo.title);
+    setEditDescription(todo.description || "");
+    setEditDialogOpen(true);
+  };
   
   return (
-    <Card className={`border-l-4 ${getSeverityStyles(todo.severity)}`}>
-      <CardContent className="p-3 sm:p-4">
-        <div className="flex items-start gap-3 sm:gap-4">
-          <Checkbox
-            checked={false}
-            onCheckedChange={() => onComplete(todo.id)}
-            className="mt-1"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium text-foreground leading-tight">
-                {todo.title}
-              </h3>
-              {todo.is_recurring && (
-                <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 gap-1">
-                  <Repeat className="h-3 w-3" />
-                  {todo.recurrence_interval} {todo.recurrence_unit}
-                </Badge>
+    <>
+      <Card className={`border-l-4 ${getSeverityStyles(todo.severity)} cursor-pointer hover:bg-muted/50 transition-colors`} onClick={handleOpenEdit}>
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <Checkbox
+              checked={false}
+              onCheckedChange={() => onComplete(todo.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium text-foreground leading-tight">
+                  {todo.title}
+                </h3>
+                {todo.is_recurring && (
+                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 gap-1">
+                    <Repeat className="h-3 w-3" />
+                    {todo.recurrence_interval} {todo.recurrence_unit}
+                  </Badge>
+                )}
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+              </div>
+              {todo.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                  {todo.description}
+                </p>
               )}
-            </div>
-            {todo.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                {todo.description}
-              </p>
-            )}
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-3">
               <div className="flex items-center gap-1 text-muted-foreground">
                 <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -703,7 +755,7 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
                   <SelectContent>
                     {profiles.map((profile) => (
                       <SelectItem key={profile.id} value={profile.id}>
-                        {profile.full_name}
+                      {profile.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -720,12 +772,13 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
                       "h-7 sm:h-8 text-xs justify-start px-2",
                       getDueDateStyles(todo.due_date)
                     )}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <CalendarIcon className="h-3 w-3 mr-1" />
                     {dueLabel || (isMobile ? "Set date" : "Set due date")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
                   <Calendar
                     mode="single"
                     selected={todo.due_date ? new Date(todo.due_date) : undefined}
@@ -739,6 +792,46 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
         </div>
       </CardContent>
     </Card>
+
+    {/* Edit Task Dialog */}
+    <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle>Edit Task</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input
+              id="title"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Task title"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              placeholder="Task description (optional)"
+              rows={4}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !editTitle.trim()}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 
