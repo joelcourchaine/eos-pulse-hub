@@ -174,9 +174,15 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={getStatusColor(rock.status) as any}>
-                        {getStatusLabel(rock.status)}
-                      </Badge>
+                      {rock.progress_percentage >= 100 ? (
+                        <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white border-0">
+                          🏆 Goal Achieved!
+                        </Badge>
+                      ) : (
+                        <Badge variant={getStatusColor(rock.status) as any}>
+                          {getStatusLabel(rock.status)}
+                        </Badge>
+                      )}
                       <RockManagementDialog
                         departmentId={departmentId}
                         year={currentYear}
