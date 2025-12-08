@@ -49,6 +49,12 @@ interface Profile {
 interface Store {
   id: string;
   name: string;
+  group_id?: string | null;
+}
+
+interface StoreGroup {
+  id: string;
+  name: string;
 }
 
 const MyTasks = () => {
@@ -62,6 +68,8 @@ const MyTasks = () => {
   const [isStoreGM, setIsStoreGM] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
+  const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([]);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all_groups");
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>("my_tasks");
   const { toast } = useToast();
 
@@ -96,7 +104,7 @@ const MyTasks = () => {
     try {
       const { data, error } = await supabase
         .from("stores")
-        .select("id, name")
+        .select("id, name, group_id")
         .order("name");
       
       if (error) throw error;
@@ -106,11 +114,31 @@ const MyTasks = () => {
     }
   };
 
+  const loadStoreGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("store_groups")
+        .select("id, name")
+        .order("name");
+      
+      if (error) throw error;
+      setStoreGroups(data || []);
+    } catch (error) {
+      console.error("Error loading store groups:", error);
+    }
+  };
+
   useEffect(() => {
-    if (userId) {
+    if (isSuperAdmin || isStoreGM) {
+      loadStoreGroups();
+    }
+  }, [isSuperAdmin, isStoreGM]);
+
+  useEffect(() => {
+    if (userId && stores.length > 0) {
       loadTasks();
     }
-  }, [userId, selectedStoreFilter]);
+  }, [userId, selectedStoreFilter, selectedGroupFilter, stores]);
 
   // Real-time subscription for tasks
   useEffect(() => {
@@ -134,7 +162,7 @@ const MyTasks = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, selectedStoreFilter]);
+  }, [userId, selectedStoreFilter, selectedGroupFilter, stores]);
 
   const loadProfilesForDepartments = async (departmentIds: string[], includeGroupLevel: boolean = false) => {
     try {
@@ -260,7 +288,6 @@ const MyTasks = () => {
         query = query.is("department_id", null);
       } else if (selectedStoreFilter !== "all") {
         // Filter by specific store
-        // We need to get department IDs for this store first
         const { data: storeDepts } = await supabase
           .from("departments")
           .select("id")
@@ -270,7 +297,30 @@ const MyTasks = () => {
         if (deptIds.length > 0) {
           query = query.in("department_id", deptIds);
         } else {
-          // No departments in this store
+          setTodos([]);
+          setLoading(false);
+          return;
+        }
+      } else if (selectedGroupFilter !== "all_groups") {
+        // Filter by store group - get all stores in the group, then their departments
+        const storesInGroup = stores.filter(s => s.group_id === selectedGroupFilter);
+        const storeIdsInGroup = storesInGroup.map(s => s.id);
+        
+        if (storeIdsInGroup.length > 0) {
+          const { data: groupDepts } = await supabase
+            .from("departments")
+            .select("id")
+            .in("store_id", storeIdsInGroup);
+          
+          const deptIds = groupDepts?.map(d => d.id) || [];
+          if (deptIds.length > 0) {
+            query = query.in("department_id", deptIds);
+          } else {
+            setTodos([]);
+            setLoading(false);
+            return;
+          }
+        } else {
           setTodos([]);
           setLoading(false);
           return;
@@ -518,19 +568,46 @@ const MyTasks = () => {
             </div>
           </div>
           
-          {/* Store Filter */}
+          {/* Store Group and Store Filters */}
           {canFilterByStore && (
-            <div className="mt-3 flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {/* Store Group Filter */}
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedGroupFilter} onValueChange={(value) => {
+                  setSelectedGroupFilter(value);
+                  // Reset store filter when changing group
+                  if (value !== "all_groups") {
+                    setSelectedStoreFilter("all");
+                  }
+                }}>
+                  <SelectTrigger className="w-[180px] sm:w-[200px] h-8 text-sm">
+                    <SelectValue placeholder="Filter by group..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all_groups">All Groups</SelectItem>
+                    {storeGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Store Filter */}
               <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-                <SelectTrigger className="w-[200px] sm:w-[250px] h-8 text-sm">
+                <SelectTrigger className="w-[180px] sm:w-[220px] h-8 text-sm">
                   <SelectValue placeholder="Filter by store..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="my_tasks">My Tasks</SelectItem>
                   <SelectItem value="all">All Tasks</SelectItem>
                   {isSuperAdmin && <SelectItem value="group_level">Group-Level Tasks</SelectItem>}
-                  {stores.map((store) => (
+                  {(selectedGroupFilter === "all_groups" 
+                    ? stores 
+                    : stores.filter(s => s.group_id === selectedGroupFilter)
+                  ).map((store) => (
                     <SelectItem key={store.id} value={store.id}>
                       {store.name}
                     </SelectItem>
