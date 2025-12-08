@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat } from "lucide-react";
+import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, isPast, isToday } from "date-fns";
@@ -29,15 +29,22 @@ interface Todo {
   department_id: string | null;
   department_name?: string;
   store_name?: string;
+  store_id?: string | null;
   is_recurring?: boolean;
   recurrence_interval?: number | null;
   recurrence_unit?: string | null;
+  assigned_to_name?: string;
 }
 
 interface Profile {
   id: string;
   full_name: string;
   email: string;
+}
+
+interface Store {
+  id: string;
+  name: string;
 }
 
 const MyTasks = () => {
@@ -48,7 +55,10 @@ const MyTasks = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [departmentProfiles, setDepartmentProfiles] = useState<Record<string, Profile[]>>({});
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isStoreGM, setIsStoreGM] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>("my_tasks");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -60,24 +70,45 @@ const MyTasks = () => {
       }
       setUserId(session.user.id);
       
-      // Check if user is super admin
+      // Check user roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "super_admin");
-      setIsSuperAdmin((roles?.length || 0) > 0);
+        .eq("user_id", session.user.id);
+      
+      const userRoles = roles?.map(r => r.role) || [];
+      setIsSuperAdmin(userRoles.includes("super_admin"));
+      setIsStoreGM(userRoles.includes("store_gm"));
+      
+      // If super admin or store GM, load stores for filtering
+      if (userRoles.includes("super_admin") || userRoles.includes("store_gm")) {
+        loadStores();
+      }
     };
     checkAuth();
   }, [navigate]);
 
+  const loadStores = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("stores")
+        .select("id, name")
+        .order("name");
+      
+      if (error) throw error;
+      setStores(data || []);
+    } catch (error) {
+      console.error("Error loading stores:", error);
+    }
+  };
+
   useEffect(() => {
     if (userId) {
-      loadMyTasks();
+      loadTasks();
     }
-  }, [userId]);
+  }, [userId, selectedStoreFilter]);
 
-  // Real-time subscription for user's tasks across all departments
+  // Real-time subscription for tasks
   useEffect(() => {
     if (!userId) return;
 
@@ -91,7 +122,7 @@ const MyTasks = () => {
           table: 'todos'
         },
         () => {
-          loadMyTasks();
+          loadTasks();
         }
       )
       .subscribe();
@@ -99,7 +130,7 @@ const MyTasks = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, selectedStoreFilter]);
 
   const loadProfilesForDepartments = async (departmentIds: string[], includeGroupLevel: boolean = false) => {
     try {
@@ -198,24 +229,51 @@ const MyTasks = () => {
     }
   };
 
-  const loadMyTasks = async () => {
+  const loadTasks = async () => {
     if (!userId) return;
     setLoading(true);
     
     try {
-      // Fetch tasks with department (left join - remove !inner to allow null department_id)
-      const { data, error } = await supabase
+      let query = supabase
         .from("todos")
         .select(`
           *,
           departments(
+            id,
             name,
-            stores(name)
-          )
+            store_id,
+            stores(id, name)
+          ),
+          profiles!todos_assigned_to_fkey(full_name)
         `)
-        .eq("assigned_to", userId)
         .eq("status", "pending")
         .order("due_date", { ascending: true, nullsFirst: false });
+
+      // Apply filters based on selection
+      if (selectedStoreFilter === "my_tasks") {
+        query = query.eq("assigned_to", userId);
+      } else if (selectedStoreFilter === "group_level") {
+        query = query.is("department_id", null);
+      } else if (selectedStoreFilter !== "all") {
+        // Filter by specific store
+        // We need to get department IDs for this store first
+        const { data: storeDepts } = await supabase
+          .from("departments")
+          .select("id")
+          .eq("store_id", selectedStoreFilter);
+        
+        const deptIds = storeDepts?.map(d => d.id) || [];
+        if (deptIds.length > 0) {
+          query = query.in("department_id", deptIds);
+        } else {
+          // No departments in this store
+          setTodos([]);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -223,6 +281,8 @@ const MyTasks = () => {
         ...todo,
         department_name: todo.departments?.name || null,
         store_name: todo.departments?.stores?.name || null,
+        store_id: todo.departments?.store_id || null,
+        assigned_to_name: todo.profiles?.full_name || null,
       }));
 
       setTodos(mappedTodos);
@@ -239,7 +299,7 @@ const MyTasks = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to load your tasks",
+        description: "Failed to load tasks",
       });
     } finally {
       setLoading(false);
@@ -284,9 +344,12 @@ const MyTasks = () => {
         description: "Task has been reassigned",
       });
       
-      // If reassigned to someone else, remove from this list
-      if (newOwnerId !== userId) {
+      // If viewing "my tasks" and reassigned to someone else, remove from list
+      if (selectedStoreFilter === "my_tasks" && newOwnerId !== userId) {
         setTodos(prev => prev.filter(t => t.id !== todoId));
+      } else {
+        // Reload to show updated owner name
+        loadTasks();
       }
     } catch (error: any) {
       toast({
@@ -310,7 +373,7 @@ const MyTasks = () => {
         title: "Due date updated",
       });
       
-      loadMyTasks();
+      loadTasks();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -379,6 +442,17 @@ const MyTasks = () => {
   const todayTasks = todos.filter(t => t.due_date && isToday(parseLocal(t.due_date)));
   const upcomingTasks = todos.filter(t => !t.due_date || (!isPast(parseLocal(t.due_date)) && !isToday(parseLocal(t.due_date))));
 
+  const canFilterByStore = isSuperAdmin || isStoreGM;
+  const isViewingAllTasks = selectedStoreFilter !== "my_tasks";
+  
+  const getPageTitle = () => {
+    if (selectedStoreFilter === "my_tasks") return "My Tasks";
+    if (selectedStoreFilter === "all") return "All Tasks";
+    if (selectedStoreFilter === "group_level") return "Group-Level Tasks";
+    const store = stores.find(s => s.id === selectedStoreFilter);
+    return store ? `${store.name} Tasks` : "Tasks";
+  };
+
   return (
     <div className="min-h-screen bg-muted/30 pb-16 sm:pb-0">
       {/* Header */}
@@ -388,9 +462,9 @@ const MyTasks = () => {
             <div className="flex items-center gap-3">
               <img src={goLogo} alt="GO Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg hidden sm:block" />
               <div>
-                <h1 className="text-lg sm:text-xl font-bold text-foreground">My Tasks</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-foreground">{getPageTitle()}</h1>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  {todos.length} pending {todos.length === 1 ? 'task' : 'tasks'} across all stores
+                  {todos.length} pending {todos.length === 1 ? 'task' : 'tasks'}
                 </p>
               </div>
             </div>
@@ -416,6 +490,28 @@ const MyTasks = () => {
               </Button>
             </div>
           </div>
+          
+          {/* Store Filter */}
+          {canFilterByStore && (
+            <div className="mt-3 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
+                <SelectTrigger className="w-[200px] sm:w-[250px] h-8 text-sm">
+                  <SelectValue placeholder="Filter by store..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="my_tasks">My Tasks</SelectItem>
+                  <SelectItem value="all">All Tasks</SelectItem>
+                  {isSuperAdmin && <SelectItem value="group_level">Group-Level Tasks</SelectItem>}
+                  {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </header>
 
@@ -526,7 +622,7 @@ const MyTasks = () => {
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
           userId={userId}
-          onTaskCreated={loadMyTasks}
+          onTaskCreated={loadTasks}
         />
       )}
     </div>
@@ -534,7 +630,7 @@ const MyTasks = () => {
 };
 
 interface TaskCardProps {
-  todo: Todo;
+  todo: Todo & { assigned_to_name?: string };
   profiles: Profile[];
   userId: string;
   isMobile: boolean;
@@ -549,6 +645,7 @@ interface TaskCardProps {
 function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner, onUpdateDueDate, getSeverityStyles, getDueDateStyles, getDueDateLabel }: TaskCardProps) {
   const dueLabel = getDueDateLabel(todo.due_date, isMobile);
   const currentOwner = profiles.find(p => p.id === todo.assigned_to);
+  const ownerDisplayName = currentOwner?.full_name || todo.assigned_to_name || "Unassigned";
   
   return (
     <Card className={`border-l-4 ${getSeverityStyles(todo.severity)}`}>
@@ -600,7 +697,7 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
                 >
                   <SelectTrigger className="h-7 sm:h-8 w-[140px] sm:w-[180px] text-xs">
                     <SelectValue placeholder="Assign to...">
-                      {currentOwner?.full_name || "Unassigned"}
+                      {ownerDisplayName}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
