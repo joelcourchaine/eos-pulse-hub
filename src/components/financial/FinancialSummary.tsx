@@ -331,6 +331,35 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return maxMonth;
   }, [year, entries, FINANCIAL_METRICS]);
 
+  // Calculate highest profit months per year for Monthly Trend view
+  const highestProfitMonthsByYear = useMemo(() => {
+    if (!isMonthlyTrendMode) return {};
+    
+    const result: { [year: number]: string } = {};
+    const yearsToCheck = [year - 1, year];
+    
+    yearsToCheck.forEach(checkYear => {
+      let maxProfit = -Infinity;
+      let maxMonthKey: string | null = null;
+      
+      for (let m = 0; m < 12; m++) {
+        const mKey = `department_profit-M${m + 1}-${checkYear}`;
+        const val = precedingQuartersData[mKey];
+        
+        if (val !== null && val !== undefined && val > maxProfit) {
+          maxProfit = val;
+          maxMonthKey = `${checkYear}-${String(m + 1).padStart(2, '0')}`;
+        }
+      }
+      
+      if (maxMonthKey && maxProfit > -Infinity) {
+        result[checkYear] = maxMonthKey;
+      }
+    });
+    
+    return result;
+  }, [isMonthlyTrendMode, year, precedingQuartersData]);
+
   useEffect(() => {
     const loadData = async () => {
       await loadUserRole();
@@ -1536,21 +1565,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                period.type === 'month' && "bg-muted/50"
                              )}
                            >
-                             <div className="flex flex-col items-center">
-                               {period.type === 'month' ? (
-                                 <>
-                                   <div>{period.label.split(' ')[0]}</div>
-                                   <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
-                                 </>
-                               ) : (
-                                 <>
-                                   <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
-                                   <div className="text-xs font-normal text-muted-foreground">
-                                     {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
-                                   </div>
-                                 </>
-                               )}
-                             </div>
+                              <div className="flex flex-col items-center">
+                                {period.type === 'month' ? (
+                                  <>
+                                    <div className="flex items-center justify-center gap-1">
+                                      {period.label.split(' ')[0]}
+                                      {highestProfitMonthsByYear[period.year] === period.identifier && (
+                                        <Trophy className="h-3 w-3 text-yellow-500" />
+                                      )}
+                                    </div>
+                                    <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
+                                    <div className="text-xs font-normal text-muted-foreground">
+                                      {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                            </TableHead>
                          ))}
                        </>
