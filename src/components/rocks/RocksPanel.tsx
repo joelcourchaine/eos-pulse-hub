@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RockManagementDialog } from "./RockManagementDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Fireworks } from "@/components/ui/fireworks";
 
 interface Rock {
   id: string;
@@ -151,8 +152,11 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
               {rocks.map((rock) => (
                 <div
                   key={rock.id}
-                  className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                  className="relative p-4 border rounded-lg hover:shadow-md transition-shadow overflow-hidden"
                 >
+                  {rock.progress_percentage >= 100 && (
+                    <Fireworks />
+                  )}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h4 className="font-semibold text-foreground mb-1">
