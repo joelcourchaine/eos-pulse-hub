@@ -568,80 +568,114 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (isMonthlyTrendMode) {
       // Load data for all months in the monthly trend in a single query
       const averages: { [key: string]: number } = {};
-      const monthIdentifiers = monthlyTrendPeriods.map(m => m.identifier);
+      
+      // Get month identifiers from the trend periods
+      const trendMonthIdentifiers = monthlyTrendPeriods
+        .filter(m => m.type === 'month')
+        .map(m => m.identifier);
+      
+      // Also include ALL 12 months of the previous year for full year averages/totals
+      const prevYear = year - 1;
+      const allPrevYearMonthIds: string[] = [];
+      for (let m = 1; m <= 12; m++) {
+        allPrevYearMonthIds.push(`${prevYear}-${String(m).padStart(2, '0')}`);
+      }
+      
+      // Also include ALL 12 months of the current year for YTD calculations
+      const allCurrentYearMonthIds: string[] = [];
+      for (let m = 1; m <= 12; m++) {
+        allCurrentYearMonthIds.push(`${year}-${String(m).padStart(2, '0')}`);
+      }
+      
+      // Combine all month identifiers and dedupe
+      const allMonthIdentifiers = [...new Set([...trendMonthIdentifiers, ...allPrevYearMonthIds, ...allCurrentYearMonthIds])];
       
       const { data, error } = await supabase
         .from("financial_entries")
         .select("*")
         .eq("department_id", departmentId)
-        .in("month", monthIdentifiers);
+        .in("month", allMonthIdentifiers);
 
       if (error) {
         console.error("Error loading monthly trend data:", error);
       } else {
         // Helper to get value from either raw data or already calculated values
-        const getValueForMetric = (monthData: any[], metricKey: string, month: any): number | undefined => {
-          // First check if already calculated
-          const calculatedKey = `${metricKey}-M${month.month + 1}-${month.year}`;
-          if (averages[calculatedKey] !== undefined) {
-            return averages[calculatedKey];
-          }
-          // Otherwise check raw data
-          const entry = monthData?.find(e => e.metric_name === metricKey);
+        const getValueForMetricByIdentifier = (monthIdentifier: string, metricKey: string): number | undefined => {
+          const entry = data?.find(e => e.month === monthIdentifier && e.metric_name === metricKey);
           return entry?.value;
         };
-
-        // Process each metric for each month
-        monthlyTrendPeriods.forEach(month => {
-          const monthData = data?.filter(e => e.month === month.identifier);
-          
-          FINANCIAL_METRICS.forEach(metric => {
-            const metricEntry = monthData?.find(e => e.metric_name === metric.key);
+        
+        // Process all 12 months for each year that we need summaries for
+        const yearsToProcess = [prevYear, year];
+        
+        yearsToProcess.forEach(processYear => {
+          for (let m = 0; m < 12; m++) {
+            const monthIdentifier = `${processYear}-${String(m + 1).padStart(2, '0')}`;
+            const monthData = data?.filter(e => e.month === monthIdentifier);
             
-            if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
-              const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-              averages[mKey] = metricEntry.value;
-            } else if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
-              // Calculate percentage metrics from underlying dollar amounts
-              const { numerator, denominator } = metric.calculation;
-              
-              const numValue = getValueForMetric(monthData, numerator, month);
-              const denValue = getValueForMetric(monthData, denominator, month);
-              
-              if (numValue !== undefined && denValue !== undefined && denValue > 0) {
-                const calculatedPercentage = (numValue / denValue) * 100;
-                const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-                averages[mKey] = calculatedPercentage;
+            // Create a month object for compatibility
+            const monthObj = { month: m, year: processYear };
+            
+            // Helper to get value from either raw data or already calculated values
+            const getValueForMetric = (mData: any[], mKey: string, mObj: any): number | undefined => {
+              // First check if already calculated
+              const calculatedKey = `${mKey}-M${mObj.month + 1}-${mObj.year}`;
+              if (averages[calculatedKey] !== undefined) {
+                return averages[calculatedKey];
               }
-            } else if (metric.calculation && 'type' in metric.calculation) {
-              // Calculate dollar metrics (subtract or complex)
-              const calc = metric.calculation;
-              const baseValue = getValueForMetric(monthData, calc.base, month);
+              // Otherwise check raw data
+              const entry = mData?.find(e => e.metric_name === mKey);
+              return entry?.value;
+            };
+            
+            FINANCIAL_METRICS.forEach(metric => {
+              const metricEntry = monthData?.find(e => e.metric_name === metric.key);
               
-              if (baseValue !== null && baseValue !== undefined) {
-                let calculatedValue = baseValue;
+              if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
+                const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
+                averages[mKey] = metricEntry.value;
+              } else if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+                // Calculate percentage metrics from underlying dollar amounts
+                const { numerator, denominator } = metric.calculation;
                 
-                for (const deduction of calc.deductions) {
-                  const deductValue = getValueForMetric(monthData, deduction, month);
-                  if (deductValue !== null && deductValue !== undefined) {
-                    calculatedValue -= deductValue;
-                  }
+                const numValue = getValueForMetric(monthData, numerator, monthObj);
+                const denValue = getValueForMetric(monthData, denominator, monthObj);
+                
+                if (numValue !== undefined && denValue !== undefined && denValue > 0) {
+                  const calculatedPercentage = (numValue / denValue) * 100;
+                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
+                  averages[mKey] = calculatedPercentage;
                 }
+              } else if (metric.calculation && 'type' in metric.calculation) {
+                // Calculate dollar metrics (subtract or complex)
+                const calc = metric.calculation;
+                const baseValue = getValueForMetric(monthData, calc.base, monthObj);
                 
-                if (calc.type === 'complex' && 'additions' in calc) {
-                  for (const addition of calc.additions) {
-                    const addValue = getValueForMetric(monthData, addition, month);
-                    if (addValue !== null && addValue !== undefined) {
-                      calculatedValue += addValue;
+                if (baseValue !== null && baseValue !== undefined) {
+                  let calculatedValue = baseValue;
+                  
+                  for (const deduction of calc.deductions) {
+                    const deductValue = getValueForMetric(monthData, deduction, monthObj);
+                    if (deductValue !== null && deductValue !== undefined) {
+                      calculatedValue -= deductValue;
                     }
                   }
+                  
+                  if (calc.type === 'complex' && 'additions' in calc) {
+                    for (const addition of calc.additions) {
+                      const addValue = getValueForMetric(monthData, addition, monthObj);
+                      if (addValue !== null && addValue !== undefined) {
+                        calculatedValue += addValue;
+                      }
+                    }
+                  }
+                  
+                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
+                  averages[mKey] = calculatedValue;
                 }
-                
-                const mKey = `${metric.key}-M${month.month + 1}-${month.year}`;
-                averages[mKey] = calculatedValue;
               }
-            }
-          });
+            });
+          }
         });
       }
       
