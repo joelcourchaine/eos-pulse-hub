@@ -1547,7 +1547,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                     <TableHead className="sticky left-0 bg-muted z-40 min-w-[200px] font-bold py-[7.2px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                     <TableHead className="sticky left-0 bg-muted z-40 w-[200px] min-w-[200px] max-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                        Financial Metric
                      </TableHead>
                      {isMonthlyTrendMode ? (
@@ -1660,17 +1660,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         )}
                       >
                         <TableCell className={cn(
-                          "sticky left-0 z-30 py-[7.2px] min-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
+                          "sticky left-0 z-30 py-[7.2px] w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]",
                           isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background"
                         )}>
-                          <div>
+                          <div className="truncate">
                             <p className={cn(
-                              "text-sm",
+                              "text-sm truncate",
                               isDepartmentProfit ? "font-bold text-base" : "font-medium"
                             )}>
                               {metric.name}
                             </p>
-                            <p className="text-xs text-muted-foreground">{metric.description}</p>
                           </div>
                          </TableCell>
                          {isMonthlyTrendMode ? (
