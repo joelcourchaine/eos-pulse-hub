@@ -1663,14 +1663,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           "sticky left-0 z-30 py-[7.2px] w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]",
                           isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background"
                         )}>
-                          <div className="truncate">
-                            <p className={cn(
-                              "text-sm truncate",
-                              isDepartmentProfit ? "font-bold text-base" : "font-medium"
-                            )}>
-                              {metric.name}
-                            </p>
-                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="truncate cursor-help">
+                                  <p className={cn(
+                                    "text-sm truncate",
+                                    isDepartmentProfit ? "font-bold text-base" : "font-medium"
+                                  )}>
+                                    {metric.name}
+                                  </p>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-[300px]">
+                                <p className="font-medium">{metric.name}</p>
+                                {metric.description && <p className="text-xs text-muted-foreground mt-1">{metric.description}</p>}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                          </TableCell>
                          {isMonthlyTrendMode ? (
                            <>
