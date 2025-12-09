@@ -73,6 +73,7 @@ const Dashboard = () => {
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
+  const [isStoreSwitching, setIsStoreSwitching] = useState(false); // Track when store is actively switching
   const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
@@ -126,6 +127,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (selectedStore && profile && storesLoaded) {
+      // Mark that we're switching stores
+      setIsStoreSwitching(true);
+      
       // Clear all data when switching stores
       setSelectedDepartment("");
       setDepartmentsLoaded(false);
@@ -176,6 +180,8 @@ const Dashboard = () => {
           fetchActiveRocksCount(),
           fetchMyOpenTodosCount()
         ]);
+        // Store switch is complete once all data is loaded
+        setIsStoreSwitching(false);
       };
       fetchAllDepartmentData();
     }
@@ -1046,15 +1052,29 @@ const Dashboard = () => {
           </Card>
         </div>
 
+        {/* Loading state when switching stores */}
+        {isStoreSwitching && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <div className="animate-pulse flex flex-col items-center gap-3">
+                <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-muted-foreground">Loading store data...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Meeting Framework */}
-        <MeetingFramework 
-          key={`meeting-${selectedDepartment}`}
-          departmentId={selectedDepartment}
-          onViewModeChange={setMeetingViewMode}
-        />
+        {!isStoreSwitching && (
+          <MeetingFramework 
+            key={`meeting-${selectedDepartment}`}
+            departmentId={selectedDepartment}
+            onViewModeChange={setMeetingViewMode}
+          />
+        )}
 
         {/* Scorecard Section - show for view-all or scorecard tab */}
-        {(meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
+        {!isStoreSwitching && (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -1103,7 +1123,7 @@ const Dashboard = () => {
         )}
 
         {/* Financial Summary Section - show for view-all or scorecard tab */}
-        {selectedDepartment && (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
+        {!isStoreSwitching && selectedDepartment && (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
           <FinancialSummary 
             key={`financial-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
             departmentId={selectedDepartment}
@@ -1113,7 +1133,7 @@ const Dashboard = () => {
         )}
 
         {/* Rocks Section - show for view-all or rocks tab */}
-        {(meetingViewMode === "view-all" || meetingViewMode === "rocks") && (
+        {!isStoreSwitching && (meetingViewMode === "view-all" || meetingViewMode === "rocks") && (
           <RocksPanel 
             key={`rocks-${selectedDepartment}`}
             departmentId={selectedDepartment} 
@@ -1121,12 +1141,12 @@ const Dashboard = () => {
         )}
 
         {/* Celebrations - show for view-all or headlines tab */}
-        {(meetingViewMode === "view-all" || meetingViewMode === "headlines") && (
+        {!isStoreSwitching && (meetingViewMode === "view-all" || meetingViewMode === "headlines") && (
           <Celebrations currentStoreId={isSuperAdmin ? selectedStore : profile?.store_id} />
         )}
 
         {/* To-Dos Section - show for view-all only (issues-todos has its own panel in meeting framework) */}
-        {meetingViewMode === "view-all" && (
+        {!isStoreSwitching && meetingViewMode === "view-all" && (
           <TodosPanel 
             key={`todos-${selectedDepartment}`}
             departmentId={selectedDepartment} 
@@ -1135,7 +1155,7 @@ const Dashboard = () => {
         )}
 
         {/* Director Notes Section */}
-        {selectedDepartment && (isSuperAdmin || isStoreGM) && (
+        {!isStoreSwitching && selectedDepartment && (isSuperAdmin || isStoreGM) && (
           <DirectorNotes
             departmentId={selectedDepartment}
             userRole={isSuperAdmin ? 'super_admin' : isStoreGM ? 'store_gm' : profile?.role || ""}
