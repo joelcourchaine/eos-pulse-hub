@@ -81,6 +81,13 @@ const Index = () => {
             Start Your Free Trial
           </Button>
         </div>
+
+        {/* Version Badge */}
+        <div className="mt-12 text-center">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
+            v2.4.0
+          </span>
+        </div>
       </div>
     </div>
   );
