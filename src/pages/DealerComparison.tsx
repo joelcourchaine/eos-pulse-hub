@@ -321,37 +321,94 @@ export default function DealerComparison() {
         });
       } else if (comparisonMode === "year_over_year" && yearOverYearData) {
         // For year-over-year, we need to aggregate the previous year data the same way as current data
-        if (datePeriodType === "month") {
-          // Single month comparison - use values directly
-          yearOverYearData.forEach(entry => {
-            const deptId = (entry as any)?.departments?.id;
-            const key = `${deptId}-${entry.metric_name}`;
-            if (entry.value !== null) {
-              comparisonMap.set(key, { value: Number(entry.value) });
-            }
-          });
-        } else {
-          // For full_year or custom_range, aggregate the previous year data
-          const aggregatedPrevYear = new Map<string, Map<string, number>>();
-          
-          yearOverYearData.forEach(entry => {
-            const deptId = (entry as any)?.departments?.id;
-            if (!aggregatedPrevYear.has(deptId)) {
-              aggregatedPrevYear.set(deptId, new Map());
-            }
-            const deptMetrics = aggregatedPrevYear.get(deptId)!;
-            const currentValue = deptMetrics.get(entry.metric_name) || 0;
-            deptMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+        // Group by department first
+        const prevYearByDept = new Map<string, Map<string, number>>();
+        
+        yearOverYearData.forEach(entry => {
+          const deptId = (entry as any)?.departments?.id;
+          if (!prevYearByDept.has(deptId)) {
+            prevYearByDept.set(deptId, new Map());
+          }
+          const deptMetrics = prevYearByDept.get(deptId)!;
+          const currentValue = deptMetrics.get(entry.metric_name) || 0;
+          deptMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+        });
+        
+        // Now calculate derived metrics for previous year data and store in comparison map
+        prevYearByDept.forEach((metrics, deptId) => {
+          // First, store raw values
+          metrics.forEach((value, metricName) => {
+            const key = `${deptId}-${metricName}`;
+            comparisonMap.set(key, { value });
           });
           
-          // Store aggregated values in comparison map
-          aggregatedPrevYear.forEach((metrics, deptId) => {
-            metrics.forEach((value, metricName) => {
-              const key = `${deptId}-${metricName}`;
-              comparisonMap.set(key, { value });
-            });
+          // Then calculate derived metrics (like Net Selling Gross, Department Profit, etc.)
+          // Get brand for this department to use correct formulas
+          const deptEntry = yearOverYearData.find(e => (e as any)?.departments?.id === deptId);
+          const storeBrand = (deptEntry as any)?.departments?.stores?.brands?.name || 
+                            (deptEntry as any)?.departments?.stores?.brand || null;
+          
+          const normalizedBrand = storeBrand?.toLowerCase() || '';
+          let brandKey = 'GMC';
+          if (normalizedBrand.includes('ford')) brandKey = 'Ford';
+          else if (normalizedBrand.includes('nissan')) brandKey = 'Nissan';
+          else if (normalizedBrand.includes('mazda')) brandKey = 'Mazda';
+          
+          const brandMetrics = brandMetricDefs.get(brandKey) || keyToDef;
+          
+          // Calculate derived dollar metrics
+          brandMetrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              let calculatedValue: number | null = null;
+              
+              if (calc.type === 'subtract') {
+                const base = metrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = metrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                }
+              } else if (calc.type === 'complex') {
+                const base = metrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = metrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                  (calc.additions || []).forEach((a: string) => {
+                    const val = metrics.get(a);
+                    if (val !== undefined) calculatedValue! += val;
+                  });
+                }
+              }
+              
+              if (calculatedValue !== null) {
+                // Store calculated value for use in dependent calculations
+                metrics.set(metricDef.key, calculatedValue);
+                const key = `${deptId}-${metricDef.key}`;
+                comparisonMap.set(key, { value: calculatedValue });
+              }
+            }
           });
-        }
+          
+          // Calculate percentage metrics
+          brandMetrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'percentage' && metricDef.calculation && 'numerator' in metricDef.calculation) {
+              const calc = metricDef.calculation;
+              const num = metrics.get(calc.numerator);
+              const denom = metrics.get(calc.denominator);
+              if (num !== undefined && denom !== undefined && denom !== 0) {
+                const percentValue = (num / denom) * 100;
+                const key = `${deptId}-${metricDef.key}`;
+                comparisonMap.set(key, { value: percentValue });
+              }
+            }
+          });
+        });
       }
       
       // Build a map of all data by store+dept+metric key
@@ -1086,8 +1143,7 @@ export default function DealerComparison() {
                 format(new Date(selectedMonth), 'MMMM yyyy')}`}
               {" • "}
               {comparisonMode === "targets" && "vs Store Targets"}
-              {comparisonMode === "current_year_avg" && "vs Current Year Average"}
-              {comparisonMode === "previous_year" && "vs Previous Year"}
+              {comparisonMode === "year_over_year" && "vs Year over Year"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
@@ -1202,7 +1258,7 @@ export default function DealerComparison() {
                                   </div>
                                   {metricData.target !== null && (
                                     <div className="text-xs text-muted-foreground">
-                                      Target: {formatValue(metricData.target, metric)}
+                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, metric)}
                                     </div>
                                   )}
                                   {metricData.variance !== null && (
