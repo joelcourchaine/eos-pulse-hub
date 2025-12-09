@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial";
-type ComparisonMode = "none" | "targets" | "current_year_avg" | "previous_year";
+type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
 
 export default function Enterprise() {
@@ -595,8 +595,7 @@ export default function Enterprise() {
                     <SelectContent className="bg-background z-50">
                       <SelectItem value="none">No Comparison</SelectItem>
                       <SelectItem value="targets">Store Targets</SelectItem>
-                      <SelectItem value="current_year_avg">Current Year Average</SelectItem>
-                      <SelectItem value="previous_year">Same Month Last Year</SelectItem>
+                      <SelectItem value="year_over_year">Year over Year</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

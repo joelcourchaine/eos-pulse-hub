@@ -183,44 +183,45 @@ export default function DealerComparison() {
     enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "targets",
   });
 
-  // Fetch current year average data
-  const { data: currentYearData } = useQuery({
-    queryKey: ["dealer_comparison_year_avg", departmentIds, selectedMonth],
+  // Fetch year-over-year comparison data (same period from previous year)
+  const { data: yearOverYearData } = useQuery({
+    queryKey: ["dealer_comparison_yoy", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const year = selectedMonth ? new Date(selectedMonth + '-15').getFullYear() : new Date().getFullYear();
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("financial_entries")
         .select("*, departments(id, name, store_id, stores(name, brands(name)))")
-        .in("department_id", departmentIds)
-        .gte("month", `${year}-01`)
-        .lte("month", `${year}-12`);
-      if (error) throw error;
-      return data;
-    },
-    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "current_year_avg",
-  });
-
-  // Fetch previous year same month data
-  const { data: previousYearData } = useQuery({
-    queryKey: ["dealer_comparison_prev_year", departmentIds, selectedMonth],
-    queryFn: async () => {
-      if (departmentIds.length === 0) return [];
-      const currentDate = selectedMonth ? new Date(selectedMonth + '-15') : new Date();
-      const prevYear = currentDate.getFullYear() - 1;
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const prevYearMonth = `${prevYear}-${month}`;
+        .in("department_id", departmentIds);
       
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
-        .in("department_id", departmentIds)
-        .eq("month", prevYearMonth);
+      // Apply date filtering based on period type - but for previous year
+      if (datePeriodType === "month") {
+        const currentDate = selectedMonth ? new Date(selectedMonth + '-15') : new Date();
+        const prevYear = currentDate.getFullYear() - 1;
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const prevYearMonth = `${prevYear}-${month}`;
+        query = query.eq("month", prevYearMonth);
+      } else if (datePeriodType === "full_year") {
+        const year = (selectedYear || new Date().getFullYear()) - 1;
+        query = query
+          .gte("month", `${year}-01`)
+          .lte("month", `${year}-12`);
+      } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+        // Shift custom range back one year
+        const startDate = new Date(startMonth);
+        const endDate = new Date(endMonth);
+        const prevStartMonth = format(new Date(startDate.getFullYear() - 1, startDate.getMonth(), 1), "yyyy-MM");
+        const prevEndMonth = format(new Date(endDate.getFullYear() - 1, endDate.getMonth(), 1), "yyyy-MM");
+        query = query
+          .gte("month", prevStartMonth)
+          .lte("month", prevEndMonth);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "previous_year",
+    enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "year_over_year",
   });
 
   // Fetch KPI data for polling
@@ -318,32 +319,39 @@ export default function DealerComparison() {
             direction: target.target_direction
           });
         });
-      } else if (comparisonMode === "current_year_avg" && currentYearData) {
-        // Calculate averages for each department + metric
-        const sums = new Map<string, { total: number; count: number }>();
-        currentYearData.forEach(entry => {
-          const deptId = (entry as any)?.departments?.id;
-          const key = `${deptId}-${entry.metric_name}`;
-          const current = sums.get(key) || { total: 0, count: 0 };
-          if (entry.value !== null) {
-            current.total += Number(entry.value);
-            current.count += 1;
-          }
-          sums.set(key, current);
-        });
-        sums.forEach((sum, key) => {
-          if (sum.count > 0) {
-            comparisonMap.set(key, { value: sum.total / sum.count });
-          }
-        });
-      } else if (comparisonMode === "previous_year" && previousYearData) {
-        previousYearData.forEach(entry => {
-          const deptId = (entry as any)?.departments?.id;
-          const key = `${deptId}-${entry.metric_name}`;
-          if (entry.value !== null) {
-            comparisonMap.set(key, { value: Number(entry.value) });
-          }
-        });
+      } else if (comparisonMode === "year_over_year" && yearOverYearData) {
+        // For year-over-year, we need to aggregate the previous year data the same way as current data
+        if (datePeriodType === "month") {
+          // Single month comparison - use values directly
+          yearOverYearData.forEach(entry => {
+            const deptId = (entry as any)?.departments?.id;
+            const key = `${deptId}-${entry.metric_name}`;
+            if (entry.value !== null) {
+              comparisonMap.set(key, { value: Number(entry.value) });
+            }
+          });
+        } else {
+          // For full_year or custom_range, aggregate the previous year data
+          const aggregatedPrevYear = new Map<string, Map<string, number>>();
+          
+          yearOverYearData.forEach(entry => {
+            const deptId = (entry as any)?.departments?.id;
+            if (!aggregatedPrevYear.has(deptId)) {
+              aggregatedPrevYear.set(deptId, new Map());
+            }
+            const deptMetrics = aggregatedPrevYear.get(deptId)!;
+            const currentValue = deptMetrics.get(entry.metric_name) || 0;
+            deptMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+          });
+          
+          // Store aggregated values in comparison map
+          aggregatedPrevYear.forEach((metrics, deptId) => {
+            metrics.forEach((value, metricName) => {
+              const key = `${deptId}-${metricName}`;
+              comparisonMap.set(key, { value });
+            });
+          });
+        }
       }
       
       // Build a map of all data by store+dept+metric key
@@ -883,7 +891,7 @@ export default function DealerComparison() {
       setComparisonData(result);
       setLastRefresh(new Date());
     }
-  }, [financialEntries, financialTargets, currentYearData, previousYearData, metricType, selectedMetrics, comparisonMode]);
+  }, [financialEntries, financialTargets, yearOverYearData, metricType, selectedMetrics, comparisonMode, datePeriodType]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
