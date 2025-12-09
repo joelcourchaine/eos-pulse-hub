@@ -22,16 +22,35 @@ interface IssueManagementDialogProps {
   onIssueAdded: () => void;
   issue?: Issue;
   trigger?: React.ReactNode;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialSeverity?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigger }: IssueManagementDialogProps) {
-  const [open, setOpen] = useState(false);
+export function IssueManagementDialog({ 
+  departmentId, 
+  onIssueAdded, 
+  issue, 
+  trigger,
+  initialTitle,
+  initialDescription,
+  initialSeverity,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange
+}: IssueManagementDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("open");
   const [severity, setSeverity] = useState("medium");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (controlledOnOpenChange || (() => {})) : setInternalOpen;
 
   const isEditMode = !!issue;
 
@@ -41,13 +60,19 @@ export function IssueManagementDialog({ departmentId, onIssueAdded, issue, trigg
       setDescription(issue.description || "");
       setStatus(issue.status);
       setSeverity(issue.severity || "medium");
+    } else if (open && !issue) {
+      // Set initial values when opening for new issue
+      setTitle(initialTitle || "");
+      setDescription(initialDescription || "");
+      setStatus("open");
+      setSeverity(initialSeverity || "medium");
     } else if (!open) {
       setTitle("");
       setDescription("");
       setStatus("open");
       setSeverity("medium");
     }
-  }, [issue, open]);
+  }, [issue, open, initialTitle, initialDescription, initialSeverity]);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
