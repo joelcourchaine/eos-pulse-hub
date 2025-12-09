@@ -184,40 +184,62 @@ export default function DealerComparison() {
   });
 
   // Fetch year-over-year comparison data (same period from previous year)
+  // For full_year and custom_range, only fetch months that match the current year's data availability
   const { data: yearOverYearData } = useQuery({
-    queryKey: ["dealer_comparison_yoy", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
+    queryKey: ["dealer_comparison_yoy", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth, financialEntries],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       
-      let query = supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
-        .in("department_id", departmentIds);
-      
-      // Apply date filtering based on period type - but for previous year
+      // For month period type, simple same-month comparison
       if (datePeriodType === "month") {
         const currentDate = selectedMonth ? new Date(selectedMonth + '-15') : new Date();
         const prevYear = currentDate.getFullYear() - 1;
         const month = String(currentDate.getMonth() + 1).padStart(2, '0');
         const prevYearMonth = `${prevYear}-${month}`;
-        query = query.eq("month", prevYearMonth);
-      } else if (datePeriodType === "full_year") {
-        const year = (selectedYear || new Date().getFullYear()) - 1;
-        query = query
-          .gte("month", `${year}-01`)
-          .lte("month", `${year}-12`);
-      } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
-        // Shift custom range back one year
-        const startDate = new Date(startMonth);
-        const endDate = new Date(endMonth);
-        const prevStartMonth = format(new Date(startDate.getFullYear() - 1, startDate.getMonth(), 1), "yyyy-MM");
-        const prevEndMonth = format(new Date(endDate.getFullYear() - 1, endDate.getMonth(), 1), "yyyy-MM");
-        query = query
-          .gte("month", prevStartMonth)
-          .lte("month", prevEndMonth);
+        
+        const { data, error } = await supabase
+          .from("financial_entries")
+          .select("*, departments(id, name, store_id, stores(name, brands(name)))")
+          .in("department_id", departmentIds)
+          .eq("month", prevYearMonth);
+        
+        if (error) throw error;
+        return data || [];
       }
       
-      const { data, error } = await query;
+      // For full_year or custom_range, first determine which months have data in current year
+      if (!financialEntries || financialEntries.length === 0) return [];
+      
+      // Get unique months with data per department in current year
+      const currentYearMonthsByDept = new Map<string, Set<string>>();
+      financialEntries.forEach((entry: any) => {
+        const deptId = entry.departments?.id || entry.department_id;
+        if (!currentYearMonthsByDept.has(deptId)) {
+          currentYearMonthsByDept.set(deptId, new Set());
+        }
+        currentYearMonthsByDept.get(deptId)!.add(entry.month);
+      });
+      
+      // Build list of previous year months to fetch (matching current year's available months)
+      const prevYearMonthsToFetch = new Set<string>();
+      currentYearMonthsByDept.forEach((months) => {
+        months.forEach(month => {
+          const [year, monthNum] = month.split('-');
+          const prevYearMonth = `${parseInt(year) - 1}-${monthNum}`;
+          prevYearMonthsToFetch.add(prevYearMonth);
+        });
+      });
+      
+      if (prevYearMonthsToFetch.size === 0) return [];
+      
+      console.log("Fetching YoY data for months matching current year availability:", Array.from(prevYearMonthsToFetch));
+      
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
+        .in("department_id", departmentIds)
+        .in("month", Array.from(prevYearMonthsToFetch));
+      
       if (error) throw error;
       return data || [];
     },
