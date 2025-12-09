@@ -5,15 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
+import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
@@ -276,6 +278,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
   const [pasteStartIndex, setPasteStartIndex] = useState<number>(0);
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [issueContext, setIssueContext] = useState<{
+    title: string;
+    description: string;
+    severity: string;
+  } | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1873,6 +1881,64 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     return true;
   });
 
+  // Helper function to create issue from scorecard cell
+  const handleCreateIssueFromCell = (
+    kpi: KPI,
+    actualValue: number | null | undefined,
+    targetValue: number | null | undefined,
+    periodLabel: string,
+    periodType: 'week' | 'month'
+  ) => {
+    const ownerName = kpi.assigned_to ? profiles[kpi.assigned_to]?.full_name || 'Unknown' : 'Unassigned';
+    const formattedActual = actualValue !== null && actualValue !== undefined 
+      ? formatValue(actualValue, kpi.metric_type, kpi.name) 
+      : 'N/A';
+    const formattedTarget = targetValue !== null && targetValue !== undefined 
+      ? formatValue(targetValue, kpi.metric_type, kpi.name) 
+      : 'N/A';
+    
+    const title = `${kpi.name} - ${periodLabel}`;
+    const description = `**KPI:** ${kpi.name}
+**Owner:** ${ownerName}
+**Period:** ${periodLabel} (${periodType === 'week' ? 'Week' : 'Month'})
+**Year:** ${year}
+**Quarter:** Q${quarter}
+
+**Current Value:** ${formattedActual}
+**Target:** ${formattedTarget}
+
+---
+*Issue created from scorecard*`;
+
+    // Determine severity based on status
+    let severity = 'medium';
+    if (actualValue !== null && actualValue !== undefined && targetValue !== null && targetValue !== undefined) {
+      let variance: number;
+      if (kpi.metric_type === "percentage") {
+        variance = actualValue - targetValue;
+      } else if (targetValue !== 0) {
+        variance = ((actualValue - targetValue) / targetValue) * 100;
+      } else {
+        variance = kpi.target_direction === "below" 
+          ? (actualValue > 0 ? -100 : 0) 
+          : (actualValue > 0 ? 100 : -100);
+      }
+      
+      const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+      
+      if (adjustedVariance < -10) {
+        severity = 'high';
+      } else if (adjustedVariance < 0) {
+        severity = 'medium';
+      } else {
+        severity = 'low';
+      }
+    }
+
+    setIssueContext({ title, description, severity });
+    setIssueDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -2539,106 +2605,124 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     const status = getStatus(entry?.status || null);
                     const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
                     const isCurrentWeek = weekDate === currentWeekDate;
+                    const targetValue = kpiTargets[kpi.id] || kpi.target_value;
                     
                     return (
-                      <TableCell
-                        key={week.label}
-                        className={cn(
-                          "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
-                          status === "success" && "bg-success/10",
-                          status === "warning" && "bg-warning/10",
-                          status === "destructive" && "bg-destructive/10",
-                          isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
-                        )}
-                      >
-                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                          {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
-                            // Display formatted value when data exists (always for calculated, when not focused for others)
-                            <div 
-                              data-display-value
-                              className={cn(
-                                "h-full w-full flex items-center justify-center cursor-text",
-                                status === "success" && "text-success font-medium",
-                                status === "warning" && "text-warning font-medium",
-                                status === "destructive" && "text-destructive font-medium",
-                                isCalculatedKPI(kpi.name) && "cursor-default"
-                              )}
-                              onClick={(e) => {
-                                if (!isCalculatedKPI(kpi.name)) {
-                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                  input?.focus();
-                                  input?.select();
-                                }
-                              }}
-                            >
-                              {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
-                            </div>
-                          ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
-                            // Empty state - just show symbols when not focused
-                            <div 
-                              data-display-value
-                              className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                              onClick={(e) => {
-                                const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                input?.focus();
-                              }}
-                            >
-                              {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
-                            </div>
-                          ) : null}
-                          <Input
-                            type="number"
-                            step="any"
-                            value={displayValue}
-                            onChange={(e) =>
-                              handleValueChange(kpi.id, weekDate, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false)
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                // Use sortedKpis index instead of original kpis
-                                const currentKpiIndex = index;
-                                const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
-                                
-                                if (currentKpiIndex < sortedKpis.length - 1) {
-                                  const nextInput = document.querySelector(
-                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                  ) as HTMLInputElement;
-                                  nextInput?.focus();
-                                  nextInput?.select();
-                                }
-                              }
-                            }}
-                             onFocus={() => setFocusedInput(key)}
-                             onBlur={() => {
-                               // Clear local value on blur so display shows saved value
-                               setTimeout(() => {
-                                 setFocusedInput(null);
-                                 setLocalValues(prev => {
-                                   const newLocalValues = { ...prev };
-                                   delete newLocalValues[key];
-                                   return newLocalValues;
-                                 });
-                               }, 100);
-                             }}
-                            data-kpi-index={index}
-                            data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
+                      <ContextMenu key={week.label}>
+                        <ContextMenuTrigger asChild>
+                          <TableCell
                             className={cn(
-                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                              status === "success" && "text-success font-medium",
-                              status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium",
-                              isCalculatedKPI(kpi.name) && "hidden"
+                              "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
+                              status === "success" && "bg-success/10",
+                              status === "warning" && "bg-warning/10",
+                              status === "destructive" && "bg-destructive/10",
+                              isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5"
                             )}
-                            placeholder="-"
-                            disabled={saving[key] || isCalculatedKPI(kpi.name)}
-                            readOnly={isCalculatedKPI(kpi.name)}
-                          />
-                          {saving[key] && (
-                            <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
-                          )}
-                        </div>
-                      </TableCell>
+                          >
+                            <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                              {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                                // Display formatted value when data exists (always for calculated, when not focused for others)
+                                <div 
+                                  data-display-value
+                                  className={cn(
+                                    "h-full w-full flex items-center justify-center cursor-text",
+                                    status === "success" && "text-success font-medium",
+                                    status === "warning" && "text-warning font-medium",
+                                    status === "destructive" && "text-destructive font-medium",
+                                    isCalculatedKPI(kpi.name) && "cursor-default"
+                                  )}
+                                  onClick={(e) => {
+                                    if (!isCalculatedKPI(kpi.name)) {
+                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                      input?.focus();
+                                      input?.select();
+                                    }
+                                  }}
+                                >
+                                  {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
+                                </div>
+                              ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                                // Empty state - just show symbols when not focused
+                                <div 
+                                  data-display-value
+                                  className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                  onClick={(e) => {
+                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                    input?.focus();
+                                  }}
+                                >
+                                  {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                                </div>
+                              ) : null}
+                              <Input
+                                type="number"
+                                step="any"
+                                value={displayValue}
+                                onChange={(e) =>
+                                  handleValueChange(kpi.id, weekDate, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false)
+                                }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    // Use sortedKpis index instead of original kpis
+                                    const currentKpiIndex = index;
+                                    const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
+                                    
+                                    if (currentKpiIndex < sortedKpis.length - 1) {
+                                      const nextInput = document.querySelector(
+                                        `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                      ) as HTMLInputElement;
+                                      nextInput?.focus();
+                                      nextInput?.select();
+                                    }
+                                  }
+                                }}
+                                 onFocus={() => setFocusedInput(key)}
+                                 onBlur={() => {
+                                   // Clear local value on blur so display shows saved value
+                                   setTimeout(() => {
+                                     setFocusedInput(null);
+                                     setLocalValues(prev => {
+                                       const newLocalValues = { ...prev };
+                                       delete newLocalValues[key];
+                                       return newLocalValues;
+                                     });
+                                   }, 100);
+                                 }}
+                                data-kpi-index={index}
+                                data-period-index={weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate)}
+                                className={cn(
+                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                  status === "success" && "text-success font-medium",
+                                  status === "warning" && "text-warning font-medium",
+                                  status === "destructive" && "text-destructive font-medium",
+                                  isCalculatedKPI(kpi.name) && "hidden"
+                                )}
+                                placeholder="-"
+                                disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                                readOnly={isCalculatedKPI(kpi.name)}
+                              />
+                              {saving[key] && (
+                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                              )}
+                            </div>
+                          </TableCell>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="bg-background z-50">
+                          <ContextMenuItem 
+                            onClick={() => handleCreateIssueFromCell(
+                              kpi,
+                              entry?.actual_value,
+                              targetValue,
+                              week.label,
+                              'week'
+                            )}
+                          >
+                            <AlertCircle className="h-4 w-4 mr-2" />
+                            Create Issue from Cell
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   }) : (
                     <>
@@ -2740,105 +2824,123 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         const entry = entries[key];
                         const status = getStatus(entry?.status || null);
                         const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
+                        const targetValue = kpiTargets[kpi.id] || kpi.target_value;
                         
                         return (
-                          <TableCell
-                            key={month.identifier}
-                            className={cn(
-                              "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
-                              status === "success" && "bg-success/10",
-                              status === "warning" && "bg-warning/10",
-                              status === "destructive" && "bg-destructive/10"
-                            )}
-                          >
-                            <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                              {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
-                                // Display formatted value when data exists (always for calculated, when not focused for others)
-                                <div 
-                                  data-display-value
-                                  className={cn(
-                                    "h-full w-full flex items-center justify-center cursor-text",
-                                    status === "success" && "text-success font-medium",
-                                    status === "warning" && "text-warning font-medium",
-                                    status === "destructive" && "text-destructive font-medium",
-                                    isCalculatedKPI(kpi.name) && "cursor-default"
-                                  )}
-                                  onClick={(e) => {
-                                    if (!isCalculatedKPI(kpi.name)) {
-                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                      input?.focus();
-                                      input?.select();
-                                    }
-                                  }}
-                                >
-                                  {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
-                                </div>
-                              ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
-                                // Empty state - just show symbols when not focused
-                                <div 
-                                  data-display-value
-                                  className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                                  onClick={(e) => {
-                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                    input?.focus();
-                                  }}
-                                >
-                                  {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
-                                </div>
-                              ) : null}
-                              <Input
-                                type="number"
-                                step="any"
-                                value={displayValue}
-                                onChange={(e) =>
-                                  handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
-                                }
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                // Use sortedKpis index instead of original kpis
-                                const currentKpiIndex = index;
-                                const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
-                                
-                                if (currentKpiIndex < sortedKpis.length - 1) {
-                                  const nextInput = document.querySelector(
-                                    `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
-                                  ) as HTMLInputElement;
-                                  nextInput?.focus();
-                                  nextInput?.select();
-                                }
-                              }
-                            }}
-                                 onFocus={() => setFocusedInput(key)}
-                                 onBlur={() => {
-                                   // Clear local value on blur so display shows saved value
-                                   setTimeout(() => {
-                                     setFocusedInput(null);
-                                     setLocalValues(prev => {
-                                       const newLocalValues = { ...prev };
-                                       delete newLocalValues[key];
-                                       return newLocalValues;
-                                     });
-                                   }, 100);
-                                 }}
-                                data-kpi-index={index}
-                                data-period-index={months.findIndex(m => m.identifier === month.identifier)}
+                          <ContextMenu key={month.identifier}>
+                            <ContextMenuTrigger asChild>
+                              <TableCell
                                 className={cn(
-                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                                  status === "success" && "text-success font-medium",
-                                  status === "warning" && "text-warning font-medium",
-                                  status === "destructive" && "text-destructive font-medium",
-                                  isCalculatedKPI(kpi.name) && "hidden"
+                                  "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
+                                  status === "success" && "bg-success/10",
+                                  status === "warning" && "bg-warning/10",
+                                  status === "destructive" && "bg-destructive/10"
                                 )}
-                                placeholder="-"
-                                disabled={saving[key] || isCalculatedKPI(kpi.name)}
-                                readOnly={isCalculatedKPI(kpi.name)}
-                              />
-                              {saving[key] && (
-                                <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
-                              )}
-                            </div>
-                          </TableCell>
+                              >
+                                <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                  {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (entry?.actual_value !== null && entry?.actual_value !== undefined) ? (
+                                    // Display formatted value when data exists (always for calculated, when not focused for others)
+                                    <div 
+                                      data-display-value
+                                      className={cn(
+                                        "h-full w-full flex items-center justify-center cursor-text",
+                                        status === "success" && "text-success font-medium",
+                                        status === "warning" && "text-warning font-medium",
+                                        status === "destructive" && "text-destructive font-medium",
+                                        isCalculatedKPI(kpi.name) && "cursor-default"
+                                      )}
+                                      onClick={(e) => {
+                                        if (!isCalculatedKPI(kpi.name)) {
+                                          const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                          input?.focus();
+                                          input?.select();
+                                        }
+                                      }}
+                                    >
+                                      {formatTarget(entry.actual_value, kpi.metric_type, kpi.name)}
+                                    </div>
+                                  ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                                    // Empty state - just show symbols when not focused
+                                    <div 
+                                      data-display-value
+                                      className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                      onClick={(e) => {
+                                        const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                        input?.focus();
+                                      }}
+                                    >
+                                      {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                                    </div>
+                                  ) : null}
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    value={displayValue}
+                                    onChange={(e) =>
+                                      handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
+                                    }
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    // Use sortedKpis index instead of original kpis
+                                    const currentKpiIndex = index;
+                                    const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
+                                    
+                                    if (currentKpiIndex < sortedKpis.length - 1) {
+                                      const nextInput = document.querySelector(
+                                        `input[data-kpi-index="${currentKpiIndex + 1}"][data-period-index="${currentPeriodIndex}"]`
+                                      ) as HTMLInputElement;
+                                      nextInput?.focus();
+                                      nextInput?.select();
+                                    }
+                                  }
+                                }}
+                                     onFocus={() => setFocusedInput(key)}
+                                     onBlur={() => {
+                                       // Clear local value on blur so display shows saved value
+                                       setTimeout(() => {
+                                         setFocusedInput(null);
+                                         setLocalValues(prev => {
+                                           const newLocalValues = { ...prev };
+                                           delete newLocalValues[key];
+                                           return newLocalValues;
+                                         });
+                                       }, 100);
+                                     }}
+                                    data-kpi-index={index}
+                                    data-period-index={months.findIndex(m => m.identifier === month.identifier)}
+                                    className={cn(
+                                      "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                      status === "success" && "text-success font-medium",
+                                      status === "warning" && "text-warning font-medium",
+                                      status === "destructive" && "text-destructive font-medium",
+                                      isCalculatedKPI(kpi.name) && "hidden"
+                                    )}
+                                    placeholder="-"
+                                    disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                                    readOnly={isCalculatedKPI(kpi.name)}
+                                  />
+                                  {saving[key] && (
+                                    <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                                  )}
+                                </div>
+                              </TableCell>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="bg-background z-50">
+                              <ContextMenuItem 
+                                onClick={() => handleCreateIssueFromCell(
+                                  kpi,
+                                  entry?.actual_value,
+                                  targetValue,
+                                  month.label,
+                                  'month'
+                                )}
+                              >
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                Create Issue from Cell
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </>
@@ -2984,6 +3086,27 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Issue Creation Dialog */}
+      <IssueManagementDialog
+        departmentId={departmentId}
+        onIssueAdded={() => {
+          setIssueDialogOpen(false);
+          setIssueContext(null);
+          toast({
+            title: "Issue Created",
+            description: "The issue has been created successfully.",
+          });
+        }}
+        open={issueDialogOpen}
+        onOpenChange={(open) => {
+          setIssueDialogOpen(open);
+          if (!open) setIssueContext(null);
+        }}
+        initialTitle={issueContext?.title}
+        initialDescription={issueContext?.description}
+        initialSeverity={issueContext?.severity}
+      />
     </div>
   );
 };

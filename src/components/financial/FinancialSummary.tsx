@@ -11,7 +11,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
 import { FinancialDataImport } from "./FinancialDataImport";
 import { Sparkline } from "@/components/ui/sparkline";
+import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -230,6 +231,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [pasteMonth, setPasteMonth] = useState<string>("");
   const [pasteYear, setPasteYear] = useState<number>(year);
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [issueContext, setIssueContext] = useState<{
+    title: string;
+    description: string;
+    severity: string;
+  } | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -1188,6 +1195,57 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const currentTarget = targets[metricKey] || 0;
     setEditingTarget(metricKey);
     setTargetEditValue(currentTarget.toString());
+  };
+
+  // Helper function to create issue from financial cell
+  const handleCreateIssueFromCell = (
+    metric: FinancialMetric,
+    actualValue: number | null | undefined,
+    targetValue: number | null | undefined,
+    monthLabel: string,
+    monthIdentifier: string
+  ) => {
+    const formattedActual = actualValue !== null && actualValue !== undefined 
+      ? formatTarget(actualValue, metric.type) 
+      : 'N/A';
+    const formattedTarget = targetValue !== null && targetValue !== undefined 
+      ? formatTarget(targetValue, metric.type) 
+      : 'N/A';
+    
+    const title = `${metric.name} - ${monthLabel}`;
+    const description = `**Metric:** ${metric.name}
+**Period:** ${monthLabel}
+**Month:** ${monthIdentifier}
+**Year:** ${year}
+**Quarter:** Q${quarter}
+
+**Current Value:** ${formattedActual}
+**Target:** ${formattedTarget}
+
+---
+*Issue created from financial summary*`;
+
+    // Determine severity based on variance
+    let severity = 'medium';
+    if (actualValue !== null && actualValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+      const variance = metric.type === "percentage" 
+        ? actualValue - targetValue 
+        : ((actualValue - targetValue) / targetValue) * 100;
+      
+      const targetDirection = metric.targetDirection || "above";
+      const adjustedVariance = targetDirection === "below" ? -variance : variance;
+      
+      if (adjustedVariance < -10) {
+        severity = 'high';
+      } else if (adjustedVariance < 0) {
+        severity = 'medium';
+      } else {
+        severity = 'low';
+      }
+    }
+
+    setIssueContext({ title, description, severity });
+    setIssueDialogOpen(true);
   };
 
   const handleTargetSave = async (metricKey: string) => {
@@ -2317,6 +2375,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   <StickyNote className="h-4 w-4 mr-2" />
                                   {notes[key] ? "Edit Note" : "Add Note"}
                                 </ContextMenuItem>
+                                <ContextMenuItem 
+                                  onClick={() => handleCreateIssueFromCell(
+                                    metric,
+                                    value,
+                                    target,
+                                    month.label,
+                                    month.identifier
+                                  )}
+                                >
+                                  <AlertCircle className="h-4 w-4 mr-2" />
+                                  Create Issue from Cell
+                                </ContextMenuItem>
                               </ContextMenuContent>
                             </ContextMenu>
                           );
@@ -2512,6 +2582,27 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Issue Creation Dialog */}
+      <IssueManagementDialog
+        departmentId={departmentId}
+        onIssueAdded={() => {
+          setIssueDialogOpen(false);
+          setIssueContext(null);
+          toast({
+            title: "Issue Created",
+            description: "The issue has been created successfully.",
+          });
+        }}
+        open={issueDialogOpen}
+        onOpenChange={(open) => {
+          setIssueDialogOpen(open);
+          if (!open) setIssueContext(null);
+        }}
+        initialTitle={issueContext?.title}
+        initialDescription={issueContext?.description}
+        initialSeverity={issueContext?.severity}
+      />
     </Card>
   );
 };
