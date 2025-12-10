@@ -2437,8 +2437,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               {saving[key] && (
                                                 <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                                               )}
-                                              {notes[key] && (
+                                              {notes[key] && !cellIssues.has(`${metric.key}-${month.identifier}`) && (
                                                 <StickyNote className="h-3 w-3 absolute top-1 right-1 text-primary z-20" />
+                                              )}
+                                              {cellIssues.has(`${metric.key}-${month.identifier}`) && !saving[key] && (
+                                                <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
                                               )}
                                             </>
                                           )}
