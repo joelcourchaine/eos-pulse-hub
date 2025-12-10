@@ -141,12 +141,27 @@ Deno.serve(async (req) => {
       throw userRoleError;
     }
 
+    // If store_group_id not provided but store_id is, get group from the store
+    let finalStoreGroupId = store_group_id || null;
+    if (!finalStoreGroupId && store_id) {
+      const { data: storeData } = await supabaseAdmin
+        .from('stores')
+        .select('group_id')
+        .eq('id', store_id)
+        .single();
+      
+      if (storeData?.group_id) {
+        finalStoreGroupId = storeData.group_id;
+        console.log('Auto-derived store_group_id from store:', finalStoreGroupId);
+      }
+    }
+
     // Update the profile with store_id and store_group_id
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({
         store_id: store_id || null,
-        store_group_id: store_group_id || null,
+        store_group_id: finalStoreGroupId,
       })
       .eq('id', userData.user.id);
 
