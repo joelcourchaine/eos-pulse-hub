@@ -344,6 +344,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   previousWeekMonday.setDate(previousWeekMonday.getDate() - 7);
   const previousWeekDate = previousWeekMonday.toISOString().split('T')[0];
 
+  // Track current user ID for realtime filtering
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    getCurrentUser();
+  }, []);
+
   useEffect(() => {
     // Set loading immediately to prevent rendering stale data
     setLoading(true);
@@ -370,6 +381,56 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     loadData();
   }, [departmentId, kpis, year, quarter, viewMode]);
+
+  // Real-time subscription for scorecard entries
+  useEffect(() => {
+    if (!departmentId || kpis.length === 0) return;
+
+    const kpiIds = kpis.map(k => k.id);
+    
+    const channel = supabase
+      .channel(`scorecard-realtime-${departmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'scorecard_entries',
+        },
+        async (payload) => {
+          // Check if this change is for one of our KPIs
+          const entry = (payload.new as any) || (payload.old as any);
+          if (!entry?.kpi_id || !kpiIds.includes(entry.kpi_id)) return;
+          
+          // Skip if this was our own change (created_by matches current user)
+          if (payload.eventType !== 'DELETE' && (payload.new as any)?.created_by === currentUserId) {
+            return;
+          }
+
+          console.log('Realtime scorecard update received:', payload);
+          
+          // Reload data to get the latest
+          const freshTargets = await loadKPITargets();
+          await loadScorecardData(freshTargets);
+          
+          // Show toast notification for updates from other users
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const kpi = kpis.find(k => k.id === (payload.new as any)?.kpi_id);
+            const userName = profiles[(payload.new as any)?.created_by]?.full_name || 'Another user';
+            toast({
+              title: "Scorecard updated",
+              description: `${kpi?.name || 'A KPI'} was updated by ${userName}`,
+              duration: 3000,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [departmentId, kpis, currentUserId, profiles]);
 
   useEffect(() => {
     if ((viewMode === "monthly" || isQuarterTrendMode || isMonthlyTrendMode) && kpis.length > 0) {

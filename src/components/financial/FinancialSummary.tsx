@@ -367,6 +367,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return result;
   }, [isMonthlyTrendMode, year, precedingQuartersData]);
 
+  // Track current user ID for realtime filtering
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    };
+    getCurrentUser();
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       await loadUserRole();
@@ -376,6 +387,51 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     };
     loadData();
   }, [departmentId, year, quarter]);
+
+  // Real-time subscription for financial entries
+  useEffect(() => {
+    if (!departmentId) return;
+
+    const channel = supabase
+      .channel(`financial-realtime-${departmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_entries',
+          filter: `department_id=eq.${departmentId}`,
+        },
+        async (payload) => {
+          // Skip if this was our own change (created_by matches current user)
+          if (payload.eventType !== 'DELETE' && (payload.new as any)?.created_by === currentUserId) {
+            return;
+          }
+
+          console.log('Realtime financial update received:', payload);
+          
+          // Reload data to get the latest
+          await loadFinancialData();
+          await loadPrecedingQuartersData();
+          
+          // Show toast notification for updates from other users
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const metricName = (payload.new as any)?.metric_name || 'A metric';
+            const metric = FINANCIAL_METRICS.find(m => m.key === metricName);
+            toast({
+              title: "Financial data updated",
+              description: `${metric?.name || metricName} was updated by another user`,
+              duration: 3000,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [departmentId, currentUserId, FINANCIAL_METRICS]);
 
   // Load preceding quarters data after FINANCIAL_METRICS is available
   useEffect(() => {
