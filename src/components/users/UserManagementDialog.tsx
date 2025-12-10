@@ -46,7 +46,40 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [currentUserGroupId, setCurrentUserGroupId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Check current user's role and group
+  useEffect(() => {
+    const checkUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check if super admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "super_admin")
+        .maybeSingle();
+      
+      setIsSuperAdmin(!!roleData);
+
+      // Get current user's store group
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("store_group_id")
+        .eq("id", user.id)
+        .single();
+      
+      setCurrentUserGroupId(profileData?.store_group_id || null);
+    };
+
+    if (open) {
+      checkUserRole();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) {
@@ -55,7 +88,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       loadStoreGroups();
       loadDepartments();
     }
-  }, [open, currentStoreId]);
+  }, [open, currentStoreId, isSuperAdmin, currentUserGroupId]);
 
   const loadStores = async () => {
     const { data } = await supabase
@@ -69,10 +102,17 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   };
 
   const loadStoreGroups = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from("store_groups")
       .select("*")
       .order("name");
+    
+    // Non-super-admins can only see their own store group
+    if (!isSuperAdmin && currentUserGroupId) {
+      query = query.eq("id", currentUserGroupId);
+    }
+    
+    const { data } = await query;
     
     if (data) {
       setStoreGroups(data);
@@ -484,12 +524,14 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       <Select
                         value={profile.user_role || profile.role}
                         onValueChange={(value) => handleUpdateRole(profile.id, value)}
+                        disabled={!isSuperAdmin && profile.user_role === 'super_admin'}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                          {/* Only super admins can assign super admin role */}
+                          {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                           <SelectItem value="store_gm">Store GM</SelectItem>
                           <SelectItem value="department_manager">Department Manager</SelectItem>
                           <SelectItem value="read_only">Read Only</SelectItem>

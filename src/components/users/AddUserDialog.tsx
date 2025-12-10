@@ -30,6 +30,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [birthdayDay, setBirthdayDay] = useState<string>("");
   const [startMonth, setStartMonth] = useState<string>("");
   const [startYear, setStartYear] = useState<string>("");
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [currentUserGroupId, setCurrentUserGroupId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Update storeId when currentStoreId changes
@@ -38,6 +40,37 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setStoreId(currentStoreId);
     }
   }, [currentStoreId]);
+
+  // Check current user's role and group
+  useEffect(() => {
+    const checkUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check if super admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "super_admin")
+        .maybeSingle();
+      
+      setIsSuperAdmin(!!roleData);
+
+      // Get current user's store group
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("store_group_id")
+        .eq("id", user.id)
+        .single();
+      
+      setCurrentUserGroupId(profileData?.store_group_id || null);
+    };
+
+    if (open) {
+      checkUserRole();
+    }
+  }, [open]);
 
   // Load stores and store groups when dialog opens
   useEffect(() => {
@@ -48,7 +81,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
         loadDepartments(currentStoreId);
       }
     }
-  }, [open, currentStoreId]);
+  }, [open, currentStoreId, isSuperAdmin, currentUserGroupId]);
 
   const loadStores = async () => {
     const { data, error } = await supabase
@@ -73,10 +106,17 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   };
 
   const loadStoreGroups = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("store_groups")
       .select("*")
       .order("name");
+    
+    // Non-super-admins can only see their own store group
+    if (!isSuperAdmin && currentUserGroupId) {
+      query = query.eq("id", currentUserGroupId);
+    }
+    
+    const { data, error } = await query;
     
     if (error) {
       console.error("Error fetching store groups:", error);
@@ -232,7 +272,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
+                {/* Only super admins can create other super admins */}
+                {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 <SelectItem value="store_gm">Store GM</SelectItem>
                 <SelectItem value="department_manager">Department Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
@@ -301,28 +342,33 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 </Select>
               </div>
               
-              <div>
-                <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
-                <Select value={storeGroupId || "none"} onValueChange={(value) => {
-                  setStoreGroupId(value === "none" ? "" : value);
-                  if (value !== "none") setStoreId(""); // Clear store if group selected
-                }}>
-                  <SelectTrigger id="storeGroup">
-                    <SelectValue placeholder="Select group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {storeGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Only show store group selection if super admin */}
+              {isSuperAdmin && (
+                <div>
+                  <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
+                  <Select value={storeGroupId || "none"} onValueChange={(value) => {
+                    setStoreGroupId(value === "none" ? "" : value);
+                    if (value !== "none") setStoreId(""); // Clear store if group selected
+                  }}>
+                    <SelectTrigger id="storeGroup">
+                      <SelectValue placeholder="Select group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {storeGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Assign to either a single store OR a store group for multi-store access
+              {isSuperAdmin 
+                ? "Assign to either a single store OR a store group for multi-store access"
+                : "Assign to a store within your group"}
             </p>
           </div>
 
