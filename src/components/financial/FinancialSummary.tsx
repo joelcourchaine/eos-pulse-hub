@@ -11,7 +11,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -236,9 +236,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     title: string;
     description: string;
     severity: string;
+    sourceMetricName?: string;
+    sourcePeriod?: string;
   } | null>(null);
+  const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Fetch cell issues to display red flags
+  useEffect(() => {
+    const fetchCellIssues = async () => {
+      if (!departmentId) return;
+      const { data } = await supabase
+        .from('issues')
+        .select('source_metric_name, source_period')
+        .eq('department_id', departmentId)
+        .eq('source_type', 'financial')
+        .not('source_metric_name', 'is', null);
+      const issueSet = new Set<string>();
+      data?.forEach(issue => {
+        if (issue.source_metric_name && issue.source_period) {
+          issueSet.add(`${issue.source_metric_name}-${issue.source_period}`);
+        }
+      });
+      setCellIssues(issueSet);
+    };
+    fetchCellIssues();
+  }, [departmentId]);
 
   const isQuarterTrendMode = quarter === 0;
   const isMonthlyTrendMode = quarter === -1;
@@ -1300,7 +1324,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       }
     }
 
-    setIssueContext({ title, description, severity });
+    setIssueContext({ 
+      title, 
+      description, 
+      severity,
+      sourceMetricName: metric.key,
+      sourcePeriod: monthIdentifier
+    });
     setIssueDialogOpen(true);
   };
 
@@ -2644,6 +2674,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         departmentId={departmentId}
         onIssueAdded={() => {
           setIssueDialogOpen(false);
+          // Refresh cell issues to show the new flag
+          if (issueContext?.sourceMetricName && issueContext?.sourcePeriod) {
+            setCellIssues(prev => new Set([...prev, `${issueContext.sourceMetricName}-${issueContext.sourcePeriod}`]));
+          }
           setIssueContext(null);
           toast({
             title: "Issue Created",
@@ -2658,6 +2692,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         initialTitle={issueContext?.title}
         initialDescription={issueContext?.description}
         initialSeverity={issueContext?.severity}
+        sourceType="financial"
+        sourceMetricName={issueContext?.sourceMetricName}
+        sourcePeriod={issueContext?.sourcePeriod}
       />
     </Card>
   );
