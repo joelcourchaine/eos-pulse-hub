@@ -27,6 +27,11 @@ interface IssueManagementDialogProps {
   initialSeverity?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // Source tracking for cell-based issue creation
+  sourceType?: 'scorecard' | 'financial';
+  sourceKpiId?: string;
+  sourceMetricName?: string;
+  sourcePeriod?: string;
 }
 
 export function IssueManagementDialog({ 
@@ -38,7 +43,11 @@ export function IssueManagementDialog({
   initialDescription,
   initialSeverity,
   open: controlledOpen,
-  onOpenChange: controlledOnOpenChange
+  onOpenChange: controlledOnOpenChange,
+  sourceType,
+  sourceKpiId,
+  sourceMetricName,
+  sourcePeriod
 }: IssueManagementDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -130,6 +139,10 @@ export function IssueManagementDialog({
             severity,
             display_order: nextOrder,
             created_by: user.id,
+            source_type: sourceType || null,
+            source_kpi_id: sourceKpiId || null,
+            source_metric_name: sourceMetricName || null,
+            source_period: sourcePeriod || null,
           });
 
         if (error) throw error;

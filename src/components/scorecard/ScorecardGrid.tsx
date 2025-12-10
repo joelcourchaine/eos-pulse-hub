@@ -9,7 +9,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag } from "lucide-react";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -283,7 +283,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     title: string;
     description: string;
     severity: string;
+    sourceKpiId?: string;
+    sourcePeriod?: string;
   } | null>(null);
+  const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -458,6 +461,36 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return updated;
     });
   }, [entries, kpis]);
+
+  // Fetch cell issues to display red flags
+  useEffect(() => {
+    const fetchCellIssues = async () => {
+      if (!departmentId) return;
+      
+      const { data, error } = await supabase
+        .from('issues')
+        .select('source_kpi_id, source_period')
+        .eq('department_id', departmentId)
+        .eq('source_type', 'scorecard')
+        .not('source_kpi_id', 'is', null)
+        .not('source_period', 'is', null);
+      
+      if (error) {
+        console.error('Error fetching cell issues:', error);
+        return;
+      }
+      
+      const issueSet = new Set<string>();
+      data?.forEach(issue => {
+        if (issue.source_kpi_id && issue.source_period) {
+          issueSet.add(`${issue.source_kpi_id}-${issue.source_period}`);
+        }
+      });
+      setCellIssues(issueSet);
+    };
+    
+    fetchCellIssues();
+  }, [departmentId]);
 
   const loadUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1948,7 +1981,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     actualValue: number | null | undefined,
     targetValue: number | null | undefined,
     periodLabel: string,
-    periodType: 'week' | 'month'
+    periodType: 'week' | 'month',
+    periodIdentifier: string
   ) => {
     const ownerName = kpi.assigned_to ? profiles[kpi.assigned_to]?.full_name || 'Unknown' : 'Unassigned';
     const formattedActual = actualValue !== null && actualValue !== undefined 
@@ -1996,7 +2030,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       }
     }
 
-    setIssueContext({ title, description, severity });
+    setIssueContext({ 
+      title, 
+      description, 
+      severity,
+      sourceKpiId: kpi.id,
+      sourcePeriod: periodIdentifier
+    });
     setIssueDialogOpen(true);
   };
 
@@ -2766,6 +2806,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                               {saving[key] && (
                                 <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                               )}
+                              {cellIssues.has(`${kpi.id}-week-${weekDate}`) && !saving[key] && (
+                                <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                              )}
                             </div>
                           </TableCell>
                         </ContextMenuTrigger>
@@ -2776,7 +2819,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                               entry?.actual_value,
                               targetValue,
                               week.label,
-                              'week'
+                              'week',
+                              `week-${weekDate}`
                             )}
                           >
                             <AlertCircle className="h-4 w-4 mr-2" />
@@ -2984,6 +3028,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                   {saving[key] && (
                                     <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
                                   )}
+                                  {cellIssues.has(`${kpi.id}-month-${month.identifier}`) && !saving[key] && (
+                                    <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                  )}
                                 </div>
                               </TableCell>
                             </ContextMenuTrigger>
@@ -2994,7 +3041,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                   entry?.actual_value,
                                   targetValue,
                                   month.label,
-                                  'month'
+                                  'month',
+                                  `month-${month.identifier}`
                                 )}
                               >
                                 <AlertCircle className="h-4 w-4 mr-2" />
@@ -3154,6 +3202,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         onIssueAdded={() => {
           setIssueDialogOpen(false);
           setIssueContext(null);
+          // Refresh cell issues to show the new flag
+          if (issueContext?.sourceKpiId && issueContext?.sourcePeriod) {
+            setCellIssues(prev => new Set([...prev, `${issueContext.sourceKpiId}-${issueContext.sourcePeriod}`]));
+          }
           toast({
             title: "Issue Created",
             description: "The issue has been created successfully.",
@@ -3167,6 +3219,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         initialTitle={issueContext?.title}
         initialDescription={issueContext?.description}
         initialSeverity={issueContext?.severity}
+        sourceType="scorecard"
+        sourceKpiId={issueContext?.sourceKpiId}
+        sourcePeriod={issueContext?.sourcePeriod}
       />
     </div>
   );

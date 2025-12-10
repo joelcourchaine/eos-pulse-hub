@@ -467,6 +467,10 @@ export type Database = {
           display_order: number
           id: string
           severity: string
+          source_kpi_id: string | null
+          source_metric_name: string | null
+          source_period: string | null
+          source_type: string | null
           status: string
           title: string
           updated_at: string
@@ -479,6 +483,10 @@ export type Database = {
           display_order?: number
           id?: string
           severity?: string
+          source_kpi_id?: string | null
+          source_metric_name?: string | null
+          source_period?: string | null
+          source_type?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -491,6 +499,10 @@ export type Database = {
           display_order?: number
           id?: string
           severity?: string
+          source_kpi_id?: string | null
+          source_metric_name?: string | null
+          source_period?: string | null
+          source_type?: string | null
           status?: string
           title?: string
           updated_at?: string
