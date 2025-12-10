@@ -859,11 +859,13 @@ const Dashboard = () => {
                     <Building2 className="mr-2 h-4 w-4" />
                     Stores
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)}>
-                    <Building className="mr-2 h-4 w-4" />
-                    Departments
-                  </Button>
                 </>
+              )}
+              {(isSuperAdmin || isStoreGM) && (
+                <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)}>
+                  <Building className="mr-2 h-4 w-4" />
+                  Departments
+                </Button>
               )}
               {(isSuperAdmin || isStoreGM) && (
                 <Button variant="outline" size="sm" onClick={() => setShowUsers(true)}>
