@@ -542,13 +542,13 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </Select>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {profile.store_group_id ? (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                          Group: {storeGroups.find(g => g.id === profile.store_group_id)?.name || 'Unknown'}
-                        </span>
-                      ) : profile.store_id ? (
+                      {profile.store_id ? (
                         <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded">
                           {stores.find(s => s.id === profile.store_id)?.name || 'Unknown'}
+                        </span>
+                      ) : profile.store_group_id ? (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          Group: {storeGroups.find(g => g.id === profile.store_group_id)?.name || 'Unknown'}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
