@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
+import { format } from "date-fns";
 import { DepartmentAccessDialog } from "./DepartmentAccessDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ interface Profile {
   reports_to: string | null;
   store_id: string | null;
   store_group_id: string | null;
+  last_sign_in_at: string | null;
   user_role?: string; // Role from user_roles table
 }
 
@@ -489,6 +491,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                   <TableHead className="min-w-[90px]">Start Mo</TableHead>
                   <TableHead className="min-w-[70px]">Start Yr</TableHead>
                   <TableHead className="min-w-[110px]">Reports To</TableHead>
+                  <TableHead className="min-w-[100px]">Last Login</TableHead>
                   <TableHead className="text-right min-w-[140px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -650,6 +653,11 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                             ))}
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {profile.last_sign_in_at 
+                        ? format(new Date(profile.last_sign_in_at), "MMM d, yyyy")
+                        : "Never"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-1 justify-end">
