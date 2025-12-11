@@ -261,6 +261,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetEditValue, setTargetEditValue] = useState<string>("");
+  const [editingTrendTarget, setEditingTrendTarget] = useState<string | null>(null); // Format: ${kpiId}-Q${quarter}-${year}
+  const [trendTargetEditValue, setTrendTargetEditValue] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [showAddKPI, setShowAddKPI] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<string>("");
@@ -1402,6 +1404,122 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     });
   };
 
+  // Handle editing trend targets (for Monthly Trend view)
+  const handleTrendTargetEdit = (kpiId: string, targetQuarter: number, targetYear: number) => {
+    if (!canEditTargets()) return;
+    const targetKey = `${kpiId}-Q${targetQuarter}-${targetYear}`;
+    const currentTarget = trendTargets[targetKey] ?? kpis.find(k => k.id === kpiId)?.target_value ?? 0;
+    setEditingTrendTarget(targetKey);
+    setTrendTargetEditValue(currentTarget.toString());
+  };
+
+  const handleTrendTargetSave = async (kpiId: string, targetQuarter: number, targetYear: number) => {
+    const trimmedValue = trendTargetEditValue.trim();
+    
+    if (trimmedValue === "") {
+      setEditingTrendTarget(null);
+      setTrendTargetEditValue("");
+      return;
+    }
+    
+    const newValue = parseFloat(trimmedValue);
+    if (isNaN(newValue)) {
+      toast({
+        title: "Invalid Value",
+        description: "Please enter a valid number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("kpi_targets")
+      .upsert({
+        kpi_id: kpiId,
+        quarter: targetQuarter,
+        year: targetYear,
+        entry_type: "monthly",
+        target_value: newValue,
+      }, {
+        onConflict: "kpi_id,quarter,year,entry_type",
+      });
+
+    if (error) {
+      console.error("Failed to update trend target:", error);
+      toast({
+        title: "Error",
+        description: `Failed to update target: ${error.message}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Update local state
+    const targetKey = `${kpiId}-Q${targetQuarter}-${targetYear}`;
+    setTrendTargets(prev => ({ ...prev, [targetKey]: newValue }));
+    setEditingTrendTarget(null);
+    setTrendTargetEditValue("");
+    
+    toast({
+      title: "Success",
+      description: `Q${targetQuarter} ${targetYear} target updated`,
+    });
+  };
+
+  const handleCopyTrendTargetToAllQuarters = async (kpiId: string, sourceQuarter: number, sourceYear: number) => {
+    const targetKey = `${kpiId}-Q${sourceQuarter}-${sourceYear}`;
+    const currentTarget = trendTargets[targetKey] ?? kpis.find(k => k.id === kpiId)?.target_value;
+    if (currentTarget === undefined || currentTarget === null) return;
+
+    // Get all unique years from the monthly trend periods
+    const yearsInTrend = Array.from(new Set(monthlyTrendPeriods.map(m => m.year)));
+    
+    const updates: { kpi_id: string; quarter: number; year: number; entry_type: string; target_value: number }[] = [];
+    
+    yearsInTrend.forEach(y => {
+      [1, 2, 3, 4].forEach(q => {
+        // Skip the source quarter/year combination
+        if (!(q === sourceQuarter && y === sourceYear)) {
+          updates.push({
+            kpi_id: kpiId,
+            quarter: q,
+            year: y,
+            entry_type: "monthly",
+            target_value: currentTarget,
+          });
+        }
+      });
+    });
+
+    const { error } = await supabase
+      .from("kpi_targets")
+      .upsert(updates, {
+        onConflict: "kpi_id,quarter,year,entry_type",
+      });
+
+    if (error) {
+      console.error("Failed to copy trend targets:", error);
+      toast({
+        title: "Error",
+        description: `Failed to copy targets: ${error.message}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Update local trendTargets state
+    const newTrendTargets = { ...trendTargets };
+    updates.forEach(u => {
+      newTrendTargets[`${u.kpi_id}-Q${u.quarter}-${u.year}`] = u.target_value;
+    });
+    setTrendTargets(newTrendTargets);
+    
+    toast({
+      title: "Success",
+      description: `Target copied to all quarters (${yearsInTrend.join(', ')})`,
+    });
+  };
+
   // Recalculate status for all existing entries of a KPI when target changes
   const recalculateEntryStatuses = async (kpiId: string, newTarget: number) => {
     const kpi = kpis.find(k => k.id === kpiId);
@@ -2373,11 +2491,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     return (
                       <TableHead 
                         key={`target-${latestQuarter}`}
-                        className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-primary text-primary-foreground border-x border-primary/30 sticky top-0 left-[300px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                        className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-primary text-primary-foreground border-x border-primary/30 sticky top-0 left-[300px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                       >
                         <div className="flex flex-col items-center">
                           <div className="text-xs">Q{q} Target</div>
-                          <div className="text-xs font-normal text-muted-foreground">{y}</div>
+                          <div className="text-xs font-normal opacity-70">{y}</div>
                         </div>
                       </TableHead>
                     );
@@ -2605,7 +2723,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                            })}
                          />
                        </TableCell>
-                       {/* Latest quarter target cell only */}
+                       {/* Latest quarter target cell - editable */}
                        {(() => {
                          const latestQuarter = Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
                            .sort((a, b) => {
@@ -2616,16 +2734,76 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                            })[0];
                          if (!latestQuarter) return null;
                          const [q, y] = latestQuarter.replace('Q', '').split('-');
+                         const targetQuarter = parseInt(q);
+                         const targetYear = parseInt(y);
                          const targetKey = `${kpi.id}-Q${q}-${y}`;
                          const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                         const isEditing = editingTrendTarget === targetKey;
+                         
                          return (
                            <TableCell
                              key={`target-${latestQuarter}`}
-                             className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-primary text-primary-foreground border-x border-primary/30 sticky left-[300px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                             className="px-1 py-0.5 text-center min-w-[100px] max-w-[100px] bg-primary text-primary-foreground border-x border-primary/30 sticky left-[300px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                            >
-                             {targetValue !== null && targetValue !== undefined 
-                               ? formatTarget(targetValue, kpi.metric_type, kpi.name) 
-                               : "-"}
+                             {canEditTargets() && isEditing ? (
+                               <div className="flex items-center justify-center gap-1">
+                                 <Input
+                                   type="number"
+                                   step="any"
+                                   value={trendTargetEditValue}
+                                   onChange={(e) => setTrendTargetEditValue(e.target.value)}
+                                   onKeyDown={(e) => {
+                                     if (e.key === 'Enter') handleTrendTargetSave(kpi.id, targetQuarter, targetYear);
+                                     if (e.key === 'Escape') setEditingTrendTarget(null);
+                                   }}
+                                   className="w-16 h-7 text-center text-foreground"
+                                   autoFocus
+                                 />
+                                 <Button
+                                   size="sm"
+                                   variant="ghost"
+                                   onClick={() => handleTrendTargetSave(kpi.id, targetQuarter, targetYear)}
+                                   className="h-7 px-1 text-primary-foreground hover:bg-primary/80"
+                                 >
+                                   ✓
+                                 </Button>
+                               </div>
+                             ) : (
+                               <Popover>
+                                 <PopoverTrigger asChild>
+                                   <span
+                                     className={cn(
+                                       canEditTargets() && "cursor-pointer hover:underline"
+                                     )}
+                                   >
+                                     {targetValue !== null && targetValue !== undefined 
+                                       ? formatTarget(targetValue, kpi.metric_type, kpi.name) 
+                                       : "-"}
+                                   </span>
+                                 </PopoverTrigger>
+                                 {canEditTargets() && (
+                                   <PopoverContent className="w-auto p-2" align="center">
+                                     <div className="flex flex-col gap-2">
+                                       <Button
+                                         variant="outline"
+                                         size="sm"
+                                         onClick={() => handleTrendTargetEdit(kpi.id, targetQuarter, targetYear)}
+                                       >
+                                         Edit Target
+                                       </Button>
+                                       <Button
+                                         variant="outline"
+                                         size="sm"
+                                         onClick={() => handleCopyTrendTargetToAllQuarters(kpi.id, targetQuarter, targetYear)}
+                                       >
+                                         <Copy className="h-3 w-3 mr-1" />
+                                         Copy to All Quarters
+                                       </Button>
+                                     </div>
+                                   </PopoverContent>
+                                 )}
+                               </Popover>
+                             )}
                            </TableCell>
                          );
                        })()}
