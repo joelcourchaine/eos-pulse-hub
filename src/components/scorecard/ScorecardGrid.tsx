@@ -2807,63 +2807,196 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                            </TableCell>
                          );
                        })()}
-                       {monthlyTrendPeriods.map((month) => {
-                         const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
-                         const mValue = precedingQuartersData[mKey];
-                         
-                         // Calculate quarter from month (0-indexed month: 0-2 = Q1, 3-5 = Q2, etc.)
-                         const monthQuarter = Math.floor(month.month / 3) + 1;
-                         const targetKey = `${kpi.id}-Q${monthQuarter}-${month.year}`;
-                         // Use quarter-specific target, fall back to default kpi target
-                         const targetValue = trendTargets[targetKey] ?? kpi.target_value;
-                         
-                         let trendStatus: "success" | "warning" | "destructive" | null = null;
-                         
-                         if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined) {
-                           let variance: number;
-                           if (kpi.metric_type === "percentage") {
-                             variance = mValue - targetValue;
-                           } else if (targetValue !== 0) {
-                             variance = ((mValue - targetValue) / targetValue) * 100;
-                           } else {
-                             // Handle target === 0
-                             variance = kpi.target_direction === "below" 
-                               ? (mValue > 0 ? -100 : 0) 
-                               : (mValue > 0 ? 100 : -100);
-                           }
-                           
-                           const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
-                           
-                           if (adjustedVariance >= 0) {
-                             trendStatus = "success";
-                           } else if (adjustedVariance >= -10) {
-                             trendStatus = "warning";
-                           } else {
-                             trendStatus = "destructive";
-                           }
-                         }
-                         
-                         return (
-                           <TableCell
-                             key={month.label}
-                             className={cn(
-                               "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                               trendStatus === "success" && "bg-success/10",
-                               trendStatus === "warning" && "bg-warning/10",
-                               trendStatus === "destructive" && "bg-destructive/10",
-                               !trendStatus && "text-muted-foreground"
-                             )}
-                           >
-                             <span className={cn(
-                               trendStatus === "success" && "text-success font-medium",
-                               trendStatus === "warning" && "text-warning font-medium",
-                               trendStatus === "destructive" && "text-destructive font-medium"
-                             )}>
-                               {mValue !== null && mValue !== undefined ? formatQuarterAverage(mValue, kpi.metric_type, kpi.name) : "-"}
-                             </span>
-                           </TableCell>
-                         );
-                       })}
+                       {monthlyTrendPeriods.map((month, periodIndex) => {
+                          // Skip year summary columns - they remain read-only
+                          if (month.type !== 'month') {
+                            const summaryYear = month.summaryYear!;
+                            const isAvg = month.type === 'year-avg';
+                            
+                            // Collect all monthly values for the summary year
+                            const yearMonthlyValues: number[] = [];
+                            for (let m = 0; m < 12; m++) {
+                              const mKey = `${kpi.id}-M${m + 1}-${summaryYear}`;
+                              const val = precedingQuartersData[mKey];
+                              if (val !== null && val !== undefined) {
+                                yearMonthlyValues.push(val);
+                              }
+                            }
+                            
+                            let displayValue: number | undefined;
+                            if (yearMonthlyValues.length > 0) {
+                              const total = yearMonthlyValues.reduce((a, b) => a + b, 0);
+                              displayValue = isAvg ? total / yearMonthlyValues.length : total;
+                            }
+                            
+                            return (
+                              <TableCell
+                                key={month.identifier}
+                                className={cn(
+                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium",
+                                  month.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
+                                  month.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30"
+                                )}
+                              >
+                                {displayValue !== null && displayValue !== undefined ? formatQuarterAverage(displayValue, kpi.metric_type, kpi.name) : "-"}
+                              </TableCell>
+                            );
+                          }
+                          
+                          // Editable month cells
+                          const monthIdentifier = `${month.year}-${String(month.month + 1).padStart(2, '0')}`;
+                          const key = `${kpi.id}-month-${monthIdentifier}`;
+                          const entry = entries[key];
+                          const mValue = entry?.actual_value ?? precedingQuartersData[`${kpi.id}-M${month.month + 1}-${month.year}`];
+                          const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(mValue || null, kpi.metric_type, kpi.name);
+                          
+                          // Calculate quarter from month (0-indexed month: 0-2 = Q1, 3-5 = Q2, etc.)
+                          const monthQuarter = Math.floor(month.month / 3) + 1;
+                          const targetKey = `${kpi.id}-Q${monthQuarter}-${month.year}`;
+                          // Use quarter-specific target, fall back to default kpi target
+                          const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                          
+                          let trendStatus: "success" | "warning" | "destructive" | null = null;
+                          
+                          if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined) {
+                            let variance: number;
+                            if (kpi.metric_type === "percentage") {
+                              variance = mValue - targetValue;
+                            } else if (targetValue !== 0) {
+                              variance = ((mValue - targetValue) / targetValue) * 100;
+                            } else {
+                              variance = kpi.target_direction === "below" 
+                                ? (mValue > 0 ? -100 : 0) 
+                                : (mValue > 0 ? 100 : -100);
+                            }
+                            
+                            const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                            
+                            if (adjustedVariance >= 0) {
+                              trendStatus = "success";
+                            } else if (adjustedVariance >= -10) {
+                              trendStatus = "warning";
+                            } else {
+                              trendStatus = "destructive";
+                            }
+                          }
+                          
+                          return (
+                            <ContextMenu key={month.identifier}>
+                              <ContextMenuTrigger asChild>
+                                <TableCell
+                                  className={cn(
+                                    "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
+                                    trendStatus === "success" && "bg-success/10",
+                                    trendStatus === "warning" && "bg-warning/10",
+                                    trendStatus === "destructive" && "bg-destructive/10",
+                                    !trendStatus && "text-muted-foreground"
+                                  )}
+                                >
+                                  <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                    {(isCalculatedKPI(kpi.name) || focusedInput !== key) && (mValue !== null && mValue !== undefined) ? (
+                                      <div 
+                                        data-display-value
+                                        className={cn(
+                                          "h-full w-full flex items-center justify-center cursor-text",
+                                          trendStatus === "success" && "text-success font-medium",
+                                          trendStatus === "warning" && "text-warning font-medium",
+                                          trendStatus === "destructive" && "text-destructive font-medium",
+                                          isCalculatedKPI(kpi.name) && "cursor-default"
+                                        )}
+                                        onClick={(e) => {
+                                          if (!isCalculatedKPI(kpi.name)) {
+                                            const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                            input?.focus();
+                                            input?.select();
+                                          }
+                                        }}
+                                      >
+                                        {formatQuarterAverage(mValue, kpi.metric_type, kpi.name)}
+                                      </div>
+                                    ) : !isCalculatedKPI(kpi.name) && focusedInput !== key ? (
+                                      <div 
+                                        data-display-value
+                                        className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                        onClick={(e) => {
+                                          const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                          input?.focus();
+                                        }}
+                                      >
+                                        {kpi.metric_type === "dollar" ? "$" : kpi.metric_type === "percentage" ? "%" : "-"}
+                                      </div>
+                                    ) : null}
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      value={displayValue}
+                                      onChange={(e) =>
+                                        handleValueChange(kpi.id, '', e.target.value, targetValue, kpi.metric_type, kpi.target_direction, true, monthIdentifier)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                          const currentKpiIndex = index;
+                                          if (currentKpiIndex < sortedKpis.length - 1) {
+                                            const nextInput = document.querySelector(
+                                              `input[data-kpi-index="${currentKpiIndex + 1}"][data-trend-period-index="${periodIndex}"]`
+                                            ) as HTMLInputElement;
+                                            nextInput?.focus();
+                                            nextInput?.select();
+                                          }
+                                        }
+                                      }}
+                                      onFocus={() => setFocusedInput(key)}
+                                      onBlur={() => {
+                                        setTimeout(() => {
+                                          setFocusedInput(null);
+                                          setLocalValues(prev => {
+                                            const newLocalValues = { ...prev };
+                                            delete newLocalValues[key];
+                                            return newLocalValues;
+                                          });
+                                        }, 100);
+                                      }}
+                                      data-kpi-index={index}
+                                      data-trend-period-index={periodIndex}
+                                      className={cn(
+                                        "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                        trendStatus === "success" && "text-success font-medium",
+                                        trendStatus === "warning" && "text-warning font-medium",
+                                        trendStatus === "destructive" && "text-destructive font-medium",
+                                        isCalculatedKPI(kpi.name) && "hidden"
+                                      )}
+                                      placeholder="-"
+                                      disabled={saving[key] || isCalculatedKPI(kpi.name)}
+                                      readOnly={isCalculatedKPI(kpi.name)}
+                                    />
+                                    {saving[key] && (
+                                      <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                                    )}
+                                    {cellIssues.has(`${kpi.id}-month-${monthIdentifier}`) && !saving[key] && (
+                                      <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="bg-background z-50">
+                                <ContextMenuItem 
+                                  onClick={() => handleCreateIssueFromCell(
+                                    kpi,
+                                    mValue,
+                                    targetValue,
+                                    month.label,
+                                    'month',
+                                    `month-${monthIdentifier}`
+                                  )}
+                                >
+                                  <AlertCircle className="h-4 w-4 mr-2" />
+                                  Create Issue from Cell
+                                </ContextMenuItem>
+                              </ContextMenuContent>
+                            </ContextMenu>
+                          );
+                        })}
                      </>
                    ) : isQuarterTrendMode ? quarterTrendPeriods.map((qtr) => {
                     const qKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;

@@ -1841,23 +1841,149 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                  })}
                                />
                              </TableCell>
-                             {monthlyTrendPeriods.map((period) => {
-                               if (period.type === 'month') {
-                                 const mKey = `${metric.key}-M${period.month + 1}-${period.year}`;
-                                 const mValue = precedingQuartersData[mKey];
-                                 
-                                 return (
-                                   <TableCell
-                                     key={period.identifier}
-                                     className={cn(
-                                       "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                                       isDepartmentProfit && "bg-primary/5"
-                                     )}
-                                   >
-                                     {mValue !== null && mValue !== undefined ? formatTarget(mValue, metric.type) : "-"}
-                                   </TableCell>
-                                 );
-                               }
+                             {monthlyTrendPeriods.map((period, periodIndex) => {
+                                if (period.type === 'month') {
+                                  const monthIdentifier = `${period.year}-${String(period.month + 1).padStart(2, '0')}`;
+                                  const key = `${metric.key}-${monthIdentifier}`;
+                                  const entryValue = entries[key];
+                                  const mValue = entryValue ?? precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
+                                  const isCalculated = !!metric.calculation;
+                                  
+                                  // For calculated metrics, just display
+                                  if (isCalculated) {
+                                    // Calculate the value using the same logic as the standard view
+                                    let calculatedValue: number | undefined;
+                                    if (metric.calculation && 'numerator' in metric.calculation) {
+                                      const numKey = `${metric.calculation.numerator}-${monthIdentifier}`;
+                                      const denKey = `${metric.calculation.denominator}-${monthIdentifier}`;
+                                      const numVal = entries[numKey] ?? precedingQuartersData[`${metric.calculation.numerator}-M${period.month + 1}-${period.year}`];
+                                      const denVal = entries[denKey] ?? precedingQuartersData[`${metric.calculation.denominator}-M${period.month + 1}-${period.year}`];
+                                      
+                                      if (numVal !== null && numVal !== undefined && denVal !== null && denVal !== undefined && denVal !== 0) {
+                                        calculatedValue = (numVal / denVal) * 100;
+                                      }
+                                    } else if (metric.calculation && 'type' in metric.calculation) {
+                                      const getVal = (k: string) => {
+                                        const directKey = `${k}-${monthIdentifier}`;
+                                        return entries[directKey] ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? 0;
+                                      };
+                                      
+                                      if (metric.calculation.type === 'subtract') {
+                                        const base = getVal(metric.calculation.base);
+                                        const deductions = metric.calculation.deductions.reduce((sum, key) => sum + getVal(key), 0);
+                                        calculatedValue = base - deductions;
+                                      } else if (metric.calculation.type === 'complex') {
+                                        const base = getVal(metric.calculation.base);
+                                        const deductions = metric.calculation.deductions.reduce((sum, key) => sum + getVal(key), 0);
+                                        const additions = metric.calculation.additions.reduce((sum, key) => sum + getVal(key), 0);
+                                        calculatedValue = base - deductions + additions;
+                                      }
+                                    }
+                                    
+                                    return (
+                                      <TableCell
+                                        key={period.identifier}
+                                        className={cn(
+                                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                          isDepartmentProfit && "bg-primary/5"
+                                        )}
+                                      >
+                                        {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
+                                      </TableCell>
+                                    );
+                                  }
+                                  
+                                  // Editable cells for non-calculated metrics
+                                  const displayValue = localValues[key] !== undefined ? localValues[key] : (mValue !== null && mValue !== undefined ? String(mValue) : "");
+                                  
+                                  return (
+                                    <ContextMenu key={period.identifier}>
+                                      <ContextMenuTrigger asChild>
+                                        <TableCell
+                                          className={cn(
+                                            "p-1 relative min-w-[125px] max-w-[125px]",
+                                            isDepartmentProfit && "bg-primary/5"
+                                          )}
+                                        >
+                                          <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                            {focusedCell !== key && (mValue !== null && mValue !== undefined) ? (
+                                              <div 
+                                                className="h-full w-full flex items-center justify-center cursor-text"
+                                                onClick={(e) => {
+                                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                  input?.focus();
+                                                  input?.select();
+                                                }}
+                                              >
+                                                {formatTarget(mValue, metric.type)}
+                                              </div>
+                                            ) : focusedCell !== key ? (
+                                              <div 
+                                                className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                onClick={(e) => {
+                                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                  input?.focus();
+                                                }}
+                                              >
+                                                {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                              </div>
+                                            ) : null}
+                                            <Input
+                                              type="number"
+                                              step="any"
+                                              value={localValues[key] || ""}
+                                              onChange={(e) => handleValueChange(metric.key, monthIdentifier, e.target.value)}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  e.preventDefault();
+                                                  (e.target as HTMLInputElement).blur();
+                                                }
+                                              }}
+                                              onFocus={() => setFocusedCell(key)}
+                                              onBlur={() => {
+                                                setTimeout(() => {
+                                                  setFocusedCell(null);
+                                                  setLocalValues(prev => {
+                                                    const newLocalValues = { ...prev };
+                                                    delete newLocalValues[key];
+                                                    return newLocalValues;
+                                                  });
+                                                }, 100);
+                                              }}
+                                              data-metric-index={FINANCIAL_METRICS.findIndex(m => m.key === metric.key)}
+                                              data-trend-period-index={periodIndex}
+                                              className={cn(
+                                                "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10"
+                                              )}
+                                              placeholder="-"
+                                              disabled={saving[key]}
+                                            />
+                                            {saving[key] && (
+                                              <Loader2 className="h-3 w-3 animate-spin absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground z-20" />
+                                            )}
+                                            {cellIssues.has(`${metric.key}-${monthIdentifier}`) && !saving[key] && (
+                                              <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                      </ContextMenuTrigger>
+                                      <ContextMenuContent className="bg-background z-50">
+                                        <ContextMenuItem 
+                                          onClick={() => handleCreateIssueFromCell(
+                                            metric,
+                                            mValue,
+                                            targets[metric.key],
+                                            period.label,
+                                            monthIdentifier
+                                          )}
+                                        >
+                                          <AlertCircle className="h-4 w-4 mr-2" />
+                                          Create Issue from Cell
+                                        </ContextMenuItem>
+                                      </ContextMenuContent>
+                                    </ContextMenu>
+                                  );
+                                }
                                
                                // Year summary columns (avg or total)
                                const summaryYear = period.summaryYear!;
