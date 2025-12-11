@@ -247,25 +247,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   useEffect(() => {
     const fetchCellIssues = async () => {
       if (!departmentId) return;
-      console.log('Fetching cell issues for department:', departmentId);
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('issues')
         .select('source_metric_name, source_period')
         .eq('department_id', departmentId)
         .eq('source_type', 'financial')
         .not('source_metric_name', 'is', null);
       
-      console.log('Cell issues data:', data, 'error:', error);
-      
       const issueSet = new Set<string>();
       data?.forEach(issue => {
         if (issue.source_metric_name && issue.source_period) {
-          const key = `${issue.source_metric_name}-${issue.source_period}`;
-          console.log('Adding cell issue key:', key);
-          issueSet.add(key);
+          issueSet.add(`${issue.source_metric_name}-${issue.source_period}`);
         }
       });
-      console.log('Final cellIssues set size:', issueSet.size);
       setCellIssues(issueSet);
     };
     fetchCellIssues();
@@ -1050,9 +1044,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     setLoading(true);
     // Clear existing data to prevent stale data from showing
+    // Note: Do NOT clear localValues here - it causes race conditions where
+    // pending user input is lost when realtime updates trigger a reload
     setEntries({});
     setNotes({});
-    setLocalValues({});
     
     // Skip loading individual month data in Quarter Trend or Monthly Trend mode
     if (isQuarterTrendMode || isMonthlyTrendMode) {
