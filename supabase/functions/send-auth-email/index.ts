@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SEND_EMAIL_HOOK_SECRET = Deno.env.get("SEND_EMAIL_HOOK_SECRET");
@@ -42,10 +43,38 @@ const handler = async (req: Request): Promise<Response> => {
     const { user, email_data } = parsedPayload;
     const { email_action_type, token_hash, redirect_to } = email_data;
 
+    // Look up the REAL email from profiles table (auth email may be masked in sandbox)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    let realEmail = user.email;
+    
+    // Check if this is a masked test email and look up real email from profiles
+    if (user.email.includes('@test.local') || user.email.startsWith('user-')) {
+      console.log(`Detected masked email ${user.email}, looking up real email for user ${user.id}`);
+      
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('email')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      } else if (profile?.email) {
+        realEmail = profile.email;
+        console.log(`Found real email: ${realEmail}`);
+      }
+    }
+
     let subject = "";
     let html = "";
 
-    const baseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const baseUrl = supabaseUrl;
     const actionLink = `${baseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`;
 
     if (email_action_type === "invite" || email_action_type === "signup") {
@@ -175,7 +204,7 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
-    console.log(`Sending ${email_action_type} email to ${user.email}`);
+    console.log(`Sending ${email_action_type} email to ${realEmail} (original: ${user.email})`);
 
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -185,7 +214,7 @@ const handler = async (req: Request): Promise<Response> => {
       },
       body: JSON.stringify({
         from: "Dealer Growth Solutions <no-reply@dealergrowth.solutions>",
-        to: [user.email],
+        to: [realEmail],
         subject: subject,
         html: html,
       }),
