@@ -1698,27 +1698,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                      </TableHead>
                      {isMonthlyTrendMode ? (
                        <>
-                         <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">Trend</TableHead>
+                         <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                           Trend
+                         </TableHead>
                          {monthlyTrendPeriods.map((period) => (
-                           <TableHead key={period.identifier} className={cn(
-                             "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
-                             period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
-                             period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
-                             period.type === 'month' && "bg-muted/50"
-                           )}>
+                           <TableHead 
+                             key={period.identifier} 
+                             className={cn(
+                               "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
+                               period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
+                               period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
+                               period.type === 'month' && "bg-muted/50"
+                             )}
+                           >
                               <div className="flex flex-col items-center">
                                 {period.type === 'month' ? (
                                   <>
                                     <div className="flex items-center justify-center gap-1">
                                       {period.label.split(' ')[0]}
-                                      {highestProfitMonthsByYear[period.year] === period.identifier && <Trophy className="h-3 w-3 text-yellow-500" />}
+                                      {highestProfitMonthsByYear[period.year] === period.identifier && (
+                                        <Trophy className="h-3 w-3 text-yellow-500" />
+                                      )}
                                     </div>
                                     <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
                                   </>
                                 ) : (
                                   <>
                                     <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
-                                    <div className="text-xs font-normal text-muted-foreground">{period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}</div>
+                                    <div className="text-xs font-normal text-muted-foreground">
+                                      {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -1727,30 +1736,54 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                        </>
                      ) : isQuarterTrendMode ? (
                       quarterTrendPeriods.map((qtr) => (
-                        <TableHead key={qtr.label} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">{qtr.label}</TableHead>
+                        <TableHead 
+                          key={qtr.label} 
+                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                        >
+                          {qtr.label}
+                        </TableHead>
                       ))
                     ) : (
                       <>
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">Q{quarter} {year - 1}</TableHead>
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                          Q{quarter} {year - 1}
+                        </TableHead>
                         {previousYearMonths.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                             <div className="flex flex-col items-center">
-                              <div>{month.label.replace(/\s\d{4}$/, '')}</div>
-                              <div className="text-xs font-normal text-muted-foreground">{month.identifier.split('-')[0]}</div>
+                              <div className="flex items-center justify-center gap-1">
+                                {month.label.replace(/\s\d{4}$/, '')}
+                              </div>
+                              <div className="text-xs font-normal text-muted-foreground">
+                                {month.identifier.split('-')[0]}
+                              </div>
                             </div>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">Q{quarter} Target</TableHead>
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                          Q{quarter} Target
+                        </TableHead>
                         {months.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                             <div className="flex flex-col items-center">
                               <div className="flex items-center justify-center gap-1">
                                 {month.label.replace(/\s\d{4}$/, '')}
                                 {highestProfitMonth === month.identifier && (
-                                  <TooltipProvider><Tooltip><TooltipTrigger><Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" /></TooltipTrigger><TooltipContent><p>Highest Department Profit</p></TooltipContent></Tooltip></TooltipProvider>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Highest Department Profit</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                               </div>
-                              <div className="text-xs font-normal text-muted-foreground">{month.identifier.split('-')[0]}</div>
+                              <div className="text-xs font-normal text-muted-foreground">
+                                {month.identifier.split('-')[0]}
+                              </div>
                             </div>
                           </TableHead>
                         ))}
