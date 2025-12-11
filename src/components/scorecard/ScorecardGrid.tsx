@@ -2874,20 +2874,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           const monthQuarter = Math.floor(month.month / 3) + 1;
                           const targetKey = `${kpi.id}-Q${monthQuarter}-${month.year}`;
                           // Use quarter-specific target, fall back to default kpi target
-                          const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                          const rawTarget = trendTargets[targetKey] ?? kpi.target_value;
+                          const targetValue = rawTarget !== null && rawTarget !== undefined && rawTarget !== 0 ? rawTarget : null;
                           
                           let trendStatus: "success" | "warning" | "destructive" | null = null;
                           
-                          if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined) {
+                          if (mValue !== null && mValue !== undefined && targetValue !== null) {
                             let variance: number;
                             if (kpi.metric_type === "percentage") {
                               variance = mValue - targetValue;
-                            } else if (targetValue !== 0) {
-                              variance = ((mValue - targetValue) / targetValue) * 100;
                             } else {
-                              variance = kpi.target_direction === "below" 
-                                ? (mValue > 0 ? -100 : 0) 
-                                : (mValue > 0 ? 100 : -100);
+                              variance = ((mValue - targetValue) / targetValue) * 100;
                             }
                             
                             const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
@@ -3024,20 +3021,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     
                     // Get quarter-specific target
                     const targetKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
-                    const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                    const rawTarget = trendTargets[targetKey] ?? kpi.target_value;
+                    const targetValue = rawTarget !== null && rawTarget !== undefined && rawTarget !== 0 ? rawTarget : null;
                     
                     let trendStatus: "success" | "warning" | "destructive" | null = null;
                     
-                    if (qValue !== null && qValue !== undefined && targetValue !== null && targetValue !== undefined) {
+                    if (qValue !== null && qValue !== undefined && targetValue !== null) {
                       let variance: number;
                       if (kpi.metric_type === "percentage") {
                         variance = qValue - targetValue;
-                      } else if (targetValue !== 0) {
-                        variance = ((qValue - targetValue) / targetValue) * 100;
                       } else {
-                        variance = kpi.target_direction === "below" 
-                          ? (qValue > 0 ? -100 : 0) 
-                          : (qValue > 0 ? 100 : -100);
+                        variance = ((qValue - targetValue) / targetValue) * 100;
                       }
                       
                       const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
