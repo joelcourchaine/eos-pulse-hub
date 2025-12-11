@@ -3002,12 +3002,53 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     const qKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
                     const qValue = precedingQuartersData[qKey];
                     
+                    // Get quarter-specific target
+                    const targetKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
+                    const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                    
+                    let trendStatus: "success" | "warning" | "destructive" | null = null;
+                    
+                    if (qValue !== null && qValue !== undefined && targetValue !== null && targetValue !== undefined) {
+                      let variance: number;
+                      if (kpi.metric_type === "percentage") {
+                        variance = qValue - targetValue;
+                      } else if (targetValue !== 0) {
+                        variance = ((qValue - targetValue) / targetValue) * 100;
+                      } else {
+                        variance = kpi.target_direction === "below" 
+                          ? (qValue > 0 ? -100 : 0) 
+                          : (qValue > 0 ? 100 : -100);
+                      }
+                      
+                      const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                      
+                      if (adjustedVariance >= 0) {
+                        trendStatus = "success";
+                      } else if (adjustedVariance >= -10) {
+                        trendStatus = "warning";
+                      } else {
+                        trendStatus = "destructive";
+                      }
+                    }
+                    
                     return (
                       <TableCell
                         key={qtr.label}
-                        className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
+                        className={cn(
+                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                          trendStatus === "success" && "bg-success/10",
+                          trendStatus === "warning" && "bg-warning/10",
+                          trendStatus === "destructive" && "bg-destructive/10",
+                          !trendStatus && "text-muted-foreground"
+                        )}
                       >
-                        {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
+                        <span className={cn(
+                          trendStatus === "success" && "text-success font-medium",
+                          trendStatus === "warning" && "text-warning font-medium",
+                          trendStatus === "destructive" && "text-destructive font-medium"
+                        )}>
+                          {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
+                        </span>
                       </TableCell>
                     );
                   }) : viewMode === "weekly" ? weeks.map((week) => {
