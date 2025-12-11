@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,6 @@ const passwordSchema = z.object({
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,19 +49,19 @@ const ResetPassword = () => {
     try {
       const validation = emailSchema.parse({ email });
 
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        validation.email,
-        {
-          redirectTo: `${window.location.origin}/reset-password`,
-        }
-      );
+      // Call the edge function directly to bypass the broken auth hook
+      const response = await supabase.functions.invoke('send-password-reset', {
+        body: { email: validation.email }
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to send password reset email');
+      }
 
       setEmailSent(true);
       toast({
         title: "Check your email",
-        description: "We've sent you a password reset link.",
+        description: "If an account exists with this email, we've sent you a password reset link.",
       });
     } catch (error: any) {
       if (error instanceof z.ZodError) {
