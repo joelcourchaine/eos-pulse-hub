@@ -5,8 +5,132 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
 interface ResendInviteRequest {
   user_id: string;
+}
+
+// Email template for invitations
+function getInviteEmailHtml(actionLink: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+          .button:hover { background-color: #1d4ed8; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+          </div>
+          <div class="content">
+            <h2>You've been invited</h2>
+            <p>You've been invited to join the <strong>Growth Scorecard</strong> app.</p>
+            <p>Click the button below to accept the invitation and create your account:</p>
+            <div style="text-align: center;">
+              <a href="${actionLink}" class="button">Accept Invitation</a>
+            </div>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+            </p>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+              This link will expire in 24 hours for security reasons.
+            </p>
+            <p style="margin-top: 20px; color: #999; font-size: 13px;">
+              If you weren't expecting this invitation, you can safely ignore this email.
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Dealer Growth Solutions. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+// Email template for password reset
+function getPasswordResetEmailHtml(actionLink: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
+          .button:hover { background-color: #1d4ed8; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+          </div>
+          <div class="content">
+            <h2>Password Reset Request</h2>
+            <p>We received a request to reset your password. Click the button below to create a new password.</p>
+            <div style="text-align: center;">
+              <a href="${actionLink}" class="button">Reset Password</a>
+            </div>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+            </p>
+            <p style="margin-top: 30px; color: #666; font-size: 14px;">
+              This link will expire in 1 hour for security reasons.
+            </p>
+            <p style="margin-top: 20px; color: #999; font-size: 13px;">
+              If you didn't request a password reset, you can safely ignore this email.
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Dealer Growth Solutions. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+async function sendEmailViaResend(to: string, subject: string, html: string): Promise<void> {
+  console.log(`Sending email to ${to} with subject: ${subject}`);
+  
+  const emailResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: "Dealer Growth Solutions <no-reply@dealergrowth.solutions>",
+      to: [to],
+      subject: subject,
+      html: html,
+    }),
+  });
+
+  if (!emailResponse.ok) {
+    const errorData = await emailResponse.text();
+    console.error("Resend API error:", errorData);
+    throw new Error(`Failed to send email: ${errorData}`);
+  }
+
+  const data = await emailResponse.json();
+  console.log("Email sent successfully via Resend:", data);
 }
 
 Deno.serve(async (req) => {
@@ -80,7 +204,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Resending invitation for user:', user_id);
+    console.log('Processing invite/reset for user:', user_id);
 
     // Get user data from auth
     const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(user_id);
@@ -93,51 +217,86 @@ Deno.serve(async (req) => {
       );
     }
 
-    const userEmail = authUser.user.email;
-    if (!userEmail) {
+    // Get real email from profiles table (auth email may be masked in sandbox)
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('email')
+      .eq('id', user_id)
+      .single();
+
+    if (profileError || !profile?.email) {
+      console.error('Error fetching profile email:', profileError);
       return new Response(
-        JSON.stringify({ success: false, error: 'User has no email address' }),
+        JSON.stringify({ success: false, error: 'User email not found in profiles' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
 
+    const realEmail = profile.email;
+    console.log(`Real email from profiles: ${realEmail}`);
+
     // Check if user has confirmed their email
     const isConfirmed = authUser.user.email_confirmed_at != null;
+    
+    // Determine redirect URL for the app
+    const appUrl = 'https://dealergrowth.solutions';
 
     if (isConfirmed) {
-      // User is already active, send password reset email instead
-      console.log('User is already active, sending password reset email to:', userEmail);
+      // User is already active, generate password reset link
+      console.log('User is already active, generating password reset link for:', realEmail);
       
-      const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(
-        userEmail,
-        {
-          redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email: authUser.user.email!, // Use the auth email for link generation
+        options: {
+          redirectTo: `${appUrl}/reset-password`
         }
-      );
+      });
 
-      if (resetError) {
-        console.error('Error sending password reset:', resetError);
-        throw resetError;
+      if (linkError || !linkData) {
+        console.error('Error generating recovery link:', linkError);
+        throw new Error(linkError?.message || 'Failed to generate recovery link');
       }
 
-      console.log('Password reset email sent successfully to:', userEmail);
+      console.log('Recovery link generated successfully');
+      
+      // Send password reset email directly via Resend
+      const actionLink = linkData.properties.action_link;
+      await sendEmailViaResend(
+        realEmail,
+        'Reset Your Password - Dealer Growth Solutions',
+        getPasswordResetEmailHtml(actionLink)
+      );
+
+      console.log('Password reset email sent successfully to:', realEmail);
     } else {
-      // User hasn't confirmed yet, resend invitation
-      console.log('User not confirmed, resending invitation to:', userEmail);
+      // User hasn't confirmed yet, generate invitation link
+      console.log('User not confirmed, generating invitation link for:', realEmail);
       
-      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        userEmail,
-        {
-          redirectTo: `${supabaseUrl.replace('.supabase.co', '.lovableproject.com')}/reset-password`
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'invite',
+        email: authUser.user.email!, // Use the auth email for link generation
+        options: {
+          redirectTo: `${appUrl}/set-password`
         }
-      );
+      });
 
-      if (inviteError) {
-        console.error('Error resending invitation:', inviteError);
-        throw inviteError;
+      if (linkError || !linkData) {
+        console.error('Error generating invite link:', linkError);
+        throw new Error(linkError?.message || 'Failed to generate invite link');
       }
 
-      console.log('Invitation resent successfully to:', userEmail);
+      console.log('Invite link generated successfully');
+      
+      // Send invitation email directly via Resend
+      const actionLink = linkData.properties.action_link;
+      await sendEmailViaResend(
+        realEmail,
+        'Welcome to Dealer Growth Solutions - Set Your Password',
+        getInviteEmailHtml(actionLink)
+      );
+
+      console.log('Invitation email sent successfully to:', realEmail);
     }
 
     return new Response(
