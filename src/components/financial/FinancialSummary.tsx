@@ -1879,16 +1879,42 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         calculatedValue = base - deductions + additions;
                                       }
                                     }
+                                    // Calculate status for calculated metrics
+                                    const targetValue = targets[metric.key];
+                                    let status: "success" | "warning" | "destructive" | null = null;
+                                    
+                                    if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+                                      const targetDirection = targetDirections[metric.key] || metric.targetDirection;
+                                      
+                                      const variance = metric.type === "percentage" 
+                                        ? calculatedValue - targetValue 
+                                        : ((calculatedValue - targetValue) / targetValue) * 100;
+                                      
+                                      if (targetDirection === "above") {
+                                        status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                                      } else {
+                                        status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                                      }
+                                    }
                                     
                                     return (
                                       <TableCell
                                         key={period.identifier}
                                         className={cn(
                                           "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                          status === "success" && "bg-success/10",
+                                          status === "warning" && "bg-warning/10",
+                                          status === "destructive" && "bg-destructive/10",
                                           isDepartmentProfit && "bg-primary/5"
                                         )}
                                       >
-                                        {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
+                                        <span className={cn(
+                                          status === "success" && "text-success font-medium",
+                                          status === "warning" && "text-warning font-medium",
+                                          status === "destructive" && "text-destructive font-medium"
+                                        )}>
+                                          {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
+                                        </span>
                                       </TableCell>
                                     );
                                   }
@@ -1896,19 +1922,45 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   // Editable cells for non-calculated metrics
                                   const displayValue = localValues[key] !== undefined ? localValues[key] : (mValue !== null && mValue !== undefined ? String(mValue) : "");
                                   
+                                  // Calculate status for non-calculated metrics
+                                  const targetValue = targets[metric.key];
+                                  let status: "success" | "warning" | "destructive" | null = null;
+                                  
+                                  if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+                                    const targetDirection = targetDirections[metric.key] || metric.targetDirection;
+                                    
+                                    const variance = metric.type === "percentage" 
+                                      ? mValue - targetValue 
+                                      : ((mValue - targetValue) / targetValue) * 100;
+                                    
+                                    if (targetDirection === "above") {
+                                      status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                                    } else {
+                                      status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                                    }
+                                  }
+                                  
                                   return (
                                     <ContextMenu key={period.identifier}>
                                       <ContextMenuTrigger asChild>
                                         <TableCell
                                           className={cn(
                                             "p-1 relative min-w-[125px] max-w-[125px]",
+                                            status === "success" && "bg-success/10",
+                                            status === "warning" && "bg-warning/10",
+                                            status === "destructive" && "bg-destructive/10",
                                             isDepartmentProfit && "bg-primary/5"
                                           )}
                                         >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
                                             {focusedCell !== key && (mValue !== null && mValue !== undefined) ? (
                                               <div 
-                                                className="h-full w-full flex items-center justify-center cursor-text"
+                                                className={cn(
+                                                  "h-full w-full flex items-center justify-center cursor-text",
+                                                  status === "success" && "text-success font-medium",
+                                                  status === "warning" && "text-warning font-medium",
+                                                  status === "destructive" && "text-destructive font-medium"
+                                                )}
                                                 onClick={(e) => {
                                                   const input = e.currentTarget.nextElementSibling as HTMLInputElement;
                                                   input?.focus();
@@ -2063,12 +2115,45 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
                             
+                            // Get quarter-specific target
+                            const targetKey = `${metric.key}-Q${qtr.quarter}`;
+                            const targetValue = targets[metric.key]; // Use current quarter's target as baseline
+                            
+                            let status: "success" | "warning" | "destructive" | null = null;
+                            
+                            if (qValue !== null && qValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+                              const targetDirection = targetDirections[metric.key] || metric.targetDirection;
+                              
+                              const variance = metric.type === "percentage" 
+                                ? qValue - targetValue 
+                                : ((qValue - targetValue) / targetValue) * 100;
+                              
+                              if (targetDirection === "above") {
+                                status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                              } else {
+                                status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                              }
+                            }
+                            
                             return (
                               <TableCell
                                 key={qtr.label}
-                                className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground"
+                                className={cn(
+                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                  status === "success" && "bg-success/10",
+                                  status === "warning" && "bg-warning/10",
+                                  status === "destructive" && "bg-destructive/10",
+                                  !status && "text-muted-foreground",
+                                  isDepartmentProfit && "bg-primary/5"
+                                )}
                               >
-                                {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                                <span className={cn(
+                                  status === "success" && "text-success font-medium",
+                                  status === "warning" && "text-warning font-medium",
+                                  status === "destructive" && "text-destructive font-medium"
+                                )}>
+                                  {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                                </span>
                               </TableCell>
                             );
                           })
