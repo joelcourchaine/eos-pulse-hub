@@ -582,7 +582,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (isMonthlyTrendMode) {
       // Get unique quarter/year combinations from monthly trend periods
       const quarterYears = new Set<string>();
-      monthlyTrendPeriods.forEach(month => {
+      monthlyTrendPeriods.filter(p => p.type === 'month').forEach(month => {
         const q = Math.floor(month.month / 3) + 1;
         quarterYears.add(`${q}-${month.year}`);
       });
@@ -608,8 +608,28 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return {};
     }
     
-    // Skip loading for Quarter Trend mode
-    if (isQuarterTrendMode) return {};
+    // For Quarter Trend mode, load targets for all quarters in the trend period
+    if (isQuarterTrendMode) {
+      const { data, error } = await supabase
+        .from("kpi_targets")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "monthly"); // Quarter targets use monthly entry_type
+      
+      if (error) {
+        console.error("Error loading KPI targets for quarter trend:", error);
+        return {};
+      }
+      
+      const trendTargetsMap: { [key: string]: number } = {};
+      data?.forEach(target => {
+        const key = `${target.kpi_id}-Q${target.quarter}-${target.year}`;
+        trendTargetsMap[key] = target.target_value || 0;
+      });
+      
+      setTrendTargets(trendTargetsMap);
+      return {};
+    }
 
     const { data, error } = await supabase
       .from("kpi_targets")
