@@ -1908,11 +1908,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     const monthQuarter = Math.floor(period.month / 3) + 1;
                                     const quarterYearKey = `Q${monthQuarter}-${period.year}`;
                                     const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
-                                    const targetValue = trendTarget?.value ?? targets[metric.key];
+                                    const rawTargetValue = trendTarget?.value ?? targets[metric.key];
+                                    const targetValue = rawTargetValue !== null && rawTargetValue !== undefined && rawTargetValue !== 0 ? rawTargetValue : null;
                                     const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
                                     let status: "success" | "warning" | "destructive" | null = null;
                                     
-                                    if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+                                    if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null) {
                                       const variance = metric.type === "percentage" 
                                         ? calculatedValue - targetValue 
                                         : ((calculatedValue - targetValue) / targetValue) * 100;
@@ -1953,11 +1954,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const monthQuarter = Math.floor(period.month / 3) + 1;
                                   const quarterYearKey = `Q${monthQuarter}-${period.year}`;
                                   const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
-                                  const targetValue = trendTarget?.value ?? targets[metric.key];
+                                  const rawTargetValue = trendTarget?.value ?? targets[metric.key];
+                                  const targetValue = rawTargetValue !== null && rawTargetValue !== undefined && rawTargetValue !== 0 ? rawTargetValue : null;
                                   const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
                                   let status: "success" | "warning" | "destructive" | null = null;
                                   
-                                  if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
+                                  if (mValue !== null && mValue !== undefined && targetValue !== null) {
                                     const variance = metric.type === "percentage" 
                                       ? mValue - targetValue 
                                       : ((mValue - targetValue) / targetValue) * 100;
