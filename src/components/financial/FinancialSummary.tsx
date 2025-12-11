@@ -203,6 +203,7 @@ const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
+  const [trendTargets, setTrendTargets] = useState<{ [metricKey: string]: { [quarterYear: string]: { value: number; direction: "above" | "below" } } }>({});
   const [targetDirections, setTargetDirections] = useState<{ [key: string]: "above" | "below" }>({});
   const [precedingQuarterTargets, setPrecedingQuarterTargets] = useState<{ [key: string]: { value: number; direction: "above" | "below" } }>({});
   const [loading, setLoading] = useState(true);
@@ -534,8 +535,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadTargets = async () => {
     if (!departmentId) return;
     
-    // Skip loading targets in Quarter Trend or Monthly Trend mode
-    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+    // For trend modes, load all targets for all quarters/years
+    if (isQuarterTrendMode || isMonthlyTrendMode) {
+      const { data, error } = await supabase
+        .from("financial_targets")
+        .select("*")
+        .eq("department_id", departmentId);
+      
+      if (error) {
+        console.error("Error loading trend targets:", error);
+        return;
+      }
+      
+      const trendTargetsMap: { [metricKey: string]: { [quarterYear: string]: { value: number; direction: "above" | "below" } } } = {};
+      data?.forEach(target => {
+        if (!trendTargetsMap[target.metric_name]) {
+          trendTargetsMap[target.metric_name] = {};
+        }
+        trendTargetsMap[target.metric_name][`Q${target.quarter}-${target.year}`] = {
+          value: target.target_value || 0,
+          direction: (target.target_direction as "above" | "below") || "above"
+        };
+      });
+      
+      setTrendTargets(trendTargetsMap);
+      return;
+    }
 
     console.log(`Loading targets for department ${departmentId}, year ${year}, quarter ${quarter}`);
 
@@ -1879,13 +1904,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         calculatedValue = base - deductions + additions;
                                       }
                                     }
-                                    // Calculate status for calculated metrics
-                                    const targetValue = targets[metric.key];
+                                    // Calculate status for calculated metrics using quarter-specific targets
+                                    const monthQuarter = Math.floor(period.month / 3) + 1;
+                                    const quarterYearKey = `Q${monthQuarter}-${period.year}`;
+                                    const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
+                                    const targetValue = trendTarget?.value ?? targets[metric.key];
+                                    const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
                                     let status: "success" | "warning" | "destructive" | null = null;
                                     
                                     if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
-                                      const targetDirection = targetDirections[metric.key] || metric.targetDirection;
-                                      
                                       const variance = metric.type === "percentage" 
                                         ? calculatedValue - targetValue 
                                         : ((calculatedValue - targetValue) / targetValue) * 100;
@@ -1922,13 +1949,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   // Editable cells for non-calculated metrics
                                   const displayValue = localValues[key] !== undefined ? localValues[key] : (mValue !== null && mValue !== undefined ? String(mValue) : "");
                                   
-                                  // Calculate status for non-calculated metrics
-                                  const targetValue = targets[metric.key];
+                                  // Calculate status for non-calculated metrics using quarter-specific targets
+                                  const monthQuarter = Math.floor(period.month / 3) + 1;
+                                  const quarterYearKey = `Q${monthQuarter}-${period.year}`;
+                                  const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
+                                  const targetValue = trendTarget?.value ?? targets[metric.key];
+                                  const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
                                   let status: "success" | "warning" | "destructive" | null = null;
                                   
                                   if (mValue !== null && mValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
-                                    const targetDirection = targetDirections[metric.key] || metric.targetDirection;
-                                    
                                     const variance = metric.type === "percentage" 
                                       ? mValue - targetValue 
                                       : ((mValue - targetValue) / targetValue) * 100;
@@ -2115,15 +2144,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
                             
-                            // Get quarter-specific target
-                            const targetKey = `${metric.key}-Q${qtr.quarter}`;
-                            const targetValue = targets[metric.key]; // Use current quarter's target as baseline
+                            // Get quarter-specific target from trendTargets
+                            const quarterYearKey = `Q${qtr.quarter}-${qtr.year}`;
+                            const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
+                            const targetValue = trendTarget?.value ?? targets[metric.key];
+                            const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
                             
                             let status: "success" | "warning" | "destructive" | null = null;
                             
                             if (qValue !== null && qValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
-                              const targetDirection = targetDirections[metric.key] || metric.targetDirection;
-                              
                               const variance = metric.type === "percentage" 
                                 ? qValue - targetValue 
                                 : ((qValue - targetValue) / targetValue) * 100;
