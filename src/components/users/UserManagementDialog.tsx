@@ -475,32 +475,32 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto relative">
+            <Table className="text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[150px]">Name</TableHead>
-                  <TableHead className="min-w-[200px]">Email</TableHead>
-                  <TableHead className="min-w-[150px]">Role</TableHead>
-                  <TableHead className="min-w-[150px]">Store / Group</TableHead>
-                  <TableHead className="min-w-[150px]">Manages Department</TableHead>
-                  <TableHead className="min-w-[120px]">Birthday Month</TableHead>
-                  <TableHead className="min-w-[100px]">Birthday Day</TableHead>
-                  <TableHead className="min-w-[120px]">Start Month</TableHead>
-                  <TableHead className="min-w-[100px]">Start Year</TableHead>
-                  <TableHead className="min-w-[150px]">Reports To</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-background min-w-[140px]">Name</TableHead>
+                  <TableHead className="min-w-[160px]">Email</TableHead>
+                  <TableHead className="min-w-[110px]">Role</TableHead>
+                  <TableHead className="min-w-[100px]">Store/Group</TableHead>
+                  <TableHead className="min-w-[110px]">Manages Dept</TableHead>
+                  <TableHead className="min-w-[90px]">BD Month</TableHead>
+                  <TableHead className="min-w-[70px]">BD Day</TableHead>
+                  <TableHead className="min-w-[90px]">Start Mo</TableHead>
+                  <TableHead className="min-w-[70px]">Start Yr</TableHead>
+                  <TableHead className="min-w-[110px]">Reports To</TableHead>
+                  <TableHead className="text-right min-w-[140px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {profiles.map((profile) => (
                   <TableRow key={profile.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
+                    <TableCell className="sticky left-0 z-10 bg-background">
+                      <div className="flex items-center gap-1.5">
+                        <Avatar className="h-6 w-6 shrink-0">
                           <AvatarFallback 
                             style={{ backgroundColor: getRoleColor(profile.user_role || profile.role) }}
-                            className="text-white text-xs font-medium"
+                            className="text-white text-[10px] font-medium"
                           >
                             {getInitials(profile.full_name)}
                           </AvatarFallback>
@@ -508,7 +508,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         <Input
                           value={profile.full_name}
                           onChange={(e) => updateProfileField(profile.id, "full_name", e.target.value)}
-                          className="h-8"
+                          className="h-7 text-xs"
                         />
                       </div>
                     </TableCell>
@@ -517,7 +517,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         type="email"
                         value={profile.email}
                         onChange={(e) => updateProfileField(profile.id, "email", e.target.value)}
-                        className="h-8"
+                        className="h-7 text-xs"
                       />
                     </TableCell>
                     <TableCell>
@@ -526,14 +526,13 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         onValueChange={(value) => handleUpdateRole(profile.id, value)}
                         disabled={!isSuperAdmin && profile.user_role === 'super_admin'}
                       >
-                        <SelectTrigger className="h-8">
+                        <SelectTrigger className="h-7 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {/* Only super admins can assign super admin role */}
                           {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                           <SelectItem value="store_gm">Store GM</SelectItem>
-                          <SelectItem value="department_manager">Department Manager</SelectItem>
+                          <SelectItem value="department_manager">Dept Manager</SelectItem>
                           <SelectItem value="read_only">Read Only</SelectItem>
                           <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
                           <SelectItem value="service_advisor">Service Advisor</SelectItem>
@@ -560,7 +559,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         value={departments.find(d => d.manager_id === profile.id)?.id || "none"}
                         onValueChange={(value) => handleUpdateManagedDepartment(profile.id, value === "none" ? null : value)}
                       >
-                        <SelectTrigger className="h-8">
+                        <SelectTrigger className="h-7 text-xs">
                           <SelectValue placeholder="None" />
                         </SelectTrigger>
                         <SelectContent>
@@ -577,12 +576,12 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       <select
                         value={profile.birthday_month || ""}
                         onChange={(e) => updateProfileField(profile.id, "birthday_month", e.target.value ? parseInt(e.target.value) : null)}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="flex h-7 w-full rounded-md border border-input bg-transparent px-1.5 py-0.5 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         <option value="">-</option>
                         {Array.from({ length: 12 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {new Date(2000, i).toLocaleString('default', { month: 'long' })}
+                            {new Date(2000, i).toLocaleString('default', { month: 'short' })}
                           </option>
                         ))}
                       </select>
@@ -591,7 +590,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       <select
                         value={profile.birthday_day || ""}
                         onChange={(e) => updateProfileField(profile.id, "birthday_day", e.target.value ? parseInt(e.target.value) : null)}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="flex h-7 w-full rounded-md border border-input bg-transparent px-1.5 py-0.5 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         <option value="">-</option>
                         {Array.from({ length: 31 }, (_, i) => (
@@ -605,12 +604,12 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       <select
                         value={profile.start_month || ""}
                         onChange={(e) => updateProfileField(profile.id, "start_month", e.target.value ? parseInt(e.target.value) : null)}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="flex h-7 w-full rounded-md border border-input bg-transparent px-1.5 py-0.5 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         <option value="">-</option>
                         {Array.from({ length: 12 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {new Date(2000, i).toLocaleString('default', { month: 'long' })}
+                            {new Date(2000, i).toLocaleString('default', { month: 'short' })}
                           </option>
                         ))}
                       </select>
@@ -619,7 +618,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       <select
                         value={profile.start_year || ""}
                         onChange={(e) => updateProfileField(profile.id, "start_year", e.target.value ? parseInt(e.target.value) : null)}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="flex h-7 w-full rounded-md border border-input bg-transparent px-1.5 py-0.5 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                       >
                         <option value="">-</option>
                         {Array.from({ length: 51 }, (_, i) => {
@@ -637,7 +636,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         value={profile.reports_to || "none"}
                         onValueChange={(value) => updateProfileField(profile.id, "reports_to", value === "none" ? null : value)}
                       >
-                        <SelectTrigger className="h-8">
+                        <SelectTrigger className="h-7 text-xs">
                           <SelectValue placeholder="None" />
                         </SelectTrigger>
                         <SelectContent>
@@ -653,7 +652,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex gap-1 justify-end">
                         <DepartmentAccessDialog
                           userId={profile.id}
                           userName={profile.full_name}
@@ -662,6 +661,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         />
                         <Button
                           size="sm"
+                          className="h-7 px-2 text-xs"
                           onClick={() => handleUpdateProfile(profile.id, {
                             full_name: profile.full_name,
                             email: profile.email,
@@ -674,37 +674,36 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                           disabled={saving === profile.id}
                         >
                           {saving === profile.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <>
-                              <Save className="h-4 w-4 mr-2" />
-                              Save
-                            </>
+                            <Save className="h-3 w-3" />
                           )}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
+                          className="h-7 px-2"
                           onClick={() => handleResendInvite(profile.id)}
                           disabled={resendingInvite === profile.id}
                           title="Resend invitation email"
                         >
                           {resendingInvite === profile.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Mail className="h-4 w-4" />
+                            <Mail className="h-3 w-3" />
                           )}
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
+                          className="h-7 px-2"
                           onClick={() => openDeleteDialog(profile)}
                           disabled={deleting === profile.id}
                         >
                           {deleting === profile.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3" />
                           )}
                         </Button>
                       </div>
