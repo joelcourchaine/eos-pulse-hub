@@ -235,6 +235,24 @@ Deno.serve(async (req) => {
     const realEmail = profile.email;
     console.log(`Real email from profiles: ${realEmail}`);
 
+    // Check if auth email is masked (sandbox environment) and update it to real email
+    const authEmail = authUser.user.email;
+    if (authEmail && (authEmail.includes('@test.local') || authEmail.startsWith('user-'))) {
+      console.log('Detected masked email in auth, updating to real email:', realEmail);
+      
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        user_id,
+        { email: realEmail }
+      );
+      
+      if (updateError) {
+        console.error('Error updating user email:', updateError);
+        // Continue anyway - might still work
+      } else {
+        console.log('Successfully updated auth email to:', realEmail);
+      }
+    }
+
     // Check if user has confirmed their email
     const isConfirmed = authUser.user.email_confirmed_at != null;
     
@@ -247,7 +265,7 @@ Deno.serve(async (req) => {
       
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
-        email: authUser.user.email!, // Use the auth email for link generation
+        email: realEmail, // Use real email from profiles
         options: {
           redirectTo: `${appUrl}/reset-password`
         }
@@ -275,7 +293,7 @@ Deno.serve(async (req) => {
       
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'invite',
-        email: authUser.user.email!, // Use the auth email for link generation
+        email: realEmail, // Use real email from profiles
         options: {
           redirectTo: `${appUrl}/set-password`
         }
