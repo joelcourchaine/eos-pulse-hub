@@ -215,35 +215,83 @@ const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => 
   return quarters;
 };
 
-const getMonthlyTrendPeriods = (currentYear: number) => {
-  const months = [];
+interface MonthlyTrendPeriod {
+  month: number;
+  year: number;
+  label: string;
+  identifier: string;
+  type: 'month' | 'year-avg' | 'year-total';
+  summaryYear?: number;
+  isYTD?: boolean;
+}
+
+const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
+  const periods: MonthlyTrendPeriod[] = [];
   const startYear = currentYear - 1;
   const currentMonth = new Date().getMonth(); // 0-11
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
   // Add months from last year starting from the same month as current month
   for (let m = currentMonth; m < 12; m++) {
-    months.push({
+    periods.push({
       month: m,
       year: startYear,
       label: `${monthNames[m]} ${startYear}`,
       identifier: `${startYear}-${String(m + 1).padStart(2, '0')}`,
-      type: 'month' as const,
+      type: 'month',
     });
   }
   
+  // Add year-end summary columns for the previous year (after December)
+  periods.push({
+    month: -1,
+    year: startYear,
+    label: `Avg ${startYear}`,
+    identifier: `avg-${startYear}`,
+    type: 'year-avg',
+    summaryYear: startYear,
+  });
+  periods.push({
+    month: -1,
+    year: startYear,
+    label: `Total ${startYear}`,
+    identifier: `total-${startYear}`,
+    type: 'year-total',
+    summaryYear: startYear,
+  });
+  
   // Add months from current year up to current month
   for (let m = 0; m <= currentMonth; m++) {
-    months.push({
+    periods.push({
       month: m,
       year: currentYear,
       label: `${monthNames[m]} ${currentYear}`,
       identifier: `${currentYear}-${String(m + 1).padStart(2, '0')}`,
-      type: 'month' as const,
+      type: 'month',
     });
   }
   
-  return months;
+  // Add YTD summary columns for the current year (after last month)
+  periods.push({
+    month: -1,
+    year: currentYear,
+    label: `Avg YTD`,
+    identifier: `avg-${currentYear}`,
+    type: 'year-avg',
+    summaryYear: currentYear,
+    isYTD: true,
+  });
+  periods.push({
+    month: -1,
+    year: currentYear,
+    label: `Total YTD`,
+    identifier: `total-${currentYear}`,
+    type: 'year-total',
+    summaryYear: currentYear,
+    isYTD: true,
+  });
+  
+  return periods;
 };
 
 const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYearChange, onQuarterChange, onViewModeChange }: ScorecardGridProps) => {
@@ -2499,7 +2547,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   </TableHead>
                   {/* Latest quarter target column only */}
                   {(() => {
-                    const latestQuarter = Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
+                    const latestQuarter = Array.from(new Set(monthlyTrendPeriods.filter(m => m.type === 'month').map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
                       .sort((a, b) => {
                         const [qA, yA] = a.replace('Q', '').split('-').map(Number);
                         const [qB, yB] = b.replace('Q', '').split('-').map(Number);
@@ -2520,14 +2568,30 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       </TableHead>
                     );
                   })()}
-                  {monthlyTrendPeriods.map((month) => (
+                  {monthlyTrendPeriods.map((period) => (
                     <TableHead 
-                      key={month.label} 
-                      className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                      key={period.identifier} 
+                      className={cn(
+                        "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
+                        period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
+                        period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
+                        period.type === 'month' && "bg-muted/50"
+                      )}
                     >
                       <div className="flex flex-col items-center">
-                        <div>{month.label.split(' ')[0]}</div>
-                        <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                        {period.type === 'month' ? (
+                          <>
+                            <div>{period.label.split(' ')[0]}</div>
+                            <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
+                            <div className="text-xs font-normal text-muted-foreground">
+                              {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </TableHead>
                   ))}
@@ -2737,7 +2801,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                          className="px-1 py-0.5 min-w-[100px] max-w-[100px] bg-background sticky left-[200px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                        >
                          <Sparkline 
-                           data={monthlyTrendPeriods.map(month => {
+                           data={monthlyTrendPeriods.filter(p => p.type === 'month').map(month => {
                              const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
                              return precedingQuartersData[mKey];
                            })}
@@ -2745,7 +2809,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                        </TableCell>
                        {/* Latest quarter target cell - editable */}
                        {(() => {
-                         const latestQuarter = Array.from(new Set(monthlyTrendPeriods.map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
+                         const latestQuarter = Array.from(new Set(monthlyTrendPeriods.filter(m => m.type === 'month').map(m => `Q${Math.floor(m.month / 3) + 1}-${m.year}`)))
                            .sort((a, b) => {
                              const [qA, yA] = a.replace('Q', '').split('-').map(Number);
                              const [qB, yB] = b.replace('Q', '').split('-').map(Number);
