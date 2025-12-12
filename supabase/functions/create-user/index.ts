@@ -86,6 +86,23 @@ Deno.serve(async (req) => {
     const requestBody: CreateUserRequest = await req.json();
     let { email, full_name, role, store_id, store_group_id, department_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
 
+    // SECURITY: For non-super-admins, enforce store assignment to their own store
+    if (callerRole === 'store_gm' || callerRole === 'department_manager') {
+      // Get caller's store and store group
+      const { data: callerProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('store_id, store_group_id')
+        .eq('id', user.id)
+        .single();
+      
+      if (callerProfile?.store_id) {
+        // Force the store_id to be the caller's store
+        store_id = callerProfile.store_id;
+        store_group_id = callerProfile.store_group_id;
+        console.log('Enforced store assignment to caller store:', store_id);
+      }
+    }
+
     // If department manager, verify they can only add users to their own departments
     if (callerRole === 'department_manager' && department_id) {
       const { data: callerDepts } = await supabaseAdmin
