@@ -60,23 +60,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if caller has super_admin role
+    // Check if caller has super_admin or store_gm role
     const { data: callerRoles, error: roleError } = await userClient
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .eq('role', 'super_admin');
+      .in('role', ['super_admin', 'store_gm']);
 
     if (roleError || !callerRoles || callerRoles.length === 0) {
       console.error('Role check failed:', roleError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Forbidden: Only super admins can create users' 
+          error: 'Forbidden: Only super admins and store GMs can create users' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
+
+    const callerRole = callerRoles[0].role;
+    console.log('Caller role:', callerRole);
 
     console.log('Authorization successful for user:', user.id);
 
