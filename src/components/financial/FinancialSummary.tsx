@@ -1849,6 +1849,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               <TooltipContent side="right" className="max-w-[300px]">
                                 <p className="font-medium">{metric.name}</p>
                                 {metric.description && <p className="text-xs text-muted-foreground mt-1">{metric.description}</p>}
+                                {metric.key === 'sales_expense' && storeBrand?.toLowerCase().includes('stellantis') && (
+                                  <div className="mt-2 pt-2 border-t border-border">
+                                    <p className="text-xs font-medium mb-1">Includes:</p>
+                                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                                      <li>• Salaries Vacation & Time Off</li>
+                                      <li>• Training</li>
+                                      <li>• Advertising</li>
+                                      <li>• Supplies, Tools & Laundry</li>
+                                      <li>• Service Vehicle Expense</li>
+                                      <li>• Policy Expense</li>
+                                      <li>• Depr, Maint, Repair and Rental</li>
+                                    </ul>
+                                  </div>
+                                )}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
