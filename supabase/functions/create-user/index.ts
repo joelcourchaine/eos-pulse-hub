@@ -60,19 +60,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if caller has super_admin or store_gm role
+    // Check if caller has super_admin, store_gm, or department_manager role
     const { data: callerRoles, error: roleError } = await userClient
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .in('role', ['super_admin', 'store_gm']);
+      .in('role', ['super_admin', 'store_gm', 'department_manager']);
 
     if (roleError || !callerRoles || callerRoles.length === 0) {
       console.error('Role check failed:', roleError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Forbidden: Only super admins and store GMs can create users' 
+          error: 'Forbidden: Only super admins, store GMs, and department managers can create users' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
@@ -85,6 +85,34 @@ Deno.serve(async (req) => {
 
     const requestBody: CreateUserRequest = await req.json();
     let { email, full_name, role, store_id, store_group_id, department_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+
+    // If department manager, verify they can only add users to their own departments
+    if (callerRole === 'department_manager' && department_id) {
+      const { data: callerDepts } = await supabaseAdmin
+        .from('departments')
+        .select('id')
+        .eq('manager_id', user.id);
+      
+      const { data: callerAccess } = await supabaseAdmin
+        .from('user_department_access')
+        .select('department_id')
+        .eq('user_id', user.id);
+      
+      const allowedDeptIds = [
+        ...(callerDepts?.map(d => d.id) || []),
+        ...(callerAccess?.map(a => a.department_id) || [])
+      ];
+      
+      if (!allowedDeptIds.includes(department_id)) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Forbidden: You can only add users to departments you manage' 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+    }
 
     // SECURITY: Validate role
     const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor'];
