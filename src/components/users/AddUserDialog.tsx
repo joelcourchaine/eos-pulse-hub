@@ -376,68 +376,78 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             <div className="space-y-2">
               <Label>Birthday (Optional)</Label>
               <div className="flex gap-2">
-                <Select value={birthdayMonth} onValueChange={setBirthdayMonth}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">January</SelectItem>
-                    <SelectItem value="2">February</SelectItem>
-                    <SelectItem value="3">March</SelectItem>
-                    <SelectItem value="4">April</SelectItem>
-                    <SelectItem value="5">May</SelectItem>
-                    <SelectItem value="6">June</SelectItem>
-                    <SelectItem value="7">July</SelectItem>
-                    <SelectItem value="8">August</SelectItem>
-                    <SelectItem value="9">September</SelectItem>
-                    <SelectItem value="10">October</SelectItem>
-                    <SelectItem value="11">November</SelectItem>
-                    <SelectItem value="12">December</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="Day"
-                  min="1"
-                  max="31"
-                  value={birthdayDay}
-                  onChange={(e) => setBirthdayDay(e.target.value)}
-                  className="w-20"
-                />
+                <div className="flex-1">
+                  <span className="text-xs text-muted-foreground block mb-1">Month</span>
+                  <Select value={birthdayMonth} onValueChange={setBirthdayMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-20">
+                  <span className="text-xs text-muted-foreground block mb-1">Day</span>
+                  <Input
+                    type="number"
+                    placeholder="Day"
+                    min="1"
+                    max="31"
+                    value={birthdayDay}
+                    onChange={(e) => setBirthdayDay(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
             <div className="space-y-2">
               <Label>Start Date (Optional)</Label>
               <div className="flex gap-2">
-                <Select value={startMonth} onValueChange={setStartMonth}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Month" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">January</SelectItem>
-                    <SelectItem value="2">February</SelectItem>
-                    <SelectItem value="3">March</SelectItem>
-                    <SelectItem value="4">April</SelectItem>
-                    <SelectItem value="5">May</SelectItem>
-                    <SelectItem value="6">June</SelectItem>
-                    <SelectItem value="7">July</SelectItem>
-                    <SelectItem value="8">August</SelectItem>
-                    <SelectItem value="9">September</SelectItem>
-                    <SelectItem value="10">October</SelectItem>
-                    <SelectItem value="11">November</SelectItem>
-                    <SelectItem value="12">December</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  placeholder="Year"
-                  min="1950"
-                  max={new Date().getFullYear()}
-                  value={startYear}
-                  onChange={(e) => setStartYear(e.target.value)}
-                  className="w-24"
-                />
+                <div className="flex-1">
+                  <span className="text-xs text-muted-foreground block mb-1">Month</span>
+                  <Select value={startMonth} onValueChange={setStartMonth}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">January</SelectItem>
+                      <SelectItem value="2">February</SelectItem>
+                      <SelectItem value="3">March</SelectItem>
+                      <SelectItem value="4">April</SelectItem>
+                      <SelectItem value="5">May</SelectItem>
+                      <SelectItem value="6">June</SelectItem>
+                      <SelectItem value="7">July</SelectItem>
+                      <SelectItem value="8">August</SelectItem>
+                      <SelectItem value="9">September</SelectItem>
+                      <SelectItem value="10">October</SelectItem>
+                      <SelectItem value="11">November</SelectItem>
+                      <SelectItem value="12">December</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-24">
+                  <span className="text-xs text-muted-foreground block mb-1">Year</span>
+                  <Input
+                    type="number"
+                    placeholder="Year"
+                    min="1950"
+                    max={new Date().getFullYear()}
+                    value={startYear}
+                    onChange={(e) => setStartYear(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </div>
