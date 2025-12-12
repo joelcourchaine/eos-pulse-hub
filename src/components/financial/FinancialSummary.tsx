@@ -1863,6 +1863,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     </ul>
                                   </div>
                                 )}
+                                {metric.key === 'sales_expense' && storeBrand?.toLowerCase().includes('ford') && (
+                                  <div className="mt-2 pt-2 border-t border-border">
+                                    <p className="text-xs font-medium mb-1">Includes:</p>
+                                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                                      <li>• COMP. MGR.</li>
+                                      <li>• SAL. OTHER</li>
+                                      <li>• COMM. & INC OTHER</li>
+                                      <li>• ADVER/PROMO</li>
+                                      <li>• ADVERTISING REBATES</li>
+                                      <li>• TRAINING</li>
+                                      <li>• POLICY ADJ.</li>
+                                      <li>• SERV. LOANER</li>
+                                      <li>• TOOLS & SUPPLIES</li>
+                                      <li>• FREIGHT</li>
+                                      <li>• EQ & VEH MAINT</li>
+                                      <li>• INV CNTRL & DP</li>
+                                      <li>• VAC & TIME-OFF</li>
+                                    </ul>
+                                  </div>
+                                )}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
