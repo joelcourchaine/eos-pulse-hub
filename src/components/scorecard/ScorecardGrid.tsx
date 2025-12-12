@@ -1310,6 +1310,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Hours" || kpiName === "CP RO's") {
       return Math.round(value).toLocaleString();
     }
+    // Internal ELR should show 2 decimal places
+    if (kpiName === "Internal ELR") {
+      return `$${Number(value).toFixed(2)}`;
+    }
     // For all other KPIs, use the regular formatTarget function
     return formatTarget(value, type, kpiName);
   };
