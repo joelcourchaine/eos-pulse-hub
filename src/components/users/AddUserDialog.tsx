@@ -314,36 +314,36 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="accessType">Store Access</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
-                <Select value={storeId || "none"} onValueChange={(value) => {
-                  setStoreId(value === "none" ? "" : value);
-                  if (value !== "none") {
-                    setStoreGroupId(""); // Clear group if store selected
-                    loadDepartments(value); // Load departments for the selected store
-                  } else {
-                    setDepartments([]); // Clear departments if no store selected
-                  }
-                }}>
-                  <SelectTrigger id="store">
-                    <SelectValue placeholder="Select store" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Only show store group selection if super admin */}
-              {isSuperAdmin && (
+          {/* Store Access - Only super admins can select different stores */}
+          {isSuperAdmin ? (
+            <div className="space-y-2">
+              <Label htmlFor="accessType">Store Access</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
+                  <Select value={storeId || "none"} onValueChange={(value) => {
+                    setStoreId(value === "none" ? "" : value);
+                    if (value !== "none") {
+                      setStoreGroupId(""); // Clear group if store selected
+                      loadDepartments(value); // Load departments for the selected store
+                    } else {
+                      setDepartments([]); // Clear departments if no store selected
+                    }
+                  }}>
+                    <SelectTrigger id="store">
+                      <SelectValue placeholder="Select store" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {stores.map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
                 <div>
                   <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
                   <Select value={storeGroupId || "none"} onValueChange={(value) => {
@@ -363,14 +363,22 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                     </SelectContent>
                   </Select>
                 </div>
-              )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Assign to either a single store OR a store group for multi-store access
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {isSuperAdmin 
-                ? "Assign to either a single store OR a store group for multi-store access"
-                : "Assign to a store within your group"}
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Store</Label>
+              <p className="text-sm p-2 border rounded bg-muted">
+                {stores.find(s => s.id === storeId)?.name || "Current store"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                New users will be added to your store
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
