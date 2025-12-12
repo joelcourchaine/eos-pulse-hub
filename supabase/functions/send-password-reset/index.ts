@@ -147,15 +147,33 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check if auth email is masked (sandbox environment) and update it to real email
+    const authEmail = authUser.user.email;
+    if (authEmail && (authEmail.includes('@test.local') || authEmail.startsWith('user-'))) {
+      console.log('Detected masked email in auth, updating to real email:', profile.email);
+      
+      const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        profile.id,
+        { email: profile.email }
+      );
+      
+      if (updateError) {
+        console.error('Error updating user email:', updateError);
+        // Continue anyway - might still work
+      } else {
+        console.log('Successfully updated auth email to:', profile.email);
+      }
+    }
+
     // Determine redirect URL for the app
     const appUrl = 'https://dealergrowth.solutions';
 
-    // Generate password reset link
+    // Generate password reset link using the real email
     console.log('Generating password reset link for:', profile.email);
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
-      email: authUser.user.email!, // Use the auth email for link generation
+      email: profile.email, // Use real email from profiles
       options: {
         redirectTo: `${appUrl}/reset-password`
       }
