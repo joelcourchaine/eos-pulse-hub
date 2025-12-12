@@ -32,15 +32,50 @@ const ResetPassword = () => {
   // Check if we're in password update mode (user clicked email link)
   // Supabase puts auth params in the hash, not query params
   const [isUpdateMode, setIsUpdateMode] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
     // Check if this is a password recovery flow from email link
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const type = hashParams.get('type');
-    if (type === 'recovery') {
-      setIsUpdateMode(true);
-    }
-  }, []);
+    const checkRecoveryFlow = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const type = hashParams.get('type');
+      
+      if (type === 'recovery') {
+        setIsUpdateMode(true);
+        
+        // Wait for Supabase to process the recovery token and establish session
+        // The hash contains access_token which Supabase client will auto-process
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        const checkSession = async (): Promise<boolean> => {
+          const { data: { session } } = await supabase.auth.getSession();
+          return session !== null;
+        };
+        
+        // Poll for session establishment (Supabase processes the token async)
+        while (attempts < maxAttempts) {
+          const hasSession = await checkSession();
+          if (hasSession) {
+            setSessionReady(true);
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+        }
+        
+        // If session never established, show error
+        toast({
+          variant: "destructive",
+          title: "Session expired",
+          description: "Your password reset link has expired. Please request a new one.",
+        });
+        navigate("/auth");
+      }
+    };
+    
+    checkRecoveryFlow();
+  }, [navigate, toast]);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,11 +124,25 @@ const ResetPassword = () => {
     try {
       const validation = passwordSchema.parse({ password, confirmPassword });
 
+      // Verify we have an active session before attempting update
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Your session has expired. Please request a new password reset link.");
+      }
+
       const { error } = await supabase.auth.updateUser({
         password: validation.password,
       });
 
       if (error) throw error;
+      
+      // Verify the update was successful by checking we can still get the user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Password update could not be verified. Please try again.");
+      }
+      
+      console.log("Password successfully updated for user:", user.email);
 
       toast({
         title: "Password updated!",
@@ -139,35 +188,41 @@ const ResetPassword = () => {
         </CardHeader>
         <CardContent>
           {isUpdateMode ? (
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">New Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+            !sessionReady ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground">Verifying your reset link...</p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating..." : "Update Password"}
-              </Button>
-            </form>
+            ) : (
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password">New Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Updating..." : "Update Password"}
+                </Button>
+              </form>
+            )
           ) : emailSent ? (
             <div className="text-center space-y-4">
               <p className="text-sm text-muted-foreground">
