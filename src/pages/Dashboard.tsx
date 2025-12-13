@@ -888,15 +888,45 @@ const Dashboard = () => {
                 if (open) {
                   // Load recipients when dialog opens
                   const loadRecipients = async () => {
-                    if (!profile?.store_group_id) return;
+                    // Get super admin user IDs first
+                    const { data: superAdminRoles } = await supabase
+                      .from("user_roles")
+                      .select("user_id")
+                      .eq("role", "super_admin");
                     
-                    const { data: profiles } = await supabase
+                    const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
+                    
+                    // Fetch users in the same store group
+                    let groupProfiles: any[] = [];
+                    if (profile?.store_group_id) {
+                      const { data } = await supabase
+                        .from("profiles")
+                        .select("id, full_name, email")
+                        .eq("store_group_id", profile.store_group_id)
+                        .eq("is_system_user", false)
+                        .order("full_name");
+                      groupProfiles = data || [];
+                    }
+                    
+                    // Fetch super admins separately (they may not have store_group_id)
+                    const { data: superAdminProfiles } = await supabase
                       .from("profiles")
                       .select("id, full_name, email")
-                      .eq("store_group_id", profile.store_group_id)
-                      .order("full_name");
+                      .in("id", superAdminIds)
+                      .eq("is_system_user", false);
                     
-                    setEmailRecipients(profiles || []);
+                    // Merge and dedupe
+                    const allProfiles = [...groupProfiles];
+                    superAdminProfiles?.forEach(sa => {
+                      if (!allProfiles.find(p => p.id === sa.id)) {
+                        allProfiles.push(sa);
+                      }
+                    });
+                    
+                    // Sort by name
+                    allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
+                    
+                    setEmailRecipients(allProfiles);
                   };
                   loadRecipients();
                 }
