@@ -682,12 +682,13 @@ export default function Enterprise() {
                               {format(startMonth, "MMM yyyy")}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                          <PopoverContent className="w-auto p-0 z-[100]" align="start" sideOffset={4}>
                             <Calendar
                               mode="single"
                               selected={startMonth}
                               onSelect={(date) => date && setStartMonth(date)}
                               initialFocus
+                              fixedWeeks
                               className="pointer-events-auto"
                             />
                           </PopoverContent>
@@ -705,12 +706,13 @@ export default function Enterprise() {
                               {format(endMonth, "MMM yyyy")}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                          <PopoverContent className="w-auto p-0 z-[100]" align="start" sideOffset={4}>
                             <Calendar
                               mode="single"
                               selected={endMonth}
                               onSelect={(date) => date && setEndMonth(date)}
                               initialFocus
+                              fixedWeeks
                               className="pointer-events-auto"
                             />
                           </PopoverContent>
