@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
+import { getMetricsForBrand, isHondaLegacyMonth, type FinancialMetric } from "@/config/financialMetrics";
 import { FinancialDataImport } from "./FinancialDataImport";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
@@ -298,6 +298,35 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     return metrics;
   }, [storeBrand, departmentName]);
+
+  // Check if brand is Honda
+  const isHondaBrand = useMemo(() => {
+    return storeBrand?.toLowerCase().includes('honda') || false;
+  }, [storeBrand]);
+
+  // Helper to check if a metric should be visible for a given month (for Honda legacy handling)
+  const shouldShowMetricForMonth = (metricKey: string, monthIdentifier: string): boolean => {
+    if (!isHondaBrand) return true;
+    
+    // For Honda, hide Total Direct Expenses for months before November 2025
+    if (metricKey === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Helper to check if a calculated metric should use its calculation for a given month
+  const shouldUseCalculationForMonth = (metricKey: string, monthIdentifier: string): boolean => {
+    if (!isHondaBrand) return true;
+    
+    // For Honda, Semi Fixed Expense should be manual entry for months before November 2025
+    if (metricKey === 'semi_fixed_expense' && isHondaLegacyMonth(monthIdentifier)) {
+      return false;
+    }
+    
+    return true;
+  };
 
   // Calculate the month with highest department profit in current year
   const highestProfitMonth = useMemo(() => {
@@ -1822,6 +1851,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     const isDepartmentProfit = metric.key === 'department_profit';
                     
+                    // For Honda brand in standard (non-trend) view, check if we should show Total Direct Expenses
+                    // For standard view, all months are in same quarter - check first month of quarter
+                    if (!isMonthlyTrendMode && !isQuarterTrendMode && isHondaBrand && metric.key === 'total_direct_expenses') {
+                      const firstMonthOfQuarter = months[0]?.identifier || '';
+                      if (isHondaLegacyMonth(firstMonthOfQuarter)) {
+                        return null; // Hide Total Direct Expenses for Honda legacy months
+                      }
+                    }
+                    
                     return (
                       <TableRow 
                         key={metric.key} 
@@ -1906,7 +1944,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const key = `${metric.key}-${monthIdentifier}`;
                                   const entryValue = entries[key];
                                   const mValue = entryValue ?? precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
-                                  const isCalculated = !!metric.calculation;
+                                  // Check if metric should use calculation for this month (Honda legacy handling)
+                                  const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
+                                  
+                                  // For Honda, hide Total Direct Expenses cells for legacy months
+                                  if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
+                                    return (
+                                      <TableCell key={period.identifier} className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground">
+                                        -
+                                      </TableCell>
+                                    );
+                                  }
                                   
                                   // For calculated metrics, just display
                                   if (isCalculated) {
@@ -2340,7 +2388,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             // Check if this metric is calculated
                             const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-                            if (!sourceMetric || !sourceMetric.calculation) {
+                            // For Honda legacy months, skip calculation for semi_fixed_expense
+                            if (!sourceMetric || !sourceMetric.calculation || !shouldUseCalculationForMonth(metricKey, month.identifier)) {
                               return undefined;
                             }
                             
@@ -2385,7 +2434,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           
                           // Calculate dollar subtraction/complex metrics automatically if calculation is defined
-                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
+                          // For Honda, skip calculation for Semi Fixed Expense in legacy months (before Nov 2025)
+                          const shouldCalculate = shouldUseCalculationForMonth(metric.key, month.identifier);
+                          const isDollarCalculated = shouldCalculate && metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseValue = getValueForMetric(metric.calculation.base);
                             
@@ -2503,7 +2554,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             // Check if this metric is calculated
                             const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-                            if (!sourceMetric || !sourceMetric.calculation) {
+                            // For Honda legacy months, skip calculation for semi_fixed_expense
+                            if (!sourceMetric || !sourceMetric.calculation || !shouldUseCalculationForMonth(metricKey, month.identifier)) {
                               return undefined;
                             }
                             
@@ -2549,7 +2601,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           
                           // Calculate dollar subtraction/complex metrics automatically if calculation is defined
-                          const isDollarCalculated = metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
+                          // For Honda, skip calculation for Semi Fixed Expense in legacy months (before Nov 2025)
+                          const shouldCalculate = shouldUseCalculationForMonth(metric.key, month.identifier);
+                          const isDollarCalculated = shouldCalculate && metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseValue = getValueForMetric(metric.calculation.base);
                             
