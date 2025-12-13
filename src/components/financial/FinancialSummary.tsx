@@ -2050,10 +2050,71 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               step="any"
                                               value={localValues[key] || ""}
                                               onChange={(e) => handleValueChange(metric.key, monthIdentifier, e.target.value)}
-                                              onKeyDown={(e) => {
+                                              onKeyDown={async (e) => {
                                                 if (e.key === 'Enter') {
                                                   e.preventDefault();
-                                                  (e.target as HTMLInputElement).blur();
+                                                  
+                                                  // Clear debounce timeout and save immediately
+                                                  if (saveTimeoutRef.current[key]) {
+                                                    clearTimeout(saveTimeoutRef.current[key]);
+                                                    delete saveTimeoutRef.current[key];
+                                                  }
+                                                  
+                                                  // Get the value to save
+                                                  const currentValue = localValues[key];
+                                                  if (currentValue !== undefined && currentValue !== '') {
+                                                    let numValue = parseFloat(currentValue);
+                                                    if (!isNaN(numValue)) {
+                                                      numValue = Math.round(numValue);
+                                                      
+                                                      // Update state immediately
+                                                      setEntries(prev => ({ ...prev, [key]: numValue }));
+                                                      setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+                                                      
+                                                      // Save to database in background
+                                                      setSaving(prev => ({ ...prev, [key]: true }));
+                                                      
+                                                      const { data: session } = await supabase.auth.getSession();
+                                                      const userId = session.session?.user?.id;
+                                                      
+                                                      supabase
+                                                        .from("financial_entries")
+                                                        .upsert({
+                                                          department_id: departmentId,
+                                                          month: monthIdentifier,
+                                                          metric_name: metric.key,
+                                                          value: numValue,
+                                                          created_by: userId,
+                                                        }, {
+                                                          onConflict: "department_id,month,metric_name"
+                                                        })
+                                                        .then(({ error }) => {
+                                                          if (error) {
+                                                            console.error('Save error:', error);
+                                                          }
+                                                          setSaving(prev => ({ ...prev, [key]: false }));
+                                                        });
+                                                    }
+                                                  }
+                                                  
+                                                  // Move to the next row (same period column, next metric)
+                                                  const currentMetricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
+                                                  if (currentMetricIndex < FINANCIAL_METRICS.length - 1) {
+                                                    let nextIndex = currentMetricIndex + 1;
+                                                    let nextInput: HTMLInputElement | null = null;
+                                                    
+                                                    while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
+                                                      nextInput = document.querySelector(
+                                                        `input[data-metric-index="${nextIndex}"][data-trend-period-index="${periodIndex}"]`
+                                                      ) as HTMLInputElement;
+                                                      if (!nextInput) nextIndex++;
+                                                    }
+                                                    
+                                                    if (nextInput) {
+                                                      nextInput.focus();
+                                                      nextInput.select();
+                                                    }
+                                                  }
                                                 }
                                               }}
                                               onFocus={() => setFocusedCell(key)}
