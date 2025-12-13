@@ -185,10 +185,11 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       userIds = [...new Set(userIds)];
     }
     
-    // Fetch all profiles
+    // Fetch all profiles, excluding system users (like IT support)
     let query = supabase
       .from("profiles")
-      .select("*");
+      .select("*")
+      .eq("is_system_user", false);
     
     // Apply filter when viewing a specific store
     if (currentStoreId) {
