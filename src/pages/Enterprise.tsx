@@ -672,51 +672,59 @@ export default function Enterprise() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-sm font-medium mb-2 block">Start Month</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal bg-background z-50"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
+                        <Select 
+                          value={format(startMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setStartMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue>
                               {format(startMonth, "MMM yyyy")}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-[100]" align="start" sideOffset={4}>
-                            <Calendar
-                              mode="single"
-                              selected={startMonth}
-                              onSelect={(date) => date && setStartMonth(date)}
-                              initialFocus
-                              fixedWeeks
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-background max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <label className="text-sm font-medium mb-2 block">End Month</label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal bg-background z-50"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
+                        <Select 
+                          value={format(endMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setEndMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue>
                               {format(endMonth, "MMM yyyy")}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0 z-[100]" align="start" sideOffset={4}>
-                            <Calendar
-                              mode="single"
-                              selected={endMonth}
-                              onSelect={(date) => date && setEndMonth(date)}
-                              initialFocus
-                              fixedWeeks
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-background max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   )}
