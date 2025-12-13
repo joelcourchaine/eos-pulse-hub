@@ -38,21 +38,9 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
       .from("profiles")
       .select("id, full_name, birthday_month, birthday_day, start_month, start_year");
 
-    // Filter by current store if provided
+    // Filter by current store only - celebrations stay within the store
     if (currentStoreId) {
-      // Get the store's group_id
-      const { data: storeData } = await supabase
-        .from("stores")
-        .select("group_id")
-        .eq("id", currentStoreId)
-        .single();
-      
-      // Show users from this store OR users from this store's group
-      if (storeData?.group_id) {
-        query = query.or(`store_id.eq.${currentStoreId},store_group_id.eq.${storeData.group_id}`);
-      } else {
-        query = query.eq("store_id", currentStoreId);
-      }
+      query = query.eq("store_id", currentStoreId);
     }
     
     const { data: profiles, error } = await query;
