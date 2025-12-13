@@ -147,40 +147,48 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Quarter is required for weekly and monthly modes");
     }
 
-    // Fetch department with store and brand info (always use brand_id relationship for consistency)
-    const { data: department } = await supabaseClient
+    // Fetch department with store and brand info (use LEFT join for brands since brand_id may be null)
+    const { data: department, error: deptError } = await supabaseClient
       .from("departments")
       .select(`
         id,
         name,
         stores!inner(
           name,
-          brands!inner(
+          brand,
+          brands(
             name
           )
         )
       `)
       .eq("id", departmentId)
-      .single() as { data: {
-        id: string;
-        name: string;
-        stores: {
-          name: string;
-          brands: {
-            name: string;
-          };
-        };
-      } | null };
+      .single();
 
+    if (deptError) {
+      console.error("Error fetching department:", deptError);
+      throw new Error("Department not found");
+    }
+    
     if (!department) {
       throw new Error("Department not found");
     }
     
+    // Type the department properly
+    const deptData = department as unknown as {
+      id: string;
+      name: string;
+      stores: {
+        name: string;
+        brand: string | null;
+        brands: { name: string } | null;
+      };
+    };
+    
     console.log("Department loaded:", {
-      department: department.name,
-      store: department.stores?.name,
-      brand: department.stores?.brands?.name,
-      departmentId: department.id
+      department: deptData.name,
+      store: deptData.stores?.name,
+      brand: deptData.stores?.brands?.name || deptData.stores?.brand,
+      departmentId: deptData.id
     });
 
     // Fetch profiles
@@ -353,7 +361,7 @@ const handler = async (req: Request): Promise<Response> => {
         </style>
       </head>
       <body>
-        <h1>${department.stores?.name || "Store"} - ${department.name} Scorecard</h1>
+        <h1>${deptData.stores?.name || "Store"} - ${deptData.name} Scorecard</h1>
         <p><strong>${reportTitle}</strong> | <strong>${reportType} View</strong></p>
         ${directorNotes ? `
         <div class="director-notes">
@@ -467,7 +475,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
       
       // Get brand name from the brands relationship (always use brand_id relationship, not legacy brand field)
-      const brandName = department?.stores?.brands?.name || null;
+      const brandName = deptData?.stores?.brands?.name || deptData?.stores?.brand || null;
       console.log("Using brand for metrics:", brandName);
       
       // Define metrics based on brand - must match EXACTLY what's in the UI
