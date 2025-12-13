@@ -304,28 +304,43 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return storeBrand?.toLowerCase().includes('honda') || false;
   }, [storeBrand]);
 
-  // Helper to check if a metric should be visible for a given month (for Honda legacy handling)
-  const shouldShowMetricForMonth = (metricKey: string, monthIdentifier: string): boolean => {
+  // Helper to check if a calculated metric should use its standard calculation for a given month
+  // For Honda legacy months (before Nov 2025): Semi Fixed Expense is manual, Total Direct Expenses is calculated
+  // For Honda Nov 2025+: Total Direct Expenses is manual, Semi Fixed Expense is calculated
+  const shouldUseCalculationForMonth = (metricKey: string, monthIdentifier: string): boolean => {
     if (!isHondaBrand) return true;
     
-    // For Honda, hide Total Direct Expenses for months before November 2025
-    if (metricKey === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
+    const isLegacy = isHondaLegacyMonth(monthIdentifier);
+    
+    // For legacy months: Semi Fixed Expense is manual entry (no calculation)
+    if (metricKey === 'semi_fixed_expense' && isLegacy) {
       return false;
+    }
+    
+    // For Nov 2025+: Total Direct Expenses uses standard behavior (no special calculation needed, it's manual entry)
+    // For legacy months: Total Direct Expenses = Sales Expense + Semi Fixed Expense (reverse calculation)
+    // We handle the reverse calculation separately, so return false here to skip standard calculation
+    if (metricKey === 'total_direct_expenses') {
+      return false; // Total Direct Expenses doesn't have a standard calculation in HONDA_METRICS
     }
     
     return true;
   };
 
-  // Helper to check if a calculated metric should use its calculation for a given month
-  const shouldUseCalculationForMonth = (metricKey: string, monthIdentifier: string): boolean => {
-    if (!isHondaBrand) return true;
-    
-    // For Honda, Semi Fixed Expense should be manual entry for months before November 2025
-    if (metricKey === 'semi_fixed_expense' && isHondaLegacyMonth(monthIdentifier)) {
-      return false;
+  // Helper to calculate Total Direct Expenses for Honda legacy months (Sales Expense + Semi Fixed Expense)
+  const getHondaLegacyTotalDirectExpenses = (monthIdentifier: string, getValueFn: (key: string) => number | undefined): number | undefined => {
+    if (!isHondaBrand || !isHondaLegacyMonth(monthIdentifier)) {
+      return undefined;
     }
     
-    return true;
+    const salesExpense = getValueFn('sales_expense');
+    const semiFixedExpense = getValueFn('semi_fixed_expense');
+    
+    if (salesExpense !== undefined && semiFixedExpense !== undefined) {
+      return salesExpense + semiFixedExpense;
+    }
+    
+    return undefined;
   };
 
   // Calculate the month with highest department profit in current year
@@ -1851,14 +1866,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     const isDepartmentProfit = metric.key === 'department_profit';
                     
-                    // For Honda brand in standard (non-trend) view, check if we should show Total Direct Expenses
-                    // For standard view, all months are in same quarter - check first month of quarter
-                    if (!isMonthlyTrendMode && !isQuarterTrendMode && isHondaBrand && metric.key === 'total_direct_expenses') {
-                      const firstMonthOfQuarter = months[0]?.identifier || '';
-                      if (isHondaLegacyMonth(firstMonthOfQuarter)) {
-                        return null; // Hide Total Direct Expenses for Honda legacy months
-                      }
-                    }
+                    // Honda brand Total Direct Expenses is always shown (calculated for legacy, manual for Nov 2025+)
                     
                     return (
                       <TableRow 
@@ -1947,11 +1955,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   // Check if metric should use calculation for this month (Honda legacy handling)
                                   const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
                                   
-                                  // For Honda, hide Total Direct Expenses cells for legacy months
+                                  // For Honda Total Direct Expenses in legacy months, calculate as Sales Expense + Semi Fixed Expense
                                   if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
+                                    const getVal = (k: string) => {
+                                      const directKey = `${k}-${monthIdentifier}`;
+                                      return entries[directKey] ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`];
+                                    };
+                                    const salesExpense = getVal('sales_expense');
+                                    const semiFixedExpense = getVal('semi_fixed_expense');
+                                    const calculatedValue = (salesExpense !== undefined && semiFixedExpense !== undefined) 
+                                      ? salesExpense + semiFixedExpense 
+                                      : undefined;
+                                    
                                     return (
                                       <TableCell key={period.identifier} className="px-1 py-0.5 text-center min-w-[125px] max-w-[125px] text-muted-foreground">
-                                        -
+                                        {calculatedValue !== undefined ? formatTarget(calculatedValue, 'dollar') : "-"}
                                       </TableCell>
                                     );
                                   }
@@ -2461,6 +2479,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                           }
                           
+                          // For Honda Total Direct Expenses in legacy months, calculate as Sales Expense + Semi Fixed Expense
+                          if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(month.identifier)) {
+                            const salesExpense = getValueForMetric('sales_expense');
+                            const semiFixedExpense = getValueForMetric('semi_fixed_expense');
+                            if (salesExpense !== undefined && semiFixedExpense !== undefined) {
+                              value = salesExpense + semiFixedExpense;
+                            }
+                          }
+
                           return (
                             <TableCell
                               key={month.identifier}
@@ -2629,8 +2656,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                           }
                           
+                          // For Honda Total Direct Expenses in legacy months, calculate as Sales Expense + Semi Fixed Expense
+                          if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(month.identifier)) {
+                            const salesExpense = getValueForMetric('sales_expense');
+                            const semiFixedExpense = getValueForMetric('semi_fixed_expense');
+                            if (salesExpense !== undefined && semiFixedExpense !== undefined) {
+                              value = salesExpense + semiFixedExpense;
+                            }
+                          }
+                          
                           // Determine if this is a calculated field (both percentage and dollar calculations)
-                          const isCalculated = isPercentageCalculated || isDollarCalculated;
+                          // Also include Honda legacy Total Direct Expenses as calculated
+                          const isHondaLegacyTotalDirect = isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(month.identifier);
+                          const isCalculated = isPercentageCalculated || isDollarCalculated || isHondaLegacyTotalDirect;
                           
                           // Calculate status based on target and value
                           let status = "default";
