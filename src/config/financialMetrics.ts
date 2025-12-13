@@ -499,6 +499,127 @@ export const MAZDA_METRICS: FinancialMetric[] = [
   },
 ];
 
+// Honda-specific metrics (like Nissan but without Parts Transfer and Net Operating Profit)
+// For November 2025+: Total Direct Expenses - Sales Expense = Semi Fixed Expense
+// For October 2025 and earlier: Semi Fixed Expense is manual entry (legacy data)
+export const HONDA_METRICS: FinancialMetric[] = [
+  { 
+    name: "Total Sales", 
+    key: "total_sales", 
+    type: "dollar", 
+    description: "Total revenue for the period", 
+    targetDirection: "above" 
+  },
+  { 
+    name: "GP Net", 
+    key: "gp_net", 
+    type: "dollar", 
+    description: "Gross profit after costs", 
+    targetDirection: "above" 
+  },
+  { 
+    name: "GP %", 
+    key: "gp_percent", 
+    type: "percentage", 
+    description: "Gross profit margin", 
+    targetDirection: "above",
+    calculation: {
+      numerator: "gp_net",
+      denominator: "total_sales"
+    }
+  },
+  { 
+    name: "Sales Expense", 
+    key: "sales_expense", 
+    type: "dollar", 
+    description: "Total sales expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Sales Expense %", 
+    key: "sales_expense_percent", 
+    type: "percentage", 
+    description: "Sales expenses as % of GP Net", 
+    targetDirection: "below",
+    calculation: {
+      numerator: "sales_expense",
+      denominator: "gp_net"
+    }
+  },
+  { 
+    name: "Total Direct Expenses", 
+    key: "total_direct_expenses", 
+    type: "dollar", 
+    description: "Total direct expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Semi Fixed Expense", 
+    key: "semi_fixed_expense", 
+    type: "dollar", 
+    description: "Total Direct Expenses less Sales Expense", 
+    targetDirection: "below",
+    calculation: {
+      type: "subtract",
+      base: "total_direct_expenses",
+      deductions: ["sales_expense"]
+    }
+  },
+  { 
+    name: "Semi Fixed Expense %", 
+    key: "semi_fixed_expense_percent", 
+    type: "percentage", 
+    description: "Semi-fixed expenses as % of GP Net", 
+    targetDirection: "below",
+    calculation: {
+      numerator: "semi_fixed_expense",
+      denominator: "gp_net"
+    }
+  },
+  { 
+    name: "Net Selling Gross", 
+    key: "net_selling_gross", 
+    type: "dollar", 
+    description: "GP Net less Sales Expense less Semi Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense"]
+    }
+  },
+  { 
+    name: "Total Fixed Expense", 
+    key: "total_fixed_expense", 
+    type: "dollar", 
+    description: "Total fixed expenses", 
+    targetDirection: "below" 
+  },
+  { 
+    name: "Department Profit", 
+    key: "department_profit", 
+    type: "dollar", 
+    description: "GP Net less Sales Expense less Semi Fixed Expense less Fixed Expense", 
+    targetDirection: "above",
+    calculation: {
+      type: "subtract",
+      base: "gp_net",
+      deductions: ["sales_expense", "semi_fixed_expense", "total_fixed_expense"]
+    }
+  },
+  { 
+    name: "Return on Gross", 
+    key: "return_on_gross", 
+    type: "percentage", 
+    description: "Department Profit divided by GP Net", 
+    targetDirection: "above",
+    calculation: {
+      numerator: "department_profit",
+      denominator: "gp_net"
+    }
+  },
+];
+
 // You can add additional brand configurations here
 export const OTHER_METRICS: FinancialMetric[] = [
   // Define metrics for other brands as needed
@@ -515,5 +636,52 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   if (brand?.toLowerCase().includes('mazda')) {
     return MAZDA_METRICS;
   }
+  if (brand?.toLowerCase().includes('honda')) {
+    return HONDA_METRICS;
+  }
   return GMC_CHEVROLET_METRICS;
+};
+
+// Helper to check if Honda brand should use legacy (pre-November 2025) metrics
+// where Semi Fixed Expense is manual entry instead of calculated
+export const isHondaLegacyMonth = (month: string): boolean => {
+  // month format is "YYYY-MM" or "MonthName YYYY"
+  const monthMatch = month.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) {
+    const year = parseInt(monthMatch[1]);
+    const monthNum = parseInt(monthMatch[2]);
+    // Before November 2025 (2025-11)
+    return year < 2025 || (year === 2025 && monthNum < 11);
+  }
+  
+  // Handle "MonthName YYYY" format
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december'];
+  const parts = month.toLowerCase().split(' ');
+  if (parts.length === 2) {
+    const monthIdx = monthNames.indexOf(parts[0]);
+    const year = parseInt(parts[1]);
+    if (monthIdx !== -1 && !isNaN(year)) {
+      // Before November 2025 (month index 10)
+      return year < 2025 || (year === 2025 && monthIdx < 10);
+    }
+  }
+  
+  return false;
+};
+
+// Get Honda metrics with legacy mode (no calculation for Semi Fixed Expense)
+export const getHondaLegacyMetrics = (): FinancialMetric[] => {
+  return HONDA_METRICS.map(metric => {
+    if (metric.key === 'semi_fixed_expense') {
+      // Remove calculation for legacy months - treat as manual entry
+      const { calculation, ...rest } = metric;
+      return rest;
+    }
+    // Also hide Total Direct Expenses for legacy months since it's not used
+    if (metric.key === 'total_direct_expenses') {
+      return null;
+    }
+    return metric;
+  }).filter((m): m is FinancialMetric => m !== null);
 };
