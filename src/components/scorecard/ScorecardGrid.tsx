@@ -3298,7 +3298,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <>
                       {/* Previous Year Quarter */}
                       <TableCell 
-                        className="text-center py-0.5 min-w-[100px] text-muted-foreground bg-primary/10 border-x-2 border-primary/30"
+                        className="text-center py-0.5 min-w-[100px] max-w-[100px] text-muted-foreground bg-primary/10 border-x-2 border-primary/30"
                       >
                         {(() => {
                           const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
@@ -3326,7 +3326,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       })}
                       
                       {/* Q{quarter} Target */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-background border-x-2 border-primary/30 font-medium">
+                      <TableCell className="text-center py-0.5 min-w-[100px] max-w-[100px] bg-background border-x-2 border-primary/30 font-medium">
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
@@ -3519,7 +3519,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       })}
                       {/* Current Year Quarter Average */}
                       <TableCell 
-                        className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30"
+                        className="text-center py-0.5 min-w-[100px] max-w-[100px] bg-primary/10 border-x-2 border-primary/30"
                       >
                         {(() => {
                           const qKey = `${kpi.id}-Q${quarter}-${year}`;

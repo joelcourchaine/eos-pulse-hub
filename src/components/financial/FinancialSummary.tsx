@@ -2584,7 +2584,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               return (
                                 <TableCell 
                                   className={cn(
-                                    "text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30",
+                                    "text-center py-[7.2px] min-w-[100px] max-w-[100px] bg-primary/10 border-x-2 border-primary/30",
                                     isDepartmentProfit && "z-10",
                                     status === "success" && "bg-success/10 text-success font-medium",
                                     status === "warning" && "bg-warning/10 text-warning font-medium",
@@ -3123,7 +3123,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         {/* Current Year Quarter Average */}
                         <TableCell 
                           className={cn(
-                            "text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30",
+                            "text-center py-0.5 min-w-[100px] max-w-[100px] bg-primary/10 border-x-2 border-primary/30",
                             isDepartmentProfit && "bg-primary/5"
                           )}
                         >
