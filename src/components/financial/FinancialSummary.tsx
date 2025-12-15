@@ -2022,6 +2022,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     </ul>
                                   </div>
                                 )}
+                                {metric.key === 'semi_fixed_expense' && storeBrand?.toLowerCase().includes('honda') && (
+                                  <div className="mt-2 pt-2 border-t border-border">
+                                    <p className="text-xs font-medium mb-1">Includes:</p>
+                                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                                      <li>• Office Supplies</li>
+                                      <li>• Shop Tools-Sundry Supplies</li>
+                                      <li>• Courtesy Vehicle</li>
+                                      <li>• Laundry-Uniforms</li>
+                                      <li>• Janitor Services-Cleaning</li>
+                                      <li>• Postage</li>
+                                      <li>• Policy Adjustments</li>
+                                      <li>• Advertising</li>
+                                      <li>• Co-op Advertising Rebate</li>
+                                      <li>• Donations</li>
+                                      <li>• Company Vehicle</li>
+                                      <li>• Inventory Maintenance</li>
+                                      <li>• Data Processing</li>
+                                      <li>• Training</li>
+                                      <li>• Travel-Entertainment</li>
+                                      <li>• Telephone-Fax</li>
+                                      <li>• Membership Dues & Subscriptions</li>
+                                      <li>• Freight-Express</li>
+                                      <li>• Outside Services</li>
+                                      <li>• Audit-Legal & Collection</li>
+                                      <li>• Miscellaneous</li>
+                                      <li>• Interest & Bank Charges</li>
+                                      <li>• Floor Plan Interest</li>
+                                    </ul>
+                                  </div>
+                                )}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
