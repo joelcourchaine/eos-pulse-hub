@@ -2022,7 +2022,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     </ul>
                                   </div>
                                 )}
-                                {metric.key === 'semi_fixed_expense' && storeBrand?.toLowerCase().includes('honda') && (
+                                {(storeBrand?.toLowerCase().includes('honda')) && (metric.key === 'semi_fixed_expense' || metric.key === 'total_direct_expenses') && (
                                   <div className="mt-2 pt-2 border-t border-border">
                                     <p className="text-xs font-medium mb-1">Includes:</p>
                                     <ul className="text-xs text-muted-foreground space-y-0.5">
