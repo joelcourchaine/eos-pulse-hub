@@ -1166,119 +1166,123 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const handleValueChange = (kpiId: string, periodKey: string, value: string, target: number, type: string, targetDirection: "above" | "below", isMonthly: boolean, monthId?: string) => {
     const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
     
-    // Update local state immediately for responsive UI
+    // Only update local state - don't save yet
     setLocalValues(prev => ({ ...prev, [key]: value }));
+  };
 
-    // Clear existing timeout for this field
+  const saveValue = async (kpiId: string, periodKey: string, value: string, target: number, type: string, targetDirection: "above" | "below", isMonthly: boolean, monthId?: string) => {
+    const key = isMonthly ? `${kpiId}-month-${monthId}` : `${kpiId}-${periodKey}`;
+    
+    // Clear any existing timeout for this field
     if (saveTimeoutRef.current[key]) {
       clearTimeout(saveTimeoutRef.current[key]);
+      delete saveTimeoutRef.current[key];
     }
 
-    // Set new timeout to save after user stops typing (1.5 second delay)
-    saveTimeoutRef.current[key] = setTimeout(async () => {
-      const actualValue = parseFloat(value) || null;
+    const actualValue = parseFloat(value) || null;
 
-      setSaving(prev => ({ ...prev, [key]: true }));
+    setSaving(prev => ({ ...prev, [key]: true }));
 
-      // If value is empty/null, delete the entry
-      if (actualValue === null || value === '') {
-        const { error } = await supabase
-          .from("scorecard_entries")
-          .delete()
-          .eq("kpi_id", kpiId)
-          .eq(isMonthly ? "month" : "week_start_date", isMonthly ? monthId : periodKey);
-
-        if (error) {
-          toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
-        } else {
-          // Remove from local state
-          setEntries(prev => {
-            const newEntries = { ...prev };
-            delete newEntries[key];
-            return newEntries;
-          });
-        }
-
-        setSaving(prev => ({ ...prev, [key]: false }));
-        delete saveTimeoutRef.current[key];
-        return;
-      }
-
-      let variance: number;
-      if (type === "percentage") {
-        variance = actualValue - target;
-      } else if (target !== 0) {
-        variance = ((actualValue - target) / target) * 100;
-      } else {
-        // Special handling when target is 0
-        if (targetDirection === "below") {
-          // For "below" targets with 0 target, any positive value is bad
-          variance = actualValue > 0 ? 100 : 0;
-        } else {
-          // For "above" targets with 0 target, any positive value is good
-          variance = actualValue > 0 ? 100 : -100;
-        }
-      }
-
-      // Calculate status based on target direction
-      let status: string;
-      if (targetDirection === "above") {
-        // Higher is better
-        status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
-      } else {
-        // Lower is better (invert the logic)
-        status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
-      }
-
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session.session?.user?.id;
-
-      const entryData: any = {
-        kpi_id: kpiId,
-        actual_value: actualValue,
-        variance,
-        status,
-        created_by: userId,
-        entry_type: isMonthly ? 'monthly' : 'weekly',
-      };
-
-      if (isMonthly) {
-        entryData.month = monthId;
-      } else {
-        entryData.week_start_date = periodKey;
-      }
-
-      const { data, error } = await supabase
+    // If value is empty/null, delete the entry
+    if (actualValue === null || value === '') {
+      const { error } = await supabase
         .from("scorecard_entries")
-        .upsert(entryData, {
-          onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
-        })
-        .select()
-        .single();
+        .delete()
+        .eq("kpi_id", kpiId)
+        .eq(isMonthly ? "month" : "week_start_date", isMonthly ? monthId : periodKey);
 
       if (error) {
-        toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
-      } else if (data) {
-        // Update entries state first
-        let latestEntries: Record<string, ScorecardEntry> = {};
+        toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+      } else {
+        // Remove from local state
         setEntries(prev => {
-          latestEntries = {
-            ...prev,
-            [key]: data as ScorecardEntry
-          };
-          return latestEntries;
+          const newEntries = { ...prev };
+          delete newEntries[key];
+          return newEntries;
         });
-        
-        // Don't clear localValues - let it stay until user focuses away or value changes
-        // The display logic will prefer localValues but fall back to entries
-
-        // Auto-calculate dependent KPIs with the updated entries
-        await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, latestEntries);
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
-      delete saveTimeoutRef.current[key];
-    }, 1500); // Debounce delay - 1.5 seconds
+      return;
+    }
+
+    let variance: number;
+    if (type === "percentage") {
+      variance = actualValue - target;
+    } else if (target !== 0) {
+      variance = ((actualValue - target) / target) * 100;
+    } else {
+      // Special handling when target is 0
+      if (targetDirection === "below") {
+        // For "below" targets with 0 target, any positive value is bad
+        variance = actualValue > 0 ? 100 : 0;
+      } else {
+        // For "above" targets with 0 target, any positive value is good
+        variance = actualValue > 0 ? 100 : -100;
+      }
+    }
+
+    // Calculate status based on target direction
+    let status: string;
+    if (targetDirection === "above") {
+      // Higher is better
+      status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+    } else {
+      // Lower is better (invert the logic)
+      status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+    }
+
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session.session?.user?.id;
+
+    const entryData: any = {
+      kpi_id: kpiId,
+      actual_value: actualValue,
+      variance,
+      status,
+      created_by: userId,
+      entry_type: isMonthly ? 'monthly' : 'weekly',
+    };
+
+    if (isMonthly) {
+      entryData.month = monthId;
+    } else {
+      entryData.week_start_date = periodKey;
+    }
+
+    const { data, error } = await supabase
+      .from("scorecard_entries")
+      .upsert(entryData, {
+        onConflict: isMonthly ? "kpi_id,month" : "kpi_id,week_start_date"
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast({ title: "Error", description: "Failed to save entry", variant: "destructive" });
+    } else if (data) {
+      // Update entries state first
+      let latestEntries: Record<string, ScorecardEntry> = {};
+      setEntries(prev => {
+        latestEntries = {
+          ...prev,
+          [key]: data as ScorecardEntry
+        };
+        return latestEntries;
+      });
+      
+      // Clear localValues after successful save
+      setLocalValues(prev => {
+        const newLocalValues = { ...prev };
+        delete newLocalValues[key];
+        return newLocalValues;
+      });
+
+      // Auto-calculate dependent KPIs with the updated entries
+      await calculateDependentKPIs(kpiId, periodKey, isMonthly, monthId, latestEntries);
+    }
+
+    setSaving(prev => ({ ...prev, [key]: false }));
   };
 
   const getStatus = (status: string | null) => {
@@ -3047,8 +3051,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                         handleValueChange(kpi.id, '', e.target.value, targetValue, kpi.metric_type, kpi.target_direction, true, monthIdentifier)
                                       }
                                       onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
+                                        if (e.key === 'Enter' || e.key === 'Tab') {
                                           e.preventDefault();
+                                          saveValue(kpi.id, '', localValues[key] ?? displayValue, targetValue, kpi.metric_type, kpi.target_direction, true, monthIdentifier);
                                           const currentKpiIndex = index;
                                           if (currentKpiIndex < sortedKpis.length - 1) {
                                             const nextInput = document.querySelector(
@@ -3061,6 +3066,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                       }}
                                       onFocus={() => setFocusedInput(key)}
                                       onBlur={() => {
+                                        const valueToSave = localValues[key];
+                                        if (valueToSave !== undefined) {
+                                          saveValue(kpi.id, '', valueToSave, targetValue, kpi.metric_type, kpi.target_direction, true, monthIdentifier);
+                                        }
                                         setTimeout(() => {
                                           setFocusedInput(null);
                                           setLocalValues(prev => {
@@ -3225,8 +3234,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                   handleValueChange(kpi.id, weekDate, e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false)
                                 }
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                                  if (e.key === 'Enter' || e.key === 'Tab') {
                                     e.preventDefault();
+                                    saveValue(kpi.id, weekDate, localValues[key] ?? displayValue, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false);
                                     // Use sortedKpis index instead of original kpis
                                     const currentKpiIndex = index;
                                     const currentPeriodIndex = weeks.findIndex(w => w.start.toISOString().split('T')[0] === weekDate);
@@ -3242,7 +3252,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }}
                                  onFocus={() => setFocusedInput(key)}
                                  onBlur={() => {
-                                   // Clear local value on blur so display shows saved value
+                                   const valueToSave = localValues[key];
+                                   if (valueToSave !== undefined) {
+                                     saveValue(kpi.id, weekDate, valueToSave, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, false);
+                                   }
                                    setTimeout(() => {
                                      setFocusedInput(null);
                                      setLocalValues(prev => {
@@ -3447,8 +3460,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                       handleValueChange(kpi.id, '', e.target.value, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier)
                                     }
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                                  if (e.key === 'Enter' || e.key === 'Tab') {
                                     e.preventDefault();
+                                    saveValue(kpi.id, '', localValues[key] ?? displayValue, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier);
                                     // Use sortedKpis index instead of original kpis
                                     const currentKpiIndex = index;
                                     const currentPeriodIndex = months.findIndex(m => m.identifier === month.identifier);
@@ -3464,7 +3478,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 }}
                                      onFocus={() => setFocusedInput(key)}
                                      onBlur={() => {
-                                       // Clear local value on blur so display shows saved value
+                                       const valueToSave = localValues[key];
+                                       if (valueToSave !== undefined) {
+                                         saveValue(kpi.id, '', valueToSave, kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.target_direction, true, month.identifier);
+                                       }
                                        setTimeout(() => {
                                          setFocusedInput(null);
                                          setLocalValues(prev => {
