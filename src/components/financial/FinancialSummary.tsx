@@ -1758,7 +1758,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         </CardHeader>
         <CollapsibleContent>
           <CardContent>
-            <div className="overflow-x-auto border rounded-lg">
+            <div 
+              className="overflow-x-auto border rounded-lg"
+              style={{ maxWidth: !isMonthlyTrendMode && !isQuarterTrendMode ? 'calc(200px + 100px + 375px + 100px + 250px)' : undefined }}
+            >
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
