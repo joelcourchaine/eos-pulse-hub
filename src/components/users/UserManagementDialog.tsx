@@ -207,21 +207,21 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       console.error("Error loading profiles:", error);
       toast({ title: "Error", description: "Failed to load users", variant: "destructive" });
     } else {
-      // Load user roles for each profile
-      const profilesWithRoles = await Promise.all(
-        (data || []).map(async (profile) => {
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", profile.id)
-            .single();
-          
-          return {
-            ...profile,
-            user_role: roleData?.role || profile.role
-          };
-        })
-      );
+      // Load user roles for all profiles in a single batch query
+      const profileIds = (data || []).map(p => p.id);
+      const { data: allRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", profileIds);
+      
+      // Create a map for quick lookup
+      const roleMap = new Map<string, string>();
+      allRoles?.forEach(r => roleMap.set(r.user_id, r.role));
+      
+      const profilesWithRoles = (data || []).map(profile => ({
+        ...profile,
+        user_role: roleMap.get(profile.id) || profile.role
+      }));
       setProfiles(profilesWithRoles);
     }
     setLoading(false);

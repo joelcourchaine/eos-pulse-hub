@@ -200,7 +200,7 @@ const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
   return periods;
 };
 
-export const FinancialSummary = React.memo(({ departmentId, year, quarter }: FinancialSummaryProps) => {
+export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
   const [trendTargets, setTrendTargets] = useState<{ [metricKey: string]: { [quarterYear: string]: { value: number; direction: "above" | "below" } } }>({});
@@ -3354,4 +3354,4 @@ export const FinancialSummary = React.memo(({ departmentId, year, quarter }: Fin
       />
     </Card>
   );
-});
+};
