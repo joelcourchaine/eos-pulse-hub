@@ -2780,7 +2780,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length)} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length + 1)} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
