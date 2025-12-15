@@ -1037,10 +1037,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       return;
     }
 
-    // Original logic for non-trend mode: Only load the same quarter from the previous year
+    // Original logic for non-trend mode: Load both previous year and current year quarter
     const prevYearQuarter = { quarter, year: year - 1 };
-    const months = getQuarterMonthsForCalculation(prevYearQuarter.quarter, prevYearQuarter.year);
-    const allMonthIds = months.map(m => m.identifier);
+    const currentYearQuarter = { quarter, year };
+    
+    const prevYearMonths = getQuarterMonthsForCalculation(prevYearQuarter.quarter, prevYearQuarter.year);
+    const currentYearMonths = getQuarterMonthsForCalculation(currentYearQuarter.quarter, currentYearQuarter.year);
+    const allMonthIds = [...prevYearMonths.map(m => m.identifier), ...currentYearMonths.map(m => m.identifier)];
 
     const { data, error } = await supabase
       .from("financial_entries")
@@ -1185,6 +1188,80 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           const total = values.reduce((sum, val) => sum + val, 0);
           const avg = total / monthCount;
           averages[`${metric.key}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`] = avg;
+        }
+      }
+    });
+
+    // Now calculate current year quarter averages
+    const currentQuarterMonths = getQuarterMonthsForCalculation(currentYearQuarter.quarter, currentYearQuarter.year);
+    const currentQuarterMonthIds = currentQuarterMonths.map(m => m.identifier);
+    
+    // Count how many months have data in this quarter
+    const currentMonthsWithData = new Set<string>();
+    data?.forEach(entry => {
+      if (currentQuarterMonthIds.includes(entry.month) && entry.value !== null) {
+        currentMonthsWithData.add(entry.month);
+      }
+    });
+    const currentMonthCount = currentMonthsWithData.size || 1;
+    
+    FINANCIAL_METRICS.forEach(metric => {
+      // For percentage metrics, recalculate from underlying dollar amounts
+      if (metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+        const { numerator, denominator } = metric.calculation;
+        
+        const totalNumerator = getMetricTotal(numerator, currentQuarterMonthIds);
+        const totalDenominator = getMetricTotal(denominator, currentQuarterMonthIds);
+        
+        if (totalDenominator > 0) {
+          const calculatedPercentage = (totalNumerator / totalDenominator) * 100;
+          averages[`${metric.key}-Q${currentYearQuarter.quarter}-${currentYearQuarter.year}`] = calculatedPercentage;
+        }
+      } else if (metric.calculation) {
+        // For calculated dollar metrics
+        const total = getMetricTotal(metric.key, currentQuarterMonthIds);
+        if (total !== 0) {
+          const avg = total / currentMonthCount;
+          averages[`${metric.key}-Q${currentYearQuarter.quarter}-${currentYearQuarter.year}`] = avg;
+        }
+      } else {
+        // For direct database values
+        if (isHondaBrand && metric.key === 'total_direct_expenses') {
+          const metricMonthCount = currentQuarterMonthIds.reduce((count, monthId) => {
+            const direct = data?.find(e => e.month === monthId && e.metric_name === 'total_direct_expenses')?.value;
+            if (direct !== null && direct !== undefined) return count + 1;
+
+            if (isHondaLegacyMonth(monthId)) {
+              const sales = data?.find(e => e.month === monthId && e.metric_name === 'sales_expense')?.value;
+              const semiFixed = data?.find(e => e.month === monthId && e.metric_name === 'semi_fixed_expense')?.value;
+              if (sales !== null && sales !== undefined && semiFixed !== null && semiFixed !== undefined) {
+                return count + 1;
+              }
+            }
+
+            return count;
+          }, 0);
+
+          if (metricMonthCount > 0) {
+            const total = getMetricTotal(metric.key, currentQuarterMonthIds);
+            const avg = total / metricMonthCount;
+            averages[`${metric.key}-Q${currentYearQuarter.quarter}-${currentYearQuarter.year}`] = avg;
+          }
+
+          return;
+        }
+
+        const values = data
+          ?.filter(entry => 
+            entry.metric_name === metric.key && 
+            currentQuarterMonthIds.includes(entry.month)
+          )
+          .map(entry => entry.value || 0) || [];
+        
+        if (values.length > 0) {
+          const total = values.reduce((sum, val) => sum + val, 0);
+          const avg = total / currentMonthCount;
+          averages[`${metric.key}-Q${currentYearQuarter.quarter}-${currentYearQuarter.year}`] = avg;
         }
       }
     });
@@ -1949,6 +2026,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           </TableHead>
                         ))}
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                          <div className="flex flex-col items-center">
+                            <div>Q{quarter} Avg</div>
+                            <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                          </div>
+                        </TableHead>
                       </>
                     )}
                   </TableRow>
@@ -3037,6 +3120,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </ContextMenu>
                           );
                         })}
+                        {/* Current Year Quarter Average */}
+                        <TableCell 
+                          className={cn(
+                            "text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30",
+                            isDepartmentProfit && "bg-primary/5"
+                          )}
+                        >
+                          {(() => {
+                            const qKey = `${metric.key}-Q${quarter}-${year}`;
+                            const qValue = precedingQuartersData[qKey];
+                            return qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-";
+                          })()}
+                        </TableCell>
                         </>
                       )}
                       </TableRow>
