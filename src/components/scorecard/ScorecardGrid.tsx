@@ -2653,13 +2653,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               );
             }) : (
               <>
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                {/* Previous Year Quarter Average - sticky */}
+                <TableHead 
+                  className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted z-20 border-r"
+                  style={{ position: 'sticky', left: 200 }}
+                >
                   Q{quarter} {year - 1}
                 </TableHead>
-                {previousYearMonths.map((month) => (
+                {/* Previous Year Months - sticky */}
+                {previousYearMonths.map((month, idx) => (
                   <TableHead 
                     key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted z-20"
+                    style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
                   >
                     <div className="flex flex-col items-center">
                       <div>{month.label}</div>
@@ -2667,9 +2673,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                {/* Current Quarter Target - sticky with separator shadow */}
+                <TableHead 
+                  className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 z-20 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
+                  style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
+                >
                   Q{quarter} Target
                 </TableHead>
+                {/* Current Year Months - scrollable */}
                 {months.map((month) => (
                   <TableHead 
                     key={month.identifier} 
@@ -3265,9 +3276,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     );
                   }) : (
                     <>
-                      {/* Previous Year Quarter */}
+                      {/* Previous Year Quarter - sticky */}
                       <TableCell 
-                        className="text-center py-0.5 min-w-[100px] text-muted-foreground"
+                        className="text-center py-0.5 min-w-[100px] text-muted-foreground bg-background z-10 border-r"
+                        style={{ position: 'sticky', left: 200 }}
                       >
                         {(() => {
                           const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
@@ -3276,8 +3288,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         })()}
                       </TableCell>
                       
-                      {/* Previous Year Months */}
-                      {previousYearMonths.map((month) => {
+                      {/* Previous Year Months - sticky */}
+                      {previousYearMonths.map((month, idx) => {
                         const key = `${kpi.id}-month-${month.identifier}`;
                         const entry = entries[key];
                         const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
@@ -3285,7 +3297,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         return (
                           <TableCell
                             key={month.identifier}
-                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground"
+                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground bg-background z-10"
+                            style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
                           >
                             {entry?.actual_value !== null && entry?.actual_value !== undefined 
                               ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
@@ -3294,8 +3307,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         );
                       })}
                       
-                      {/* Q{quarter} Target */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                      {/* Q{quarter} Target - sticky with separator shadow */}
+                      <TableCell 
+                        className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium z-10 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
+                        style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
+                      >
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
