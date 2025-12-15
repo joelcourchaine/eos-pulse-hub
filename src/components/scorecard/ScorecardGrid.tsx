@@ -2763,8 +2763,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     onDrop={(e) => handleOwnerDrop(e, kpi.assigned_to || 'unassigned')}
                   >
                     <TableCell 
-                      className="z-10 bg-muted py-1 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
-                      style={{ position: 'sticky', left: 0 }}
+                      className="sticky left-0 z-10 bg-muted py-1 w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                     >
                       <div className="flex items-center gap-2">
                         {canManageKPIs && (
@@ -2786,8 +2785,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 )}
                 <TableRow className="hover:bg-muted/30">
                   <TableCell 
-                    className="bg-background z-10 font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
-                    style={{ position: 'sticky', left: 0 }}
+                    className="sticky left-0 bg-background z-10 w-[200px] min-w-[200px] max-w-[200px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                   >
                     {kpi.name}
                   </TableCell>
