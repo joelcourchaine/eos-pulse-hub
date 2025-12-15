@@ -2538,8 +2538,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   KPI
                 </TableHead>
                 {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
-                  <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
-                    Target
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                    <div className="flex flex-col items-center">
+                      <div>Q{quarter} Target</div>
+                      <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                    </div>
                   </TableHead>
                 )}
               {isMonthlyTrendMode ? (
@@ -2668,7 +2671,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   </TableHead>
                 ))}
                 <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
-                  Q{quarter} Target
+                  <div className="flex flex-col items-center">
+                    <div>Q{quarter} Target</div>
+                    <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                  </div>
                 </TableHead>
                 {months.map((month) => (
                   <TableHead 
