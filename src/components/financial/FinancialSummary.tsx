@@ -1814,8 +1814,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       ))
                     ) : (
                       <>
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                          Q{quarter} {year - 1}
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/30 border-x border-border/50 sticky top-0 z-10">
+                          <div className="flex flex-col items-center">
+                            <div>Q{quarter} Avg</div>
+                            <div className="text-xs font-normal text-muted-foreground">{year - 1}</div>
+                          </div>
                         </TableHead>
                         {previousYearMonths.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
