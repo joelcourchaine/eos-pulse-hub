@@ -2673,7 +2673,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-background border-x-2 border-primary/30 sticky top-0 z-10">
                   <div className="flex flex-col items-center">
                     <div>Q{quarter} Target</div>
                     <div className="text-xs font-normal text-muted-foreground">{year}</div>
@@ -3304,7 +3304,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       })}
                       
                       {/* Q{quarter} Target */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                      <TableCell className="text-center py-0.5 min-w-[100px] bg-background border-x-2 border-primary/30 font-medium">
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
