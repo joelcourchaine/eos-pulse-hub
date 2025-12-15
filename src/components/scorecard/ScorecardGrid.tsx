@@ -327,7 +327,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
-  const [pasteStartIndex, setPasteStartIndex] = useState<number>(0);
+  const [pasteYear, setPasteYear] = useState<number>(new Date().getFullYear());
+  const [pasteMonth, setPasteMonth] = useState<string>("01");
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [issueContext, setIssueContext] = useState<{
     title: string;
@@ -1945,7 +1946,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     onKPIsChange();
   };
 
-  const handlePasteDataChange = (value: string, startIdx: number = pasteStartIndex) => {
+  const handlePasteDataChange = (value: string) => {
     setPasteData(value);
     
     if (!value.trim() || !pasteKpi) {
@@ -1956,30 +1957,25 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     const values = value.trim().split(/[\t\s]+/).map(v => v.replace(/[,$]/g, ''));
     const parsed: { period: string; value: number }[] = [];
 
-    values.forEach((val, idx) => {
-      const targetIdx = startIdx + idx;
-      if (targetIdx < pastePeriods.length) {
-        const numValue = parseFloat(val);
-        if (!isNaN(numValue)) {
-          const period = pastePeriods[targetIdx];
-          let periodIdentifier: string;
-          
-          if ('start' in period) {
-            // Weekly period
-            periodIdentifier = period.start.toISOString().split('T')[0];
-          } else if ('identifier' in period) {
-            // Monthly period or trend period
-            periodIdentifier = period.identifier;
-          } else {
-            // Quarter trend period
-            periodIdentifier = `${period.year}-Q${period.quarter}`;
-          }
-          
-          parsed.push({
-            period: periodIdentifier,
-            value: numValue
-          });
-        }
+    // Start from pasteYear and pasteMonth, iterate through consecutive months
+    let currentYear = pasteYear;
+    let currentMonth = parseInt(pasteMonth);
+
+    values.forEach((val) => {
+      const numValue = parseFloat(val);
+      if (!isNaN(numValue)) {
+        const periodIdentifier = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+        parsed.push({
+          period: periodIdentifier,
+          value: numValue
+        });
+      }
+      
+      // Move to next month
+      currentMonth++;
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
       }
     });
 
@@ -2043,7 +2039,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       setPasteData("");
       setPasteKpi("");
       setParsedPasteData([]);
-      setPasteStartIndex(0);
+      setPasteMonth("01");
     } catch (error: any) {
       console.error('Error saving pasted data:', error);
       toast({
@@ -3524,7 +3520,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               <Label htmlFor="paste-kpi">Select KPI</Label>
               <Select value={pasteKpi} onValueChange={(value) => {
                 setPasteKpi(value);
-                handlePasteDataChange(pasteData, pasteStartIndex);
+                handlePasteDataChange(pasteData);
               }}>
                 <SelectTrigger id="paste-kpi">
                   <SelectValue placeholder="Choose a KPI..." />
@@ -3559,28 +3555,59 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               })()}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="paste-start-period">Start From</Label>
-              <Select value={pasteStartIndex.toString()} onValueChange={(value) => {
-                const newStartIndex = parseInt(value);
-                setPasteStartIndex(newStartIndex);
-                handlePasteDataChange(pasteData, newStartIndex);
-              }}>
-                <SelectTrigger id="paste-start-period">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {pastePeriods.map((period, idx) => (
-                    <SelectItem key={idx} value={idx.toString()}>
-                      {period.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Choose which period to start pasting data from
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="paste-year">Starting Year</Label>
+                <Select value={pasteYear.toString()} onValueChange={(value) => {
+                  setPasteYear(parseInt(value));
+                  handlePasteDataChange(pasteData);
+                }}>
+                  <SelectTrigger id="paste-year">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[year - 2, year - 1, year, year + 1].map((y) => (
+                      <SelectItem key={y} value={y.toString()}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paste-month">Starting Month</Label>
+                <Select value={pasteMonth} onValueChange={(value) => {
+                  setPasteMonth(value);
+                  handlePasteDataChange(pasteData);
+                }}>
+                  <SelectTrigger id="paste-month">
+                    <SelectValue placeholder="Select month..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[
+                      { value: "01", label: "January" },
+                      { value: "02", label: "February" },
+                      { value: "03", label: "March" },
+                      { value: "04", label: "April" },
+                      { value: "05", label: "May" },
+                      { value: "06", label: "June" },
+                      { value: "07", label: "July" },
+                      { value: "08", label: "August" },
+                      { value: "09", label: "September" },
+                      { value: "10", label: "October" },
+                      { value: "11", label: "November" },
+                      { value: "12", label: "December" }
+                    ].map((m) => (
+                      <SelectItem key={m.value} value={m.value}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
 
             <div className="space-y-2">
               <Label htmlFor="paste-values">Paste Values</Label>
@@ -3591,7 +3618,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 onChange={(e) => handlePasteDataChange(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Tip: In Google Sheets, copy values starting from the period you selected above
+                Tip: In Google Sheets, select cells for consecutive months, copy (Ctrl+C), and paste here
               </p>
             </div>
 
@@ -3608,15 +3635,12 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </TableHeader>
                     <TableBody>
                       {parsedPasteData.map((entry, idx) => {
-                        const periodLabel = pastePeriods.find(p => {
-                          if ('start' in p) {
-                            return p.start.toISOString().split('T')[0] === entry.period;
-                          } else if ('identifier' in p) {
-                            return p.identifier === entry.period;
-                          } else {
-                            return `${p.year}-Q${p.quarter}` === entry.period;
-                          }
-                        })?.label;
+                        // Format the period identifier (YYYY-MM) to a readable month name
+                        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                        const parts = entry.period.split('-');
+                        const periodLabel = parts.length === 2 
+                          ? `${monthNames[parseInt(parts[1]) - 1]} ${parts[0]}`
+                          : entry.period;
                         return (
                           <TableRow key={idx}>
                             <TableCell>{periodLabel}</TableCell>
