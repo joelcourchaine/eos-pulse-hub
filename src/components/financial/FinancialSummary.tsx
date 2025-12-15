@@ -1082,7 +1082,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         }
       }
       
-      // Direct value from database
+      // Direct value from database (Honda legacy support for Total Direct Expenses)
+      if (isHondaBrand && metricKey === 'total_direct_expenses') {
+        return quarterMonthIds.reduce((sum, monthId) => {
+          const direct = data?.find(e => e.month === monthId && e.metric_name === 'total_direct_expenses')?.value;
+          if (direct !== null && direct !== undefined) return sum + Number(direct);
+
+          // Legacy months: Total Direct Expenses = Sales Expense + Semi Fixed Expense
+          if (isHondaLegacyMonth(monthId)) {
+            const sales = data?.find(e => e.month === monthId && e.metric_name === 'sales_expense')?.value;
+            const semiFixed = data?.find(e => e.month === monthId && e.metric_name === 'semi_fixed_expense')?.value;
+            if (sales !== null && sales !== undefined && semiFixed !== null && semiFixed !== undefined) {
+              return sum + Number(sales) + Number(semiFixed);
+            }
+          }
+
+          return sum;
+        }, 0);
+      }
+
       const values = data
         ?.filter(entry => 
           entry.metric_name === metricKey && 
@@ -1129,6 +1147,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         }
       } else {
         // For direct database values
+        // Honda legacy support: Total Direct Expenses may not be stored in legacy months
+        if (isHondaBrand && metric.key === 'total_direct_expenses') {
+          const metricMonthCount = quarterMonthIds.reduce((count, monthId) => {
+            const direct = data?.find(e => e.month === monthId && e.metric_name === 'total_direct_expenses')?.value;
+            if (direct !== null && direct !== undefined) return count + 1;
+
+            if (isHondaLegacyMonth(monthId)) {
+              const sales = data?.find(e => e.month === monthId && e.metric_name === 'sales_expense')?.value;
+              const semiFixed = data?.find(e => e.month === monthId && e.metric_name === 'semi_fixed_expense')?.value;
+              if (sales !== null && sales !== undefined && semiFixed !== null && semiFixed !== undefined) {
+                return count + 1;
+              }
+            }
+
+            return count;
+          }, 0);
+
+          if (metricMonthCount > 0) {
+            const total = getMetricTotal(metric.key, quarterMonthIds);
+            const avg = total / metricMonthCount;
+            averages[`${metric.key}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`] = avg;
+          }
+
+          return;
+        }
+
         const values = data
           ?.filter(entry => 
             entry.metric_name === metric.key && 
