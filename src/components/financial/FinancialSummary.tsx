@@ -1814,11 +1814,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       ))
                     ) : (
                       <>
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                        {/* Previous Year Quarter Average - sticky */}
+                        <TableHead 
+                          className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted z-20 border-r"
+                          style={{ position: 'sticky', left: 200 }}
+                        >
                           Q{quarter} {year - 1}
                         </TableHead>
-                        {previousYearMonths.map((month) => (
-                          <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
+                        {/* Previous Year Months - sticky */}
+                        {previousYearMonths.map((month, idx) => (
+                          <TableHead 
+                            key={month.identifier} 
+                            className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted z-20"
+                            style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
+                          >
                             <div className="flex flex-col items-center">
                               <div className="flex items-center justify-center gap-1">
                                 {month.label.replace(/\s\d{4}$/, '')}
@@ -1829,9 +1838,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        {/* Current Quarter Target - sticky with separator shadow */}
+                        <TableHead 
+                          className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 z-20 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
+                          style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
+                        >
                           Q{quarter} Target
                         </TableHead>
+                        {/* Current Year Months - scrollable */}
                         {months.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                             <div className="flex flex-col items-center">
@@ -2378,19 +2392,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               return (
                                 <TableCell 
                                   className={cn(
-                                    "text-center py-[7.2px] min-w-[100px]",
-                                    isDepartmentProfit && "z-10 bg-background",
+                                    "text-center py-[7.2px] min-w-[100px] bg-background z-10 border-r",
+                                    isDepartmentProfit && "bg-background",
                                     status === "success" && "bg-success/10 text-success font-medium",
                                     status === "warning" && "bg-warning/10 text-warning font-medium",
                                     status === "destructive" && "bg-destructive/10 text-destructive font-medium",
                                     !status && "text-muted-foreground"
                                   )}
+                                  style={{ position: 'sticky', left: 200 }}
                                 >
                                   {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                                 </TableCell>
                               );
                             })()}
-                            {previousYearMonths.map((month) => {
+                            {previousYearMonths.map((month, idx) => {
                           const key = `${metric.key}-${month.identifier}`;
                           let value = entries[key];
                           
@@ -2492,18 +2507,22 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] text-muted-foreground",
-                                isDepartmentProfit && "z-10 bg-background"
+                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] text-muted-foreground bg-background z-10",
+                                isDepartmentProfit && "bg-background"
                               )}
+                              style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
                             >
                               {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
                             </TableCell>
                           );
                           })}
-                          <TableCell className={cn(
-                            "text-center py-[7.2px] min-w-[100px] bg-background border-x-2 border-primary/30",
-                            isDepartmentProfit && "z-10"
-                          )}>
+                          <TableCell 
+                            className={cn(
+                              "text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.15)]",
+                              isDepartmentProfit && "bg-primary/10"
+                            )}
+                            style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
+                          >
                             {canEditTargets() && editingTarget === metric.key ? (
                             <div className="flex items-center justify-center gap-1">
                               <Input
