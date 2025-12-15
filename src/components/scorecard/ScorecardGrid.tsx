@@ -2544,7 +2544,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           ref={scrollContainerRef}
           className="overflow-x-auto border rounded-lg"
         >
-          <Table className="relative" style={{ tableLayout: 'fixed', width: 'max-content' }}>
+          <Table className="relative w-max" style={{ tableLayout: 'fixed' }}>
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead 
