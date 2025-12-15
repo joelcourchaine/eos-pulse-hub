@@ -41,6 +41,11 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const [activeTab, setActiveTab] = useState<string>("view-all");
   const meetingDate = format(new Date(), 'yyyy-MM-dd');
 
+  // Notify parent of initial view mode on mount and when component remounts
+  useEffect(() => {
+    onViewModeChange?.("view-all");
+  }, [departmentId]); // Reset to view-all when department changes
+
   // Notify parent when view mode changes
   const handleTabChange = (value: string) => {
     setActiveTab(value);
