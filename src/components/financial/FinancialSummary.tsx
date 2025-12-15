@@ -3110,7 +3110,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[year - 1, year, year + 1].map((y) => (
+                    {[year - 2, year - 1, year, year + 1].map((y) => (
                       <SelectItem key={y} value={y.toString()}>
                         {y}
                       </SelectItem>
