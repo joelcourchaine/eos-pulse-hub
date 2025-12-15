@@ -3728,4 +3728,4 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 };
 
 
-export default ScorecardGrid;
+export default React.memo(ScorecardGrid);
