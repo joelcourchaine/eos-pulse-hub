@@ -351,6 +351,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year) : [];
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentQuarterInfo.year) : [];
   const allPeriods = isQuarterTrendMode ? quarterTrendPeriods : isMonthlyTrendMode ? monthlyTrendPeriods : (viewMode === "weekly" ? weeks : months);
+  
+  // Filtered periods for paste dialog - excludes year averages and totals
+  const pastePeriods = allPeriods.filter(period => !('type' in period && (period.type === 'year-avg' || period.type === 'year-total')));
 
   const getRoleColor = (role?: string) => {
     if (!role) return 'hsl(var(--muted))';
@@ -1955,10 +1958,10 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
     values.forEach((val, idx) => {
       const targetIdx = startIdx + idx;
-      if (targetIdx < allPeriods.length) {
+      if (targetIdx < pastePeriods.length) {
         const numValue = parseFloat(val);
         if (!isNaN(numValue)) {
-          const period = allPeriods[targetIdx];
+          const period = pastePeriods[targetIdx];
           let periodIdentifier: string;
           
           if ('start' in period) {
@@ -3512,7 +3515,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           <DialogHeader>
             <DialogTitle>Paste Row Data</DialogTitle>
             <DialogDescription>
-              Copy a row from Google Sheets and paste it here. The values should be tab-separated ({allPeriods.length} periods)
+              Copy a row from Google Sheets and paste it here. The values should be tab-separated ({pastePeriods.length} periods)
             </DialogDescription>
           </DialogHeader>
 
@@ -3567,7 +3570,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {allPeriods.map((period, idx) => (
+                  {pastePeriods.map((period, idx) => (
                     <SelectItem key={idx} value={idx.toString()}>
                       {period.label}
                     </SelectItem>
@@ -3605,7 +3608,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </TableHeader>
                     <TableBody>
                       {parsedPasteData.map((entry, idx) => {
-                        const periodLabel = allPeriods.find(p => {
+                        const periodLabel = pastePeriods.find(p => {
                           if ('start' in p) {
                             return p.start.toISOString().split('T')[0] === entry.period;
                           } else if ('identifier' in p) {
