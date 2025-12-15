@@ -2548,8 +2548,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead 
-                  className="bg-muted z-20 min-w-[200px] max-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
-                  style={{ position: 'sticky', left: 0 }}
+                  className="sticky left-0 bg-muted z-20 w-[200px] min-w-[200px] max-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                 >
                   KPI
                 </TableHead>
