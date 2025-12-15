@@ -969,6 +969,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           });
           const monthCount = monthsWithData.size || 1; // Avoid division by zero
 
+          // Helper to count months with actual values for a specific metric (including calculated values)
+          const getMonthsWithMetricData = (metricKey: string, monthIds: string[]): number => {
+            let count = 0;
+            for (const monthId of monthIds) {
+              const val = getMonthValue(metricKey, monthId);
+              if (val !== undefined && val !== 0) {
+                count++;
+              }
+            }
+            return count || 1; // Avoid division by zero
+          };
+
           // Calculate averages per metric for this quarter
           FINANCIAL_METRICS.forEach(metric => {
             // For percentage metrics, recalculate from underlying dollar amounts
@@ -986,8 +998,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               // For calculated dollar metrics
               const total = getMetricTotal(metric.key, quarterMonthIds);
               if (total !== 0) {
-                // Divide by actual number of months with data
-                const avg = total / monthCount;
+                // Divide by actual number of months with data for this specific metric
+                const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
+                const avg = total / metricMonthCount;
                 averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
               }
             } else {
@@ -996,7 +1009,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               if (isHondaBrand && metric.key === 'total_direct_expenses') {
                 const total = getMetricTotal(metric.key, quarterMonthIds);
                 if (total !== 0) {
-                  const avg = total / monthCount;
+                  // Use metric-specific month count since legacy months calculate this value
+                  const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
+                  const avg = total / metricMonthCount;
                   averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
                 }
                 return;
