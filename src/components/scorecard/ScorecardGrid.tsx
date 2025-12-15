@@ -1294,8 +1294,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Hours Per RO" || kpiName === "Total ELR") {
       return Number(value).toFixed(2);
     }
-    // Total Hours, Total Labour Sales, CP Labour Sales Per RO and CP ELR should show whole numbers
-    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
+    // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, and CP Hours should show whole numbers
+    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Hours") {
       return Math.round(value).toString();
     }
     // Don't format with commas for input fields - number inputs don't accept them
@@ -1314,8 +1314,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
       return `$${Math.round(value).toLocaleString()}`;
     }
-    // Total Hours should show whole numbers
-    if (kpiName === "Total Hours") {
+    // Total Hours and CP Hours should show whole numbers
+    if (kpiName === "Total Hours" || kpiName === "CP Hours") {
       return Math.round(value).toLocaleString();
     }
     if (type === "dollar") return `$${value.toLocaleString()}`;
