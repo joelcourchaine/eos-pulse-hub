@@ -1985,7 +1985,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   </p>
                                 </div>
                               </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-[300px]">
+                              <TooltipContent side="right" className="max-w-[350px] max-h-[500px] overflow-y-auto">
                                 <p className="font-medium">{metric.name}</p>
                                 {metric.description && <p className="text-xs text-muted-foreground mt-1">{metric.description}</p>}
                                 {metric.key === 'sales_expense' && storeBrand?.toLowerCase().includes('stellantis') && (
