@@ -65,28 +65,6 @@ const getPreviousYearMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
-// Get all months from preceding quarters of the current year (for horizontal scrolling)
-const getPrecedingQuartersMonths = (quarter: number, year: number) => {
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December'];
-  
-  const months = [];
-  
-  // Get all months from Q1 up to (but not including) the selected quarter
-  for (let q = 1; q < quarter; q++) {
-    for (let i = 0; i < 3; i++) {
-      const monthIndex = (q - 1) * 3 + i;
-      months.push({
-        label: `${monthNames[monthIndex]} ${year}`,
-        identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
-        quarter: q,
-      });
-    }
-  }
-  
-  return months;
-};
-
 // Helper function to get only the 3 months for a quarter (for average calculations)
 const getQuarterMonthsForCalculation = (quarter: number, year: number) => {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
@@ -298,7 +276,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(year) : [];
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
-  const precedingQuartersMonths = getPrecedingQuartersMonths(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
   const FINANCIAL_METRICS = useMemo(() => {
     const metrics = getMetricsForBrand(storeBrand);
@@ -1149,9 +1126,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     const monthIds = months.map(m => m.identifier);
     const previousYearMonthIds = previousYearMonths.map(m => m.identifier);
-    const precedingQuarterMonthIds = precedingQuartersMonths.map(m => m.identifier);
     
-    const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds, ...precedingQuarterMonthIds])];
+    const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds])];
 
     const { data, error } = await supabase
       .from("financial_entries")
@@ -1782,9 +1758,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         </CardHeader>
         <CollapsibleContent>
           <CardContent>
-            <div 
-              className="overflow-x-auto border rounded-lg"
-            >
+            <div className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -1840,20 +1814,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       ))
                     ) : (
                       <>
-                        {/* Previous Year Quarter Average - sticky */}
-                        <TableHead 
-                          className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted z-20 border-r"
-                          style={{ position: 'sticky', left: 200 }}
-                        >
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
                           Q{quarter} {year - 1}
                         </TableHead>
-                        {/* Previous Year Months - sticky */}
-                        {previousYearMonths.map((month, idx) => (
-                          <TableHead 
-                            key={month.identifier} 
-                            className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted z-20"
-                            style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
-                          >
+                        {previousYearMonths.map((month) => (
+                          <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                             <div className="flex flex-col items-center">
                               <div className="flex items-center justify-center gap-1">
                                 {month.label.replace(/\s\d{4}$/, '')}
@@ -1864,26 +1829,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           </TableHead>
                         ))}
-                        {/* Current Quarter Target - sticky with separator shadow */}
-                        <TableHead 
-                          className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 z-20 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
-                          style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
-                        >
+                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                           Q{quarter} Target
                         </TableHead>
-                        {/* Preceding Quarters Months - scrollable */}
-                        {precedingQuartersMonths.map((month) => (
-                          <TableHead 
-                            key={month.identifier} 
-                            className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/30 sticky top-0 z-10 border-r border-border/30"
-                          >
-                            <div className="flex flex-col items-center">
-                              <div>{month.label.replace(/\s\d{4}$/, '')}</div>
-                              <div className="text-xs font-normal text-muted-foreground">{month.identifier.split('-')[0]}</div>
-                            </div>
-                          </TableHead>
-                        ))}
-                        {/* Current Quarter Months - scrollable */}
                         {months.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                             <div className="flex flex-col items-center">
@@ -2430,20 +2378,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               return (
                                 <TableCell 
                                   className={cn(
-                                    "text-center py-[7.2px] min-w-[100px] bg-background z-10 border-r",
-                                    isDepartmentProfit && "bg-background",
+                                    "text-center py-[7.2px] min-w-[100px]",
+                                    isDepartmentProfit && "z-10 bg-background",
                                     status === "success" && "bg-success/10 text-success font-medium",
                                     status === "warning" && "bg-warning/10 text-warning font-medium",
                                     status === "destructive" && "bg-destructive/10 text-destructive font-medium",
                                     !status && "text-muted-foreground"
                                   )}
-                                  style={{ position: 'sticky', left: 200 }}
                                 >
                                   {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                                 </TableCell>
                               );
                             })()}
-                            {previousYearMonths.map((month, idx) => {
+                            {previousYearMonths.map((month) => {
                           const key = `${metric.key}-${month.identifier}`;
                           let value = entries[key];
                           
@@ -2545,22 +2492,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] text-muted-foreground bg-background z-10",
-                                isDepartmentProfit && "bg-background"
+                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] text-muted-foreground",
+                                isDepartmentProfit && "z-10 bg-background"
                               )}
-                              style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
                             >
                               {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
                             </TableCell>
                           );
                           })}
-                          <TableCell 
-                            className={cn(
-                              "text-center py-[7.2px] min-w-[100px] bg-primary/10 border-x-2 border-primary/30 z-10 shadow-[4px_0_8px_rgba(0,0,0,0.15)]",
-                              isDepartmentProfit && "bg-primary/10"
-                            )}
-                            style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
-                          >
+                          <TableCell className={cn(
+                            "text-center py-[7.2px] min-w-[100px] bg-background border-x-2 border-primary/30",
+                            isDepartmentProfit && "z-10"
+                          )}>
                             {canEditTargets() && editingTarget === metric.key ? (
                             <div className="flex items-center justify-center gap-1">
                               <Input
@@ -2621,111 +2564,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           )}
                         </TableCell>
-                        {/* Preceding Quarters Months - scrollable read-only */}
-                        {precedingQuartersMonths.map((month) => {
-                          const key = `${metric.key}-${month.identifier}`;
-                          let value = entries[key];
-                          
-                          // Helper function to get value for a metric (handles calculated fields)
-                          const getValueForMetric = (metricKey: string): number | undefined => {
-                            const entryKey = `${metricKey}-${month.identifier}`;
-                            const existingValue = entries[entryKey];
-                            
-                            if (existingValue !== null && existingValue !== undefined) {
-                              return existingValue;
-                            }
-                            
-                            const sourceMetric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-                            if (!sourceMetric || !sourceMetric.calculation || !shouldUseCalculationForMonth(metricKey, month.identifier)) {
-                              return undefined;
-                            }
-                            
-                            if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
-                              const baseValue = getValueForMetric(sourceMetric.calculation.base);
-                              if (baseValue === null || baseValue === undefined) return undefined;
-                              
-                              let calculatedValue = baseValue;
-                              for (const deduction of sourceMetric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction);
-                                calculatedValue -= (deductionValue || 0);
-                              }
-                              
-                              if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
-                                for (const addition of sourceMetric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition);
-                                  calculatedValue += (additionValue || 0);
-                                }
-                              }
-                              
-                              return calculatedValue;
-                            }
-                            
-                            return undefined;
-                          };
-                          
-                          // Calculate percentage metrics
-                          const isPercentageCalculated = metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation;
-                          if (isPercentageCalculated && metric.calculation && 'numerator' in metric.calculation) {
-                            const numeratorValue = getValueForMetric(metric.calculation.numerator);
-                            const denominatorValue = getValueForMetric(metric.calculation.denominator);
-                            
-                            if (numeratorValue !== null && numeratorValue !== undefined && 
-                                denominatorValue !== null && denominatorValue !== undefined && 
-                                denominatorValue !== 0) {
-                              value = (numeratorValue / denominatorValue) * 100;
-                            } else {
-                              value = undefined;
-                            }
-                          }
-                          
-                          // Calculate dollar subtraction/complex metrics
-                          const shouldCalculate = shouldUseCalculationForMonth(metric.key, month.identifier);
-                          const isDollarCalculated = shouldCalculate && metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
-                          if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
-                            const baseValue = getValueForMetric(metric.calculation.base);
-                            
-                            if (baseValue !== null && baseValue !== undefined) {
-                              let calculatedValue = baseValue;
-                              for (const deduction of metric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction);
-                                calculatedValue -= (deductionValue || 0);
-                              }
-                              
-                              if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
-                                for (const addition of metric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition);
-                                  calculatedValue += (additionValue || 0);
-                                }
-                              }
-                              
-                              value = calculatedValue;
-                            } else {
-                              value = undefined;
-                            }
-                          }
-                          
-                          // Honda legacy month calculation
-                          if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(month.identifier)) {
-                            const salesExpense = getValueForMetric('sales_expense');
-                            const semiFixedExpense = getValueForMetric('semi_fixed_expense');
-                            if (salesExpense !== undefined && semiFixedExpense !== undefined) {
-                              value = salesExpense + semiFixedExpense;
-                            }
-                          }
-
-                          return (
-                            <TableCell
-                              key={month.identifier}
-                              className={cn(
-                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] bg-muted/20 border-r border-border/30",
-                                isDepartmentProfit && "bg-primary/5"
-                              )}
-                            >
-                              {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
-                            </TableCell>
-                          );
-                        })}
-                        {/* Current Quarter Months - editable */}
                         {months.map((month, monthIndex) => {
                           const key = `${metric.key}-${month.identifier}`;
                           let value = entries[key];

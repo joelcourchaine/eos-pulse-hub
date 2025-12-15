@@ -154,31 +154,6 @@ const getMonthsForQuarter = (quarter: number, year: number) => {
   return months;
 };
 
-// Get all months from preceding quarters of the current year (for horizontal scrolling)
-const getPrecedingQuartersMonths = (quarter: number, year: number) => {
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December'];
-  
-  const months = [];
-  
-  // Get all months from Q1 up to (but not including) the selected quarter
-  for (let q = 1; q < quarter; q++) {
-    for (let i = 0; i < 3; i++) {
-      const monthIndex = (q - 1) * 3 + i;
-      months.push({
-        label: monthNames[monthIndex],
-        identifier: `${year}-${String(monthIndex + 1).padStart(2, '0')}`,
-        year: year,
-        month: monthIndex + 1,
-        quarter: q,
-        type: 'month' as const,
-      });
-    }
-  }
-  
-  return months;
-};
-
 const getPreviousYearMonthsForQuarter = (quarter: number, year: number) => {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
@@ -372,7 +347,6 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const weeks = getWeekDates({ year, quarter: quarter || 1 });
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
-  const precedingQuartersMonths = getPrecedingQuartersMonths(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year) : [];
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentQuarterInfo.year) : [];
@@ -809,8 +783,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       });
       setEntries(newEntries);
     } else {
-      // For months: fetch monthly entries for current quarter, preceding quarters, and previous year's same quarter
-      const monthIdentifiers = [...months.map(m => m.identifier), ...precedingQuartersMonths.map(m => m.identifier), ...previousYearMonths.map(m => m.identifier)];
+      // For months: fetch monthly entries for current quarter and previous year's same quarter
+      const monthIdentifiers = [...months.map(m => m.identifier), ...previousYearMonths.map(m => m.identifier)];
       const { data: monthlyData, error: monthlyError } = await supabase
         .from("scorecard_entries")
         .select("*")
@@ -2679,19 +2653,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               );
             }) : (
               <>
-                {/* Previous Year Quarter Average - sticky */}
-                <TableHead 
-                  className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted z-20 border-r"
-                  style={{ position: 'sticky', left: 200 }}
-                >
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/50 sticky top-0 z-10">
                   Q{quarter} {year - 1}
                 </TableHead>
-                {/* Previous Year Months - sticky */}
-                {previousYearMonths.map((month, idx) => (
+                {previousYearMonths.map((month) => (
                   <TableHead 
                     key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted z-20"
-                    style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
                   >
                     <div className="flex flex-col items-center">
                       <div>{month.label}</div>
@@ -2699,26 +2667,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
-                {/* Current Quarter Target - sticky with separator shadow */}
-                <TableHead 
-                  className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 z-20 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
-                  style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
-                >
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                   Q{quarter} Target
                 </TableHead>
-                {/* Preceding Quarters Months - scrollable */}
-                {precedingQuartersMonths.map((month) => (
-                  <TableHead 
-                    key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/30 sticky top-0 z-10 border-r border-border/30"
-                  >
-                    <div className="flex flex-col items-center">
-                      <div>{month.label}</div>
-                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                    </div>
-                  </TableHead>
-                ))}
-                {/* Current Quarter Months - scrollable */}
                 {months.map((month) => (
                   <TableHead 
                     key={month.identifier} 
@@ -3314,10 +3265,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     );
                   }) : (
                     <>
-                      {/* Previous Year Quarter - sticky */}
+                      {/* Previous Year Quarter */}
                       <TableCell 
-                        className="text-center py-0.5 min-w-[100px] text-muted-foreground bg-background z-10 border-r"
-                        style={{ position: 'sticky', left: 200 }}
+                        className="text-center py-0.5 min-w-[100px] text-muted-foreground"
                       >
                         {(() => {
                           const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
@@ -3326,8 +3276,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         })()}
                       </TableCell>
                       
-                      {/* Previous Year Months - sticky */}
-                      {previousYearMonths.map((month, idx) => {
+                      {/* Previous Year Months */}
+                      {previousYearMonths.map((month) => {
                         const key = `${kpi.id}-month-${month.identifier}`;
                         const entry = entries[key];
                         const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
@@ -3335,8 +3285,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         return (
                           <TableCell
                             key={month.identifier}
-                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground bg-background z-10"
-                            style={{ position: 'sticky', left: 200 + 100 + (idx * 125) }}
+                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground"
                           >
                             {entry?.actual_value !== null && entry?.actual_value !== undefined 
                               ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
@@ -3345,11 +3294,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         );
                       })}
                       
-                      {/* Q{quarter} Target - sticky with separator shadow */}
-                      <TableCell 
-                        className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium z-10 shadow-[4px_0_8px_rgba(0,0,0,0.15)]"
-                        style={{ position: 'sticky', left: 200 + 100 + (3 * 125) }}
-                      >
+                      {/* Q{quarter} Target */}
+                      <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
@@ -3411,37 +3357,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         )}
                       </TableCell>
                       
-                      {/* Preceding Quarters Months - scrollable read-only */}
-                      {precedingQuartersMonths.map((month) => {
-                        const key = `${kpi.id}-month-${month.identifier}`;
-                        const entry = entries[key];
-                        const status = getStatus(entry?.status || null);
-                        
-                        return (
-                          <TableCell
-                            key={month.identifier}
-                            className={cn(
-                              "px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center bg-muted/20 border-r border-border/30",
-                              status === "success" && "bg-success/10",
-                              status === "warning" && "bg-warning/10",
-                              status === "destructive" && "bg-destructive/10"
-                            )}
-                          >
-                            <div className={cn(
-                              "h-8 flex items-center justify-center",
-                              status === "success" && "text-success font-medium",
-                              status === "warning" && "text-warning font-medium",
-                              status === "destructive" && "text-destructive font-medium"
-                            )}>
-                              {entry?.actual_value !== null && entry?.actual_value !== undefined 
-                                ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
-                                : "-"}
-                            </div>
-                          </TableCell>
-                        );
-                      })}
-                      
-                      {/* Current Quarter Months - editable */}
+                      {/* Months */}
                       {months.map((month) => {
                         const key = `${kpi.id}-month-${month.identifier}`;
                         const entry = entries[key];
