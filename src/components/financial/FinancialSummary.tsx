@@ -1978,7 +1978,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       ))
                     ) : (
                       <>
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Avg</div>
                             <div className="text-xs font-normal text-muted-foreground">{year - 1}</div>
@@ -1996,7 +1996,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Target</div>
                             <div className="text-xs font-normal text-muted-foreground">{year}</div>
@@ -2026,7 +2026,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Avg</div>
                             <div className="text-xs font-normal text-muted-foreground">{year}</div>
