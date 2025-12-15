@@ -2320,7 +2320,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             <Input
                                               type="number"
                                               step="any"
-                                              value={localValues[key] || ""}
+                                              value={displayValue}
                                               onChange={(e) => handleValueChange(metric.key, monthIdentifier, e.target.value)}
                                               onKeyDown={async (e) => {
                                                 if (e.key === 'Enter') {
@@ -2986,7 +2986,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                <Input
                                                  type="number"
                                                  step="any"
-                                                 value={localValues[key] || ""}
+                                                 value={localValues[key] !== undefined ? localValues[key] : (value !== null && value !== undefined ? String(value) : "")}
                                                  onChange={(e) =>
                                                    handleValueChange(metric.key, month.identifier, e.target.value)
                                                  }
