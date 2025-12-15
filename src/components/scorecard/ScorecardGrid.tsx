@@ -932,38 +932,55 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         });
       }
     } else {
-      // Original logic: Load data only for the same quarter in the previous year
-      const prevYearQuarter = { quarter: quarter || 1, year: year - 1 };
-      const startMonth = (prevYearQuarter.quarter - 1) * 3 + 1;
-      const quarterMonths = [
-        `${prevYearQuarter.year}-${String(startMonth).padStart(2, '0')}`,
-        `${prevYearQuarter.year}-${String(startMonth + 1).padStart(2, '0')}`,
-        `${prevYearQuarter.year}-${String(startMonth + 2).padStart(2, '0')}`
+      // Load data for both previous year quarter and current year quarter
+      const startMonth = (quarter - 1) * 3 + 1;
+      const prevYearQuarterMonths = [
+        `${year - 1}-${String(startMonth).padStart(2, '0')}`,
+        `${year - 1}-${String(startMonth + 1).padStart(2, '0')}`,
+        `${year - 1}-${String(startMonth + 2).padStart(2, '0')}`
       ];
+      const currentYearQuarterMonths = [
+        `${year}-${String(startMonth).padStart(2, '0')}`,
+        `${year}-${String(startMonth + 1).padStart(2, '0')}`,
+        `${year}-${String(startMonth + 2).padStart(2, '0')}`
+      ];
+      const allQuarterMonths = [...prevYearQuarterMonths, ...currentYearQuarterMonths];
       
       const { data, error } = await supabase
         .from("scorecard_entries")
         .select("*")
         .in("kpi_id", kpis.map(k => k.id))
         .eq("entry_type", "monthly")
-        .in("month", quarterMonths);
+        .in("month", allQuarterMonths);
 
       if (error) {
-        console.error("Error loading preceding quarter data:", error);
+        console.error("Error loading quarter data:", error);
         return;
       }
 
-      // Calculate average for each KPI in this quarter
+      // Calculate average for previous year quarter
       kpis.forEach(kpi => {
-        const kpiEntries = data?.filter(e => e.kpi_id === kpi.id) || [];
-        const values = kpiEntries
+        const prevYearEntries = data?.filter(e => e.kpi_id === kpi.id && prevYearQuarterMonths.includes(e.month || '')) || [];
+        const prevYearValues = prevYearEntries
           .map(e => e.actual_value)
           .filter((v): v is number => v !== null && v !== undefined);
         
-        if (values.length > 0) {
-          const average = values.reduce((sum, v) => sum + v, 0) / values.length;
-          const key = `${kpi.id}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`;
-          quarterAverages[key] = average;
+        if (prevYearValues.length > 0) {
+          const average = prevYearValues.reduce((sum, v) => sum + v, 0) / prevYearValues.length;
+          quarterAverages[`${kpi.id}-Q${quarter}-${year - 1}`] = average;
+        }
+      });
+
+      // Calculate average for current year quarter
+      kpis.forEach(kpi => {
+        const currentYearEntries = data?.filter(e => e.kpi_id === kpi.id && currentYearQuarterMonths.includes(e.month || '')) || [];
+        const currentYearValues = currentYearEntries
+          .map(e => e.actual_value)
+          .filter((v): v is number => v !== null && v !== undefined);
+        
+        if (currentYearValues.length > 0) {
+          const average = currentYearValues.reduce((sum, v) => sum + v, 0) / currentYearValues.length;
+          quarterAverages[`${kpi.id}-Q${quarter}-${year}`] = average;
         }
       });
     }
@@ -2689,6 +2706,12 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
+                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                  <div className="flex flex-col items-center">
+                    <div>Q{quarter} Avg</div>
+                    <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                  </div>
+                </TableHead>
               </>
             )}
           </TableRow>
@@ -3494,6 +3517,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           </ContextMenu>
                         );
                       })}
+                      {/* Current Year Quarter Average */}
+                      <TableCell 
+                        className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30"
+                      >
+                        {(() => {
+                          const qKey = `${kpi.id}-Q${quarter}-${year}`;
+                          const qValue = precedingQuartersData[qKey];
+                          return qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-";
+                        })()}
+                      </TableCell>
                     </>
                   )}
                 </TableRow>
