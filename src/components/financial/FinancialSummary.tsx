@@ -900,44 +900,64 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           const qKey = `Q${qtr.quarter}-${qtr.year}`;
           const quarterMonthIds = quarterMonthsMap[qKey];
           
-          // Helper function to recursively calculate metric values
-          const getMetricTotal = (metricKey: string, monthIds: string[]): number => {
-            const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-            if (!metric) return 0;
-            
-            // If it's a calculated metric
-            if (metric.calculation) {
-              if ('numerator' in metric.calculation) {
-                // Percentage calculation - not needed here as we handle percentages separately
-                return 0;
-              } else if ('type' in metric.calculation) {
-                // Dollar calculation (subtract or complex)
-                const calc = metric.calculation;
-                let total = getMetricTotal(calc.base, monthIds);
-                
-                for (const deduction of calc.deductions) {
-                  total -= getMetricTotal(deduction, monthIds);
-                }
-                
-                if (calc.type === 'complex' && 'additions' in calc) {
-                  for (const addition of calc.additions) {
-                    total += getMetricTotal(addition, monthIds);
-                  }
-                }
-                
-                return total;
-              }
+          // Helper functions to calculate month-aware metric values (Honda legacy logic included)
+          const getDirectValueForMonth = (metricKey: string, monthId: string): number | undefined => {
+            const entry = data?.find(e => e.month === monthId && e.metric_name === metricKey);
+            return entry?.value === null || entry?.value === undefined ? undefined : Number(entry.value);
+          };
+
+          const getMonthValue = (metricKey: string, monthId: string): number | undefined => {
+            // First, use direct DB value when present
+            const direct = getDirectValueForMonth(metricKey, monthId);
+            if (direct !== undefined) return direct;
+
+            // Honda legacy rule: Total Direct Expenses = Sales Expense + Semi Fixed Expense (pre Nov 2025)
+            if (isHondaBrand && metricKey === 'total_direct_expenses' && isHondaLegacyMonth(monthId)) {
+              const sales = getMonthValue('sales_expense', monthId);
+              const semiFixed = getMonthValue('semi_fixed_expense', monthId);
+              if (sales !== undefined && semiFixed !== undefined) return sales + semiFixed;
+              return undefined;
             }
-            
-            // Direct value from database
-            const values = data
-              ?.filter(entry => 
-                entry.metric_name === metricKey && 
-                monthIds.includes(entry.month)
-              )
-              .map(entry => entry.value || 0) || [];
-            
-            return values.reduce((sum, val) => sum + val, 0);
+
+            const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
+            if (!metric || !metric.calculation) return undefined;
+
+            // Honda legacy rule: Semi Fixed Expense is manual entry in legacy months
+            if (isHondaBrand && metricKey === 'semi_fixed_expense' && isHondaLegacyMonth(monthId)) {
+              return undefined;
+            }
+
+            if ('type' in metric.calculation) {
+              const calc = metric.calculation;
+              const base = getMonthValue(calc.base, monthId);
+              if (base === undefined) return undefined;
+
+              let value = base;
+              for (const deduction of calc.deductions) {
+                const d = getMonthValue(deduction, monthId);
+                if (d !== undefined) value -= d;
+              }
+
+              if (calc.type === 'complex' && 'additions' in calc) {
+                for (const addition of calc.additions) {
+                  const a = getMonthValue(addition, monthId);
+                  if (a !== undefined) value += a;
+                }
+              }
+
+              return value;
+            }
+
+            // Percentage calculations are handled separately in Quarter Trend
+            return undefined;
+          };
+
+          // Quarter total across months (used for quarter-average rendering)
+          const getMetricTotal = (metricKey: string, monthIds: string[]): number => {
+            return monthIds.reduce((sum, monthId) => {
+              const v = getMonthValue(metricKey, monthId);
+              return sum + (v ?? 0);
+            }, 0);
           };
 
           // Count how many months have data in this quarter
@@ -972,6 +992,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               }
             } else {
               // For direct database values
+              // Honda special case: legacy months may not have stored Total Direct Expenses, so compute it
+              if (isHondaBrand && metric.key === 'total_direct_expenses') {
+                const total = getMetricTotal(metric.key, quarterMonthIds);
+                if (total !== 0) {
+                  const avg = total / monthCount;
+                  averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+                }
+                return;
+              }
+
               const values = data
                 ?.filter(entry => 
                   entry.metric_name === metric.key && 
