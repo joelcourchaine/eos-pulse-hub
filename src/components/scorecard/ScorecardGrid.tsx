@@ -1294,8 +1294,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Hours Per RO" || kpiName === "Total ELR") {
       return Number(value).toFixed(2);
     }
-    // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, and CP Hours should show whole numbers
-    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Hours") {
+    // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, CP Hours, and Customer Pay Hours should show whole numbers
+    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours") {
       return Math.round(value).toString();
     }
     // Don't format with commas for input fields - number inputs don't accept them
@@ -1314,8 +1314,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
       return `$${Math.round(value).toLocaleString()}`;
     }
-    // Total Hours and CP Hours should show whole numbers
-    if (kpiName === "Total Hours" || kpiName === "CP Hours") {
+    // Total Hours, CP Hours, and Customer Pay Hours should show whole numbers
+    if (kpiName === "Total Hours" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours") {
       return Math.round(value).toLocaleString();
     }
     if (type === "dollar") return `$${value.toLocaleString()}`;
@@ -1328,7 +1328,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Labour Sales") {
       return `$${Math.round(value).toLocaleString()}`;
     }
-    if (kpiName === "CP Hours" || kpiName === "CP RO's") {
+    if (kpiName === "CP Hours" || kpiName === "CP RO's" || kpiName === "Customer Pay Hours") {
       return Math.round(value).toLocaleString();
     }
     // Internal ELR should show 2 decimal places
