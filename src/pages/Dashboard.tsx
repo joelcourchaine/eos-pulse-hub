@@ -640,9 +640,6 @@ const Dashboard = () => {
         else counts.missing++; // No entry = missing
       });
 
-      console.log("Final KPI status counts:", counts);
-      console.log("=== End KPI Status Gauge Debug ===");
-      
       setKpiStatusCounts(counts);
     } catch (error: any) {
       console.error("Error fetching KPI status counts:", error);
@@ -798,15 +795,17 @@ const Dashboard = () => {
 
   return (
     <>
-      {/* Hidden Print Content - Rendered at root for proper printing */}
-      <div className="print-only-content" style={{ display: 'none' }}>
-        <PrintView 
-          year={selectedYear} 
-          quarter={selectedQuarter} 
-          mode={printMode} 
-          departmentId={selectedDepartment} 
-        />
-      </div>
+      {/* Hidden Print Content - Only mount when print dialog is open */}
+      {printDialogOpen && (
+        <div className="print-only-content" style={{ display: 'none' }}>
+          <PrintView 
+            year={selectedYear} 
+            quarter={selectedQuarter} 
+            mode={printMode} 
+            departmentId={selectedDepartment} 
+          />
+        </div>
+      )}
 
       <div className="min-h-screen bg-muted/30">
         {/* Header */}

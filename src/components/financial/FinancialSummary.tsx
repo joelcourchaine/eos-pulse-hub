@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -200,7 +200,7 @@ const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
   return periods;
 };
 
-export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
+export const FinancialSummary = React.memo(({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
   const [targets, setTargets] = useState<{ [key: string]: number }>({});
   const [trendTargets, setTrendTargets] = useState<{ [metricKey: string]: { [quarterYear: string]: { value: number; direction: "above" | "below" } } }>({});
@@ -3354,4 +3354,4 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       />
     </Card>
   );
-};
+});

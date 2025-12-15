@@ -91,21 +91,14 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
 
   useEffect(() => {
-    console.log('PrintView mounted with:', { departmentId, year, quarter, mode });
     if (departmentId) {
       loadAllData();
-    } else {
-      console.log('No departmentId provided to PrintView');
     }
   }, [year, quarter, departmentId]);
 
   const loadAllData = async () => {
-    if (!departmentId) {
-      console.log('loadAllData: No departmentId');
-      return;
-    }
+    if (!departmentId) return;
     
-    console.log('Loading data for department:', departmentId);
     setLoading(true);
     setDepartments([]); // Clear previous departments
     setDepartmentData({}); // Clear previous data
@@ -120,7 +113,6 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
       profilesMap[profile.id] = profile;
     });
     setProfiles(profilesMap);
-    console.log('Loaded profiles:', Object.keys(profilesMap).length);
 
     // Fetch ONLY the selected department
     const { data: depts, error: deptError } = await supabase
@@ -136,12 +128,10 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     }
 
     if (!depts) {
-      console.log('No department found for id:', departmentId);
       setLoading(false);
       return;
     }
 
-    console.log('Loaded department:', depts.name);
     // Set as array with single department
     setDepartments([depts]);
 
@@ -179,13 +169,6 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
       scorecardEntries: scorecardEntries || [],
       financialEntries: financialEntries || [],
     };
-
-    console.log('Loaded data for department:', {
-      departmentId: depts.id,
-      kpiCount: kpis?.length || 0,
-      entryCount: scorecardEntries?.length || 0,
-      financialCount: financialEntries?.length || 0
-    });
 
     setDepartmentData(allData);
     setLoading(false);
@@ -228,12 +211,8 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     <div className="print-view" style={{ minHeight: '100vh', padding: '20px', backgroundColor: 'white' }}>
       {departments.map((dept) => {
         const data = departmentData[dept.id];
-        if (!data) {
-          console.log('No data for department:', dept.id);
-          return null;
-        }
+        if (!data) return null;
 
-        console.log('Rendering department:', dept.name, 'with KPIs:', data.kpis.length);
         const kpis: KPI[] = data.kpis;
         const scorecardEntries = data.scorecardEntries;
         const financialEntries = data.financialEntries;
