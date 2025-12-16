@@ -81,6 +81,37 @@ export function CreateTaskDialog({ open, onOpenChange, userId, onTaskCreated }: 
     }
   }, [selectedDepartment, selectedStore]);
 
+  // Real-time subscription to refresh profiles when new users are added
+  useEffect(() => {
+    if (!open) return;
+
+    const channel = supabase
+      .channel('profiles-changes-task-dialog')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'profiles'
+        },
+        () => {
+          // Refresh profiles list when a new user is added
+          if (selectedDepartment) {
+            loadProfilesForDepartment(selectedDepartment);
+          } else if (selectedStore) {
+            loadProfilesForStore(selectedStore);
+          } else {
+            loadAllProfiles();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [open, selectedDepartment, selectedStore]);
+
   const loadStores = async () => {
     const { data } = await supabase.from("stores").select("id, name").order("name");
     setStores(data || []);
