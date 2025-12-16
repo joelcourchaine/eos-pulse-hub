@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
-import { Clock, LayoutGrid } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, isSameWeek, differenceInWeeks } from "date-fns";
 import { IssuesAndTodosPanel } from "@/components/issues/IssuesAndTodosPanel";
 
 export type MeetingViewMode = "view-all" | "segue" | "scorecard" | "rocks" | "headlines" | "issues-todos" | "conclude";
@@ -39,7 +40,38 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: NodeJS.Timeout }>({});
   const [userId, setUserId] = useState<string>();
   const [activeTab, setActiveTab] = useState<string>("view-all");
-  const meetingDate = format(new Date(), 'yyyy-MM-dd');
+  
+  // Weekly cadence state - week starts on Monday
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => 
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  
+  const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const isCurrentWeek = isSameWeek(selectedWeekStart, currentWeekStart, { weekStartsOn: 1 });
+  const weeksDiff = differenceInWeeks(currentWeekStart, selectedWeekStart);
+  
+  // Format the meeting date based on selected week
+  const meetingDate = format(selectedWeekStart, 'yyyy-MM-dd');
+
+  // Navigate to previous week
+  const goToPreviousWeek = () => {
+    setSelectedWeekStart(prev => subWeeks(prev, 1));
+  };
+
+  // Navigate to next week
+  const goToNextWeek = () => {
+    setSelectedWeekStart(prev => addWeeks(prev, 1));
+  };
+
+  // Get relative week text
+  const getRelativeWeekText = () => {
+    if (isCurrentWeek) return null;
+    if (weeksDiff === 1) return "1 week ago";
+    if (weeksDiff > 1) return `${weeksDiff} weeks ago`;
+    if (weeksDiff === -1) return "Next week";
+    if (weeksDiff < -1) return `${Math.abs(weeksDiff)} weeks ahead`;
+    return null;
+  };
 
   // Notify parent of initial view mode on mount and when component remounts
   useEffect(() => {
@@ -175,13 +207,58 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
     setSaveTimeouts(prev => ({ ...prev, [section]: timeoutId }));
   };
 
+  const relativeText = getRelativeWeekText();
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl">GO Meeting Framework</CardTitle>
-        <CardDescription>
-          Structured 60-minute weekly meeting agenda
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl">GO Meeting Framework</CardTitle>
+            <CardDescription>
+              Structured 60-minute weekly meeting agenda
+            </CardDescription>
+          </div>
+          
+          {/* Week Navigation */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={goToPreviousWeek}
+              className="h-8 w-8"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <div className="flex flex-col items-center min-w-[180px]">
+              <span className="text-sm font-medium">
+                Week of {format(selectedWeekStart, 'MMM d, yyyy')}
+              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                {isCurrentWeek ? (
+                  <Badge variant="default" className="text-xs">
+                    This Week
+                  </Badge>
+                ) : relativeText ? (
+                  <span className="text-xs text-muted-foreground">
+                    {relativeText}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={goToNextWeek}
+              disabled={isCurrentWeek}
+              className="h-8 w-8"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
