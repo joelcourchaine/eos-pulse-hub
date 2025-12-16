@@ -287,22 +287,11 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
             ))}
           </TabsList>
           
-          {/* View All shows the segue notes only - other sections are shown externally */}
+          {/* View All shows no notes - just displays all dashboard sections externally */}
           <TabsContent value="view-all" className="mt-6">
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Segue</h3>
-                <p className="text-sm text-muted-foreground">
-                  Good news and wins
-                </p>
-              </div>
-              <RichTextEditor
-                placeholder="Add notes and images for segue..."
-                value={notes["segue"] || ""}
-                onChange={(value) => handleNoteChange("segue", value)}
-                className="min-h-[100px]"
-              />
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Select a section above to add notes, or use this view to see all dashboard components.
+            </p>
           </TabsContent>
           
           {meetingSections.map((section) => (
