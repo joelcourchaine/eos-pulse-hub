@@ -429,6 +429,12 @@ const Dashboard = () => {
         return;
       }
 
+      // For super admins, require selectedStore to be set before fetching
+      if (isSuperAdmin && !selectedStore) {
+        console.log('Super admin: waiting for store selection before fetching departments');
+        return;
+      }
+
       // For super admins and store GMs, show all departments in the store
       let query = supabase
         .from("departments")
