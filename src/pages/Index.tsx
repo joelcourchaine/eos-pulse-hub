@@ -1,10 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Target, Users, TrendingUp } from "lucide-react";
+import { BarChart3, Target, Users, Mail } from "lucide-react";
 import goLogo from "@/assets/go-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
+
+  const handleRequestAccess = () => {
+    window.location.href = "mailto:info@dealergrowth.solutions?subject=Request Access to GO Scorecard Platform&body=Hi, I'm interested in getting access to the GO Scorecard Platform for my dealership.%0A%0ADealership Name:%0AContact Name:%0APhone:%0A";
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
@@ -20,8 +24,9 @@ const Index = () => {
             Track KPIs, manage quarterly rocks, and run effective GO meetings—all in one place.
           </p>
           <div className="mt-8 flex gap-4 justify-center">
-            <Button size="lg" onClick={() => navigate("/auth")}>
-              Get Started
+            <Button size="lg" onClick={handleRequestAccess}>
+              <Mail className="mr-2 h-4 w-4" />
+              Request Access
             </Button>
             <Button size="lg" variant="outline" onClick={() => navigate("/auth")}>
               Sign In
@@ -76,9 +81,10 @@ const Index = () => {
           <Button
             size="lg"
             variant="secondary"
-            onClick={() => navigate("/auth")}
+            onClick={handleRequestAccess}
           >
-            Start Your Free Trial
+            <Mail className="mr-2 h-4 w-4" />
+            Request Access
           </Button>
         </div>
 
