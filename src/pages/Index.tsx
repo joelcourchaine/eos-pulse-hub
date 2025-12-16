@@ -142,12 +142,7 @@ const Index = () => {
                 {/* Image */}
                 <div className="w-full lg:w-3/5">
                   <div className="relative rounded-xl overflow-hidden border border-border shadow-lg bg-card">
-                    <div className="absolute top-3 left-3 flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-destructive/60"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-500/60"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-500/60"></div>
-                    </div>
-                    <img 
+                    <img
                       src={feature.image} 
                       alt={feature.imageAlt}
                       className="w-full h-auto"
