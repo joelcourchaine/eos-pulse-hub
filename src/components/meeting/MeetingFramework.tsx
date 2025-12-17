@@ -49,6 +49,8 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const isCurrentWeek = isSameWeek(selectedWeekStart, currentWeekStart, { weekStartsOn: 1 });
   const weeksDiff = differenceInWeeks(currentWeekStart, selectedWeekStart);
+  const maxFutureWeeks = 1; // Allow navigating 1 week into the future
+  const isAtMaxFuture = weeksDiff <= -maxFutureWeeks;
   
   // Format the meeting date based on selected week
   const meetingDate = format(selectedWeekStart, 'yyyy-MM-dd');
@@ -252,7 +254,7 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
               variant="outline"
               size="icon"
               onClick={goToNextWeek}
-              disabled={isCurrentWeek}
+              disabled={isAtMaxFuture}
               className="h-8 w-8"
             >
               <ChevronRight className="h-4 w-4" />
