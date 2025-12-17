@@ -2722,8 +2722,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         <TableBody>
           {[...filteredKpis].sort((a, b) => {
             // Sort by owner: regular users first, then department manager (like totals), then unassigned
-            const isManagerA = a.assigned_to === departmentManagerId;
-            const isManagerB = b.assigned_to === departmentManagerId;
+            // Check if assigned user is the department manager OR has department_manager role (fallback)
+            const ownerA = a.assigned_to ? profiles[a.assigned_to] : null;
+            const ownerB = b.assigned_to ? profiles[b.assigned_to] : null;
+            const isManagerA = a.assigned_to === departmentManagerId || ownerA?.role === 'department_manager';
+            const isManagerB = b.assigned_to === departmentManagerId || ownerB?.role === 'department_manager';
             const isUnassignedA = !a.assigned_to;
             const isUnassignedB = !b.assigned_to;
             
