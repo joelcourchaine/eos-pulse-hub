@@ -549,7 +549,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           .single();
 
         // Use brand from relationship if available, fallback to text field
-        const brandName = (store?.brands as any)?.name || store?.brand || null;
+        // Handle both array and object formats from Supabase relationship
+        const brands = store?.brands;
+        let brandName: string | null = null;
+        if (Array.isArray(brands) && brands.length > 0) {
+          brandName = brands[0].name;
+        } else if (brands && typeof brands === 'object') {
+          brandName = (brands as any).name;
+        }
+        if (!brandName) {
+          brandName = store?.brand || null;
+        }
         console.log('Loaded brand name:', brandName, 'for store:', store);
         setStoreBrand(brandName);
       }
