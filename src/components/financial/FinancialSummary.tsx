@@ -2391,14 +2391,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               }}
                                               onFocus={() => setFocusedCell(key)}
                                               onBlur={() => {
-                                                setTimeout(() => {
-                                                  setFocusedCell(null);
-                                                  setLocalValues(prev => {
-                                                    const newLocalValues = { ...prev };
-                                                    delete newLocalValues[key];
-                                                    return newLocalValues;
-                                                  });
-                                                }, 100);
+                                                setFocusedCell(null);
                                               }}
                                               data-metric-index={FINANCIAL_METRICS.findIndex(m => m.key === metric.key)}
                                               data-trend-period-index={periodIndex}
