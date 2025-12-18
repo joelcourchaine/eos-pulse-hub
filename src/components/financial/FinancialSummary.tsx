@@ -2290,33 +2290,52 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           )}
                                         >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
-                                            {focusedCell !== key && (mValue !== null && mValue !== undefined) ? (
-                                              <div 
-                                                className={cn(
-                                                  "h-full w-full flex items-center justify-center cursor-text",
-                                                  status === "success" && "text-success font-medium",
-                                                  status === "warning" && "text-warning font-medium",
-                                                  status === "destructive" && "text-destructive font-medium"
-                                                )}
-                                                onClick={(e) => {
-                                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                  input?.focus();
-                                                  input?.select();
-                                                }}
-                                              >
-                                                {formatTarget(mValue, metric.type)}
-                                              </div>
-                                            ) : focusedCell !== key ? (
-                                              <div 
-                                                className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
-                                                onClick={(e) => {
-                                                  const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                  input?.focus();
-                                                }}
-                                              >
-                                                {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
-                                              </div>
-                                            ) : null}
+                                            {(() => {
+                                              // Check localValues first (most current), then mValue from entries
+                                              let currentDisplayValue: number | undefined;
+                                              if (localValues[key] !== undefined && localValues[key] !== '') {
+                                                const parsed = parseFloat(localValues[key]);
+                                                if (!isNaN(parsed)) {
+                                                  currentDisplayValue = parsed;
+                                                }
+                                              } else if (mValue !== null && mValue !== undefined) {
+                                                currentDisplayValue = mValue;
+                                              }
+                                              
+                                              if (focusedCell === key) return null;
+                                              
+                                              if (currentDisplayValue !== null && currentDisplayValue !== undefined) {
+                                                return (
+                                                  <div 
+                                                    className={cn(
+                                                      "h-full w-full flex items-center justify-center cursor-text",
+                                                      status === "success" && "text-success font-medium",
+                                                      status === "warning" && "text-warning font-medium",
+                                                      status === "destructive" && "text-destructive font-medium"
+                                                    )}
+                                                    onClick={(e) => {
+                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                      input?.focus();
+                                                      input?.select();
+                                                    }}
+                                                  >
+                                                    {formatTarget(currentDisplayValue, metric.type)}
+                                                  </div>
+                                                );
+                                              }
+                                              
+                                              return (
+                                                <div 
+                                                  className="h-full w-full flex items-center justify-center text-muted-foreground cursor-text"
+                                                  onClick={(e) => {
+                                                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                                                    input?.focus();
+                                                  }}
+                                                >
+                                                  {metric.type === "dollar" ? "$" : metric.type === "percentage" ? "%" : "-"}
+                                                </div>
+                                              );
+                                            })()}
                                             <Input
                                               type="number"
                                               step="any"
