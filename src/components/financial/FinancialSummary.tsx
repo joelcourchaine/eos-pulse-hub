@@ -2716,15 +2716,46 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                           }
 
+                          // Get target from previous year quarter targets
+                          const prevYearQuarterKey = `${metric.key}-Q${quarter}-${year - 1}`;
+                          const targetInfo = precedingQuarterTargets[prevYearQuarterKey];
+                          
+                          let status: "success" | "warning" | "destructive" | null = null;
+                          
+                          if (value !== null && value !== undefined && targetInfo?.value) {
+                            const target = targetInfo.value;
+                            const targetDir = targetInfo.direction || metric.targetDirection;
+                            
+                            const variance = metric.type === "percentage" 
+                              ? value - target 
+                              : ((value - target) / target) * 100;
+                            
+                            if (targetDir === "above") {
+                              status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
+                            } else {
+                              status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
+                            }
+                          }
+
                           return (
                             <TableCell
                               key={month.identifier}
                               className={cn(
-                                "text-center py-[7.2px] min-w-[125px] max-w-[125px] text-muted-foreground",
-                                isDepartmentProfit && "z-10 bg-background"
+                                "text-center py-[7.2px] min-w-[125px] max-w-[125px]",
+                                isDepartmentProfit && "z-10 bg-background",
+                                status === "success" && "bg-success/10",
+                                status === "warning" && "bg-warning/10",
+                                status === "destructive" && "bg-destructive/10",
+                                !status && "text-muted-foreground"
                               )}
                             >
-                              {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
+                              <span className={cn(
+                                status === "success" && "text-success font-medium",
+                                status === "warning" && "text-warning font-medium",
+                                status === "destructive" && "text-destructive font-medium"
+                              )}>
+                                {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
+                              </span>
                             </TableCell>
                           );
                           })}
