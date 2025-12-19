@@ -56,9 +56,42 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
   }, [rock]);
 
   const loadProfiles = async () => {
+    // Fetch users who have access to this department:
+    // 1. Department manager
+    // 2. Users with explicit department access via user_department_access table
+    
+    // Get department manager
+    const { data: department } = await supabase
+      .from("departments")
+      .select("manager_id")
+      .eq("id", departmentId)
+      .single();
+
+    // Get users with explicit department access
+    const { data: accessData } = await supabase
+      .from("user_department_access")
+      .select("user_id")
+      .eq("department_id", departmentId);
+
+    // Combine user IDs (manager + users with access)
+    const userIds = new Set<string>();
+    if (department?.manager_id) {
+      userIds.add(department.manager_id);
+    }
+    if (accessData) {
+      accessData.forEach(access => userIds.add(access.user_id));
+    }
+
+    if (userIds.size === 0) {
+      setProfiles([]);
+      return;
+    }
+
+    // Fetch profiles for these users
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name")
+      .in("id", Array.from(userIds))
       .order("full_name");
 
     if (error) {
