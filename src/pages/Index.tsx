@@ -4,7 +4,7 @@ import { BarChart3, Target, Users, Mail, Gauge, Calendar, CheckSquare, PartyPopp
 import goLogo from "@/assets/go-logo.png";
 import featureGauges from "@/assets/feature-gauges.png";
 import featureMeeting from "@/assets/feature-meeting.png";
-import featureScorecard from "@/assets/feature-scorecard.png";
+import featureScorecard from "@/assets/feature-scorecard-new.png";
 import featureRocks from "@/assets/feature-rocks.png";
 import featureCelebrations from "@/assets/feature-celebrations.png";
 import featureIssues from "@/assets/feature-issues.png";
