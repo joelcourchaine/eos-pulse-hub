@@ -56,16 +56,21 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
   }, [rock]);
 
   const loadProfiles = async () => {
-    // Fetch users who have access to this department:
-    // 1. Department manager
-    // 2. Users with explicit department access via user_department_access table
+    // Fetch users who:
+    // 1. Belong to the same store as the department
+    // 2. Have access to this department (manager or explicit access)
     
-    // Get department manager
+    // Get department info including store_id and manager
     const { data: department } = await supabase
       .from("departments")
-      .select("manager_id")
+      .select("store_id, manager_id")
       .eq("id", departmentId)
-      .single();
+      .maybeSingle();
+
+    if (!department?.store_id) {
+      setProfiles([]);
+      return;
+    }
 
     // Get users with explicit department access
     const { data: accessData } = await supabase
@@ -74,24 +79,19 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
       .eq("department_id", departmentId);
 
     // Combine user IDs (manager + users with access)
-    const userIds = new Set<string>();
-    if (department?.manager_id) {
-      userIds.add(department.manager_id);
+    const userIdsWithAccess = new Set<string>();
+    if (department.manager_id) {
+      userIdsWithAccess.add(department.manager_id);
     }
     if (accessData) {
-      accessData.forEach(access => userIds.add(access.user_id));
+      accessData.forEach(access => userIdsWithAccess.add(access.user_id));
     }
 
-    if (userIds.size === 0) {
-      setProfiles([]);
-      return;
-    }
-
-    // Fetch profiles for these users
+    // Fetch profiles that belong to the store AND have department access
     const { data, error } = await supabase
       .from("profiles")
       .select("id, full_name")
-      .in("id", Array.from(userIds))
+      .eq("store_id", department.store_id)
       .order("full_name");
 
     if (error) {
@@ -99,7 +99,12 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
       return;
     }
 
-    setProfiles(data || []);
+    // Filter to only those with department access
+    const filteredProfiles = (data || []).filter(
+      profile => userIdsWithAccess.has(profile.id)
+    );
+
+    setProfiles(filteredProfiles);
   };
 
   const handleSubmit = async () => {
