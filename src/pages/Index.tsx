@@ -165,19 +165,6 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Trusted By Section */}
-        <div className="mb-20 text-center">
-          <h2 className="text-2xl font-bold mb-8">Trusted by Dealership Groups</h2>
-          <div className="flex flex-wrap justify-center gap-8 items-center opacity-60">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex items-center gap-2">
-                <img src={goLogo} alt="Dealership" className="h-10 w-10 rounded-lg" />
-                <span className="text-muted-foreground font-medium">Dealer Group {i}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* CTA Section */}
         <div className="bg-primary text-primary-foreground rounded-2xl p-12 text-center">
           <h2 className="text-3xl font-bold mb-4">
