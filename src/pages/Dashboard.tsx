@@ -121,6 +121,8 @@ const Dashboard = () => {
     if (isSuperAdmin) {
       fetchStores();
     } else if (profile) {
+      // Non-super-admins don't need to load stores, so mark as loaded
+      setStoresLoaded(true);
       fetchDepartments();
     }
   }, [profile, isSuperAdmin, rolesLoading]);
