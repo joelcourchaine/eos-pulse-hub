@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Users can view profiles in same store group" ON public.profiles;
