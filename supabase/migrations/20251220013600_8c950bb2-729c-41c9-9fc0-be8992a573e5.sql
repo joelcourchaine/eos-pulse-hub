@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Super admins can view all profiles" ON public.profiles;
