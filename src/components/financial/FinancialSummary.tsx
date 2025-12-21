@@ -1381,8 +1381,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // If no local value exists, nothing to save
     if (value === undefined) return;
     
-    let numValue = parseFloat(value) || null;
-    
+    // Accept pasted/formatted numbers like "$12,345" or "12,345".
+    const cleaned = value.replace(/[$,%\s]/g, "").replace(/,/g, "");
+    let numValue = cleaned === "" ? null : Number.parseFloat(cleaned);
+    if (Number.isNaN(numValue)) numValue = null;
+
     // Round all values to nearest whole number
     if (numValue !== null) {
       numValue = Math.round(numValue);
