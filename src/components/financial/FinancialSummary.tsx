@@ -465,43 +465,80 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const channel = supabase
       .channel(`financial-realtime-${departmentId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'financial_entries',
+          event: "*",
+          schema: "public",
+          table: "financial_entries",
           filter: `department_id=eq.${departmentId}`,
         },
         async (payload) => {
-          // Skip if this was our own change (created_by matches current user)
-          if (payload.eventType !== 'DELETE' && (payload.new as any)?.created_by === currentUserId) {
+          const rowNew = payload.eventType !== "DELETE" ? (payload.new as any) : null;
+          const rowOld = payload.eventType === "DELETE" ? (payload.old as any) : null;
+
+          // Identify the affected cell key
+          const metricName = rowNew?.metric_name ?? rowOld?.metric_name;
+          const monthId = rowNew?.month ?? rowOld?.month;
+          if (!metricName || !monthId) return;
+
+          const cellKey = `${metricName}-${monthId}`;
+
+          // If the user is actively editing this cell or has a pending local save, do not overwrite.
+          if (focusedCell === cellKey || saveTimeoutRef.current[cellKey]) {
             return;
           }
 
-          console.log('Realtime financial update received:', payload);
-          
-          // Reload data to get the latest
-          await loadFinancialData();
-          await loadPrecedingQuartersData();
-          
-          // Show toast notification for updates from other users
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const metricName = (payload.new as any)?.metric_name || 'A metric';
-            const metric = FINANCIAL_METRICS.find(m => m.key === metricName);
+          // Apply minimal in-place updates to avoid full reload flicker while editing.
+          if (payload.eventType === "DELETE") {
+            setEntries((prev) => {
+              const next = { ...prev };
+              delete next[cellKey];
+              return next;
+            });
+            setNotes((prev) => {
+              const next = { ...prev };
+              delete next[cellKey];
+              return next;
+            });
+          } else {
+            const nextValue = rowNew?.value;
+            setEntries((prev) => ({ ...prev, [cellKey]: nextValue ?? 0 }));
+
+            const nextNotes = rowNew?.notes;
+            setNotes((prev) => {
+              const next = { ...prev };
+              if (typeof nextNotes === "string" && nextNotes.length > 0) next[cellKey] = nextNotes;
+              else delete next[cellKey];
+              return next;
+            });
+          }
+
+          // Reload quarter aggregates quietly (no full table reload)
+          loadPrecedingQuartersData();
+
+          // Toast only for updates that are clearly from someone else
+          if (
+            currentUserId &&
+            payload.eventType !== "DELETE" &&
+            rowNew?.created_by &&
+            rowNew.created_by !== currentUserId &&
+            (payload.eventType === "UPDATE" || payload.eventType === "INSERT")
+          ) {
+            const metric = FINANCIAL_METRICS.find((m) => m.key === metricName);
             toast({
               title: "Financial data updated",
               description: `${metric?.name || metricName} was updated by another user`,
               duration: 3000,
             });
           }
-        }
+        },
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [departmentId, currentUserId, FINANCIAL_METRICS]);
+  }, [departmentId, currentUserId, FINANCIAL_METRICS, focusedCell]);
 
   // Load preceding quarters data after FINANCIAL_METRICS is available
   useEffect(() => {
