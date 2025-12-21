@@ -483,8 +483,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
           const cellKey = `${metricName}-${monthId}`;
 
-          // If the user is actively editing this cell or has a pending local save, do not overwrite.
-          if (focusedCell === cellKey || saveTimeoutRef.current[cellKey]) {
+          // If the user is actively editing this cell, do not overwrite.
+          if (focusedCell === cellKey) {
             return;
           }
 
@@ -1367,80 +1367,80 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setLoading(false);
   };
 
+  // Only updates local state - no autosave. Saves happen on Enter, Tab, or blur.
   const handleValueChange = (metricKey: string, monthId: string, value: string) => {
     const key = `${metricKey}-${monthId}`;
-    
-    // Update local state immediately for responsive UI
     setLocalValues(prev => ({ ...prev, [key]: value }));
+  };
 
-    // Clear existing timeout for this field
-    if (saveTimeoutRef.current[key]) {
-      clearTimeout(saveTimeoutRef.current[key]);
+  // Save entry to database - called on Enter, Tab, or blur
+  const saveEntry = async (metricKey: string, monthId: string) => {
+    const key = `${metricKey}-${monthId}`;
+    const value = localValues[key];
+    
+    // If no local value exists, nothing to save
+    if (value === undefined) return;
+    
+    let numValue = parseFloat(value) || null;
+    
+    // Round all values to nearest whole number
+    if (numValue !== null) {
+      numValue = Math.round(numValue);
     }
 
-    // Set new timeout to save after user stops typing
-    saveTimeoutRef.current[key] = setTimeout(async () => {
-      let numValue = parseFloat(value) || null;
-      
-      // Round all values to nearest whole number
-      const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-      if (numValue !== null) {
-        numValue = Math.round(numValue);
-      }
+    setSaving(prev => ({ ...prev, [key]: true }));
 
-      setSaving(prev => ({ ...prev, [key]: true }));
+    // If value is empty/null, delete the entry
+    if (numValue === null || value === '') {
+      const { error } = await supabase
+        .from("financial_entries")
+        .delete()
+        .eq("department_id", departmentId)
+        .eq("month", monthId)
+        .eq("metric_name", metricKey);
 
-      // If value is empty/null, delete the entry
-      if (numValue === null || value === '') {
-        const { error } = await supabase
-          .from("financial_entries")
-          .delete()
-          .eq("department_id", departmentId)
-          .eq("month", monthId)
-          .eq("metric_name", metricKey);
-
-        if (error) {
-          toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
-        } else {
-          // Update local state directly without reloading
-          setEntries(prev => {
-            const newEntries = { ...prev };
-            delete newEntries[key];
-            return newEntries;
-          });
-        }
+      if (error) {
+        toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
       } else {
-        const { data: session } = await supabase.auth.getSession();
-        const userId = session.session?.user?.id;
-
-        const { error } = await supabase
-          .from("financial_entries")
-          .upsert({
-            department_id: departmentId,
-            month: monthId,
-            metric_name: metricKey,
-            value: numValue,
-            created_by: userId,
-          }, {
-            onConflict: "department_id,month,metric_name"
-          });
-
-        if (error) {
-          toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
-        } else {
-          // Update local state directly without reloading
-          setEntries(prev => ({
-            ...prev,
-            [key]: numValue
-          }));
-        }
+        setEntries(prev => {
+          const newEntries = { ...prev };
+          delete newEntries[key];
+          return newEntries;
+        });
+        // Clear local value after successful delete
+        setLocalValues(prev => {
+          const newLocal = { ...prev };
+          delete newLocal[key];
+          return newLocal;
+        });
       }
+    } else {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user?.id;
 
-      // Reload preceding quarters data in background without blocking
-      loadPrecedingQuartersData();
-      setSaving(prev => ({ ...prev, [key]: false }));
-      delete saveTimeoutRef.current[key];
-    }, 1000);
+      const { error } = await supabase
+        .from("financial_entries")
+        .upsert({
+          department_id: departmentId,
+          month: monthId,
+          metric_name: metricKey,
+          value: numValue,
+          created_by: userId,
+        }, {
+          onConflict: "department_id,month,metric_name"
+        });
+
+      if (error) {
+        toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
+      } else {
+        setEntries(prev => ({ ...prev, [key]: numValue }));
+        setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+      }
+    }
+
+    // Reload preceding quarters data in background
+    loadPrecedingQuartersData();
+    setSaving(prev => ({ ...prev, [key]: false }));
   };
 
   const formatValue = (value: number | undefined, type: string) => {
@@ -2388,55 +2388,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               step="any"
                                               value={displayValue}
                                               onChange={(e) => handleValueChange(metric.key, monthIdentifier, e.target.value)}
-                                              onKeyDown={async (e) => {
+                                              onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                   e.preventDefault();
+                                                  saveEntry(metric.key, monthIdentifier);
                                                   
-                                                  // Clear debounce timeout and save immediately
-                                                  if (saveTimeoutRef.current[key]) {
-                                                    clearTimeout(saveTimeoutRef.current[key]);
-                                                    delete saveTimeoutRef.current[key];
-                                                  }
-                                                  
-                                                  // Get the value to save
-                                                  const currentValue = localValues[key];
-                                                  if (currentValue !== undefined && currentValue !== '') {
-                                                    let numValue = parseFloat(currentValue);
-                                                    if (!isNaN(numValue)) {
-                                                      numValue = Math.round(numValue);
-                                                      
-                                                      // Update state immediately
-                                                      setEntries(prev => ({ ...prev, [key]: numValue }));
-                                                      setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
-                                                      
-                                                      // Save to database in background
-                                                      setSaving(prev => ({ ...prev, [key]: true }));
-                                                      
-                                                      const { data: session } = await supabase.auth.getSession();
-                                                      const userId = session.session?.user?.id;
-                                                      
-                                                      supabase
-                                                        .from("financial_entries")
-                                                        .upsert({
-                                                          department_id: departmentId,
-                                                          month: monthIdentifier,
-                                                          metric_name: metric.key,
-                                                          value: numValue,
-                                                          created_by: userId,
-                                                        }, {
-                                                          onConflict: "department_id,month,metric_name"
-                                                        })
-                                                        .then(({ error }) => {
-                                                          if (error) {
-                                                            console.error('Save error:', error);
-                                                          }
-                                                          setSaving(prev => ({ ...prev, [key]: false }));
-                                                        });
-                                                    }
-                                                  }
-                                                  
-                                                  // Move to the next row (same period column, next metric)
-                                                  // Use setTimeout to ensure state updates are applied before moving focus
+                                                  // Move to the next row
                                                   setTimeout(() => {
                                                     const currentMetricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                                                     if (currentMetricIndex < FINANCIAL_METRICS.length - 1) {
@@ -2457,10 +2414,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                     }
                                                   }, 0);
                                                 }
+                                                if (e.key === 'Tab') {
+                                                  saveEntry(metric.key, monthIdentifier);
+                                                }
                                               }}
                                               onFocus={() => setFocusedCell(key)}
                                               onBlur={() => {
                                                 setFocusedCell(null);
+                                                saveEntry(metric.key, monthIdentifier);
                                               }}
                                               data-metric-index={FINANCIAL_METRICS.findIndex(m => m.key === metric.key)}
                                               data-trend-period-index={periodIndex}
@@ -3083,57 +3044,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                  onChange={(e) =>
                                                    handleValueChange(metric.key, month.identifier, e.target.value)
                                                  }
-                                                 onKeyDown={async (e) => {
-                                                   if (e.key === 'Enter') {
-                                                     e.preventDefault();
-                                                     
-                                                     // Clear debounce timeout
-                                                     if (saveTimeoutRef.current[key]) {
-                                                       clearTimeout(saveTimeoutRef.current[key]);
-                                                       delete saveTimeoutRef.current[key];
-                                                     }
-                                                     
-                                                     // Get the value to save
-                                                     const currentValue = localValues[key];
-                                                     if (currentValue !== undefined && currentValue !== '') {
-                                                       let numValue = parseFloat(currentValue);
-                                                       if (!isNaN(numValue)) {
-                                                         numValue = Math.round(numValue);
-                                                         
-                                                         // Update state IMMEDIATELY for instant UI feedback
-                                                         setEntries(prev => ({ ...prev, [key]: numValue }));
-                                                         setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
-                                                         
-                                                         // Save to database in background
-                                                         setSaving(prev => ({ ...prev, [key]: true }));
-                                                         
-                                                         const { data: session } = await supabase.auth.getSession();
-                                                         const userId = session.session?.user?.id;
-                                                         
-                                                         supabase
-                                                           .from("financial_entries")
-                                                           .upsert({
-                                                             department_id: departmentId,
-                                                             month: month.identifier,
-                                                             metric_name: metric.key,
-                                                             value: numValue,
-                                                             created_by: userId,
-                                                           }, {
-                                                             onConflict: "department_id,month,metric_name"
-                                                           })
-                                                           .then(({ error }) => {
-                                                             if (error) {
-                                                               console.error('Save error:', error);
-                                                             }
-                                                             setSaving(prev => ({ ...prev, [key]: false }));
-                                                           });
-                                                       }
-                                                     }
-                                                     
-                                                      // Move to next input after state updates are applied
+                                                 onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                      e.preventDefault();
+                                                      saveEntry(metric.key, month.identifier);
+                                                      
+                                                      // Move to next input
                                                       setTimeout(() => {
                                                         if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                                          // Find next editable input
                                                           let nextIndex = metricIndex + 1;
                                                           let nextInput: HTMLInputElement | null = null;
                                                           
@@ -3150,14 +3068,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                           }
                                                         }
                                                       }, 0);
-                                                   }
-                                                 }}
-                                                 onFocus={() => {
-                                                   setFocusedCell(key);
-                                                 }}
-                                                 onBlur={() => {
-                                                   setFocusedCell(null);
-                                                 }}
+                                                    }
+                                                    if (e.key === 'Tab') {
+                                                      saveEntry(metric.key, month.identifier);
+                                                    }
+                                                  }}
+                                                  onFocus={() => {
+                                                    setFocusedCell(key);
+                                                  }}
+                                                  onBlur={() => {
+                                                    setFocusedCell(null);
+                                                    saveEntry(metric.key, month.identifier);
+                                                  }}
                                                  data-metric-index={metricIndex}
                                                  data-month-index={monthIndex}
                                                 className={cn(
