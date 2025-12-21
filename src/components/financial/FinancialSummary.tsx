@@ -2399,23 +2399,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   }
                                                   
                                                   // Move to the next row (same period column, next metric)
-                                                  const currentMetricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
-                                                  if (currentMetricIndex < FINANCIAL_METRICS.length - 1) {
-                                                    let nextIndex = currentMetricIndex + 1;
-                                                    let nextInput: HTMLInputElement | null = null;
-                                                    
-                                                    while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
-                                                      nextInput = document.querySelector(
-                                                        `input[data-metric-index="${nextIndex}"][data-trend-period-index="${periodIndex}"]`
-                                                      ) as HTMLInputElement;
-                                                      if (!nextInput) nextIndex++;
+                                                  // Use setTimeout to ensure state updates are applied before moving focus
+                                                  setTimeout(() => {
+                                                    const currentMetricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
+                                                    if (currentMetricIndex < FINANCIAL_METRICS.length - 1) {
+                                                      let nextIndex = currentMetricIndex + 1;
+                                                      let nextInput: HTMLInputElement | null = null;
+                                                      
+                                                      while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
+                                                        nextInput = document.querySelector(
+                                                          `input[data-metric-index="${nextIndex}"][data-trend-period-index="${periodIndex}"]`
+                                                        ) as HTMLInputElement;
+                                                        if (!nextInput) nextIndex++;
+                                                      }
+                                                      
+                                                      if (nextInput) {
+                                                        nextInput.focus();
+                                                        nextInput.select();
+                                                      }
                                                     }
-                                                    
-                                                    if (nextInput) {
-                                                      nextInput.focus();
-                                                      nextInput.select();
-                                                    }
-                                                  }
+                                                  }, 0);
                                                 }
                                               }}
                                               onFocus={() => setFocusedCell(key)}
@@ -3090,24 +3093,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                        }
                                                      }
                                                      
-                                                     // Move to next input immediately (don't wait for save)
-                                                     if (metricIndex < FINANCIAL_METRICS.length - 1) {
-                                                       // Find next editable input
-                                                       let nextIndex = metricIndex + 1;
-                                                       let nextInput: HTMLInputElement | null = null;
-                                                       
-                                                       while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
-                                                         nextInput = document.querySelector(
-                                                           `input[data-metric-index="${nextIndex}"][data-month-index="${monthIndex}"]`
-                                                         ) as HTMLInputElement;
-                                                         if (!nextInput) nextIndex++;
-                                                       }
-                                                       
-                                                       if (nextInput) {
-                                                         nextInput.focus();
-                                                         nextInput.select();
-                                                       }
-                                                     }
+                                                      // Move to next input after state updates are applied
+                                                      setTimeout(() => {
+                                                        if (metricIndex < FINANCIAL_METRICS.length - 1) {
+                                                          // Find next editable input
+                                                          let nextIndex = metricIndex + 1;
+                                                          let nextInput: HTMLInputElement | null = null;
+                                                          
+                                                          while (nextIndex < FINANCIAL_METRICS.length && !nextInput) {
+                                                            nextInput = document.querySelector(
+                                                              `input[data-metric-index="${nextIndex}"][data-month-index="${monthIndex}"]`
+                                                            ) as HTMLInputElement;
+                                                            if (!nextInput) nextIndex++;
+                                                          }
+                                                          
+                                                          if (nextInput) {
+                                                            nextInput.focus();
+                                                            nextInput.select();
+                                                          }
+                                                        }
+                                                      }, 0);
                                                    }
                                                  }}
                                                  onFocus={() => {
