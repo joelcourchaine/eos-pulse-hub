@@ -3118,13 +3118,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                  }}
                                                  data-metric-index={metricIndex}
                                                  data-month-index={monthIndex}
-                                                 className={cn(
-                                                   "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:z-10",
-                                                   status === "success" && "text-success font-medium",
-                                                   status === "warning" && "text-warning font-medium",
-                                                   status === "destructive" && "text-destructive font-medium",
-                                                   saving[key] && "opacity-50"
-                                                 )}
+                                                className={cn(
+                                                  "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                                  status === "success" && "text-success font-medium",
+                                                  status === "warning" && "text-warning font-medium",
+                                                  status === "destructive" && "text-destructive font-medium",
+                                                  saving[key] && "opacity-50"
+                                                )}
                                                  disabled={saving[key]}
                                                />
                                               {saving[key] && (
