@@ -1254,18 +1254,16 @@ export default function DealerComparison() {
             <RefreshCw className="h-4 w-4" />
             Refresh Now
           </Button>
-          {metricType !== "dept_info" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEmailDialogOpen(true)}
-              className="gap-2"
-              disabled={stores.length === 0}
-            >
-              <Mail className="h-4 w-4" />
-              Email Report
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEmailDialogOpen(true)}
+            className="gap-2"
+            disabled={metricType !== "dept_info" ? stores.length === 0 : (!questionnaireAnswers || questionnaireAnswers.length === 0)}
+          >
+            <Mail className="h-4 w-4" />
+            Email Report
+          </Button>
         </div>
 
         <Card>
@@ -1395,16 +1393,29 @@ export default function DealerComparison() {
         open={emailDialogOpen}
         onOpenChange={setEmailDialogOpen}
         storeIds={uniqueStoreIds}
-        stores={stores.map(([storeId, store]) => {
-          const completeness = storeDataCompleteness[storeId];
-          return {
-            storeId,
-            storeName: store.storeName,
-            monthsWithData: completeness ? Array.from(completeness.monthsWithData) : [],
-            lastCompleteMonth: completeness?.lastCompleteMonth || null,
-            isComplete: completeness?.isComplete || false,
-          };
-        })}
+        stores={metricType === "dept_info" 
+          ? Array.from(new Set(questionnaireAnswers?.map(a => `${a.storeName}|${a.departmentName}`) || [])).map(key => {
+              const [storeName, departmentName] = key.split('|');
+              return {
+                storeId: key,
+                storeName,
+                departmentName,
+                monthsWithData: [],
+                lastCompleteMonth: null,
+                isComplete: true,
+              };
+            })
+          : stores.map(([storeId, store]) => {
+              const completeness = storeDataCompleteness[storeId];
+              return {
+                storeId,
+                storeName: store.storeName,
+                monthsWithData: completeness ? Array.from(completeness.monthsWithData) : [],
+                lastCompleteMonth: completeness?.lastCompleteMonth || null,
+                isComplete: completeness?.isComplete || false,
+              };
+            })
+        }
         metrics={selectedMetrics.map(metricName => ({
           metricName,
           storeValues: stores.reduce((acc, [storeId, store]) => {
@@ -1413,6 +1424,8 @@ export default function DealerComparison() {
             return acc;
           }, {} as Record<string, { value: number | null; target: number | null; variance: number | null }>),
         }))}
+        questionnaireData={metricType === "dept_info" ? questionnaireAnswers : undefined}
+        metricType={metricType}
         selectedMetrics={selectedMetrics}
         datePeriodType={datePeriodType}
         selectedMonth={selectedMonth}
