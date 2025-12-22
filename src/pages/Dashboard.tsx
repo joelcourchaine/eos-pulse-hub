@@ -783,7 +783,6 @@ const Dashboard = () => {
           body: JSON.stringify({
             year: selectedYear,
             quarter: selectedQuarter,
-            ...(printMode !== "yearly" && printMode !== "gm-overview" && { quarter: selectedQuarter }),
             mode: printMode === "gm-overview" ? "monthly" : printMode,
             departmentId: selectedDepartment,
             recipientEmails: selectedEmailRecipients,
