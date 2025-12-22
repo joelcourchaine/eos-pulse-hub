@@ -532,33 +532,32 @@ const handler = async (req: Request): Promise<Response> => {
           rocksByQuarter.get(q)!.push(rock);
         });
 
-        [1, 2, 3, 4].forEach(q => {
+        // Only show quarters that have rocks
+        const quartersWithRocks = [1, 2, 3, 4].filter(q => (rocksByQuarter.get(q) || []).length > 0);
+        
+        quartersWithRocks.forEach(q => {
           const quarterRocks = rocksByQuarter.get(q) || [];
           html += `<h3>Q${q} (${quarterRocks.length} rock${quarterRocks.length !== 1 ? 's' : ''})</h3>`;
-          if (quarterRocks.length > 0) {
-            quarterRocks.forEach(rock => {
-              const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
-              const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
-                                 rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
-              html += `
-                <div class="rock-card ${statusClass}">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${rock.title}</strong>
-                    <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
-                  </div>
-                  ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
-                  <div class="meta" style="margin-top: 8px;">
-                    Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
-                  </div>
-                  <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
-                  </div>
+          quarterRocks.forEach(rock => {
+            const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
+            const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
+                               rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
+            html += `
+              <div class="rock-card ${statusClass}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <strong>${rock.title}</strong>
+                  <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
                 </div>
-              `;
-            });
-          } else {
-            html += `<p style="color: #888; font-style: italic;">No rocks</p>`;
-          }
+                ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
+                <div class="meta" style="margin-top: 8px;">
+                  Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
+                </div>
+              </div>
+            `;
+          });
         });
       } else {
         rocks.forEach(rock => {
