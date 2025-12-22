@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 
 type FilterMode = "brand" | "group" | "custom";
-type MetricType = "weekly" | "monthly" | "financial";
+type MetricType = "weekly" | "monthly" | "financial" | "dept_info";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
 
@@ -285,6 +285,21 @@ export default function Enterprise() {
     return departments.filter(d => expandedNames.includes(d.name)).map(d => d.id);
   }, [departments, selectedDepartmentNames]);
 
+  // Fetch questionnaire questions for dept_info type
+  const { data: questionnaireQuestions } = useQuery({
+    queryKey: ["questionnaire_questions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("department_questions")
+        .select("*")
+        .eq("is_active", true)
+        .order("display_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: metricType === "dept_info",
+  });
+
   // Get available metrics based on metric type
   const availableMetrics = useMemo(() => {
     if (metricType === "financial") {
@@ -293,9 +308,18 @@ export default function Enterprise() {
       const metrics = getMetricsForBrand(brand);
       return metrics;
     }
+    if (metricType === "dept_info" && questionnaireQuestions) {
+      // Return questions as metrics
+      return questionnaireQuestions.map(q => ({
+        id: q.id,
+        name: q.question_text,
+        category: q.question_category,
+        answerType: q.answer_type,
+      }));
+    }
     // For weekly/monthly KPIs, we don't have the data here - DealerComparison will fetch it
     return [];
-  }, [metricType, filteredStores]);
+  }, [metricType, filteredStores, questionnaireQuestions]);
 
   // Auto-select Service Department by default
   useEffect(() => {
@@ -309,9 +333,9 @@ export default function Enterprise() {
     }
   }, [uniqueDepartmentNames]);
 
-  // Auto-select all metrics when switching to financial type (only if none are selected)
+  // Auto-select all metrics when switching to financial or dept_info type (only if none are selected)
   useEffect(() => {
-    if (metricType === "financial" && availableMetrics.length > 0 && selectedMetrics.length === 0) {
+    if ((metricType === "financial" || metricType === "dept_info") && availableMetrics.length > 0 && selectedMetrics.length === 0) {
       const metricNames = availableMetrics.map((m: any) => m.name);
       setSelectedMetrics(metricNames);
     }
@@ -581,6 +605,7 @@ export default function Enterprise() {
                     <SelectItem value="weekly">Weekly KPIs</SelectItem>
                     <SelectItem value="monthly">Monthly KPIs</SelectItem>
                     <SelectItem value="financial">Financial Metrics</SelectItem>
+                    <SelectItem value="dept_info">Service Dept Info</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

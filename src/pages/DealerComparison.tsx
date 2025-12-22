@@ -6,6 +6,7 @@ import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Mail } from "lucide-re
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailComparisonDialog } from "@/components/enterprise/EmailComparisonDialog";
+import { QuestionnaireComparisonTable } from "@/components/enterprise/QuestionnaireComparisonTable";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -276,8 +277,55 @@ export default function DealerComparison() {
       if (error) throw error;
       return data;
     },
-    enabled: kpiDefinitions && kpiDefinitions.length > 0 && metricType !== "financial",
+    enabled: kpiDefinitions && kpiDefinitions.length > 0 && metricType !== "financial" && metricType !== "dept_info",
     refetchInterval: 60000,
+  });
+
+  // Fetch questionnaire data for dept_info metric type
+  const { data: questionnaireAnswers, isLoading: questionnaireLoading } = useQuery({
+    queryKey: ["dealer_comparison_questionnaire", departmentIds, selectedMetrics],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return [];
+      
+      // Get questions that match selected metrics (question_text)
+      const { data: questions, error: questionsError } = await supabase
+        .from("department_questions")
+        .select("id, question_text, answer_type, question_category")
+        .eq("is_active", true)
+        .in("question_text", selectedMetrics);
+      
+      if (questionsError) throw questionsError;
+      if (!questions || questions.length === 0) return [];
+      
+      const questionIds = questions.map(q => q.id);
+      
+      // Get answers for these questions
+      const { data: answers, error: answersError } = await supabase
+        .from("department_answers")
+        .select("*, departments(id, name, store_id, stores(name))")
+        .in("department_id", departmentIds)
+        .in("question_id", questionIds);
+      
+      if (answersError) throw answersError;
+      
+      // Map answers to include question text
+      const questionMap = new Map(questions.map(q => [q.id, q]));
+      
+      return (answers || []).map(answer => {
+        const question = questionMap.get(answer.question_id);
+        return {
+          storeName: (answer as any).departments?.stores?.name || 'Unknown Store',
+          departmentName: (answer as any).departments?.name || 'Unknown Dept',
+          departmentId: answer.department_id,
+          questionId: answer.question_id,
+          questionText: question?.question_text || '',
+          answerValue: answer.answer_value,
+          answerType: question?.answer_type || 'text',
+          questionCategory: question?.question_category || '',
+        };
+      });
+    },
+    enabled: departmentIds.length > 0 && metricType === "dept_info" && selectedMetrics.length > 0,
   });
 
   // Update comparison data when fresh data arrives
@@ -999,6 +1047,9 @@ export default function DealerComparison() {
   const handleManualRefresh = () => {
     if (metricType === "financial") {
       refetchFinancial();
+    } else if (metricType === "dept_info") {
+      // No refetch needed for questionnaire - data is static
+      setLastRefresh(new Date());
     } else {
       refetchKPIs();
       refetchScorecard();
@@ -1159,13 +1210,17 @@ export default function DealerComparison() {
             </h1>
             <p className="text-muted-foreground">
               <span className="font-medium">{brandDisplayName}</span>
-              {" • "}Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} metrics
-              {selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
+              {" • "}Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} {metricType === "dept_info" ? "questions" : "metrics"}
+              {metricType !== "dept_info" && selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
                 format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
                 format(new Date(selectedMonth), 'MMMM yyyy')}`}
-              {" • "}
-              {comparisonMode === "targets" && "vs Store Targets"}
-              {comparisonMode === "year_over_year" && "vs Year over Year"}
+              {metricType !== "dept_info" && comparisonMode !== "none" && (
+                <>
+                  {" • "}
+                  {comparisonMode === "targets" && "vs Store Targets"}
+                  {comparisonMode === "year_over_year" && "vs Year over Year"}
+                </>
+              )}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshing every 60s
@@ -1180,24 +1235,34 @@ export default function DealerComparison() {
             <RefreshCw className="h-4 w-4" />
             Refresh Now
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setEmailDialogOpen(true)}
-            className="gap-2"
-            disabled={stores.length === 0}
-          >
-            <Mail className="h-4 w-4" />
-            Email Report
-          </Button>
+          {metricType !== "dept_info" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEmailDialogOpen(true)}
+              className="gap-2"
+              disabled={stores.length === 0}
+            >
+              <Mail className="h-4 w-4" />
+              Email Report
+            </Button>
+          )}
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Side-by-Side Comparison</CardTitle>
+            <CardTitle>
+              {metricType === "dept_info" ? "Service Dept Info Comparison" : "Side-by-Side Comparison"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {stores.length === 0 ? (
+            {metricType === "dept_info" ? (
+              <QuestionnaireComparisonTable
+                data={questionnaireAnswers || []}
+                selectedQuestions={selectedMetrics}
+                loading={questionnaireLoading}
+              />
+            ) : stores.length === 0 ? (
               <div className="text-center py-12 space-y-4">
                 <p className="text-lg font-semibold text-muted-foreground">No data available</p>
                 <p className="text-sm text-muted-foreground">
