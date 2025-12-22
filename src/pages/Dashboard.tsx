@@ -62,7 +62,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly">("monthly");
+  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "gm-overview">("monthly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
   const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
@@ -766,8 +766,13 @@ const Dashboard = () => {
         throw new Error("No authentication token found");
       }
 
+      // Use different endpoint for GM Overview
+      const endpoint = printMode === "gm-overview" 
+        ? "send-gm-overview-email" 
+        : "send-scorecard-email";
+
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-scorecard-email`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${endpoint}`,
         {
           method: "POST",
           headers: {
@@ -777,8 +782,9 @@ const Dashboard = () => {
           },
           body: JSON.stringify({
             year: selectedYear,
-            ...(printMode !== "yearly" && { quarter: selectedQuarter }),
-            mode: printMode,
+            quarter: selectedQuarter,
+            ...(printMode !== "yearly" && printMode !== "gm-overview" && { quarter: selectedQuarter }),
+            mode: printMode === "gm-overview" ? "monthly" : printMode,
             departmentId: selectedDepartment,
             recipientEmails: selectedEmailRecipients,
           }),
@@ -795,7 +801,7 @@ const Dashboard = () => {
 
       toast({
         title: "Email Sent",
-        description: `The scorecard has been emailed to ${selectedEmailRecipients.length} recipient(s) successfully.`,
+        description: `The ${printMode === "gm-overview" ? "GM Overview" : "scorecard"} report has been emailed to ${selectedEmailRecipients.length} recipient(s) successfully.`,
       });
       setPrintDialogOpen(false);
       setSelectedEmailRecipients([]);
@@ -825,8 +831,8 @@ const Dashboard = () => {
 
   return (
     <>
-      {/* Hidden Print Content - Only mount when print dialog is open */}
-      {printDialogOpen && (
+      {/* Hidden Print Content - Only mount when print dialog is open and not GM Overview */}
+      {printDialogOpen && printMode !== "gm-overview" && (
         <div className="print-only-content" style={{ display: 'none' }}>
           <PrintView 
             year={selectedYear} 
@@ -973,7 +979,13 @@ const Dashboard = () => {
                   </div>
                   <div className="mb-4 p-4 border rounded-lg bg-muted/30">
                     <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
-                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly") => setPrintMode(value)}>
+                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly" | "gm-overview") => setPrintMode(value)}>
+                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
+                        <RadioGroupItem value="gm-overview" id="gm-overview" />
+                        <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
+                          <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard, Financial, Rocks & Celebrations
+                        </Label>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="weekly" id="weekly" />
                         <Label htmlFor="weekly" className="cursor-pointer font-normal">
