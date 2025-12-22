@@ -278,88 +278,66 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Found ${birthdayProfiles.length} birthdays, ${anniversaryProfiles.length} anniversaries for store`);
 
     // ============ BUILD HTML EMAIL ============
+    // Using inline styles throughout to preserve formatting when email is forwarded
     const brandName = deptData.stores?.brands?.name || deptData.stores?.brand || null;
+    
+    // Helper function to get cell background color based on status
+    const getCellBgColor = (status: string) => {
+      if (status === "green") return "background-color: #dcfce7;";
+      if (status === "yellow") return "background-color: #fef3c7;";
+      if (status === "red") return "background-color: #fee2e2;";
+      return "";
+    };
+    
+    // Helper function to get severity badge styles
+    const getSeverityBadgeStyle = (severity: string) => {
+      const base = "display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold;";
+      if (severity === "high") return `${base} background: #fee2e2; color: #dc2626;`;
+      if (severity === "medium") return `${base} background: #fef3c7; color: #d97706;`;
+      if (severity === "low") return `${base} background: #dcfce7; color: #16a34a;`;
+      return `${base} background: #e0e7ff; color: #4338ca;`; // status badge
+    };
+    
+    // Helper function to get rock card border color
+    const getRockBorderColor = (status: string) => {
+      if (status === "on_track") return "#22c55e";
+      if (status === "off_track") return "#ef4444";
+      return "#f59e0b"; // at_risk
+    };
+    
+    // Helper function to get issue card border color  
+    const getIssueBorderColor = (severity: string) => {
+      if (severity === "high") return "#ef4444";
+      if (severity === "medium") return "#f59e0b";
+      return "#22c55e"; // low
+    };
     
     let html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          h1 { color: #1a1a1a; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
-          h2 { color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px; }
-          h3 { color: #444; margin-top: 20px; }
-          table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
-          th { background-color: #f4f4f4; font-weight: bold; }
-          .red { background-color: #fee; }
-          .yellow { background-color: #ffc; }
-          .green { background-color: #efe; }
-          .section { margin-bottom: 30px; }
-          .issue-card, .todo-card, .rock-card { 
-            border: 1px solid #e0e0e0; 
-            border-radius: 8px; 
-            padding: 12px; 
-            margin-bottom: 10px; 
-            background: #fafafa;
-          }
-          .issue-card.high { border-left: 4px solid #ef4444; }
-          .issue-card.medium { border-left: 4px solid #f59e0b; }
-          .issue-card.low { border-left: 4px solid #22c55e; }
-          .rock-on-track { border-left: 4px solid #22c55e; }
-          .rock-off-track { border-left: 4px solid #ef4444; }
-          .rock-at-risk { border-left: 4px solid #f59e0b; }
-          .badge { 
-            display: inline-block; 
-            padding: 2px 8px; 
-            border-radius: 12px; 
-            font-size: 11px; 
-            font-weight: bold;
-          }
-          .badge-high { background: #fee2e2; color: #dc2626; }
-          .badge-medium { background: #fef3c7; color: #d97706; }
-          .badge-low { background: #dcfce7; color: #16a34a; }
-          .badge-status { background: #e0e7ff; color: #4338ca; }
-          .celebration { 
-            padding: 10px 15px; 
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
-            border-radius: 8px; 
-            margin: 8px 0;
-          }
-          .progress-bar {
-            background: #e5e7eb;
-            border-radius: 4px;
-            height: 8px;
-            margin-top: 5px;
-          }
-          .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            background: #22c55e;
-          }
-          .meta { color: #666; font-size: 11px; }
-        </style>
+        <meta charset="utf-8">
       </head>
-      <body>
-        <h1>🏢 ${deptData.stores?.name || "Store"} - ${deptData.name}</h1>
+      <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+        <h1 style="color: #1a1a1a; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">🏢 ${deptData.stores?.name || "Store"} - ${deptData.name}</h1>
         <p><strong>GM Overview Report</strong> | ${isYearlyView ? `${year} Monthly Trend` : `Q${quarter} ${year}`}</p>
     `;
 
     // ============ 1. ISSUES & TODOS SECTION ============
-    html += `<div class="section"><h2>📋 Issues & To-Dos</h2>`;
+    html += `<div style="margin-bottom: 30px;"><h2 style="color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px;">📋 Issues & To-Dos</h2>`;
     
     if (issues && issues.length > 0) {
-      html += `<h3>Open Issues (${issues.length})</h3>`;
+      html += `<h3 style="color: #444; margin-top: 20px;">Open Issues (${issues.length})</h3>`;
       issues.forEach(issue => {
         html += `
-          <div class="issue-card ${issue.severity}">
+          <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa; border-left: 4px solid ${getIssueBorderColor(issue.severity)};">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <strong>${issue.title}</strong>
-              <span class="badge badge-${issue.severity}">${issue.severity.toUpperCase()}</span>
+              <span style="${getSeverityBadgeStyle(issue.severity)}">${issue.severity.toUpperCase()}</span>
             </div>
             ${issue.description ? `<p style="margin: 8px 0 0 0; color: #666;">${issue.description}</p>` : ''}
-            <div class="meta" style="margin-top: 8px;">
-              Status: <span class="badge badge-status">${issue.status.replace('_', ' ')}</span>
+            <div style="color: #666; font-size: 11px; margin-top: 8px;">
+              Status: <span style="${getSeverityBadgeStyle('status')}">${issue.status.replace('_', ' ')}</span>
             </div>
           </div>
         `;
@@ -369,17 +347,17 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     if (todos && todos.length > 0) {
-      html += `<h3>Pending To-Dos (${todos.length})</h3>`;
+      html += `<h3 style="color: #444; margin-top: 20px;">Pending To-Dos (${todos.length})</h3>`;
       todos.forEach(todo => {
         const assignee = todo.assigned_to ? profilesMap.get(todo.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
         html += `
-          <div class="todo-card">
+          <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <strong>${todo.title}</strong>
-              <span class="badge badge-${todo.severity}">${todo.severity.toUpperCase()}</span>
+              <span style="${getSeverityBadgeStyle(todo.severity)}">${todo.severity.toUpperCase()}</span>
             </div>
             ${todo.description ? `<p style="margin: 8px 0 0 0; color: #666;">${todo.description}</p>` : ''}
-            <div class="meta" style="margin-top: 8px;">
+            <div style="color: #666; font-size: 11px; margin-top: 8px;">
               Assigned to: ${assignee} | Due: ${formatDate(todo.due_date)}
             </div>
           </div>
@@ -391,7 +369,11 @@ const handler = async (req: Request): Promise<Response> => {
     html += `</div>`;
 
     // ============ 2. SCORECARD SECTION ============
-    html += `<div class="section"><h2>📊 GO Scorecard</h2>`;
+    const tableStyle = "border-collapse: collapse; width: 100%; margin-top: 10px;";
+    const thStyle = "border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; background-color: #f4f4f4; font-weight: bold;";
+    const tdStyle = "border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px;";
+    
+    html += `<div style="margin-bottom: 30px;"><h2 style="color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px;">📊 GO Scorecard</h2>`;
     
     if (kpis && kpis.length > 0) {
       // Group KPIs by owner
@@ -406,37 +388,37 @@ const handler = async (req: Request): Promise<Response> => {
 
       Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
         const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
-        html += `<h3>${ownerName}</h3><table><thead><tr><th>KPI</th><th>Target</th>`;
+        html += `<h3 style="color: #444; margin-top: 20px;">${ownerName}</h3><table style="${tableStyle}"><thead><tr><th style="${thStyle}">KPI</th><th style="${thStyle}">Target</th>`;
         periods.forEach(p => {
-          html += `<th>${p.label}</th>`;
+          html += `<th style="${thStyle}">${p.label}</th>`;
         });
         html += `</tr></thead><tbody>`;
 
         ownerKpis.forEach(kpi => {
           const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
-          html += `<tr><td>${kpi.name}</td><td>${formatValue(target, kpi.metric_type, kpi.name)}</td>`;
+          html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle}">${formatValue(target, kpi.metric_type, kpi.name)}</td>`;
           
           periods.forEach(p => {
             const entry = scorecardEntries?.find(e => e.kpi_id === kpi.id && e.month === p.identifier);
             
-            let cellClass = "";
+            let cellBgColor = "";
             if (entry?.actual_value !== null && entry?.actual_value !== undefined && target !== null && target !== 0) {
               const variance = kpi.metric_type === "percentage"
                 ? entry.actual_value - target
                 : ((entry.actual_value - target) / target) * 100;
               
               if (kpi.target_direction === "above") {
-                if (variance >= 0) cellClass = "green";
-                else if (variance >= -10) cellClass = "yellow";
-                else cellClass = "red";
+                if (variance >= 0) cellBgColor = getCellBgColor("green");
+                else if (variance >= -10) cellBgColor = getCellBgColor("yellow");
+                else cellBgColor = getCellBgColor("red");
               } else {
-                if (variance <= 0) cellClass = "green";
-                else if (variance <= 10) cellClass = "yellow";
-                else cellClass = "red";
+                if (variance <= 0) cellBgColor = getCellBgColor("green");
+                else if (variance <= 10) cellBgColor = getCellBgColor("yellow");
+                else cellBgColor = getCellBgColor("red");
               }
             }
             
-            html += `<td class="${cellClass}">${formatValue(entry?.actual_value ?? null, kpi.metric_type, kpi.name)}</td>`;
+            html += `<td style="${tdStyle} ${cellBgColor}">${formatValue(entry?.actual_value ?? null, kpi.metric_type, kpi.name)}</td>`;
           });
           html += `</tr>`;
         });
@@ -448,7 +430,7 @@ const handler = async (req: Request): Promise<Response> => {
     html += `</div>`;
 
     // ============ 3. FINANCIAL SUMMARY SECTION ============
-    html += `<div class="section"><h2>💰 Financial Summary</h2>`;
+    html += `<div style="margin-bottom: 30px;"><h2 style="color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px;">💰 Financial Summary</h2>`;
     
     // Define standard metrics
     const FINANCIAL_METRICS = [
@@ -462,16 +444,17 @@ const handler = async (req: Request): Promise<Response> => {
       { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const },
     ];
 
-    html += `<table><thead><tr><th>Metric</th><th>Target</th>`;
+    html += `<table style="${tableStyle}"><thead><tr><th style="${thStyle}">Metric</th><th style="${thStyle}">Target</th>`;
     periods.forEach(p => {
-      html += `<th>${p.label}</th>`;
+      html += `<th style="${thStyle}">${p.label}</th>`;
     });
     html += `</tr></thead><tbody>`;
 
     FINANCIAL_METRICS.forEach(metric => {
       const target = finTargetsMap.get(metric.dbName);
       const isBold = metric.dbName === "department_profit";
-      html += `<tr style="${isBold ? 'font-weight: bold; background-color: #f0f9ff;' : ''}"><td>${metric.display}</td><td>${target ? formatValue(target.value, metric.type) : '-'}</td>`;
+      const rowStyle = isBold ? "font-weight: bold; background-color: #f0f9ff;" : "";
+      html += `<tr style="${rowStyle}"><td style="${tdStyle}">${metric.display}</td><td style="${tdStyle}">${target ? formatValue(target.value, metric.type) : '-'}</td>`;
       
       periods.forEach(p => {
         const entry = financialEntries?.find(e => e.metric_name === metric.dbName && e.month === p.identifier);
@@ -497,31 +480,35 @@ const handler = async (req: Request): Promise<Response> => {
         }
         
         // Calculate status
-        let cellClass = "";
+        let cellBgColor = "";
         if (value !== null && target && target.value !== 0) {
           const variance = metric.type === "percentage"
             ? value - target.value
             : ((value - target.value) / target.value) * 100;
           
           if (target.direction === "above") {
-            if (variance >= 0) cellClass = "green";
-            else if (variance >= -10) cellClass = "yellow";
-            else cellClass = "red";
+            if (variance >= 0) cellBgColor = getCellBgColor("green");
+            else if (variance >= -10) cellBgColor = getCellBgColor("yellow");
+            else cellBgColor = getCellBgColor("red");
           } else {
-            if (variance <= 0) cellClass = "green";
-            else if (variance <= 10) cellClass = "yellow";
-            else cellClass = "red";
+            if (variance <= 0) cellBgColor = getCellBgColor("green");
+            else if (variance <= 10) cellBgColor = getCellBgColor("yellow");
+            else cellBgColor = getCellBgColor("red");
           }
         }
         
-        html += `<td class="${cellClass}">${metric.type === "percentage" && value !== null ? `${value.toFixed(1)}%` : formatValue(value, metric.type)}</td>`;
+        html += `<td style="${tdStyle} ${cellBgColor}">${metric.type === "percentage" && value !== null ? `${value.toFixed(1)}%` : formatValue(value, metric.type)}</td>`;
       });
       html += `</tr>`;
     });
     html += `</tbody></table></div>`;
 
     // ============ 4. ROCKS SECTION ============
-    html += `<div class="section"><h2>🪨 Rocks (${isYearlyView ? year : `Q${quarter} ${year}`})</h2>`;
+    html += `<div style="margin-bottom: 30px;"><h2 style="color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px;">🪨 Rocks (${isYearlyView ? year : `Q${quarter} ${year}`})</h2>`;
+    
+    const rockCardBaseStyle = "border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafafa;";
+    const progressBarStyle = "background: #e5e7eb; border-radius: 4px; height: 8px; margin-top: 5px;";
+    const progressFillStyle = "height: 100%; border-radius: 4px; background: #22c55e;";
     
     if (rocks && rocks.length > 0) {
       // Group rocks by quarter for yearly view
@@ -538,23 +525,22 @@ const handler = async (req: Request): Promise<Response> => {
         
         quartersWithRocks.forEach(q => {
           const quarterRocks = rocksByQuarter.get(q) || [];
-          html += `<h3>Q${q} (${quarterRocks.length} rock${quarterRocks.length !== 1 ? 's' : ''})</h3>`;
+          html += `<h3 style="color: #444; margin-top: 20px;">Q${q} (${quarterRocks.length} rock${quarterRocks.length !== 1 ? 's' : ''})</h3>`;
           quarterRocks.forEach(rock => {
             const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
-            const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
-                               rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
+            const borderColor = getRockBorderColor(rock.status || 'on_track');
             html += `
-              <div class="rock-card ${statusClass}">
+              <div style="${rockCardBaseStyle} border-left: 4px solid ${borderColor};">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <strong>${rock.title}</strong>
-                  <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
+                  <span style="${getSeverityBadgeStyle('status')}">${rock.status?.replace('_', ' ') || 'on track'}</span>
                 </div>
                 ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
-                <div class="meta" style="margin-top: 8px;">
+                <div style="color: #666; font-size: 11px; margin-top: 8px;">
                   Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
                 </div>
-                <div class="progress-bar">
-                  <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
+                <div style="${progressBarStyle}">
+                  <div style="${progressFillStyle} width: ${rock.progress_percentage || 0}%;"></div>
                 </div>
               </div>
             `;
@@ -563,20 +549,19 @@ const handler = async (req: Request): Promise<Response> => {
       } else {
         rocks.forEach(rock => {
           const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
-          const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
-                             rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
+          const borderColor = getRockBorderColor(rock.status || 'on_track');
           html += `
-            <div class="rock-card ${statusClass}">
+            <div style="${rockCardBaseStyle} border-left: 4px solid ${borderColor};">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <strong>${rock.title}</strong>
-                <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
+                <span style="${getSeverityBadgeStyle('status')}">${rock.status?.replace('_', ' ') || 'on track'}</span>
               </div>
               ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
-              <div class="meta" style="margin-top: 8px;">
+              <div style="color: #666; font-size: 11px; margin-top: 8px;">
                 Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
               </div>
-              <div class="progress-bar">
-                <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
+              <div style="${progressBarStyle}">
+                <div style="${progressFillStyle} width: ${rock.progress_percentage || 0}%;"></div>
               </div>
             </div>
           `;
@@ -588,16 +573,17 @@ const handler = async (req: Request): Promise<Response> => {
     html += `</div>`;
 
     // ============ 5. CELEBRATIONS SECTION ============
-    html += `<div class="section"><h2>🎉 Celebrations</h2>`;
+    html += `<div style="margin-bottom: 30px;"><h2 style="color: #2563eb; margin-top: 30px; padding: 10px; background: #f0f7ff; border-radius: 6px;">🎉 Celebrations</h2>`;
     
     const monthName = new Date().toLocaleDateString('en-US', { month: 'long' });
+    const celebrationStyle = "padding: 10px 15px; background: #fef3c7; border-radius: 8px; margin: 8px 0;";
     
     if ((birthdayProfiles && birthdayProfiles.length > 0) || (anniversaryProfiles && anniversaryProfiles.length > 0)) {
       if (birthdayProfiles && birthdayProfiles.length > 0) {
-        html += `<h3>🎂 ${monthName} Birthdays</h3>`;
+        html += `<h3 style="color: #444; margin-top: 20px;">🎂 ${monthName} Birthdays</h3>`;
         birthdayProfiles.forEach(profile => {
           html += `
-            <div class="celebration">
+            <div style="${celebrationStyle}">
               <strong>${profile.full_name}</strong> - ${monthName} ${profile.birthday_day}
             </div>
           `;
@@ -605,11 +591,11 @@ const handler = async (req: Request): Promise<Response> => {
       }
       
       if (anniversaryProfiles && anniversaryProfiles.length > 0) {
-        html += `<h3>🎊 Work Anniversaries</h3>`;
+        html += `<h3 style="color: #444; margin-top: 20px;">🎊 Work Anniversaries</h3>`;
         anniversaryProfiles.forEach(profile => {
           const yearsOfService = now.getFullYear() - (profile.start_year || now.getFullYear());
           html += `
-            <div class="celebration">
+            <div style="${celebrationStyle}">
               <strong>${profile.full_name}</strong> - ${yearsOfService} year${yearsOfService !== 1 ? 's' : ''} of service!
             </div>
           `;
