@@ -12,6 +12,7 @@ interface EmailRequest {
   quarter: number;
   departmentId: string;
   recipientEmails?: string[];
+  gmOverviewPeriod?: "quarterly" | "yearly";
 }
 
 const YEAR_STARTS: Record<number, string> = {
@@ -34,6 +35,15 @@ function getMonthsForQuarter({ year, quarter }: { year: number; quarter: number 
   }
   
   return months;
+}
+
+function getAllMonthsForYear(year: number) {
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+  return monthNames.map((name, index) => ({
+    label: name.substring(0, 3), // Shortened for yearly view
+    identifier: `${year}-${String(index + 1).padStart(2, '0')}`,
+  }));
 }
 
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
@@ -81,8 +91,9 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { year, quarter, departmentId, recipientEmails }: EmailRequest = await req.json();
-    console.log("GM Overview request:", { year, quarter, departmentId, recipientEmails });
+    const { year, quarter, departmentId, recipientEmails, gmOverviewPeriod = "quarterly" }: EmailRequest = await req.json();
+    const isYearlyView = gmOverviewPeriod === "yearly";
+    console.log("GM Overview request:", { year, quarter, departmentId, recipientEmails, gmOverviewPeriod });
 
     // Fetch department with store info
     const { data: department, error: deptError } = await supabaseClient
@@ -146,7 +157,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Found ${issues?.length || 0} issues and ${todos?.length || 0} todos`);
 
-    // ============ 2. SCORECARD (Monthly for the quarter) ============
+    // ============ 2. SCORECARD ============
     console.log("Fetching scorecard data...");
     
     const { data: kpis } = await supabaseClient
@@ -155,16 +166,28 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("department_id", departmentId)
       .order("display_order");
 
-    const { data: kpiTargets } = await supabaseClient
-      .from("kpi_targets")
-      .select("*")
-      .eq("year", year)
-      .eq("quarter", quarter)
-      .in("kpi_id", kpis?.map(k => k.id) || []);
+    // For yearly view, get all quarters' targets; for quarterly, just the selected quarter
+    let kpiTargets: any[] = [];
+    if (isYearlyView) {
+      const { data } = await supabaseClient
+        .from("kpi_targets")
+        .select("*")
+        .eq("year", year)
+        .in("kpi_id", kpis?.map(k => k.id) || []);
+      kpiTargets = data || [];
+    } else {
+      const { data } = await supabaseClient
+        .from("kpi_targets")
+        .select("*")
+        .eq("year", year)
+        .eq("quarter", quarter)
+        .in("kpi_id", kpis?.map(k => k.id) || []);
+      kpiTargets = data || [];
+    }
 
     const kpiTargetsMap = new Map(kpiTargets?.map(t => [t.kpi_id, t.target_value || 0]) || []);
 
-    const periods = getMonthsForQuarter({ year, quarter });
+    const periods = isYearlyView ? getAllMonthsForYear(year) : getMonthsForQuarter({ year, quarter });
     const monthIdentifiers = periods.map(p => p.identifier);
 
     const { data: scorecardEntries } = await supabaseClient
@@ -184,12 +207,24 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("department_id", departmentId)
       .in("month", monthIdentifiers);
 
-    const { data: financialTargets } = await supabaseClient
-      .from("financial_targets")
-      .select("*")
-      .eq("department_id", departmentId)
-      .eq("year", year)
-      .eq("quarter", quarter);
+    // For yearly view, get all quarters' targets; for quarterly, just the selected quarter
+    let financialTargets: any[] = [];
+    if (isYearlyView) {
+      const { data } = await supabaseClient
+        .from("financial_targets")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("year", year);
+      financialTargets = data || [];
+    } else {
+      const { data } = await supabaseClient
+        .from("financial_targets")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("year", year)
+        .eq("quarter", quarter);
+      financialTargets = data || [];
+    }
 
     const finTargetsMap = new Map<string, { value: number; direction: string }>();
     financialTargets?.forEach(t => {
@@ -201,13 +236,27 @@ const handler = async (req: Request): Promise<Response> => {
     // ============ 4. ROCKS ============
     console.log("Fetching rocks...");
     
-    const { data: rocks } = await supabaseClient
-      .from("rocks")
-      .select("*")
-      .eq("department_id", departmentId)
-      .eq("year", year)
-      .eq("quarter", quarter)
-      .order("title");
+    // For yearly view, get all rocks for the year; for quarterly, just the selected quarter
+    let rocks: any[] = [];
+    if (isYearlyView) {
+      const { data } = await supabaseClient
+        .from("rocks")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("year", year)
+        .order("quarter")
+        .order("title");
+      rocks = data || [];
+    } else {
+      const { data } = await supabaseClient
+        .from("rocks")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("year", year)
+        .eq("quarter", quarter)
+        .order("title");
+      rocks = data || [];
+    }
 
     console.log(`Found ${rocks?.length || 0} rocks`);
 
@@ -293,7 +342,7 @@ const handler = async (req: Request): Promise<Response> => {
       </head>
       <body>
         <h1>🏢 ${deptData.stores?.name || "Store"} - ${deptData.name}</h1>
-        <p><strong>GM Overview Report</strong> | Q${quarter} ${year}</p>
+        <p><strong>GM Overview Report</strong> | ${isYearlyView ? `${year} Monthly Trend` : `Q${quarter} ${year}`}</p>
     `;
 
     // ============ 1. ISSUES & TODOS SECTION ============
@@ -471,29 +520,68 @@ const handler = async (req: Request): Promise<Response> => {
     html += `</tbody></table></div>`;
 
     // ============ 4. ROCKS SECTION ============
-    html += `<div class="section"><h2>🪨 Rocks (Q${quarter} ${year})</h2>`;
+    html += `<div class="section"><h2>🪨 Rocks (${isYearlyView ? year : `Q${quarter} ${year}`})</h2>`;
     
     if (rocks && rocks.length > 0) {
-      rocks.forEach(rock => {
-        const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
-        const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
-                           rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
-        html += `
-          <div class="rock-card ${statusClass}">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <strong>${rock.title}</strong>
-              <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
+      // Group rocks by quarter for yearly view
+      if (isYearlyView) {
+        const rocksByQuarter = new Map<number, any[]>();
+        rocks.forEach(rock => {
+          const q = rock.quarter;
+          if (!rocksByQuarter.has(q)) rocksByQuarter.set(q, []);
+          rocksByQuarter.get(q)!.push(rock);
+        });
+
+        [1, 2, 3, 4].forEach(q => {
+          const quarterRocks = rocksByQuarter.get(q) || [];
+          html += `<h3>Q${q} (${quarterRocks.length} rock${quarterRocks.length !== 1 ? 's' : ''})</h3>`;
+          if (quarterRocks.length > 0) {
+            quarterRocks.forEach(rock => {
+              const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
+              const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
+                                 rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
+              html += `
+                <div class="rock-card ${statusClass}">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${rock.title}</strong>
+                    <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
+                  </div>
+                  ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
+                  <div class="meta" style="margin-top: 8px;">
+                    Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
+                  </div>
+                  <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
+                  </div>
+                </div>
+              `;
+            });
+          } else {
+            html += `<p style="color: #888; font-style: italic;">No rocks</p>`;
+          }
+        });
+      } else {
+        rocks.forEach(rock => {
+          const assignee = rock.assigned_to ? profilesMap.get(rock.assigned_to)?.full_name || 'Unknown' : 'Unassigned';
+          const statusClass = rock.status === 'on_track' ? 'rock-on-track' : 
+                             rock.status === 'off_track' ? 'rock-off-track' : 'rock-at-risk';
+          html += `
+            <div class="rock-card ${statusClass}">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <strong>${rock.title}</strong>
+                <span class="badge badge-status">${rock.status?.replace('_', ' ') || 'on track'}</span>
+              </div>
+              ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
+              <div class="meta" style="margin-top: 8px;">
+                Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
+              </div>
             </div>
-            ${rock.description ? `<p style="margin: 8px 0 0 0; color: #666;">${rock.description}</p>` : ''}
-            <div class="meta" style="margin-top: 8px;">
-              Assigned to: ${assignee} | Due: ${formatDate(rock.due_date)} | Progress: ${rock.progress_percentage || 0}%
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${rock.progress_percentage || 0}%;"></div>
-            </div>
-          </div>
-        `;
-      });
+          `;
+        });
+      }
     } else {
       html += `<p style="color: #666;">No rocks set for this quarter</p>`;
     }
@@ -559,7 +647,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
         to: recipients,
-        subject: `${deptData.name} GM Overview - Q${quarter} ${year}`,
+        subject: `${deptData.name} GM Overview - ${isYearlyView ? `${year} Monthly Trend` : `Q${quarter} ${year}`}`,
         html,
       }),
     });
