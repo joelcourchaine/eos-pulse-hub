@@ -63,6 +63,7 @@ const Dashboard = () => {
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter());
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "gm-overview">("monthly");
+  const [gmOverviewPeriod, setGmOverviewPeriod] = useState<"quarterly" | "yearly">("quarterly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
   const [myOpenTodosCount, setMyOpenTodosCount] = useState(0);
@@ -786,6 +787,7 @@ const Dashboard = () => {
             mode: printMode === "gm-overview" ? "monthly" : printMode,
             departmentId: selectedDepartment,
             recipientEmails: selectedEmailRecipients,
+            gmOverviewPeriod: printMode === "gm-overview" ? gmOverviewPeriod : undefined,
           }),
         }
       );
@@ -979,11 +981,32 @@ const Dashboard = () => {
                   <div className="mb-4 p-4 border rounded-lg bg-muted/30">
                     <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
                     <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly" | "gm-overview") => setPrintMode(value)}>
-                      <div className="flex items-center space-x-2 p-2 rounded-lg border border-primary/20 bg-primary/5">
-                        <RadioGroupItem value="gm-overview" id="gm-overview" />
-                        <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
-                          <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard, Financial, Rocks & Celebrations
-                        </Label>
+                      <div className="p-2 rounded-lg border border-primary/20 bg-primary/5">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="gm-overview" id="gm-overview" />
+                          <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
+                            <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard, Financial, Rocks & Celebrations
+                          </Label>
+                        </div>
+                        {printMode === "gm-overview" && (
+                          <div className="mt-3 ml-6 p-3 bg-background/50 rounded-md border">
+                            <Label className="text-xs font-medium text-muted-foreground mb-2 block">Time Period</Label>
+                            <RadioGroup value={gmOverviewPeriod} onValueChange={(value: "quarterly" | "yearly") => setGmOverviewPeriod(value)} className="flex gap-4">
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="quarterly" id="gm-quarterly" />
+                                <Label htmlFor="gm-quarterly" className="cursor-pointer font-normal text-sm">
+                                  Quarterly (Q{selectedQuarter})
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="yearly" id="gm-yearly" />
+                                <Label htmlFor="gm-yearly" className="cursor-pointer font-normal text-sm">
+                                  Monthly Trend (All 12 months)
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="weekly" id="weekly" />
