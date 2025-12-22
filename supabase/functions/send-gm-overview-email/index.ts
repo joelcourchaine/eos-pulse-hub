@@ -90,7 +90,9 @@ const handler = async (req: Request): Promise<Response> => {
       .select(`
         id,
         name,
+        store_id,
         stores!inner(
+          id,
           name,
           brand,
           brands(name)
@@ -106,19 +108,23 @@ const handler = async (req: Request): Promise<Response> => {
     const deptData = department as unknown as {
       id: string;
       name: string;
+      store_id: string;
       stores: {
+        id: string;
         name: string;
         brand: string | null;
         brands: { name: string } | null;
       };
     };
 
-    console.log("Department loaded:", deptData.name, "Store:", deptData.stores?.name);
+    const storeId = deptData.store_id;
+    console.log("Department loaded:", deptData.name, "Store:", deptData.stores?.name, "Store ID:", storeId);
 
-    // Fetch profiles for name lookups
+    // Fetch profiles for name lookups - only from the same store
     const { data: profiles } = await supabaseClient
       .from("profiles")
-      .select("id, full_name, email");
+      .select("id, full_name, email, birthday_month, birthday_day, start_month, start_year")
+      .eq("store_id", storeId);
     const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
     // ============ 1. ISSUES & TODOS ============
@@ -211,22 +217,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Get current month info for celebrations
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
-    const currentDay = now.getDate();
     
-    // Get profiles with birthdays this month
-    const { data: birthdayProfiles } = await supabaseClient
-      .from("profiles")
-      .select("id, full_name, birthday_month, birthday_day")
-      .eq("birthday_month", currentMonth);
+    // Filter celebrations from profiles already fetched for this store
+    const birthdayProfiles = profiles?.filter(p => p.birthday_month === currentMonth) || [];
+    const anniversaryProfiles = profiles?.filter(p => 
+      p.start_month === currentMonth && 
+      p.start_year && 
+      p.start_year < now.getFullYear()
+    ) || [];
 
-    // Get work anniversaries this month
-    const { data: anniversaryProfiles } = await supabaseClient
-      .from("profiles")
-      .select("id, full_name, start_month, start_year")
-      .eq("start_month", currentMonth)
-      .lt("start_year", now.getFullYear()); // Only include if they've worked at least 1 year
-
-    console.log(`Found ${birthdayProfiles?.length || 0} birthdays, ${anniversaryProfiles?.length || 0} anniversaries`);
+    console.log(`Found ${birthdayProfiles.length} birthdays, ${anniversaryProfiles.length} anniversaries for store`);
 
     // ============ BUILD HTML EMAIL ============
     const brandName = deptData.stores?.brands?.name || deptData.stores?.brand || null;
