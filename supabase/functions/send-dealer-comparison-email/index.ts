@@ -15,15 +15,25 @@ interface ComparisonMetric {
 interface StoreInfo {
   storeId: string;
   storeName: string;
+  departmentName?: string;
   monthsWithData: string[];
   lastCompleteMonth: string | null;
   isComplete: boolean;
+}
+
+interface QuestionnaireAnswer {
+  storeName: string;
+  departmentName: string;
+  questionText: string;
+  answerValue: string | null;
 }
 
 interface EmailRequest {
   recipientEmails: string[];
   stores: StoreInfo[];
   metrics: ComparisonMetric[];
+  questionnaireData?: QuestionnaireAnswer[];
+  metricType?: string;
   selectedMetrics: string[];
   datePeriodType: string;
   selectedMonth?: string;
@@ -104,6 +114,8 @@ const handler = async (req: Request): Promise<Response> => {
       recipientEmails, 
       stores, 
       metrics,
+      questionnaireData,
+      metricType,
       selectedMetrics,
       datePeriodType,
       selectedMonth,
@@ -116,6 +128,7 @@ const handler = async (req: Request): Promise<Response> => {
     }: EmailRequest = await req.json();
 
     console.log("Sending dealer comparison email to:", recipientEmails);
+    console.log("Metric type:", metricType);
     console.log("Stores:", stores.length, "Metrics:", selectedMetrics.length);
 
     // Build period description
@@ -135,94 +148,211 @@ const handler = async (req: Request): Promise<Response> => {
     else if (comparisonMode === "previous_year") comparisonDescription = "vs Previous Year";
 
     // Build title based on filter name
-    const reportTitle = filterName ? filterName : "Dealer Comparison Report";
+    const reportTitle = filterName ? filterName : (metricType === "dept_info" ? "Service Dept Info Comparison" : "Dealer Comparison Report");
     const brandLine = brandDisplayName || "All Brands";
 
-    // Build HTML email with all inline styles for forward compatibility
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head></head>
-      <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
-        <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
-        <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-          <strong>${brandLine}</strong> • ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
-        </p>
-        
-        <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
-          <thead>
-            <tr>
-              <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;">Metric</th>
-    `;
+    let html = "";
 
-    // Add store headers with data completeness
-    stores.forEach(store => {
-      const statusColor = store.isComplete ? '#16a34a' : '#ca8a04';
-      const statusText = store.lastCompleteMonth 
-        ? `Thru ${formatMonthShort(store.lastCompleteMonth)}`
-        : 'No data';
+    if (metricType === "dept_info" && questionnaireData && questionnaireData.length > 0) {
+      // Build questionnaire comparison email
+      console.log("Building questionnaire email with", questionnaireData.length, "answers");
       
-      html += `
-        <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 180px;">
-          ${store.storeName}
-          ${datePeriodType !== "month" ? `<div style="font-size: 11px; color: ${statusColor}; font-weight: normal; margin-top: 4px;">${statusText}</div>` : ''}
-        </th>
-      `;
-    });
+      // Group data by store+department
+      const storeMap = new Map<string, { storeName: string; departmentName: string; answers: Map<string, string | null> }>();
+      
+      questionnaireData.forEach((item: QuestionnaireAnswer) => {
+        const key = `${item.storeName}|${item.departmentName}`;
+        if (!storeMap.has(key)) {
+          storeMap.set(key, {
+            storeName: item.storeName,
+            departmentName: item.departmentName,
+            answers: new Map(),
+          });
+        }
+        storeMap.get(key)!.answers.set(item.questionText, item.answerValue);
+      });
 
-    html += `</tr></thead><tbody>`;
+      // Get unique questions in order
+      const uniqueQuestions = selectedMetrics.filter(q => 
+        questionnaireData.some((d: QuestionnaireAnswer) => d.questionText === q)
+      );
 
-    // Add metric rows
-    selectedMetrics.forEach(metricName => {
-      const metricData = metrics.find(m => m.metricName === metricName);
-      
-      html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${metricName}</td>`;
-      
-      stores.forEach(store => {
-        const storeValue = metricData?.storeValues[store.storeId];
-        
-        if (storeValue && storeValue.value !== null) {
-          let varianceBgColor = "";
-          let varianceTextColor = "";
-          if (storeValue.variance !== null) {
-            if (storeValue.variance >= 10) {
-              varianceBgColor = "#dcfce7";
-              varianceTextColor = "#166534";
-            } else if (storeValue.variance >= -10) {
-              varianceBgColor = "#fef9c3";
-              varianceTextColor = "#854d0e";
-            } else {
-              varianceBgColor = "#fee2e2";
-              varianceTextColor = "#991b1b";
-            }
-          }
+      // Convert to array and sort
+      const storesArray = Array.from(storeMap.values()).sort((a, b) => 
+        a.storeName.localeCompare(b.storeName)
+      );
+
+      // Format answer for email
+      const formatAnswer = (value: string | null): string => {
+        if (value === null || value === undefined || value === '') {
+          return '<span style="color: #999;">—</span>';
+        }
+        const lowerValue = value.toLowerCase().trim();
+        if (lowerValue === 'yes' || lowerValue === 'true') {
+          return '<span style="color: #16a34a; font-weight: 500;">✓ Yes</span>';
+        }
+        if (lowerValue === 'no' || lowerValue === 'false') {
+          return '<span style="color: #dc2626; font-weight: 500;">✗ No</span>';
+        }
+        if (lowerValue === 'n/a' || lowerValue === 'na') {
+          return '<span style="color: #666;">N/A</span>';
+        }
+        // Truncate long values
+        if (value.length > 40) {
+          return value.substring(0, 40) + '...';
+        }
+        return value;
+      };
+
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head></head>
+        <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+          <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
+          <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+            <strong>${brandLine}</strong> • ${storesArray.length} stores compared • ${uniqueQuestions.length} questions
+          </p>
           
+          <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+            <thead>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;">Question</th>
+      `;
+
+      // Add store headers
+      storesArray.forEach(store => {
+        html += `
+          <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 150px;">
+            ${store.storeName}
+            <div style="font-size: 11px; color: #666; font-weight: normal; margin-top: 2px;">${store.departmentName}</div>
+          </th>
+        `;
+      });
+
+      html += `</tr></thead><tbody>`;
+
+      // Add question rows
+      uniqueQuestions.forEach(question => {
+        html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500; max-width: 300px;">${question}</td>`;
+        
+        storesArray.forEach(store => {
+          const answer = store.answers.get(question);
           html += `
             <td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px;">
-              <div style="font-size: 15px; font-weight: 600;">${formatValue(storeValue.value, metricName)}</div>
-              ${storeValue.target !== null ? `<div style="font-size: 11px; color: #888; margin-top: 2px;">Target: ${formatValue(storeValue.target, metricName)}</div>` : ''}
-              ${storeValue.variance !== null ? `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-top: 4px; background-color: ${varianceBgColor}; color: ${varianceTextColor};">${storeValue.variance >= 0 ? '+' : ''}${storeValue.variance.toFixed(1)}%</span>` : ''}
+              ${formatAnswer(answer ?? null)}
             </td>
           `;
-        } else {
-          html += `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; color: #999;">No data</td>`;
-        }
-      });
-      
-      html += `</tr>`;
-    });
-
-    html += `
-          </tbody>
-        </table>
+        });
         
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
-          <p>This report was generated by the Growth Scorecard application.</p>
-          <p>Generated on ${new Date().toLocaleString()}</p>
-        </div>
-      </body>
-      </html>
-    `;
+        html += `</tr>`;
+      });
+
+      html += `
+            </tbody>
+          </table>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
+            <p>This report was generated by the Growth Scorecard application.</p>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+          </div>
+        </body>
+        </html>
+      `;
+    } else {
+      // Build financial/KPI comparison email (existing logic)
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head></head>
+        <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+          <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
+          <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+            <strong>${brandLine}</strong> • ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
+          </p>
+          
+          <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+            <thead>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;">Metric</th>
+      `;
+
+      // Add store headers with data completeness
+      stores.forEach(store => {
+        const statusColor = store.isComplete ? '#16a34a' : '#ca8a04';
+        const statusText = store.lastCompleteMonth 
+          ? `Thru ${formatMonthShort(store.lastCompleteMonth)}`
+          : 'No data';
+        
+        html += `
+          <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 180px;">
+            ${store.storeName}
+            ${datePeriodType !== "month" ? `<div style="font-size: 11px; color: ${statusColor}; font-weight: normal; margin-top: 4px;">${statusText}</div>` : ''}
+          </th>
+        `;
+      });
+
+      html += `</tr></thead><tbody>`;
+
+      // Add metric rows
+      selectedMetrics.forEach(metricName => {
+        const metricData = metrics.find(m => m.metricName === metricName);
+        
+        html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${metricName}</td>`;
+        
+        stores.forEach(store => {
+          const storeValue = metricData?.storeValues[store.storeId];
+          
+          if (storeValue && storeValue.value !== null) {
+            let varianceBgColor = "";
+            let varianceTextColor = "";
+            if (storeValue.variance !== null) {
+              if (storeValue.variance >= 10) {
+                varianceBgColor = "#dcfce7";
+                varianceTextColor = "#166534";
+              } else if (storeValue.variance >= -10) {
+                varianceBgColor = "#fef9c3";
+                varianceTextColor = "#854d0e";
+              } else {
+                varianceBgColor = "#fee2e2";
+                varianceTextColor = "#991b1b";
+              }
+            }
+            
+            html += `
+              <td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px;">
+                <div style="font-size: 15px; font-weight: 600;">${formatValue(storeValue.value, metricName)}</div>
+                ${storeValue.target !== null ? `<div style="font-size: 11px; color: #888; margin-top: 2px;">Target: ${formatValue(storeValue.target, metricName)}</div>` : ''}
+                ${storeValue.variance !== null ? `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-top: 4px; background-color: ${varianceBgColor}; color: ${varianceTextColor};">${storeValue.variance >= 0 ? '+' : ''}${storeValue.variance.toFixed(1)}%</span>` : ''}
+              </td>
+            `;
+          } else {
+            html += `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; color: #999;">No data</td>`;
+          }
+        });
+        
+        html += `</tr>`;
+      });
+
+      html += `
+            </tbody>
+          </table>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
+            <p>This report was generated by the Growth Scorecard application.</p>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+          </div>
+        </body>
+        </html>
+      `;
+    }
+
+    // Build email subject
+    const emailSubject = metricType === "dept_info"
+      ? (filterName ? `${filterName} - ${brandLine}` : `Service Dept Info Comparison - ${brandLine}`)
+      : (filterName 
+          ? `${filterName} - ${brandLine} - ${periodDescription}` 
+          : `Dealer Comparison Report - ${brandLine} - ${periodDescription}`);
 
     // Send email using Resend
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -239,9 +369,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Growth Scorecard <reports@dealergrowth.solutions>",
         to: recipientEmails,
-        subject: filterName 
-          ? `${filterName} - ${brandLine} - ${periodDescription}` 
-          : `Dealer Comparison Report - ${brandLine} - ${periodDescription}`,
+        subject: emailSubject,
         html,
       }),
     });

@@ -18,6 +18,7 @@ interface Recipient {
 interface StoreInfo {
   storeId: string;
   storeName: string;
+  departmentName?: string;
   monthsWithData: string[];
   lastCompleteMonth: string | null;
   isComplete: boolean;
@@ -28,12 +29,21 @@ interface ComparisonMetric {
   storeValues: Record<string, { value: number | null; target: number | null; variance: number | null }>;
 }
 
+interface QuestionnaireAnswer {
+  storeName: string;
+  departmentName: string;
+  questionText: string;
+  answerValue: string | null;
+}
+
 interface EmailComparisonDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   storeIds: string[];
   stores: StoreInfo[];
   metrics: ComparisonMetric[];
+  questionnaireData?: QuestionnaireAnswer[];
+  metricType?: string;
   selectedMetrics: string[];
   datePeriodType: string;
   selectedMonth?: string;
@@ -51,6 +61,8 @@ export function EmailComparisonDialog({
   storeIds,
   stores,
   metrics,
+  questionnaireData,
+  metricType,
   selectedMetrics,
   datePeriodType,
   selectedMonth,
@@ -171,6 +183,8 @@ export function EmailComparisonDialog({
           recipientEmails: selectedRecipients,
           stores,
           metrics,
+          questionnaireData,
+          metricType,
           selectedMetrics,
           datePeriodType,
           selectedMonth,
