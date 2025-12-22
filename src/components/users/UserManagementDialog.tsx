@@ -457,7 +457,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       />
       
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -483,7 +483,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
               <TableHeader>
                 <TableRow>
                   <TableHead className="sticky left-0 z-10 bg-background min-w-[140px]">Name</TableHead>
-                  <TableHead className="min-w-[160px]">Email</TableHead>
+                  <TableHead className="min-w-[220px]">Email</TableHead>
                   <TableHead className="min-w-[110px]">Role</TableHead>
                   <TableHead className="min-w-[100px]">Store/Group</TableHead>
                   <TableHead className="min-w-[110px]">Manages Dept</TableHead>
