@@ -470,7 +470,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     FINANCIAL_METRICS.forEach(metric => {
       const target = finTargetsMap.get(metric.dbName);
-      html += `<tr><td>${metric.display}</td><td>${target ? formatValue(target.value, metric.type) : '-'}</td>`;
+      const isBold = metric.dbName === "department_profit";
+      html += `<tr style="${isBold ? 'font-weight: bold; background-color: #f0f9ff;' : ''}"><td>${metric.display}</td><td>${target ? formatValue(target.value, metric.type) : '-'}</td>`;
       
       periods.forEach(p => {
         const entry = financialEntries?.find(e => e.metric_name === metric.dbName && e.month === p.identifier);
