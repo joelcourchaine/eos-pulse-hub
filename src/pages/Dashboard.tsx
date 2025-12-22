@@ -309,11 +309,32 @@ const Dashboard = () => {
     };
   }, [selectedStore, profile?.store_id]);
 
-  // Update rocks count when department changes (uses current calendar quarter)
+  // Real-time subscription for rocks updates
   useEffect(() => {
-    if (selectedDepartment) {
-      fetchActiveRocksCount();
-    }
+    if (!selectedDepartment) return;
+
+    // Fetch initial count
+    fetchActiveRocksCount();
+
+    const rocksChannel = supabase
+      .channel('rocks-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rocks'
+        },
+        () => {
+          // Refresh rocks count when any rock changes
+          fetchActiveRocksCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(rocksChannel);
+    };
   }, [selectedDepartment]);
 
   // Redirect to my-tasks page on mobile when preference is set
