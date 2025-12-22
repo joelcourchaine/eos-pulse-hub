@@ -489,6 +489,26 @@ export const DepartmentQuestionnaireDialog = ({
       let finalQuestionId = questionId;
 
       if (isAddingNew) {
+        // If inserting at a specific position, shift existing questions first
+        if (insertAfterQuestionId) {
+          // Get all questions that need shifting (at or after the target position)
+          const { data: toShift } = await supabase
+            .from("department_questions")
+            .select("id, display_order")
+            .gte("display_order", editForm.display_order)
+            .order("display_order", { ascending: false }); // Descending to avoid conflicts
+          
+          if (toShift && toShift.length > 0) {
+            // Shift each question's display_order by 1
+            for (const q of toShift) {
+              await supabase
+                .from("department_questions")
+                .update({ display_order: q.display_order + 1 })
+                .eq("id", q.id);
+            }
+          }
+        }
+
         const { data, error } = await supabase
           .from("department_questions")
           .insert({
