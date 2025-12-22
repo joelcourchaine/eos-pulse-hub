@@ -298,32 +298,51 @@ export default function DealerComparison() {
       if (!questions || questions.length === 0) return [];
       
       const questionIds = questions.map(q => q.id);
+      const questionMap = new Map(questions.map(q => [q.id, q]));
+      
+      // First fetch all departments to ensure we show all stores
+      const { data: deptData, error: deptError } = await supabase
+        .from("departments")
+        .select("id, name, store_id, stores(name)")
+        .in("id", departmentIds);
+      
+      if (deptError) throw deptError;
       
       // Get answers for these questions
       const { data: answers, error: answersError } = await supabase
         .from("department_answers")
-        .select("*, departments(id, name, store_id, stores(name))")
+        .select("*")
         .in("department_id", departmentIds)
         .in("question_id", questionIds);
       
       if (answersError) throw answersError;
       
-      // Map answers to include question text
-      const questionMap = new Map(questions.map(q => [q.id, q]));
-      
-      return (answers || []).map(answer => {
-        const question = questionMap.get(answer.question_id);
-        return {
-          storeName: (answer as any).departments?.stores?.name || 'Unknown Store',
-          departmentName: (answer as any).departments?.name || 'Unknown Dept',
-          departmentId: answer.department_id,
-          questionId: answer.question_id,
-          questionText: question?.question_text || '',
-          answerValue: answer.answer_value,
-          answerType: question?.answer_type || 'text',
-          questionCategory: question?.question_category || '',
-        };
+      // Create a map of answers by department+question
+      const answerMap = new Map<string, string | null>();
+      (answers || []).forEach(answer => {
+        const key = `${answer.department_id}-${answer.question_id}`;
+        answerMap.set(key, answer.answer_value);
       });
+      
+      // Build result with all stores and all questions (even if no answer)
+      const result: any[] = [];
+      (deptData || []).forEach(dept => {
+        questions.forEach(question => {
+          const key = `${dept.id}-${question.id}`;
+          result.push({
+            storeName: (dept as any).stores?.name || 'Unknown Store',
+            departmentName: dept.name || 'Unknown Dept',
+            departmentId: dept.id,
+            questionId: question.id,
+            questionText: question.question_text || '',
+            answerValue: answerMap.get(key) ?? null,
+            answerType: question.answer_type || 'text',
+            questionCategory: question.question_category || '',
+          });
+        });
+      });
+      
+      return result;
     },
     enabled: departmentIds.length > 0 && metricType === "dept_info" && selectedMetrics.length > 0,
   });
