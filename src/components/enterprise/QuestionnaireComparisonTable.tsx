@@ -78,7 +78,7 @@ export function QuestionnaireComparisonTable({
     const lowerValue = value.toLowerCase().trim();
     if (lowerValue === 'yes' || lowerValue === 'true') {
       return (
-        <span className="flex items-center gap-1 text-green-600">
+        <span className="inline-flex items-center justify-center gap-1 text-green-600">
           <CheckCircle2 className="h-4 w-4" />
           Yes
         </span>
@@ -86,7 +86,7 @@ export function QuestionnaireComparisonTable({
     }
     if (lowerValue === 'no' || lowerValue === 'false') {
       return (
-        <span className="flex items-center gap-1 text-red-500">
+        <span className="inline-flex items-center justify-center gap-1 text-red-500">
           <XCircle className="h-4 w-4" />
           No
         </span>
@@ -94,7 +94,7 @@ export function QuestionnaireComparisonTable({
     }
     if (lowerValue === 'n/a' || lowerValue === 'na') {
       return (
-        <span className="flex items-center gap-1 text-muted-foreground">
+        <span className="inline-flex items-center justify-center gap-1 text-muted-foreground">
           <HelpCircle className="h-4 w-4" />
           N/A
         </span>
@@ -104,7 +104,7 @@ export function QuestionnaireComparisonTable({
     // For longer text, truncate with title
     if (value.length > 50) {
       return (
-        <span title={value} className="block max-w-[200px] truncate">
+        <span title={value} className="block max-w-[200px] truncate mx-auto">
           {value}
         </span>
       );
