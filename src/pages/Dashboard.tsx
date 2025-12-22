@@ -23,6 +23,7 @@ import { UserManagementDialog } from "@/components/users/UserManagementDialog";
 import { StoreManagementDialog } from "@/components/stores/StoreManagementDialog";
 import { DepartmentSelectionDialog } from "@/components/departments/DepartmentSelectionDialog";
 import { TodosPanel } from "@/components/todos/TodosPanel";
+import { CollapsibleIssuesPanel } from "@/components/issues/CollapsibleIssuesPanel";
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
@@ -1110,6 +1111,11 @@ const Dashboard = () => {
             departmentId={selectedDepartment}
             onViewModeChange={setMeetingViewMode}
           />
+        )}
+
+        {/* Issues & To-Dos Section - show for view-all above scorecard */}
+        {!isStoreSwitching && meetingViewMode === "view-all" && selectedDepartment && (
+          <CollapsibleIssuesPanel departmentId={selectedDepartment} userId={user?.id} />
         )}
 
         {/* Scorecard Section - show for view-all or scorecard tab */}
