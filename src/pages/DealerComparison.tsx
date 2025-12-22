@@ -287,12 +287,13 @@ export default function DealerComparison() {
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       
-      // Get questions that match selected metrics (question_text)
+      // Get questions that match selected metrics (question_text), ordered by display_order
       const { data: questions, error: questionsError } = await supabase
         .from("department_questions")
-        .select("id, question_text, answer_type, question_category")
+        .select("id, question_text, answer_type, question_category, display_order")
         .eq("is_active", true)
-        .in("question_text", selectedMetrics);
+        .in("question_text", selectedMetrics)
+        .order("display_order", { ascending: true });
       
       if (questionsError) throw questionsError;
       if (!questions || questions.length === 0) return [];
