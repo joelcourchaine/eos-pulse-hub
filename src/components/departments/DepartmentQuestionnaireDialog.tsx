@@ -422,9 +422,12 @@ export const DepartmentQuestionnaireDialog = ({
     });
   };
 
+  const [insertAfterQuestionId, setInsertAfterQuestionId] = useState<string | null>(null);
+
   const handleAddNew = () => {
     setIsAddingNew(true);
     setEditingQuestionId(null);
+    setInsertAfterQuestionId(null);
     setEditForm({
       question_text: "",
       answer_description: "",
@@ -435,9 +438,24 @@ export const DepartmentQuestionnaireDialog = ({
     });
   };
 
+  const handleAddAtPosition = (afterQuestion: Question) => {
+    setIsAddingNew(true);
+    setEditingQuestionId(null);
+    setInsertAfterQuestionId(afterQuestion.id);
+    setEditForm({
+      question_text: "",
+      answer_description: "",
+      question_category: afterQuestion.question_category,
+      answer_type: "text",
+      display_order: afterQuestion.display_order + 1,
+      department_type_ids: afterQuestion.department_types?.map(dt => dt.id) || (departmentTypeId ? [departmentTypeId] : []),
+    });
+  };
+
   const handleCancelEdit = () => {
     setEditingQuestionId(null);
     setIsAddingNew(false);
+    setInsertAfterQuestionId(null);
     setEditForm({ 
       question_text: "", 
       answer_description: "",
@@ -1067,9 +1085,140 @@ export const DepartmentQuestionnaireDialog = ({
                   <ChevronDown className="h-4 w-4" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-4">
-                  {categoryQuestions.map((question) => (
+                  {categoryQuestions.map((question, index) => (
                     <div key={question.id}>
                       {renderQuestionContent(question)}
+                      
+                      {/* Inline add form appears after this question if selected */}
+                      {isAddingNew && insertAfterQuestionId === question.id && isSuperAdmin && (
+                        <Card className="p-4 mt-4 border-primary bg-primary/5">
+                          <div className="text-sm font-medium text-primary mb-3">
+                            Insert new question here (after "{question.question_text.substring(0, 50)}...")
+                          </div>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Question Text *</Label>
+                                <Input
+                                  value={editForm.question_text}
+                                  onChange={(e) => setEditForm({ ...editForm, question_text: e.target.value })}
+                                  placeholder="Enter question..."
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Category *</Label>
+                                <div className="flex gap-2">
+                                  <Select 
+                                    value={editForm.question_category} 
+                                    onValueChange={(val) => setEditForm({ ...editForm, question_category: val })}
+                                  >
+                                    <SelectTrigger className="flex-1">
+                                      <SelectValue placeholder="Select category..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {categories.map((cat) => (
+                                        <SelectItem key={cat.id} value={cat.name}>
+                                          {cat.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label>Answer Type</Label>
+                                <Select value={editForm.answer_type} onValueChange={(val) => setEditForm({ ...editForm, answer_type: val })}>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text">Text</SelectItem>
+                                    <SelectItem value="number">Number</SelectItem>
+                                    <SelectItem value="textarea">Long Text</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Display Order</Label>
+                                <Input
+                                  type="number"
+                                  value={editForm.display_order}
+                                  onChange={(e) => setEditForm({ ...editForm, display_order: parseInt(e.target.value) || 0 })}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Answer Description (Help text)</Label>
+                              <Textarea
+                                value={editForm.answer_description}
+                                onChange={(e) => setEditForm({ ...editForm, answer_description: e.target.value })}
+                                placeholder="Provide guidance on how to answer this question..."
+                                rows={2}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Department Types *</Label>
+                              <div className="flex flex-wrap gap-2 p-3 border rounded-md">
+                                {departmentTypes.map(type => (
+                                  <label key={type.id} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={editForm.department_type_ids.includes(type.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setEditForm({
+                                            ...editForm,
+                                            department_type_ids: [...editForm.department_type_ids, type.id]
+                                          });
+                                        } else {
+                                          setEditForm({
+                                            ...editForm,
+                                            department_type_ids: editForm.department_type_ids.filter(id => id !== type.id)
+                                          });
+                                        }
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className="text-sm">{type.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <Button onClick={() => handleSaveQuestion()} size="sm">
+                                <Save className="mr-2 h-4 w-4" />
+                                Add Question
+                              </Button>
+                              <Button variant="outline" onClick={handleCancelEdit} size="sm">
+                                <X className="mr-2 h-4 w-4" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        </Card>
+                      )}
+                      
+                      {/* Insert button between questions - only show for super admins and when not already adding */}
+                      {isSuperAdmin && !isAddingNew && editingQuestionId === null && (
+                        <div className="flex justify-center py-2 opacity-0 hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-muted-foreground hover:text-primary"
+                            onClick={() => handleAddAtPosition(question)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Insert question here
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </CollapsibleContent>
