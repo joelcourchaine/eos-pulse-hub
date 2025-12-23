@@ -1,6 +1,7 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Target, Users, Mail, Gauge, Calendar, CheckSquare, PartyPopper, AlertTriangle, DollarSign } from "lucide-react";
+import { BarChart3, Target, Users, Mail, Gauge, Calendar, CheckSquare, PartyPopper, AlertTriangle, DollarSign, Download, X } from "lucide-react";
 import goLogo from "@/assets/go-logo.png";
 import featureGauges from "@/assets/feature-gauges.png";
 import featureMeeting from "@/assets/feature-meeting.png";
@@ -12,6 +13,23 @@ import featureFinancial from "@/assets/feature-financial.png";
 
 const Index = () => {
   const navigate = useNavigate();
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    // Check if on mobile and not already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const bannerDismissed = sessionStorage.getItem('installBannerDismissed');
+    
+    if (isMobile && !isStandalone && !bannerDismissed) {
+      setShowInstallBanner(true);
+    }
+  }, []);
+
+  const dismissBanner = () => {
+    sessionStorage.setItem('installBannerDismissed', 'true');
+    setShowInstallBanner(false);
+  };
 
   const handleRequestAccess = () => {
     window.location.href = "mailto:info@dealergrowth.solutions?subject=Request Access to GO Scorecard Platform&body=Hi, I'm interested in getting access to the GO Scorecard Platform for my dealership.%0A%0ADealership Name:%0AContact Name:%0APhone:%0A";
@@ -71,7 +89,33 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Mobile Install Banner */}
+      {showInstallBanner && (
+        <div className="fixed top-0 left-0 right-0 bg-primary text-primary-foreground p-3 flex items-center justify-between z-50 shadow-lg">
+          <div className="flex items-center gap-3">
+            <Download className="h-5 w-5" />
+            <span className="text-sm font-medium">Install app for the best experience</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => navigate("/install")}
+            >
+              Install
+            </Button>
+            <button
+              onClick={dismissBanner}
+              className="p-1 hover:bg-primary-foreground/20 rounded"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 ${showInstallBanner ? 'pt-20' : ''}`}>
         {/* Header */}
         <div className="text-center mb-16">
           <img src={goLogo} alt="GO Logo" className="h-20 w-20 mx-auto mb-6 rounded-2xl shadow-lg" />
@@ -82,13 +126,17 @@ const Index = () => {
             Transform your dealership performance with data-driven accountability.
             Track KPIs, manage quarterly rocks, and run effective GO meetings—all in one place.
           </p>
-          <div className="mt-8 flex gap-4 justify-center">
+          <div className="mt-8 flex gap-4 justify-center flex-wrap">
             <Button size="lg" onClick={handleRequestAccess}>
               <Mail className="mr-2 h-4 w-4" />
               Request Access
             </Button>
             <Button size="lg" variant="outline" onClick={() => navigate("/auth")}>
               Sign In
+            </Button>
+            <Button size="lg" variant="ghost" onClick={() => navigate("/install")}>
+              <Download className="mr-2 h-4 w-4" />
+              Install App
             </Button>
           </div>
         </div>
