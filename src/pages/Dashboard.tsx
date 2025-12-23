@@ -156,10 +156,17 @@ const Dashboard = () => {
     if (selectedDepartment && departmentsLoaded && storesLoaded) {
       // CRITICAL: Verify department belongs to current store before fetching data
       const dept = departments.find(d => d.id === selectedDepartment);
-      if (!dept || dept.store_id !== selectedStore) {
+      // For super admins, use selectedStore; for others, use profile.store_id or skip check for dept managers with access
+      const effectiveStoreId = isSuperAdmin ? selectedStore : (profile?.store_id || null);
+      
+      // For department managers, they may have access to departments via user_department_access
+      // so we only validate store ownership for super admins and store GMs
+      const shouldValidateStore = isSuperAdmin || isStoreGM;
+      
+      if (!dept || (shouldValidateStore && effectiveStoreId && dept.store_id !== effectiveStoreId)) {
         console.error('Department does not belong to current store!', {
           selectedDepartment,
-          selectedStore,
+          effectiveStoreId,
           deptStoreId: dept?.store_id
         });
         // Clear invalid selection
@@ -499,9 +506,16 @@ const Dashboard = () => {
       if (data && data.length > 0) {
         const savedDept = localStorage.getItem('selectedDepartment');
         // CRITICAL: Validate saved department belongs to this store's departments
-        // Check both that department exists AND that it belongs to the current store
+        // For super admins, use selectedStore; for others, use profile.store_id or skip for dept managers
+        const effectiveStoreId = isSuperAdmin ? selectedStore : (profile?.store_id || null);
+        const shouldValidateStore = isSuperAdmin || isStoreGM;
+        
         const foundDept = data.find(d => d.id === savedDept);
-        if (savedDept && foundDept && foundDept.store_id === selectedStore) {
+        // For department managers, they already have filtered departments via user_department_access
+        // so we just need to check if the saved dept is in the list
+        const isValidDept = foundDept && (!shouldValidateStore || !effectiveStoreId || foundDept.store_id === effectiveStoreId);
+        
+        if (savedDept && isValidDept) {
           setSelectedDepartment(savedDept);
         } else {
           // Prioritize Service Department, otherwise use first department
