@@ -38,6 +38,7 @@ const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(user?.id);
   const [departments, setDepartments] = useState<any[]>([]);
@@ -353,10 +354,22 @@ const Dashboard = () => {
         .eq("id", userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching profile:", error);
+        setProfileError("Unable to load your profile. This may be a permissions issue. Please contact support or try signing in again.");
+        return;
+      }
+      
+      if (!data) {
+        setProfileError("Profile not found. Please contact support.");
+        return;
+      }
+      
       setProfile(data);
+      setProfileError(null);
     } catch (error: any) {
       console.error("Error fetching profile:", error);
+      setProfileError("An unexpected error occurred while loading your profile. Please try signing in again.");
     } finally {
       setLoading(false);
     }
@@ -817,6 +830,45 @@ const Dashboard = () => {
       setIsEmailLoading(false);
     }
   };
+
+  // Handle profile loading error - show friendly message with sign out option
+  if (profileError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <Card className="max-w-md mx-4">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5" />
+              Unable to Load Profile
+            </CardTitle>
+            <CardDescription>{profileError}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setProfileError(null);
+                setLoading(true);
+                if (user) fetchProfile(user.id);
+              }}
+            >
+              Try Again
+            </Button>
+            <Button 
+              variant="default"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate("/auth");
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading || rolesLoading || !user || !profile) {
     return (
