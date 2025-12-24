@@ -535,7 +535,9 @@ const MyTasks = () => {
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          {/* Mobile: Stack layout, Desktop: Horizontal layout */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Title and pending count */}
             <div className="flex items-center gap-3">
               <img src={goLogo} alt="GO Logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg hidden sm:block" />
               <div>
@@ -545,35 +547,28 @@ const MyTasks = () => {
                 </p>
               </div>
             </div>
+            
+            {/* Action buttons - row on both mobile and desktop */}
             <div className="flex items-center gap-2">
               {isSuperAdmin && (
-                <Button onClick={() => setShowCreateDialog(true)} size={isMobile ? "sm" : "default"}>
+                <Button onClick={() => setShowCreateDialog(true)} size="sm" className="flex-1 sm:flex-none">
                   <Plus className="h-4 w-4 mr-1" />
-                  {isMobile ? "New" : "Create Task"}
+                  New
                 </Button>
               )}
-              <Button onClick={handleBackToDashboard} variant="outline" size={isMobile ? "sm" : "default"}>
-                {isMobile ? (
-                  <>
-                    Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Dashboard
-                  </>
-                )}
+              <Button onClick={handleBackToDashboard} variant="outline" size="sm" className="flex-1 sm:flex-none">
+                Dashboard
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </div>
           
-          {/* Store Group and Store Filters */}
+          {/* Store Group and Store Filters - Full width on mobile */}
           {canFilterByStore && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
               {/* Store Group Filter */}
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <Select value={selectedGroupFilter} onValueChange={(value) => {
                   setSelectedGroupFilter(value);
                   // Reset store filter when changing group
@@ -581,7 +576,7 @@ const MyTasks = () => {
                     setSelectedStoreFilter("all");
                   }
                 }}>
-                  <SelectTrigger className="w-[180px] sm:w-[200px] h-8 text-sm">
+                  <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm">
                     <SelectValue placeholder="Filter by group..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -597,7 +592,7 @@ const MyTasks = () => {
               
               {/* Store Filter */}
               <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
-                <SelectTrigger className="w-[180px] sm:w-[220px] h-8 text-sm">
+                <SelectTrigger className="w-full sm:w-[220px] h-9 text-sm">
                   <SelectValue placeholder="Filter by store..." />
                 </SelectTrigger>
                 <SelectContent>
