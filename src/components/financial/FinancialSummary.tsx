@@ -1793,50 +1793,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // Build header row
     const headers = ["Metric", ...periods.map(p => p.label)];
     
-    // Recursive helper to get metric value for export (handles calculated fields like Nissan Semi Fixed Expense)
-    const getMonthValueForExport = (metricKey: string, monthNum: number, yearNum: number): number | undefined => {
-      const mKey = `${metricKey}-M${monthNum}-${yearNum}`;
-      const directValue = precedingQuartersData[mKey];
-      
-      // If direct value exists, return it
-      if (directValue !== undefined) return directValue;
-      
-      // Find metric definition to check for calculation
-      const metric = FINANCIAL_METRICS.find(m => m.key === metricKey);
-      if (!metric || !metric.calculation) return undefined;
-      
-      // Handle percentage calculations
-      if (metric.type === 'percentage' && 'numerator' in metric.calculation) {
-        const num = getMonthValueForExport(metric.calculation.numerator, monthNum, yearNum);
-        const den = getMonthValueForExport(metric.calculation.denominator, monthNum, yearNum);
-        if (num !== undefined && den !== undefined && den !== 0) {
-          return (num / den) * 100;
-        }
-        return undefined;
-      }
-      
-      // Handle dollar subtraction/complex calculations (recursive for nested calculations like Nissan)
-      if (metric.type === 'dollar' && 'type' in metric.calculation) {
-        const baseVal = getMonthValueForExport(metric.calculation.base, monthNum, yearNum);
-        if (baseVal === undefined) return undefined;
-        
-        let calcVal = baseVal;
-        for (const ded of metric.calculation.deductions) {
-          const dedVal = getMonthValueForExport(ded, monthNum, yearNum);
-          if (dedVal !== undefined) calcVal -= dedVal;
-        }
-        if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
-          for (const add of metric.calculation.additions) {
-            const addVal = getMonthValueForExport(add, monthNum, yearNum);
-            if (addVal !== undefined) calcVal += addVal;
-          }
-        }
-        return calcVal;
-      }
-      
-      return undefined;
-    };
-    
     // Build data rows
     const dataRows = FINANCIAL_METRICS.map(metric => {
       const row: (string | number)[] = [metric.name];
@@ -1845,14 +1801,49 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         let value: number | undefined;
         
         if (period.type === 'month') {
-          value = getMonthValueForExport(metric.key, period.month + 1, period.year);
+          const mKey = `${metric.key}-M${period.month + 1}-${period.year}`;
+          value = precedingQuartersData[mKey];
+          
+          // Handle calculated fields if direct value doesn't exist
+          if (value === undefined && metric.calculation) {
+            // For percentage calculations
+            if (metric.type === 'percentage' && 'numerator' in metric.calculation) {
+              const numKey = `${metric.calculation.numerator}-M${period.month + 1}-${period.year}`;
+              const denKey = `${metric.calculation.denominator}-M${period.month + 1}-${period.year}`;
+              const num = precedingQuartersData[numKey];
+              const den = precedingQuartersData[denKey];
+              if (num !== undefined && den !== undefined && den !== 0) {
+                value = (num / den) * 100;
+              }
+            }
+            // For dollar subtraction/complex calculations
+            if (metric.type === 'dollar' && 'type' in metric.calculation) {
+              const baseKey = `${metric.calculation.base}-M${period.month + 1}-${period.year}`;
+              const baseVal = precedingQuartersData[baseKey];
+              if (baseVal !== undefined) {
+                let calcVal = baseVal;
+                for (const ded of metric.calculation.deductions) {
+                  const dedKey = `${ded}-M${period.month + 1}-${period.year}`;
+                  calcVal -= (precedingQuartersData[dedKey] || 0);
+                }
+                if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
+                  for (const add of metric.calculation.additions) {
+                    const addKey = `${add}-M${period.month + 1}-${period.year}`;
+                    calcVal += (precedingQuartersData[addKey] || 0);
+                  }
+                }
+                value = calcVal;
+              }
+            }
+          }
         } else if (period.type === 'year-avg' && period.summaryYear) {
-          // Calculate average for the year using recursive helper
+          // Calculate average for the year
           const monthCount = period.isYTD ? new Date().getMonth() + 1 : 12;
           let sum = 0;
           let count = 0;
           for (let m = 1; m <= monthCount; m++) {
-            const val = getMonthValueForExport(metric.key, m, period.summaryYear);
+            const mKey = `${metric.key}-M${m}-${period.summaryYear}`;
+            const val = precedingQuartersData[mKey];
             if (val !== undefined) {
               sum += val;
               count++;
@@ -1868,7 +1859,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             let sum = 0;
             let hasData = false;
             for (let m = 1; m <= monthCount; m++) {
-              const val = getMonthValueForExport(metric.key, m, period.summaryYear);
+              const mKey = `${metric.key}-M${m}-${period.summaryYear}`;
+              const val = precedingQuartersData[mKey];
               if (val !== undefined) {
                 sum += val;
                 hasData = true;
