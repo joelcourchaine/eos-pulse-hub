@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -460,21 +460,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     loadData();
   }, [departmentId, year, quarter]);
 
-  // Auto-scroll to the right in monthly trend mode to show most current data
-  useEffect(() => {
-    console.log('Auto-scroll check:', { isMonthlyTrendMode, isOpen, dataCount: Object.keys(precedingQuartersData).length, hasRef: !!scrollContainerRef.current });
-    if (isMonthlyTrendMode && isOpen && Object.keys(precedingQuartersData).length > 0) {
-      // Use requestAnimationFrame + setTimeout to ensure the table has fully rendered
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (scrollContainerRef.current) {
-            console.log('Scrolling to:', scrollContainerRef.current.scrollWidth);
-            scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
-          }
-        }, 300);
-      });
-    }
-  }, [isMonthlyTrendMode, isOpen, precedingQuartersData]);
+  // Auto-scroll to the far right in monthly trend mode to show the current year on load
+  useLayoutEffect(() => {
+    if (!isMonthlyTrendMode || !isOpen) return;
+    if (!scrollContainerRef.current) return;
+    if (Object.keys(precedingQuartersData).length === 0) return;
+
+    const el = scrollContainerRef.current;
+
+    const scrollToRight = () => {
+      const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      el.scrollLeft = maxLeft;
+    };
+
+    // Retry a few frames in case widths change after render (fonts, sticky cells, etc.)
+    let tries = 0;
+    const tick = () => {
+      scrollToRight();
+      tries += 1;
+      if (tries < 8) requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+  }, [isMonthlyTrendMode, isOpen, precedingQuartersData, monthlyTrendPeriods.length]);
   // Real-time subscription for financial entries
   useEffect(() => {
     if (!departmentId) return;
