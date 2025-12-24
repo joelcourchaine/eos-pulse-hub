@@ -11,7 +11,8 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1783,6 +1784,129 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setCurrentNote("");
   };
 
+  // Export monthly trend data to Excel
+  const handleExportMonthlyTrend = () => {
+    if (!isMonthlyTrendMode) return;
+
+    const periods = monthlyTrendPeriods;
+    
+    // Build header row
+    const headers = ["Metric", ...periods.map(p => p.label)];
+    
+    // Build data rows
+    const dataRows = FINANCIAL_METRICS.map(metric => {
+      const row: (string | number)[] = [metric.name];
+      
+      periods.forEach(period => {
+        let value: number | undefined;
+        
+        if (period.type === 'month') {
+          const mKey = `${metric.key}-M${period.month + 1}-${period.year}`;
+          value = precedingQuartersData[mKey];
+          
+          // Handle calculated fields if direct value doesn't exist
+          if (value === undefined && metric.calculation) {
+            // For percentage calculations
+            if (metric.type === 'percentage' && 'numerator' in metric.calculation) {
+              const numKey = `${metric.calculation.numerator}-M${period.month + 1}-${period.year}`;
+              const denKey = `${metric.calculation.denominator}-M${period.month + 1}-${period.year}`;
+              const num = precedingQuartersData[numKey];
+              const den = precedingQuartersData[denKey];
+              if (num !== undefined && den !== undefined && den !== 0) {
+                value = (num / den) * 100;
+              }
+            }
+            // For dollar subtraction/complex calculations
+            if (metric.type === 'dollar' && 'type' in metric.calculation) {
+              const baseKey = `${metric.calculation.base}-M${period.month + 1}-${period.year}`;
+              const baseVal = precedingQuartersData[baseKey];
+              if (baseVal !== undefined) {
+                let calcVal = baseVal;
+                for (const ded of metric.calculation.deductions) {
+                  const dedKey = `${ded}-M${period.month + 1}-${period.year}`;
+                  calcVal -= (precedingQuartersData[dedKey] || 0);
+                }
+                if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
+                  for (const add of metric.calculation.additions) {
+                    const addKey = `${add}-M${period.month + 1}-${period.year}`;
+                    calcVal += (precedingQuartersData[addKey] || 0);
+                  }
+                }
+                value = calcVal;
+              }
+            }
+          }
+        } else if (period.type === 'year-avg' && period.summaryYear) {
+          // Calculate average for the year
+          const monthCount = period.isYTD ? new Date().getMonth() + 1 : 12;
+          let sum = 0;
+          let count = 0;
+          for (let m = 1; m <= monthCount; m++) {
+            const mKey = `${metric.key}-M${m}-${period.summaryYear}`;
+            const val = precedingQuartersData[mKey];
+            if (val !== undefined) {
+              sum += val;
+              count++;
+            }
+          }
+          value = count > 0 ? sum / count : undefined;
+        } else if (period.type === 'year-total' && period.summaryYear) {
+          // Calculate total for the year (skip percentage metrics)
+          if (metric.type === 'percentage') {
+            value = undefined;
+          } else {
+            const monthCount = period.isYTD ? new Date().getMonth() + 1 : 12;
+            let sum = 0;
+            let hasData = false;
+            for (let m = 1; m <= monthCount; m++) {
+              const mKey = `${metric.key}-M${m}-${period.summaryYear}`;
+              const val = precedingQuartersData[mKey];
+              if (val !== undefined) {
+                sum += val;
+                hasData = true;
+              }
+            }
+            value = hasData ? sum : undefined;
+          }
+        }
+        
+        // Format the value for Excel
+        if (value !== undefined) {
+          if (metric.type === 'percentage') {
+            row.push(Math.round(value * 100) / 100); // Keep as number for Excel, rounded
+          } else {
+            row.push(Math.round(value)); // Round dollars
+          }
+        } else {
+          row.push("");
+        }
+      });
+      
+      return row;
+    });
+    
+    // Create workbook
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
+    
+    // Set column widths
+    const colWidths = [{ wch: 25 }, ...periods.map(() => ({ wch: 12 }))];
+    ws['!cols'] = colWidths;
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Monthly Trend");
+    
+    // Generate filename
+    const safeDeptName = departmentName?.replace(/[^a-zA-Z0-9]/g, '_') || 'Financial';
+    const filename = `${safeDeptName}_MonthlyTrend_${year}.xlsx`;
+    
+    XLSX.writeFile(wb, filename);
+    
+    toast({
+      title: "Export Complete",
+      description: `Downloaded ${filename}`,
+    });
+  };
+
   if (loading) {
     return (
       <Card>
@@ -1842,6 +1966,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       Import Data
                     </Button>
                   </>
+                )}
+                {isMonthlyTrendMode && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExportMonthlyTrend();
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
                 )}
                 <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
                   <DialogTrigger asChild>
