@@ -352,12 +352,12 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     name: "Net Selling Gross", 
     key: "net_selling_gross", 
     type: "dollar", 
-    description: "GP Net less Sales Expense less Semi Fixed Expense", 
+    description: "GP Net less Total Direct Expenses", 
     targetDirection: "above",
     calculation: {
       type: "subtract",
       base: "gp_net",
-      deductions: ["sales_expense", "semi_fixed_expense"]
+      deductions: ["total_direct_expenses"]
     }
   },
   { 
