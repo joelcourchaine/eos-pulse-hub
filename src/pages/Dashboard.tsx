@@ -916,7 +916,7 @@ const Dashboard = () => {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             {/* Logo and Title - centered on mobile */}
-            <div className="flex items-center gap-3 justify-center md:justify-start">
+            <div className="flex items-center gap-3 justify-center md:justify-start flex-shrink-0">
               <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
               <div className="min-w-0">
                 <h1 className="text-xl font-bold text-foreground whitespace-nowrap">GO Scorecard</h1>
