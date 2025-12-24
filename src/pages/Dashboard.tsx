@@ -914,18 +914,21 @@ const Dashboard = () => {
         {/* Header */}
         <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            {/* Logo and Title - centered on mobile */}
+            <div className="flex items-center gap-3 justify-center md:justify-start">
               <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
               <div className="min-w-0">
                 <h1 className="text-xl font-bold text-foreground whitespace-nowrap">GO Scorecard</h1>
                 <p className="text-xs text-muted-foreground whitespace-nowrap">Growth Operating System</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 flex-wrap justify-end">
+            
+            {/* Store and Department Selectors - full width on mobile */}
+            <div className="flex flex-col gap-2 w-full md:flex-row md:w-auto md:items-center md:gap-3">
               {isSuperAdmin && stores.length > 0 && (
                 <Select value={selectedStore} onValueChange={setSelectedStore}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Select Store" />
                   </SelectTrigger>
                   <SelectContent>
@@ -939,7 +942,7 @@ const Dashboard = () => {
               )}
               {departments.length > 0 && (
                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Select Department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -951,26 +954,30 @@ const Dashboard = () => {
                   </SelectContent>
                 </Select>
               )}
+            </div>
+            
+            {/* Navigation Buttons - grid on mobile for better layout */}
+            <div className="grid grid-cols-2 gap-2 w-full md:flex md:flex-row md:w-auto md:items-center md:gap-3">
               {isSuperAdmin && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")}>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")} className="w-full md:w-auto">
                     <TrendingUp className="mr-2 h-4 w-4" />
                     Enterprise
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowStores(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setShowStores(true)} className="w-full md:w-auto">
                     <Building2 className="mr-2 h-4 w-4" />
                     Stores
                   </Button>
                 </>
               )}
               {(isSuperAdmin || isStoreGM) && (
-                <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)}>
+                <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)} className="w-full md:w-auto">
                   <Building className="mr-2 h-4 w-4" />
                   Departments
                 </Button>
               )}
               {(isSuperAdmin || isStoreGM) && (
-                <Button variant="outline" size="sm" onClick={() => setShowUsers(true)}>
+                <Button variant="outline" size="sm" onClick={() => setShowUsers(true)} className="w-full md:w-auto">
                   <Users className="mr-2 h-4 w-4" />
                   Users
                 </Button>
@@ -980,6 +987,7 @@ const Dashboard = () => {
                   variant="outline" 
                   size="sm" 
                   onClick={() => setShowDepartmentInfo(true)}
+                  className="w-full md:w-auto"
                 >
                   <ClipboardList className="mr-2 h-4 w-4" />
                   Department Info
@@ -1034,7 +1042,7 @@ const Dashboard = () => {
                 }
               }}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="w-full md:w-auto">
                     <Mail className="h-4 w-4 mr-2" />
                     Email Report
                   </Button>
@@ -1134,7 +1142,7 @@ const Dashboard = () => {
                   {profile.role.replace("_", " ")}
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
+              <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full md:w-auto">
                 <LogOut className="h-4 w-4 mr-2" />
                 Sign Out
               </Button>
