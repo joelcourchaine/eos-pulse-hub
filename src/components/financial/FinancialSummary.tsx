@@ -270,6 +270,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const isQuarterTrendMode = quarter === 0;
   const isMonthlyTrendMode = quarter === -1;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastMonthlyColumnRef = useRef<HTMLTableCellElement | null>(null);
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
@@ -466,19 +467,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (!scrollContainerRef.current) return;
     if (Object.keys(precedingQuartersData).length === 0) return;
 
-    const el = scrollContainerRef.current;
+    const container = scrollContainerRef.current;
 
     const scrollToRight = () => {
-      const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-      el.scrollLeft = maxLeft;
+      // Primary: jump container to max scroll
+      container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      // Secondary: ensure the last column is visible even if widths change
+      lastMonthlyColumnRef.current?.scrollIntoView({
+        behavior: "auto",
+        block: "nearest",
+        inline: "end",
+      });
     };
 
-    // Retry a few frames in case widths change after render (fonts, sticky cells, etc.)
     let tries = 0;
     const tick = () => {
       scrollToRight();
       tries += 1;
-      if (tries < 8) requestAnimationFrame(tick);
+      if (tries < 12) requestAnimationFrame(tick);
     };
 
     requestAnimationFrame(tick);
@@ -2145,16 +2151,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                          <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                            Trend
                          </TableHead>
-                         {monthlyTrendPeriods.map((period) => (
-                           <TableHead 
-                             key={period.identifier} 
-                             className={cn(
-                               "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
-                               period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
-                               period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
-                               period.type === 'month' && "bg-muted/50"
-                             )}
-                           >
+                          {monthlyTrendPeriods.map((period, periodIndex) => (
+                            <TableHead 
+                              key={period.identifier}
+                              ref={periodIndex === monthlyTrendPeriods.length - 1 ? lastMonthlyColumnRef : undefined}
+                              className={cn(
+                                "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
+                                period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
+                                period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
+                                period.type === 'month' && "bg-muted/50"
+                              )}
+                            >
                               <div className="flex flex-col items-center">
                                 {period.type === 'month' ? (
                                   <>
