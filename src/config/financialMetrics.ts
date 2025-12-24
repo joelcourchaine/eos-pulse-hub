@@ -630,6 +630,9 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   if (brand?.toLowerCase().includes('nissan')) {
     return NISSAN_METRICS;
   }
+  if (brand?.toLowerCase().includes('hyundai')) {
+    return NISSAN_METRICS;
+  }
   if (brand?.toLowerCase().includes('ford')) {
     return FORD_METRICS;
   }
