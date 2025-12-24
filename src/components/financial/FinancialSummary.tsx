@@ -462,15 +462,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   // Auto-scroll to the right in monthly trend mode to show most current data
   useEffect(() => {
-    if (isMonthlyTrendMode && scrollContainerRef.current && Object.keys(precedingQuartersData).length > 0) {
-      // Use setTimeout to ensure the table has fully rendered
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
-        }
-      }, 150);
+    console.log('Auto-scroll check:', { isMonthlyTrendMode, isOpen, dataCount: Object.keys(precedingQuartersData).length, hasRef: !!scrollContainerRef.current });
+    if (isMonthlyTrendMode && isOpen && Object.keys(precedingQuartersData).length > 0) {
+      // Use requestAnimationFrame + setTimeout to ensure the table has fully rendered
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            console.log('Scrolling to:', scrollContainerRef.current.scrollWidth);
+            scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+          }
+        }, 300);
+      });
     }
-  }, [isMonthlyTrendMode, precedingQuartersData]);
+  }, [isMonthlyTrendMode, isOpen, precedingQuartersData]);
   // Real-time subscription for financial entries
   useEffect(() => {
     if (!departmentId) return;
