@@ -269,6 +269,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
   const isQuarterTrendMode = quarter === 0;
   const isMonthlyTrendMode = quarter === -1;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
@@ -459,6 +460,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     loadData();
   }, [departmentId, year, quarter]);
 
+  // Auto-scroll to the right in monthly trend mode to show most current data
+  useEffect(() => {
+    if (isMonthlyTrendMode && !loading && scrollContainerRef.current) {
+      // Use setTimeout to ensure the table has fully rendered
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth;
+        }
+      }, 100);
+    }
+  }, [isMonthlyTrendMode, loading]);
   // Real-time subscription for financial entries
   useEffect(() => {
     if (!departmentId) return;
@@ -2109,7 +2121,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         </CardHeader>
         <CollapsibleContent>
           <CardContent>
-            <div className="overflow-x-auto border rounded-lg">
+            <div ref={scrollContainerRef} className="overflow-x-auto border rounded-lg">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
