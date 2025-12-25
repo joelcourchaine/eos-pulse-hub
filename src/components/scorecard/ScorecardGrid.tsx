@@ -1339,7 +1339,32 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "Internal ELR") {
       return `$${Number(value).toFixed(2)}`;
     }
-    // For all other KPIs, use the regular formatTarget function
+    
+    // For dollar types, format with 2 decimal places if there are decimals
+    if (type === "dollar") {
+      const hasDecimals = value % 1 !== 0;
+      if (hasDecimals) {
+        return `$${Number(value).toFixed(2)}`;
+      }
+      return `$${value.toLocaleString()}`;
+    }
+    
+    // For percentage types, round to whole number
+    if (type === "percentage") {
+      return `${Math.round(value)}%`;
+    }
+    
+    // For number types (custom KPIs like CSI), round to 2 decimal places if there are decimals
+    // This ensures averages match user input precision
+    if (type === "number") {
+      const hasDecimals = value % 1 !== 0;
+      if (hasDecimals) {
+        return Number(value).toFixed(2);
+      }
+      return value.toLocaleString();
+    }
+    
+    // Fallback for any other types
     return formatTarget(value, type, kpiName);
   };
 
