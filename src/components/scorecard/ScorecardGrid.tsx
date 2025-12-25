@@ -1339,33 +1339,25 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "Internal ELR") {
       return `$${Number(value).toFixed(2)}`;
     }
-    
-    // For dollar types, format with 2 decimal places if there are decimals
-    if (type === "dollar") {
-      const hasDecimals = value % 1 !== 0;
-      if (hasDecimals) {
-        return `$${Number(value).toFixed(2)}`;
-      }
-      return `$${value.toLocaleString()}`;
-    }
-    
-    // For percentage types, round to whole number
+
+    // Percentages: whole number
     if (type === "percentage") {
       return `${Math.round(value)}%`;
     }
-    
-    // For number types (custom KPIs like CSI), round to 2 decimal places if there are decimals
-    // This ensures averages match user input precision
-    if (type === "number") {
+
+    // Dollars: if average isn't whole dollars, show cents
+    if (type === "dollar") {
+      const nf0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+      const nf2 = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const hasDecimals = value % 1 !== 0;
-      if (hasDecimals) {
-        return Number(value).toFixed(2);
-      }
-      return value.toLocaleString();
+      return `$${(hasDecimals ? nf2 : nf0).format(value)}`;
     }
-    
-    // Fallback for any other types
-    return formatTarget(value, type, kpiName);
+
+    // Everything else (including custom KPIs like CSI): if the average has decimals, show 2 decimals
+    // This avoids long repeating decimals like 97.6666666667.
+    const hasDecimals = value % 1 !== 0;
+    if (hasDecimals) return Number(value).toFixed(2);
+    return value.toLocaleString();
   };
 
 const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "below", metricType: string) => {
