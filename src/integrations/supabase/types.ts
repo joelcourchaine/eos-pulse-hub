@@ -363,6 +363,57 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_attachments: {
+        Row: {
+          created_at: string
+          department_id: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string
+          id: string
+          month_identifier: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type: string
+          id?: string
+          month_identifier: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string
+          id?: string
+          month_identifier?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_attachments_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "financial_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           created_at: string

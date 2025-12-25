@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,7 +21,7 @@ import { getMetricsForBrand, isHondaLegacyMonth, type FinancialMetric } from "@/
 import { FinancialDataImport } from "./FinancialDataImport";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
-
+import { MonthDropZone } from "./MonthDropZone";
 interface FinancialSummaryProps {
   departmentId: string;
   year: number;
@@ -242,8 +242,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     sourcePeriod?: string;
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
+  const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Fetch financial attachments
+  const fetchAttachments = useCallback(async () => {
+    if (!departmentId) return;
+    const { data } = await supabase
+      .from('financial_attachments')
+      .select('id, month_identifier, file_name, file_path, file_type')
+      .eq('department_id', departmentId);
+    
+    const attachmentMap: typeof attachments = {};
+    data?.forEach(att => {
+      attachmentMap[att.month_identifier] = {
+        id: att.id,
+        file_name: att.file_name,
+        file_path: att.file_path,
+        file_type: att.file_type,
+      };
+    });
+    setAttachments(attachmentMap);
+  }, [departmentId]);
+
+  useEffect(() => {
+    fetchAttachments();
+  }, [fetchAttachments]);
 
   // Fetch cell issues to display red flags
   useEffect(() => {
@@ -2151,7 +2176,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                          <TableHead className="text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
                            Trend
                          </TableHead>
-                          {monthlyTrendPeriods.map((period, periodIndex) => (
+                           {monthlyTrendPeriods.map((period, periodIndex) => (
                             <TableHead 
                               key={period.identifier}
                               ref={periodIndex === monthlyTrendPeriods.length - 1 ? lastMonthlyColumnRef : undefined}
@@ -2162,9 +2187,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 period.type === 'month' && "bg-muted/50"
                               )}
                             >
-                              <div className="flex flex-col items-center">
-                                {period.type === 'month' ? (
-                                  <>
+                              {period.type === 'month' ? (
+                                <MonthDropZone
+                                  monthIdentifier={period.identifier}
+                                  departmentId={departmentId}
+                                  attachment={attachments[period.identifier]}
+                                  onAttachmentChange={fetchAttachments}
+                                >
+                                  <div className="flex flex-col items-center">
                                     <div className="flex items-center justify-center gap-1">
                                       {period.label.split(' ')[0]}
                                       {highestProfitMonthsByYear[period.year] === period.identifier && (
@@ -2172,16 +2202,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       )}
                                     </div>
                                     <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
-                                    <div className="text-xs font-normal text-muted-foreground">
-                                      {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                                  </div>
+                                </MonthDropZone>
+                              ) : (
+                                <div className="flex flex-col items-center">
+                                  <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
+                                  <div className="text-xs font-normal text-muted-foreground">
+                                    {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                                  </div>
+                                </div>
+                              )}
                            </TableHead>
                          ))}
                        </>
@@ -2204,14 +2234,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         </TableHead>
                         {previousYearMonths.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                            <div className="flex flex-col items-center">
-                              <div className="flex items-center justify-center gap-1">
-                                {month.label.replace(/\s\d{4}$/, '')}
+                            <MonthDropZone
+                              monthIdentifier={month.identifier}
+                              departmentId={departmentId}
+                              attachment={attachments[month.identifier]}
+                              onAttachmentChange={fetchAttachments}
+                            >
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {month.label.replace(/\s\d{4}$/, '')}
+                                </div>
+                                <div className="text-xs font-normal text-muted-foreground">
+                                  {month.identifier.split('-')[0]}
+                                </div>
                               </div>
-                              <div className="text-xs font-normal text-muted-foreground">
-                                {month.identifier.split('-')[0]}
-                              </div>
-                            </div>
+                            </MonthDropZone>
                           </TableHead>
                         ))}
                         <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
@@ -2222,26 +2259,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         </TableHead>
                         {months.map((month) => (
                           <TableHead key={month.identifier} className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10">
-                            <div className="flex flex-col items-center">
-                              <div className="flex items-center justify-center gap-1">
-                                {month.label.replace(/\s\d{4}$/, '')}
-                                {highestProfitMonth === month.identifier && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger>
-                                        <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Highest Department Profit</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
+                            <MonthDropZone
+                              monthIdentifier={month.identifier}
+                              departmentId={departmentId}
+                              attachment={attachments[month.identifier]}
+                              onAttachmentChange={fetchAttachments}
+                            >
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center justify-center gap-1">
+                                  {month.label.replace(/\s\d{4}$/, '')}
+                                  {highestProfitMonth === month.identifier && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Highest Department Profit</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                                <div className="text-xs font-normal text-muted-foreground">
+                                  {month.identifier.split('-')[0]}
+                                </div>
                               </div>
-                              <div className="text-xs font-normal text-muted-foreground">
-                                {month.identifier.split('-')[0]}
-                              </div>
-                            </div>
+                            </MonthDropZone>
                           </TableHead>
                         ))}
                         <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
