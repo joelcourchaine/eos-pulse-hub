@@ -1332,7 +1332,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (kpiName === "CP Labour Sales") {
       return `$${Math.round(value).toLocaleString()}`;
     }
-    if (kpiName === "CP Hours" || kpiName === "CP RO's" || kpiName === "Customer Pay Hours") {
+    if (kpiName === "CP Hours" || kpiName === "CP RO's" || kpiName === "Customer Pay Hours" || kpiName === "Total RO's") {
       return Math.round(value).toLocaleString();
     }
     // Internal ELR should show 2 decimal places
