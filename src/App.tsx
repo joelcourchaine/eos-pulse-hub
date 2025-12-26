@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Enterprise from "./pages/Enterprise";
 import DealerComparison from "./pages/DealerComparison";
+import FixedCombinedTrendReport from "./pages/FixedCombinedTrendReport";
 import ResetPassword from "./pages/ResetPassword";
 import SetPassword from "./pages/SetPassword";
 import Questionnaire from "./pages/Questionnaire";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/my-tasks" element={<MyTasks />} />
           <Route path="/enterprise" element={<Enterprise />} />
           <Route path="/dealer-comparison" element={<DealerComparison />} />
+          <Route path="/fixed-combined-trend" element={<FixedCombinedTrendReport />} />
           <Route path="/questionnaire/:token" element={<Questionnaire />} />
           <Route path="/install" element={<Install />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

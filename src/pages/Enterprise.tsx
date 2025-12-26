@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2 } from "lucide-react";
+import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -877,6 +877,48 @@ export default function Enterprise() {
                   >
                     View Dashboard
                   </Button>
+                  {selectedDepartmentNames.includes('Fixed Combined') && metricType === 'financial' && (
+                    <Button
+                      onClick={() => {
+                        // Default to last 12 months if not custom range
+                        const today = new Date();
+                        const start = datePeriodType === 'custom_range' 
+                          ? format(startMonth, 'yyyy-MM')
+                          : format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
+                        const end = datePeriodType === 'custom_range'
+                          ? format(endMonth, 'yyyy-MM')
+                          : format(today, 'yyyy-MM');
+                        
+                        let brandDisplayName = "All Brands";
+                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                          const selectedBrandNames = brands
+                            ?.filter(b => selectedBrandIds.includes(b.id))
+                            .map(b => b.name) || [];
+                          brandDisplayName = selectedBrandNames.length === 1 
+                            ? selectedBrandNames[0] 
+                            : selectedBrandNames.join(", ");
+                        }
+                        
+                        navigate("/fixed-combined-trend", {
+                          state: {
+                            storeIds: filteredStores.map(s => s.id),
+                            selectedMetrics,
+                            startMonth: start,
+                            endMonth: end,
+                            brandDisplayName,
+                            filterName: loadedFilterName,
+                          }
+                        });
+                      }}
+                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                      size="lg"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      Monthly Trend Report
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
