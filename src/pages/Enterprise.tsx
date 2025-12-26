@@ -16,11 +16,13 @@ import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { FixedCombinedTrendView } from "@/components/enterprise/FixedCombinedTrendView";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
+type ViewMode = "filters" | "trend";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -41,6 +43,15 @@ export default function Enterprise() {
   const [saveFilterName, setSaveFilterName] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [sortByMetric, setSortByMetric] = useState<string>("");
+  const [viewMode, setViewMode] = useState<ViewMode>("filters");
+  const [trendReportParams, setTrendReportParams] = useState<{
+    storeIds: string[];
+    selectedMetrics: string[];
+    startMonth: string;
+    endMonth: string;
+    brandDisplayName: string;
+    filterName: string;
+  } | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -380,6 +391,25 @@ export default function Enterprise() {
         : [...prev, metric]
     );
   };
+
+  // Show trend report view
+  if (viewMode === "trend" && trendReportParams) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-[2000px] mx-auto">
+          <FixedCombinedTrendView
+            storeIds={trendReportParams.storeIds}
+            selectedMetrics={trendReportParams.selectedMetrics}
+            startMonth={trendReportParams.startMonth}
+            endMonth={trendReportParams.endMonth}
+            brandDisplayName={trendReportParams.brandDisplayName}
+            filterName={trendReportParams.filterName}
+            onBack={() => setViewMode("filters")}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -899,16 +929,15 @@ export default function Enterprise() {
                             : selectedBrandNames.join(", ");
                         }
                         
-                        navigate("/fixed-combined-trend", {
-                          state: {
-                            storeIds: filteredStores.map(s => s.id),
-                            selectedMetrics,
-                            startMonth: start,
-                            endMonth: end,
-                            brandDisplayName,
-                            filterName: loadedFilterName,
-                          }
+                        setTrendReportParams({
+                          storeIds: filteredStores.map(s => s.id),
+                          selectedMetrics,
+                          startMonth: start,
+                          endMonth: end,
+                          brandDisplayName,
+                          filterName: loadedFilterName,
                         });
+                        setViewMode("trend");
                       }}
                       disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
                       size="lg"

@@ -1,48 +1,34 @@
-import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Download } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 
-interface LocationState {
+interface FixedCombinedTrendViewProps {
   storeIds: string[];
   selectedMetrics: string[];
   startMonth: string;
   endMonth: string;
-  brandDisplayName?: string;
-  filterName?: string;
+  brandDisplayName: string;
+  filterName: string;
+  onBack: () => void;
 }
 
-export default function FixedCombinedTrendReport() {
-  const location = useLocation();
-  const navigate = useNavigate();
+export function FixedCombinedTrendView({
+  storeIds,
+  selectedMetrics,
+  startMonth,
+  endMonth,
+  brandDisplayName,
+  filterName,
+  onBack,
+}: FixedCombinedTrendViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
-
-  // Redirect if no state
-  useEffect(() => {
-    if (!location.state) {
-      navigate("/enterprise", { replace: true });
-    }
-  }, [location.state, navigate]);
-
-  if (!location.state) {
-    return null;
-  }
-
-  const { 
-    storeIds = [], 
-    selectedMetrics = [], 
-    startMonth, 
-    endMonth,
-    brandDisplayName = "All Brands",
-    filterName = ""
-  } = location.state as LocationState;
 
   // Generate list of months in range
   const months = useMemo(() => {
@@ -60,7 +46,7 @@ export default function FixedCombinedTrendReport() {
 
   // Fetch stores info
   const { data: stores } = useQuery({
-    queryKey: ["trend_report_stores", storeIds],
+    queryKey: ["trend_view_stores", storeIds],
     queryFn: async () => {
       if (storeIds.length === 0) return [];
       const { data, error } = await supabase
@@ -75,7 +61,7 @@ export default function FixedCombinedTrendReport() {
 
   // Fetch departments for stores (Parts and Service only)
   const { data: departments } = useQuery({
-    queryKey: ["trend_report_departments", storeIds],
+    queryKey: ["trend_view_departments", storeIds],
     queryFn: async () => {
       if (storeIds.length === 0) return [];
       const { data, error } = await supabase
@@ -98,7 +84,7 @@ export default function FixedCombinedTrendReport() {
 
   // Fetch financial entries for date range
   const { data: financialEntries, isLoading } = useQuery({
-    queryKey: ["trend_report_financial", departmentIds, startMonth, endMonth],
+    queryKey: ["trend_view_financial", departmentIds, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       const { data, error } = await supabase
@@ -261,39 +247,37 @@ export default function FixedCombinedTrendReport() {
   const storeEntries = Object.entries(processedData).filter(([id]) => id !== 'storeName');
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
       {/* Screen header - hidden when printing */}
-      <div className="p-6 print:hidden">
-        <div className="max-w-[2000px] mx-auto">
-          <div className="flex items-center gap-4 mb-6">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/enterprise")}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-3xl font-bold">
-                {filterName || "Fixed Combined Monthly Trend Report"}
-              </h1>
-              <p className="text-muted-foreground">
-                <span className="font-medium">{brandDisplayName}</span>
-                {" • "}{storeEntries.length} store{storeEntries.length !== 1 ? 's' : ''}
-                {" • "}{format(new Date(startMonth + '-15'), 'MMM yyyy')} to {format(new Date(endMonth + '-15'), 'MMM yyyy')}
-              </p>
-            </div>
-            <Button onClick={handlePrint} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Print Report
-            </Button>
+      <div className="print:hidden">
+        <div className="flex items-center gap-4 mb-6">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBack}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold">
+              {filterName || "Fixed Combined Monthly Trend Report"}
+            </h2>
+            <p className="text-muted-foreground">
+              <span className="font-medium">{brandDisplayName}</span>
+              {" • "}{storeEntries.length} store{storeEntries.length !== 1 ? 's' : ''}
+              {" • "}{format(new Date(startMonth + '-15'), 'MMM yyyy')} to {format(new Date(endMonth + '-15'), 'MMM yyyy')}
+            </p>
           </div>
+          <Button onClick={handlePrint} className="gap-2">
+            <Printer className="h-4 w-4" />
+            Print Report
+          </Button>
         </div>
       </div>
 
       {/* Report content - print-friendly */}
-      <div ref={printRef} className="p-6 print:p-0">
-        <div className="max-w-[2000px] mx-auto space-y-8 print:space-y-4">
+      <div ref={printRef} className="print:p-0">
+        <div className="space-y-8 print:space-y-4">
           {/* Print header - only shown when printing */}
           <div className="hidden print:block print:mb-4">
             <h1 className="text-2xl font-bold text-black">
@@ -321,8 +305,8 @@ export default function FixedCombinedTrendReport() {
                 <p className="text-sm text-muted-foreground mt-2">
                   There are no financial entries for the selected stores and date range.
                 </p>
-                <Button onClick={() => navigate("/enterprise")} variant="outline" className="mt-4">
-                  Return to Enterprise View
+                <Button onClick={onBack} variant="outline" className="mt-4">
+                  Back to Filters
                 </Button>
               </CardContent>
             </Card>
@@ -417,6 +401,6 @@ export default function FixedCombinedTrendReport() {
           }
         }
       `}</style>
-    </div>
+    </>
   );
 }
