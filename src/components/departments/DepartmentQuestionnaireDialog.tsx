@@ -326,7 +326,6 @@ export const DepartmentQuestionnaireDialog = ({
           profiles!questionnaire_tokens_sent_by_fkey(full_name)
         `)
         .eq("department_id", departmentId)
-        .not("sent_to_email", "is", null)
         .order("created_at", { ascending: false })
         .limit(20);
 
@@ -334,7 +333,7 @@ export const DepartmentQuestionnaireDialog = ({
 
       const formattedEmailHistory: EmailHistoryEntry[] = data?.map((entry: any) => ({
         id: entry.id,
-        sent_to_email: entry.sent_to_email,
+        sent_to_email: entry.sent_to_email || "(recipient not tracked)",
         sent_by_name: entry.profiles?.full_name || "Unknown",
         created_at: entry.created_at,
         expires_at: entry.expires_at,
