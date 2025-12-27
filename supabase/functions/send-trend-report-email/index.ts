@@ -69,39 +69,63 @@ function generateExcelBuffer(
     const headerRow = ["Metric", ...months.map(m => formatMonthShort(m)), "Total"];
     rows.push(headerRow);
 
+    // Track which rows are percentages for formatting
+    const rowFormats: boolean[] = []; // true = percentage, false = currency
+
     // Data rows
     for (const metricName of selectedMetrics) {
       const metricData = storeData[metricName] as Record<string, number | null> | undefined;
       const row: (string | number | null)[] = [metricName];
       
+      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent");
+      rowFormats.push(isPercentage);
+      
       const values: number[] = [];
       for (const month of months) {
         const value = metricData?.[month] ?? null;
         if (value !== null) values.push(value);
-        row.push(value);
+        // For percentages, divide by 100 so Excel can format correctly
+        row.push(isPercentage && value !== null ? value / 100 : value);
       }
 
       // Calculate total/average
-      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent");
       const total = values.length > 0 
         ? isPercentage 
           ? values.reduce((sum, v) => sum + v, 0) / values.length 
           : values.reduce((sum, v) => sum + v, 0)
         : null;
       
-      row.push(total);
+      // For percentages, divide by 100 so Excel can format correctly
+      row.push(isPercentage && total !== null ? total / 100 : total);
       rows.push(row);
     }
 
     // Create worksheet
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
     
+    // Apply number formatting to cells
+    const numCols = months.length + 2; // Metric name + months + Total
+    for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) { // Skip header row
+      const isPercentage = rowFormats[rowIdx - 1];
+      for (let colIdx = 1; colIdx < numCols; colIdx++) { // Skip metric name column
+        const cellAddress = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+        const cell = worksheet[cellAddress];
+        if (cell && cell.v !== null && cell.v !== undefined) {
+          if (isPercentage) {
+            cell.z = '0.0%'; // Percentage format with 1 decimal
+          } else {
+            cell.z = '"$"#,##0'; // Currency format without decimals
+          }
+        }
+      }
+    }
+    
     // Set column widths
     const colWidths = [{ wch: 30 }];
     for (let i = 0; i < months.length; i++) {
-      colWidths.push({ wch: 12 });
+      colWidths.push({ wch: 14 });
     }
-    colWidths.push({ wch: 15 });
+    colWidths.push({ wch: 16 });
     worksheet['!cols'] = colWidths;
 
     // Truncate sheet name to 31 chars (Excel limit)
@@ -109,8 +133,8 @@ function generateExcelBuffer(
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   }
 
-  // Write to buffer
-  const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  // Write to buffer with cellStyles enabled
+  const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx", cellStyles: true });
   return new Uint8Array(buffer);
 }
 
