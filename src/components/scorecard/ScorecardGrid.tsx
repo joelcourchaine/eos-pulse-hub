@@ -516,7 +516,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     };
 
     requestAnimationFrame(tick);
-  }, [isMonthlyTrendMode, loading, precedingQuartersData, monthlyTrendPeriods.length]);
+  }, [isMonthlyTrendMode, loading, precedingQuartersData, monthlyTrendPeriods.length, departmentId]);
 
   // Update local values when entries change
   useEffect(() => {
