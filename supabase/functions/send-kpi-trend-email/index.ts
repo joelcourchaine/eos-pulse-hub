@@ -76,7 +76,7 @@ function generateExcelBuffer(
     const rows: (string | number | null)[][] = [];
     
     // Header row
-    const headerRow = ["KPI", ...months.map(m => formatMonthShort(m)), "Avg"];
+    const headerRow = ["KPI", ...months.map(m => formatMonthShort(m)), "Total"];
     rows.push(headerRow);
 
     // Track which rows are percentages for formatting
@@ -100,12 +100,14 @@ function generateExcelBuffer(
         row.push(isPercentage && value !== null ? value / 100 : value);
       }
 
-      // Calculate average
-      const avg = values.length > 0 
-        ? values.reduce((sum, v) => sum + v, 0) / values.length
+      // Calculate total (average for percentages, sum for others)
+      const total = values.length > 0 
+        ? isPercentage
+          ? values.reduce((sum, v) => sum + v, 0) / values.length
+          : values.reduce((sum, v) => sum + v, 0)
         : null;
       
-      row.push(isPercentage && avg !== null ? avg / 100 : avg);
+      row.push(isPercentage && total !== null ? total / 100 : total);
       rows.push(row);
     }
 
@@ -189,7 +191,7 @@ function generateHtmlEmail(
       html += `<th style="border: 1px solid #ddd; padding: 8px; text-align: center; background-color: #f8f8f8; font-weight: 600;">${formatMonthShort(month)}</th>`;
     }
     
-    html += `<th style="border: 1px solid #ddd; padding: 8px; text-align: center; background-color: #e0e0e0; font-weight: 600;">Avg</th>`;
+    html += `<th style="border: 1px solid #ddd; padding: 8px; text-align: center; background-color: #e0e0e0; font-weight: 600;">Total</th>`;
     html += `</tr></thead><tbody>`;
 
     for (const metricName of selectedMetrics) {
@@ -204,11 +206,17 @@ function generateHtmlEmail(
         html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${formatValue(value, metricName, kpiTypeMap)}</td>`;
       }
       
-      const avg = values.length > 0 
-        ? values.reduce((sum, v) => sum + v, 0) / values.length
+      const kpiMetricType = kpiTypeMap[metricName];
+      const isPercentage = kpiMetricType === "percentage";
+      
+      // Calculate total (average for percentages, sum for others)
+      const total = values.length > 0 
+        ? isPercentage
+          ? values.reduce((sum, v) => sum + v, 0) / values.length
+          : values.reduce((sum, v) => sum + v, 0)
         : null;
       
-      html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: 600; background-color: #f0f0f0;">${formatValue(avg, metricName, kpiTypeMap)}</td>`;
+      html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: 600; background-color: #f0f0f0;">${formatValue(total, metricName, kpiTypeMap)}</td>`;
       html += `</tr>`;
     }
 
