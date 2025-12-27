@@ -335,11 +335,28 @@ export function FixedCombinedTrendView({
                                 {formatMonthHeader(month)}
                               </TableHead>
                             ))}
+                            <TableHead className="text-center min-w-[100px] bg-primary/10 font-bold print:bg-gray-200 print:font-bold">
+                              Total
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {selectedMetrics.map(metricName => {
                             const metricData = storeData[metricName] as Record<string, number | null> | undefined;
+                            
+                            // Calculate total/average for the metric
+                            const values = months
+                              .map(month => metricData?.[month])
+                              .filter((v): v is number => v !== null && v !== undefined);
+                            
+                            const isPercentage = metricName.includes("%") || 
+                              getMetricsForBrand(null).find((m: any) => m.name === metricName)?.type === "percentage";
+                            
+                            const total = values.length > 0
+                              ? isPercentage
+                                ? values.reduce((sum, v) => sum + v, 0) / values.length // Average for percentages
+                                : values.reduce((sum, v) => sum + v, 0) // Sum for dollar amounts
+                              : null;
                             
                             return (
                               <TableRow key={metricName} className="print:border-b print:border-gray-300">
@@ -351,6 +368,9 @@ export function FixedCombinedTrendView({
                                     {formatValue(metricData?.[month] ?? null, metricName)}
                                   </TableCell>
                                 ))}
+                                <TableCell className="text-center font-semibold bg-primary/10">
+                                  {formatValue(total, metricName)}
+                                </TableCell>
                               </TableRow>
                             );
                           })}
