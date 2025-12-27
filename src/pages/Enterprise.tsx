@@ -18,12 +18,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { FixedCombinedTrendView } from "@/components/enterprise/FixedCombinedTrendView";
 import { KPITrendView } from "@/components/enterprise/KPITrendView";
+import { CombinedTrendView } from "@/components/enterprise/CombinedTrendView";
 
 type FilterMode = "brand" | "group" | "custom";
-type MetricType = "weekly" | "monthly" | "financial" | "dept_info";
+type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
-type ViewMode = "filters" | "trend" | "kpi_trend";
+type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -62,6 +63,20 @@ export default function Enterprise() {
     brandDisplayName: string;
     filterName: string;
   } | null>(null);
+  const [combinedTrendParams, setCombinedTrendParams] = useState<{
+    storeIds: string[];
+    selectedDepartmentNames: string[];
+    selectedKpiMetrics: string[];
+    selectedFinancialMetrics: string[];
+    startMonth: string;
+    endMonth: string;
+    brandDisplayName: string;
+    filterName: string;
+  } | null>(null);
+  
+  // Separate state for combined metric selection
+  const [selectedKpiMetrics, setSelectedKpiMetrics] = useState<string[]>([]);
+  const [selectedFinancialMetrics, setSelectedFinancialMetrics] = useState<string[]>([]);
 
   // Check authentication
   useEffect(() => {
@@ -321,17 +336,20 @@ export default function Enterprise() {
     enabled: metricType === "dept_info",
   });
 
-  // Fetch KPI definitions for weekly/monthly types - only those with scorecard entries
+  // Fetch KPI definitions for weekly/monthly/combined types - only those with scorecard entries
   const { data: kpiDefinitions } = useQuery({
     queryKey: ["enterprise_kpi_definitions", departmentIds, metricType],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
       
+      // For combined type, we need monthly KPIs
+      const entryType = metricType === "monthly_combined" ? "monthly" : metricType;
+      
       // First get KPIs with scorecard entries of the matching type
       const { data: entriesWithKpis, error: entriesError } = await supabase
         .from("scorecard_entries")
         .select("kpi_id, kpi_definitions!inner(id, name, metric_type, department_id, display_order)")
-        .eq("entry_type", metricType)
+        .eq("entry_type", entryType)
         .in("kpi_definitions.department_id", departmentIds);
       
       if (entriesError) throw entriesError;
@@ -348,7 +366,7 @@ export default function Enterprise() {
       // Sort by display_order
       return Array.from(kpiMap.values()).sort((a, b) => a.display_order - b.display_order);
     },
-    enabled: departmentIds.length > 0 && (metricType === "weekly" || metricType === "monthly"),
+    enabled: departmentIds.length > 0 && (metricType === "weekly" || metricType === "monthly" || metricType === "monthly_combined"),
   });
 
   // Get available metrics based on metric type
@@ -379,6 +397,24 @@ export default function Enterprise() {
     return [];
   }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions]);
 
+  // Get available KPI metrics for combined view
+  const availableKpiMetricsForCombined = useMemo(() => {
+    if (metricType !== "monthly_combined" || !kpiDefinitions) return [];
+    const uniqueNames = [...new Set(kpiDefinitions.map(k => k.name))];
+    return uniqueNames.map(name => ({
+      id: name,
+      name: name,
+    }));
+  }, [metricType, kpiDefinitions]);
+
+  // Get available financial metrics for combined view
+  const availableFinancialMetricsForCombined = useMemo(() => {
+    if (metricType !== "monthly_combined") return [];
+    const firstStore = filteredStores[0];
+    const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
+    return getMetricsForBrand(brand);
+  }, [metricType, filteredStores]);
+
   // Auto-select Service Department by default
   useEffect(() => {
     if (uniqueDepartmentNames.length > 0 && selectedDepartmentNames.length === 0) {
@@ -393,11 +429,38 @@ export default function Enterprise() {
 
   // Auto-select all metrics when switching types (only if none are selected)
   useEffect(() => {
-    if (availableMetrics.length > 0 && selectedMetrics.length === 0) {
+    if (metricType === "monthly_combined") {
+      // For combined, auto-select Total Hours (mandatory for Service) and a few key metrics
+      if (selectedKpiMetrics.length === 0 && availableKpiMetricsForCombined.length > 0) {
+        const metricNames = availableKpiMetricsForCombined.map((m: any) => m.name);
+        // Ensure Total Hours is always included
+        if (!metricNames.includes('Total Hours')) {
+          setSelectedKpiMetrics(metricNames);
+        } else {
+          setSelectedKpiMetrics(metricNames);
+        }
+      }
+      if (selectedFinancialMetrics.length === 0 && availableFinancialMetricsForCombined.length > 0) {
+        const metricNames = availableFinancialMetricsForCombined.map((m: any) => m.name);
+        setSelectedFinancialMetrics(metricNames);
+      }
+    } else if (availableMetrics.length > 0 && selectedMetrics.length === 0) {
       const metricNames = availableMetrics.map((m: any) => m.name);
       setSelectedMetrics(metricNames);
     }
-  }, [metricType, availableMetrics]);
+  }, [metricType, availableMetrics, availableKpiMetricsForCombined, availableFinancialMetricsForCombined]);
+
+  // Check if Service department is selected (for mandatory Total Hours validation)
+  const hasServiceDepartment = useMemo(() => {
+    return selectedDepartmentNames.some(name => 
+      name.toLowerCase().includes('service') || name === 'Fixed Combined'
+    );
+  }, [selectedDepartmentNames]);
+
+  // Validate Total Hours is selected when Service department is included
+  const isTotalHoursRequired = hasServiceDepartment && metricType === "monthly_combined";
+  const hasTotalHours = selectedKpiMetrics.includes('Total Hours');
+  const isValidCombinedSelection = !isTotalHoursRequired || hasTotalHours;
 
   const toggleStoreSelection = (storeId: string) => {
     setSelectedStoreIds(prev =>
@@ -431,6 +494,26 @@ export default function Enterprise() {
     );
   };
 
+  const toggleKpiMetricSelection = (metric: string) => {
+    // Don't allow deselecting Total Hours if Service department is selected
+    if (metric === 'Total Hours' && isTotalHoursRequired && selectedKpiMetrics.includes(metric)) {
+      return; // Prevent deselection
+    }
+    setSelectedKpiMetrics(prev =>
+      prev.includes(metric)
+        ? prev.filter(m => m !== metric)
+        : [...prev, metric]
+    );
+  };
+
+  const toggleFinancialMetricSelection = (metric: string) => {
+    setSelectedFinancialMetrics(prev =>
+      prev.includes(metric)
+        ? prev.filter(m => m !== metric)
+        : [...prev, metric]
+    );
+  };
+
   const toggleMetricSelection = (metric: string) => {
     setSelectedMetrics(prev =>
       prev.includes(metric)
@@ -438,6 +521,27 @@ export default function Enterprise() {
         : [...prev, metric]
     );
   };
+
+  // Show combined trend report view
+  if (viewMode === "combined_trend" && combinedTrendParams) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-[2000px] mx-auto">
+          <CombinedTrendView
+            storeIds={combinedTrendParams.storeIds}
+            selectedDepartmentNames={combinedTrendParams.selectedDepartmentNames}
+            selectedKpiMetrics={combinedTrendParams.selectedKpiMetrics}
+            selectedFinancialMetrics={combinedTrendParams.selectedFinancialMetrics}
+            startMonth={combinedTrendParams.startMonth}
+            endMonth={combinedTrendParams.endMonth}
+            brandDisplayName={combinedTrendParams.brandDisplayName}
+            filterName={combinedTrendParams.filterName}
+            onBack={() => setViewMode("filters")}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // Show KPI trend report view
   if (viewMode === "kpi_trend" && kpiTrendParams) {
@@ -702,10 +806,21 @@ export default function Enterprise() {
                     <SelectItem value="weekly">Weekly KPIs</SelectItem>
                     <SelectItem value="monthly">Monthly KPIs</SelectItem>
                     <SelectItem value="financial">Financial Metrics</SelectItem>
+                    <SelectItem value="monthly_combined">Monthly Combined (KPI + Financial)</SelectItem>
                     <SelectItem value="dept_info">Service Dept Info</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {metricType === "monthly_combined" && (
+                <div className="p-3 bg-muted rounded-md text-sm">
+                  <p className="font-medium mb-1">Combined Report</p>
+                  <p className="text-muted-foreground text-xs">
+                    Combines monthly KPI scorecard and financial metrics with quarterly weighting.
+                    {isTotalHoursRequired && " Total Hours is required for Service department."}
+                  </p>
+                </div>
+              )}
 
               {metricType === "financial" && (
                 <div>
@@ -853,33 +968,89 @@ export default function Enterprise() {
                 </>
               )}
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  Metrics ({selectedMetrics.length} selected)
-                </label>
-                <ScrollArea className="h-[300px] pr-4">
-                  <div className="space-y-3">
-                    {availableMetrics.map((metric: any) => {
-                      const metricName = typeof metric === 'string' ? metric : metric.name;
-                      return (
-                        <div key={metricName} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`metric-${metricName}`}
-                            checked={selectedMetrics.includes(metricName)}
-                            onCheckedChange={() => toggleMetricSelection(metricName)}
-                          />
-                          <label
-                            htmlFor={`metric-${metricName}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {metricName}
-                          </label>
-                        </div>
-                      );
-                    })}
+              {metricType === "monthly_combined" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      KPI Metrics ({selectedKpiMetrics.length} selected)
+                      {isTotalHoursRequired && <span className="text-destructive ml-1">*</span>}
+                    </label>
+                    <ScrollArea className="h-[150px] pr-4 border rounded-md p-2">
+                      <div className="space-y-2">
+                        {availableKpiMetricsForCombined.map((metric: any) => {
+                          const metricName = metric.name;
+                          const isRequired = metricName === 'Total Hours' && isTotalHoursRequired;
+                          return (
+                            <div key={metricName} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`kpi-${metricName}`}
+                                checked={selectedKpiMetrics.includes(metricName)}
+                                onCheckedChange={() => toggleKpiMetricSelection(metricName)}
+                                disabled={isRequired}
+                              />
+                              <label htmlFor={`kpi-${metricName}`} className="text-sm cursor-pointer">
+                                {metricName} {isRequired && "(required)"}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
                   </div>
-                </ScrollArea>
-              </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Financial Metrics ({selectedFinancialMetrics.length} selected)
+                    </label>
+                    <ScrollArea className="h-[150px] pr-4 border rounded-md p-2">
+                      <div className="space-y-2">
+                        {availableFinancialMetricsForCombined.map((metric: any) => {
+                          const metricName = metric.name;
+                          return (
+                            <div key={metricName} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`fin-${metricName}`}
+                                checked={selectedFinancialMetrics.includes(metricName)}
+                                onCheckedChange={() => toggleFinancialMetricSelection(metricName)}
+                              />
+                              <label htmlFor={`fin-${metricName}`} className="text-sm cursor-pointer">
+                                {metricName}
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">
+                    Metrics ({selectedMetrics.length} selected)
+                  </label>
+                  <ScrollArea className="h-[300px] pr-4">
+                    <div className="space-y-3">
+                      {availableMetrics.map((metric: any) => {
+                        const metricName = typeof metric === 'string' ? metric : metric.name;
+                        return (
+                          <div key={metricName} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`metric-${metricName}`}
+                              checked={selectedMetrics.includes(metricName)}
+                              onCheckedChange={() => toggleMetricSelection(metricName)}
+                            />
+                            <label
+                              htmlFor={`metric-${metricName}`}
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {metricName}
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -888,9 +1059,11 @@ export default function Enterprise() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>
-                    Dealer Comparison
+                    {metricType === "monthly_combined" ? "Combined Report" : "Dealer Comparison"}
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      ({filteredStores.length} stores, {selectedMetrics.length} metrics)
+                      ({filteredStores.length} stores{metricType === "monthly_combined" 
+                        ? `, ${selectedKpiMetrics.length} KPIs, ${selectedFinancialMetrics.length} financial` 
+                        : `, ${selectedMetrics.length} metrics`})
                     </span>
                   </CardTitle>
                 </div>
