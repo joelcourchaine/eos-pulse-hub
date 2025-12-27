@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Mail, Loader2 } from "lucide-react";
+import { ArrowLeft, Printer, Mail, Loader2, FileSpreadsheet } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,7 @@ export function FixedCombinedTrendView({
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailFormat, setEmailFormat] = useState<"html" | "excel">("html");
 
   // Fetch recipients (super_admins and store GMs)
   const { data: recipients = [], isLoading: loadingRecipients } = useQuery({
@@ -99,6 +101,7 @@ export function FixedCombinedTrendView({
           endMonth,
           brandDisplayName,
           filterName,
+          format: emailFormat,
         },
       });
 
@@ -488,8 +491,34 @@ export function FixedCombinedTrendView({
           <DialogHeader>
             <DialogTitle>Email Trend Report</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Label className="text-sm font-medium mb-3 block">Select Recipients</Label>
+          <div className="py-4 space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Email Format</Label>
+              <RadioGroup
+                value={emailFormat}
+                onValueChange={(value) => setEmailFormat(value as "html" | "excel")}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="html" id="format-html" />
+                  <Label htmlFor="format-html" className="cursor-pointer flex items-center gap-1.5">
+                    <Mail className="h-4 w-4" />
+                    HTML Email
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="excel" id="format-excel" />
+                  <Label htmlFor="format-excel" className="cursor-pointer flex items-center gap-1.5">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Excel Attachment
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+            
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Select Recipients</Label>
+            </div>
             {loadingRecipients ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin" />
