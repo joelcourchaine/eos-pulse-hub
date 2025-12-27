@@ -321,6 +321,22 @@ export default function Enterprise() {
     enabled: metricType === "dept_info",
   });
 
+  // Fetch KPI definitions for weekly/monthly types
+  const { data: kpiDefinitions } = useQuery({
+    queryKey: ["enterprise_kpi_definitions", departmentIds, metricType],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from("kpi_definitions")
+        .select("id, name, metric_type, department_id")
+        .in("department_id", departmentIds)
+        .order("display_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: departmentIds.length > 0 && (metricType === "weekly" || metricType === "monthly"),
+  });
+
   // Get available metrics based on metric type
   const availableMetrics = useMemo(() => {
     if (metricType === "financial") {
@@ -338,9 +354,16 @@ export default function Enterprise() {
         answerType: q.answer_type,
       }));
     }
-    // For weekly/monthly KPIs, we don't have the data here - DealerComparison will fetch it
+    // For weekly/monthly KPIs, get unique KPI names from definitions
+    if ((metricType === "weekly" || metricType === "monthly") && kpiDefinitions) {
+      const uniqueNames = [...new Set(kpiDefinitions.map(k => k.name))];
+      return uniqueNames.map(name => ({
+        id: name,
+        name: name,
+      }));
+    }
     return [];
-  }, [metricType, filteredStores, questionnaireQuestions]);
+  }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions]);
 
   // Auto-select Service Department by default
   useEffect(() => {
@@ -354,9 +377,9 @@ export default function Enterprise() {
     }
   }, [uniqueDepartmentNames]);
 
-  // Auto-select all metrics when switching to financial or dept_info type (only if none are selected)
+  // Auto-select all metrics when switching types (only if none are selected)
   useEffect(() => {
-    if ((metricType === "financial" || metricType === "dept_info") && availableMetrics.length > 0 && selectedMetrics.length === 0) {
+    if (availableMetrics.length > 0 && selectedMetrics.length === 0) {
       const metricNames = availableMetrics.map((m: any) => m.name);
       setSelectedMetrics(metricNames);
     }
