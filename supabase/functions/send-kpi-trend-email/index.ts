@@ -30,14 +30,15 @@ interface EmailRequest {
 
 function formatValue(value: number | null, metricName: string, kpiTypeMap: Record<string, string>): string {
   if (value === null || value === undefined) return "-";
-  
+
   const metricType = kpiTypeMap[metricName];
-  
+
   if (metricType === "percentage") {
     return `${value.toFixed(1)}%`;
   }
-  
-  if (metricType === "currency") {
+
+  // KPI definitions use metric_type values like "dollar" | "unit" | "percentage"
+  if (metricType === "dollar" || metricType === "currency") {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -45,7 +46,13 @@ function formatValue(value: number | null, metricName: string, kpiTypeMap: Recor
       maximumFractionDigits: 0,
     }).format(value);
   }
-  
+
+  if (metricType === "unit") {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
@@ -79,19 +86,23 @@ function generateExcelBuffer(
     const headerRow = ["KPI", ...months.map(m => formatMonthShort(m)), "Total"];
     rows.push(headerRow);
 
-    // Track which rows are percentages for formatting
-    const rowFormats: { isPercentage: boolean; isCurrency: boolean }[] = [];
+    // Track row type for number formatting
+    const rowFormats: { type: "percentage" | "currency" | "unit" | "number" }[] = [];
 
     // Data rows
     for (const metricName of selectedMetrics) {
       const metricData = storeData[metricName] as Record<string, number | null> | undefined;
       const row: (string | number | null)[] = [metricName];
-      
+
       const metricType = kpiTypeMap[metricName];
       const isPercentage = metricType === "percentage";
-      const isCurrency = metricType === "currency";
-      rowFormats.push({ isPercentage, isCurrency });
-      
+      const isCurrency = metricType === "dollar" || metricType === "currency";
+      const isUnit = metricType === "unit";
+
+      rowFormats.push({
+        type: isPercentage ? "percentage" : isCurrency ? "currency" : isUnit ? "unit" : "number",
+      });
+
       const values: number[] = [];
       for (const month of months) {
         const value = metricData?.[month] ?? null;
@@ -101,45 +112,47 @@ function generateExcelBuffer(
       }
 
       // Calculate total (average for percentages, sum for others)
-      const total = values.length > 0 
+      const total = values.length > 0
         ? isPercentage
           ? values.reduce((sum, v) => sum + v, 0) / values.length
           : values.reduce((sum, v) => sum + v, 0)
         : null;
-      
+
       row.push(isPercentage && total !== null ? total / 100 : total);
       rows.push(row);
     }
 
     // Create worksheet
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    
+
     // Apply number formatting to cells
-    const numCols = months.length + 2; // KPI name + months + Avg
+    const numCols = months.length + 2; // KPI name + months + Total
     for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
       const format = rowFormats[rowIdx - 1];
       for (let colIdx = 1; colIdx < numCols; colIdx++) {
         const cellAddress = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
         const cell = worksheet[cellAddress];
         if (cell && cell.v !== null && cell.v !== undefined) {
-          if (format.isPercentage) {
-            cell.z = '0.0%';
-          } else if (format.isCurrency) {
+          if (format.type === "percentage") {
+            cell.z = "0.0%";
+          } else if (format.type === "currency") {
             cell.z = '"$"#,##0';
+          } else if (format.type === "unit") {
+            cell.z = "#,##0";
           } else {
-            cell.z = '#,##0.0';
+            cell.z = "#,##0.0";
           }
         }
       }
     }
-    
-    // Set column widths
+
+    // Set column widths (match other enterprise reports)
     const colWidths = [{ wch: 30 }];
     for (let i = 0; i < months.length; i++) {
       colWidths.push({ wch: 14 });
     }
-    colWidths.push({ wch: 14 });
-    worksheet['!cols'] = colWidths;
+    colWidths.push({ wch: 16 });
+    worksheet["!cols"] = colWidths;
 
     const sheetName = store.name.substring(0, 31);
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);

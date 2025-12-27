@@ -238,14 +238,15 @@ export function KPITrendView({
 
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
-    
+
     const metricType = kpiTypeMap.get(metricName);
-    
+
     if (metricType === "percentage") {
       return `${value.toFixed(1)}%`;
     }
-    
-    if (metricType === "currency") {
+
+    // KPI definitions use metric_type values like "dollar" | "unit" | "percentage"
+    if (metricType === "dollar" || metricType === "currency") {
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
@@ -253,7 +254,13 @@ export function KPITrendView({
         maximumFractionDigits: 0,
       }).format(value);
     }
-    
+
+    if (metricType === "unit") {
+      return new Intl.NumberFormat("en-US", {
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+
     // Default: number format
     return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
