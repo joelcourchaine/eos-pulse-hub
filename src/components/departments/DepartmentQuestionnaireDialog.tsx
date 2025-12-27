@@ -46,6 +46,15 @@ interface HistoryEntry {
   changed_by_name: string | null;
 }
 
+interface EmailHistoryEntry {
+  id: string;
+  sent_to_email: string;
+  sent_by_name: string | null;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+}
+
 interface DepartmentQuestionnaireDialogProps {
   departmentId: string;
   departmentName: string;
@@ -74,6 +83,7 @@ export const DepartmentQuestionnaireDialog = ({
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [emailHistory, setEmailHistory] = useState<EmailHistoryEntry[]>([]);
   const [profiles, setProfiles] = useState<{ id: string; full_name: string; email: string; store_id: string | null; stores: { name: string } | null; is_super_admin?: boolean }[]>([]);
   const [selectedRecipientEmail, setSelectedRecipientEmail] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
@@ -118,6 +128,7 @@ export const DepartmentQuestionnaireDialog = ({
       }
       loadQuestionsAndAnswers();
       loadHistory();
+      loadEmailHistory();
       loadProfiles();
     }
   }, [open, departmentId]);
@@ -301,6 +312,41 @@ export const DepartmentQuestionnaireDialog = ({
     }
   };
 
+  const loadEmailHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("questionnaire_tokens")
+        .select(`
+          id,
+          sent_to_email,
+          sent_by,
+          created_at,
+          expires_at,
+          used_at,
+          profiles!questionnaire_tokens_sent_by_fkey(full_name)
+        `)
+        .eq("department_id", departmentId)
+        .not("sent_to_email", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+
+      const formattedEmailHistory: EmailHistoryEntry[] = data?.map((entry: any) => ({
+        id: entry.id,
+        sent_to_email: entry.sent_to_email,
+        sent_by_name: entry.profiles?.full_name || "Unknown",
+        created_at: entry.created_at,
+        expires_at: entry.expires_at,
+        used_at: entry.used_at,
+      })) || [];
+
+      setEmailHistory(formattedEmailHistory);
+    } catch (error) {
+      console.error("Error loading email history:", error);
+    }
+  };
+
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
@@ -386,6 +432,9 @@ export const DepartmentQuestionnaireDialog = ({
         title: "Email sent",
         description: `Questionnaire sent to ${selectedRecipientEmail}`,
       });
+
+      // Reload email history to show the new entry
+      await loadEmailHistory();
     } catch (error: any) {
       console.error("Error sending email:", error);
       
@@ -1246,38 +1295,100 @@ export const DepartmentQuestionnaireDialog = ({
             ))}
           </TabsContent>
 
-          <TabsContent value="history" className="space-y-4">
-            {history.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                No changes have been recorded yet.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {history.map((entry) => (
-                  <div key={entry.id} className="border rounded-lg p-4 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium">{entry.question_text}</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Changed by {entry.changed_by_name} on{" "}
-                          {new Date(entry.changed_at).toLocaleString()}
-                        </p>
+          <TabsContent value="history" className="space-y-6">
+            {/* Email History Section */}
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email Questionnaire History
+              </h4>
+              {emailHistory.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4 px-3 bg-muted/50 rounded-lg">
+                  No questionnaire emails have been sent yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {emailHistory.map((entry) => {
+                    const isExpired = new Date(entry.expires_at) < new Date();
+                    const isUsed = !!entry.used_at;
+                    return (
+                      <div key={entry.id} className="border rounded-lg p-3 bg-muted/30">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">
+                              Sent to: {entry.sent_to_email}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Sent by {entry.sent_by_name} on{" "}
+                              {new Date(entry.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isUsed ? (
+                              <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-2 py-1 rounded">
+                                Completed
+                              </span>
+                            ) : isExpired ? (
+                              <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded">
+                                Expired
+                              </span>
+                            ) : (
+                              <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-1 rounded">
+                                Pending
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isUsed && entry.used_at && (
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                            Completed on {new Date(entry.used_at).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Answer Changes Section */}
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground mb-3 flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Answer Changes
+              </h4>
+              {history.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4 px-3 bg-muted/50 rounded-lg">
+                  No answer changes have been recorded yet.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {history.map((entry) => (
+                    <div key={entry.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium">{entry.question_text}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Changed by {entry.changed_by_name} on{" "}
+                            {new Date(entry.changed_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mt-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Previous:</p>
+                          <p className="text-sm mt-1">{entry.previous_value || "(empty)"}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">New:</p>
+                          <p className="text-sm mt-1">{entry.new_value || "(empty)"}</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">Previous:</p>
-                        <p className="text-sm mt-1">{entry.previous_value || "(empty)"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">New:</p>
-                        <p className="text-sm mt-1">{entry.new_value || "(empty)"}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </>
