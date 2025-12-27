@@ -416,21 +416,26 @@ export function KPITrendView({
                               </TableHead>
                             ))}
                             <TableHead className="text-center min-w-[100px] bg-primary/10 font-bold print:bg-gray-200 print:font-bold">
-                              Avg
+                              Total
                             </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {selectedMetrics.map(metricName => {
                             const metricData = storeData[metricName] as Record<string, number | null> | undefined;
+                            const metricType = kpiTypeMap.get(metricName);
+                            const isPercentage = metricType === "percentage";
                             
-                            // Calculate average for the metric
+                            // Calculate total/average for the metric
                             const values = months
                               .map(month => metricData?.[month])
                               .filter((v): v is number => v !== null && v !== undefined);
                             
-                            const avg = values.length > 0
-                              ? values.reduce((sum, v) => sum + v, 0) / values.length
+                            // Use average for percentages, sum for everything else
+                            const total = values.length > 0
+                              ? isPercentage
+                                ? values.reduce((sum, v) => sum + v, 0) / values.length
+                                : values.reduce((sum, v) => sum + v, 0)
                               : null;
                             
                             return (
@@ -444,7 +449,7 @@ export function KPITrendView({
                                   </TableCell>
                                 ))}
                                 <TableCell className="text-center font-bold bg-primary/10 print:bg-gray-100">
-                                  {formatValue(avg, metricName)}
+                                  {formatValue(total, metricName)}
                                 </TableCell>
                               </TableRow>
                             );
