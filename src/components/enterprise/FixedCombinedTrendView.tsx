@@ -1,13 +1,18 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Printer, Mail, Loader2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 interface FixedCombinedTrendViewProps {
   storeIds: string[];
@@ -29,6 +34,92 @@ export function FixedCombinedTrendView({
   onBack,
 }: FixedCombinedTrendViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Fetch recipients (super_admins and store GMs)
+  const { data: recipients = [], isLoading: loadingRecipients } = useQuery({
+    queryKey: ["trend_report_recipients", storeIds],
+    queryFn: async () => {
+      // Fetch super_admins
+      const { data: superAdminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
+
+      // Fetch store_gm roles for the stores
+      const { data: gmRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "store_gm");
+      const gmIds = gmRoles?.map(r => r.user_id) || [];
+
+      // Get profiles for all relevant users
+      const allUserIds = [...new Set([...superAdminIds, ...gmIds])];
+      if (allUserIds.length === 0) return [];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, role, store_id, stores(name)")
+        .in("id", allUserIds);
+
+      return (profiles || []).map(p => ({
+        id: p.id,
+        email: p.email,
+        full_name: p.full_name,
+        role: p.role,
+        store_name: (p as any).stores?.name,
+      }));
+    },
+    enabled: emailDialogOpen,
+  });
+
+  const handleSendEmail = async () => {
+    if (selectedRecipients.length === 0) {
+      toast.error("Please select at least one recipient");
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const recipientEmails = recipients
+        .filter(r => selectedRecipients.includes(r.id))
+        .map(r => r.email);
+
+      const { data, error } = await supabase.functions.invoke("send-trend-report-email", {
+        body: {
+          recipientEmails,
+          stores: stores?.map(s => ({ id: s.id, name: s.name })) || [],
+          months,
+          selectedMetrics,
+          processedData,
+          startMonth,
+          endMonth,
+          brandDisplayName,
+          filterName,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Report sent to ${recipientEmails.length} recipient(s)`);
+      setEmailDialogOpen(false);
+      setSelectedRecipients([]);
+    } catch (error: any) {
+      console.error("Error sending email:", error);
+      toast.error(error.message || "Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const toggleRecipient = (id: string) => {
+    setSelectedRecipients(prev =>
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
+    );
+  };
 
   // Generate list of months in range
   const months = useMemo(() => {
@@ -268,10 +359,16 @@ export function FixedCombinedTrendView({
               {" • "}{format(new Date(startMonth + '-15'), 'MMM yyyy')} to {format(new Date(endMonth + '-15'), 'MMM yyyy')}
             </p>
           </div>
-          <Button onClick={handlePrint} className="gap-2">
-            <Printer className="h-4 w-4" />
-            Print Report
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setEmailDialogOpen(true)} variant="outline" className="gap-2">
+              <Mail className="h-4 w-4" />
+              Email Report
+            </Button>
+            <Button onClick={handlePrint} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print Report
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -384,6 +481,73 @@ export function FixedCombinedTrendView({
           )}
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Email Trend Report</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label className="text-sm font-medium mb-3 block">Select Recipients</Label>
+            {loadingRecipients ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : recipients.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recipients found</p>
+            ) : (
+              <ScrollArea className="h-[300px] pr-4">
+                <div className="space-y-3">
+                  {recipients.map(recipient => (
+                    <div key={recipient.id} className="flex items-start space-x-3">
+                      <Checkbox
+                        id={`recipient-${recipient.id}`}
+                        checked={selectedRecipients.includes(recipient.id)}
+                        onCheckedChange={() => toggleRecipient(recipient.id)}
+                      />
+                      <div className="grid gap-0.5 leading-none">
+                        <Label
+                          htmlFor={`recipient-${recipient.id}`}
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          {recipient.full_name}
+                        </Label>
+                        <p className="text-xs text-muted-foreground">{recipient.email}</p>
+                        {recipient.store_name && (
+                          <p className="text-xs text-muted-foreground">{recipient.store_name}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={selectedRecipients.length === 0 || sendingEmail}
+              className="gap-2"
+            >
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Print styles */}
       <style>{`
