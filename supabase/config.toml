@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.send-trend-report-email]
 verify_jwt = true
+
+[functions.send-kpi-trend-email]
+verify_jwt = true

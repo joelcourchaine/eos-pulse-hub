@@ -17,12 +17,13 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { FixedCombinedTrendView } from "@/components/enterprise/FixedCombinedTrendView";
+import { KPITrendView } from "@/components/enterprise/KPITrendView";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
-type ViewMode = "filters" | "trend";
+type ViewMode = "filters" | "trend" | "kpi_trend";
 
 export default function Enterprise() {
   const navigate = useNavigate();
@@ -46,6 +47,15 @@ export default function Enterprise() {
   const [viewMode, setViewMode] = useState<ViewMode>("filters");
   const [trendReportParams, setTrendReportParams] = useState<{
     storeIds: string[];
+    selectedMetrics: string[];
+    startMonth: string;
+    endMonth: string;
+    brandDisplayName: string;
+    filterName: string;
+  } | null>(null);
+  const [kpiTrendParams, setKpiTrendParams] = useState<{
+    storeIds: string[];
+    selectedDepartmentNames: string[];
     selectedMetrics: string[];
     startMonth: string;
     endMonth: string;
@@ -392,7 +402,27 @@ export default function Enterprise() {
     );
   };
 
-  // Show trend report view
+  // Show KPI trend report view
+  if (viewMode === "kpi_trend" && kpiTrendParams) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="max-w-[2000px] mx-auto">
+          <KPITrendView
+            storeIds={kpiTrendParams.storeIds}
+            selectedDepartmentNames={kpiTrendParams.selectedDepartmentNames}
+            selectedMetrics={kpiTrendParams.selectedMetrics}
+            startMonth={kpiTrendParams.startMonth}
+            endMonth={kpiTrendParams.endMonth}
+            brandDisplayName={kpiTrendParams.brandDisplayName}
+            filterName={kpiTrendParams.filterName}
+            onBack={() => setViewMode("filters")}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Show financial trend report view
   if (viewMode === "trend" && trendReportParams) {
     return (
       <div className="min-h-screen bg-background p-6">
@@ -946,6 +976,44 @@ export default function Enterprise() {
                     >
                       <TrendingUp className="h-4 w-4" />
                       Monthly Trend Report
+                    </Button>
+                  )}
+                  {metricType === 'monthly' && (
+                    <Button
+                      onClick={() => {
+                        // Default to last 12 months
+                        const today = new Date();
+                        const start = format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
+                        const end = format(today, 'yyyy-MM');
+                        
+                        let brandDisplayName = "All Brands";
+                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                          const selectedBrandNames = brands
+                            ?.filter(b => selectedBrandIds.includes(b.id))
+                            .map(b => b.name) || [];
+                          brandDisplayName = selectedBrandNames.length === 1 
+                            ? selectedBrandNames[0] 
+                            : selectedBrandNames.join(", ");
+                        }
+                        
+                        setKpiTrendParams({
+                          storeIds: filteredStores.map(s => s.id),
+                          selectedDepartmentNames,
+                          selectedMetrics,
+                          startMonth: start,
+                          endMonth: end,
+                          brandDisplayName,
+                          filterName: loadedFilterName,
+                        });
+                        setViewMode("kpi_trend");
+                      }}
+                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                      size="lg"
+                      variant="outline"
+                      className="gap-2"
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      KPI Monthly Trend
                     </Button>
                   )}
                 </div>
