@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -494,6 +494,29 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       loadPrecedingQuartersData();
     }
   }, [departmentId, kpis, year, quarter, viewMode, entries, isQuarterTrendMode, isMonthlyTrendMode]);
+
+  // Auto-scroll to the far right in monthly trend mode to show the current year on load
+  useLayoutEffect(() => {
+    if (!isMonthlyTrendMode) return;
+    if (!scrollContainerRef.current) return;
+    if (loading) return;
+    if (Object.keys(precedingQuartersData).length === 0) return;
+
+    const container = scrollContainerRef.current;
+
+    const scrollToRight = () => {
+      container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    };
+
+    let tries = 0;
+    const tick = () => {
+      scrollToRight();
+      tries += 1;
+      if (tries < 12) requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+  }, [isMonthlyTrendMode, loading, precedingQuartersData, monthlyTrendPeriods.length]);
 
   // Update local values when entries change
   useEffect(() => {
