@@ -893,6 +893,8 @@ export type Database = {
           department_id: string
           expires_at: string
           id: string
+          sent_by: string | null
+          sent_to_email: string | null
           token: string
           used_at: string | null
         }
@@ -901,6 +903,8 @@ export type Database = {
           department_id: string
           expires_at: string
           id?: string
+          sent_by?: string | null
+          sent_to_email?: string | null
           token: string
           used_at?: string | null
         }
@@ -909,6 +913,8 @@ export type Database = {
           department_id?: string
           expires_at?: string
           id?: string
+          sent_by?: string | null
+          sent_to_email?: string | null
           token?: string
           used_at?: string | null
         }
@@ -918,6 +924,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "questionnaire_tokens_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

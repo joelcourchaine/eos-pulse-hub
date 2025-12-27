@@ -106,13 +106,15 @@ const handler = async (req: Request): Promise<Response> => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Store token in database
+    // Store token in database with recipient tracking
     const { error: tokenError } = await supabase
       .from('questionnaire_tokens')
       .insert({
         token,
         department_id: departmentId,
         expires_at: expiresAt.toISOString(),
+        sent_to_email: managerEmail,
+        sent_by: user.id,
       });
 
     if (tokenError) {
