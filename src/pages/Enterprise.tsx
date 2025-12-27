@@ -321,18 +321,32 @@ export default function Enterprise() {
     enabled: metricType === "dept_info",
   });
 
-  // Fetch KPI definitions for weekly/monthly types
+  // Fetch KPI definitions for weekly/monthly types - only those with scorecard entries
   const { data: kpiDefinitions } = useQuery({
     queryKey: ["enterprise_kpi_definitions", departmentIds, metricType],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("kpi_definitions")
-        .select("id, name, metric_type, department_id")
-        .in("department_id", departmentIds)
-        .order("display_order");
-      if (error) throw error;
-      return data;
+      
+      // First get KPIs with scorecard entries of the matching type
+      const { data: entriesWithKpis, error: entriesError } = await supabase
+        .from("scorecard_entries")
+        .select("kpi_id, kpi_definitions!inner(id, name, metric_type, department_id, display_order)")
+        .eq("entry_type", metricType)
+        .in("kpi_definitions.department_id", departmentIds);
+      
+      if (entriesError) throw entriesError;
+      
+      // Extract unique KPIs that have entries
+      const kpiMap = new Map<string, any>();
+      entriesWithKpis?.forEach((entry: any) => {
+        const kpi = entry.kpi_definitions;
+        if (kpi && !kpiMap.has(kpi.id)) {
+          kpiMap.set(kpi.id, kpi);
+        }
+      });
+      
+      // Sort by display_order
+      return Array.from(kpiMap.values()).sort((a, b) => a.display_order - b.display_order);
     },
     enabled: departmentIds.length > 0 && (metricType === "weekly" || metricType === "monthly"),
   });
