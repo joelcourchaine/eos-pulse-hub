@@ -1070,95 +1070,159 @@ export default function Enterprise() {
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Building2 className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Ready to Compare</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  {metricType === "monthly_combined" ? "Ready to Generate Report" : "Ready to Compare"}
+                </h3>
                 <p className="text-muted-foreground mb-6 max-w-md">
-                  {filteredStores.length === 0 
-                    ? "Select stores from the filter options to begin comparison."
-                    : selectedMetrics.length === 0
-                    ? "Select metrics to compare across your selected stores."
-                    : `Compare ${selectedMetrics.length} metrics across ${filteredStores.length} stores.`
-                  }
+                  {metricType === "monthly_combined" ? (
+                    filteredStores.length === 0 
+                      ? "Select stores from the filter options to begin."
+                      : (selectedKpiMetrics.length === 0 && selectedFinancialMetrics.length === 0)
+                      ? "Select KPI and/or financial metrics for the report."
+                      : !isValidCombinedSelection
+                      ? "Total Hours is required when Service department is selected."
+                      : `Generate quarterly report with ${selectedKpiMetrics.length} KPIs and ${selectedFinancialMetrics.length} financial metrics across ${filteredStores.length} stores.`
+                  ) : (
+                    filteredStores.length === 0 
+                      ? "Select stores from the filter options to begin comparison."
+                      : selectedMetrics.length === 0
+                      ? "Select metrics to compare across your selected stores."
+                      : `Compare ${selectedMetrics.length} metrics across ${filteredStores.length} stores.`
+                  )}
                 </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Sort by:</span>
-                    <Select 
-                      value={sortByMetric || "__none__"} 
-                      onValueChange={(val) => setSortByMetric(val === "__none__" ? "" : val)}
+                
+                {metricType === "monthly_combined" ? (
+                  <div className="flex flex-col items-center gap-4">
+                    {/* Date Range for Combined Report */}
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <label className="text-sm font-medium mb-1 block text-left">Start Month</label>
+                        <Select 
+                          value={format(startMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setStartMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="w-[150px]">
+                            <SelectValue>{format(startMonth, "MMM yyyy")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block text-left">End Month</label>
+                        <Select 
+                          value={format(endMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setEndMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="w-[150px]">
+                            <SelectValue>{format(endMonth, "MMM yyyy")}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <Button
+                      onClick={() => {
+                        let brandDisplayName = "All Brands";
+                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                          const selectedBrandNames = brands
+                            ?.filter(b => selectedBrandIds.includes(b.id))
+                            .map(b => b.name) || [];
+                          brandDisplayName = selectedBrandNames.length === 1 
+                            ? selectedBrandNames[0] 
+                            : selectedBrandNames.join(", ");
+                        }
+                        
+                        setCombinedTrendParams({
+                          storeIds: filteredStores.map(s => s.id),
+                          selectedDepartmentNames,
+                          selectedKpiMetrics,
+                          selectedFinancialMetrics,
+                          startMonth: format(startMonth, 'yyyy-MM'),
+                          endMonth: format(endMonth, 'yyyy-MM'),
+                          brandDisplayName,
+                          filterName: loadedFilterName,
+                        });
+                        setViewMode("combined_trend");
+                      }}
+                      disabled={
+                        filteredStores.length === 0 || 
+                        (selectedKpiMetrics.length === 0 && selectedFinancialMetrics.length === 0) ||
+                        !isValidCombinedSelection
+                      }
+                      size="lg"
+                      className="gap-2"
                     >
-                      <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="No sorting" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">No sorting</SelectItem>
-                        {selectedMetrics.map((metric) => (
-                          <SelectItem key={metric} value={metric}>
-                            {metric}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <TrendingUp className="h-4 w-4" />
+                      Generate Combined Trend Report
+                    </Button>
                   </div>
-                  <Button
-                    onClick={() => {
-                      // Prepare date parameters based on period type
-                      const dateParams: any = {
-                        datePeriodType,
-                      };
-                      
-                      if (datePeriodType === "month") {
-                        dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
-                      } else if (datePeriodType === "full_year") {
-                        dateParams.selectedYear = selectedYear;
-                      } else if (datePeriodType === "custom_range") {
-                        dateParams.startMonth = format(startMonth, "yyyy-MM");
-                        dateParams.endMonth = format(endMonth, "yyyy-MM");
-                      }
-                      
-                      // Determine brand display name
-                      let brandDisplayName = "All Brands";
-                      if (filterMode === "brand" && selectedBrandIds.length > 0) {
-                        const selectedBrandNames = brands
-                          ?.filter(b => selectedBrandIds.includes(b.id))
-                          .map(b => b.name) || [];
-                        brandDisplayName = selectedBrandNames.length === 1 
-                          ? selectedBrandNames[0] 
-                          : selectedBrandNames.join(", ");
-                      }
-                      
-                      navigate("/dealer-comparison", {
-                        state: {
-                          metricType,
-                          selectedMetrics,
-                          ...dateParams,
-                          comparisonMode,
-                          departmentIds,
-                          isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
-                          selectedDepartmentNames,
-                          sortByMetric,
-                          storeIds: filteredStores.map(s => s.id),
-                          brandDisplayName,
-                          filterName: loadedFilterName,
-                        }
-                      });
-                    }}
-                    disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                    size="lg"
-                  >
-                    View Dashboard
-                  </Button>
-                  {selectedDepartmentNames.includes('Fixed Combined') && metricType === 'financial' && (
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Sort by:</span>
+                      <Select 
+                        value={sortByMetric || "__none__"} 
+                        onValueChange={(val) => setSortByMetric(val === "__none__" ? "" : val)}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="No sorting" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No sorting</SelectItem>
+                          {selectedMetrics.map((metric) => (
+                            <SelectItem key={metric} value={metric}>
+                              {metric}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Button
                       onClick={() => {
-                        // Default to last 12 months if not custom range
-                        const today = new Date();
-                        const start = datePeriodType === 'custom_range' 
-                          ? format(startMonth, 'yyyy-MM')
-                          : format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
-                        const end = datePeriodType === 'custom_range'
-                          ? format(endMonth, 'yyyy-MM')
-                          : format(today, 'yyyy-MM');
+                        // Prepare date parameters based on period type
+                        const dateParams: any = {
+                          datePeriodType,
+                        };
                         
+                        if (datePeriodType === "month") {
+                          dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
+                        } else if (datePeriodType === "full_year") {
+                          dateParams.selectedYear = selectedYear;
+                        } else if (datePeriodType === "custom_range") {
+                          dateParams.startMonth = format(startMonth, "yyyy-MM");
+                          dateParams.endMonth = format(endMonth, "yyyy-MM");
+                        }
+                        
+                        // Determine brand display name
                         let brandDisplayName = "All Brands";
                         if (filterMode === "brand" && selectedBrandIds.length > 0) {
                           const selectedBrandNames = brands
@@ -1169,64 +1233,108 @@ export default function Enterprise() {
                             : selectedBrandNames.join(", ");
                         }
                         
-                        setTrendReportParams({
-                          storeIds: filteredStores.map(s => s.id),
-                          selectedMetrics,
-                          startMonth: start,
-                          endMonth: end,
-                          brandDisplayName,
-                          filterName: loadedFilterName,
+                        navigate("/dealer-comparison", {
+                          state: {
+                            metricType,
+                            selectedMetrics,
+                            ...dateParams,
+                            comparisonMode,
+                            departmentIds,
+                            isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                            selectedDepartmentNames,
+                            sortByMetric,
+                            storeIds: filteredStores.map(s => s.id),
+                            brandDisplayName,
+                            filterName: loadedFilterName,
+                          }
                         });
-                        setViewMode("trend");
                       }}
                       disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
                       size="lg"
-                      variant="outline"
-                      className="gap-2"
                     >
-                      <TrendingUp className="h-4 w-4" />
-                      Monthly Trend Report
+                      View Dashboard
                     </Button>
-                  )}
-                  {metricType === 'monthly' && (
-                    <Button
-                      onClick={() => {
-                        // Default to last 12 months
-                        const today = new Date();
-                        const start = format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
-                        const end = format(today, 'yyyy-MM');
-                        
-                        let brandDisplayName = "All Brands";
-                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
-                          const selectedBrandNames = brands
-                            ?.filter(b => selectedBrandIds.includes(b.id))
-                            .map(b => b.name) || [];
-                          brandDisplayName = selectedBrandNames.length === 1 
-                            ? selectedBrandNames[0] 
-                            : selectedBrandNames.join(", ");
-                        }
-                        
-                        setKpiTrendParams({
-                          storeIds: filteredStores.map(s => s.id),
-                          selectedDepartmentNames,
-                          selectedMetrics,
-                          startMonth: start,
-                          endMonth: end,
-                          brandDisplayName,
-                          filterName: loadedFilterName,
-                        });
-                        setViewMode("kpi_trend");
-                      }}
-                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                      size="lg"
-                      variant="outline"
-                      className="gap-2"
-                    >
-                      <TrendingUp className="h-4 w-4" />
-                      KPI Monthly Trend
-                    </Button>
-                  )}
-                </div>
+                    {selectedDepartmentNames.includes('Fixed Combined') && metricType === 'financial' && (
+                      <Button
+                        onClick={() => {
+                          // Default to last 12 months if not custom range
+                          const today = new Date();
+                          const start = datePeriodType === 'custom_range' 
+                            ? format(startMonth, 'yyyy-MM')
+                            : format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
+                          const end = datePeriodType === 'custom_range'
+                            ? format(endMonth, 'yyyy-MM')
+                            : format(today, 'yyyy-MM');
+                          
+                          let brandDisplayName = "All Brands";
+                          if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                            const selectedBrandNames = brands
+                              ?.filter(b => selectedBrandIds.includes(b.id))
+                              .map(b => b.name) || [];
+                            brandDisplayName = selectedBrandNames.length === 1 
+                              ? selectedBrandNames[0] 
+                              : selectedBrandNames.join(", ");
+                          }
+                          
+                          setTrendReportParams({
+                            storeIds: filteredStores.map(s => s.id),
+                            selectedMetrics,
+                            startMonth: start,
+                            endMonth: end,
+                            brandDisplayName,
+                            filterName: loadedFilterName,
+                          });
+                          setViewMode("trend");
+                        }}
+                        disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                        size="lg"
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <TrendingUp className="h-4 w-4" />
+                        Monthly Trend Report
+                      </Button>
+                    )}
+                    {metricType === 'monthly' && (
+                      <Button
+                        onClick={() => {
+                          // Default to last 12 months
+                          const today = new Date();
+                          const start = format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
+                          const end = format(today, 'yyyy-MM');
+                          
+                          let brandDisplayName = "All Brands";
+                          if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                            const selectedBrandNames = brands
+                              ?.filter(b => selectedBrandIds.includes(b.id))
+                              .map(b => b.name) || [];
+                            brandDisplayName = selectedBrandNames.length === 1 
+                              ? selectedBrandNames[0] 
+                              : selectedBrandNames.join(", ");
+                          }
+                          
+                          setKpiTrendParams({
+                            storeIds: filteredStores.map(s => s.id),
+                            selectedDepartmentNames,
+                            selectedMetrics,
+                            startMonth: start,
+                            endMonth: end,
+                            brandDisplayName,
+                            filterName: loadedFilterName,
+                          });
+                          setViewMode("kpi_trend");
+                        }}
+                        disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                        size="lg"
+                        variant="outline"
+                        className="gap-2"
+                      >
+                        <TrendingUp className="h-4 w-4" />
+                        KPI Monthly Trend
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
