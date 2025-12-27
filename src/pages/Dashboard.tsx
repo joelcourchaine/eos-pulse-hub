@@ -958,17 +958,17 @@ const Dashboard = () => {
             
             {/* Navigation Buttons - grid on mobile for better layout */}
             <div className="grid grid-cols-2 gap-2 w-full md:flex md:flex-row md:w-auto md:items-center md:gap-3">
+              {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
+                <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")} className="w-full md:w-auto">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  Enterprise
+                </Button>
+              )}
               {isSuperAdmin && (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => navigate("/enterprise")} className="w-full md:w-auto">
-                    <TrendingUp className="mr-2 h-4 w-4" />
-                    Enterprise
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setShowStores(true)} className="w-full md:w-auto">
-                    <Building2 className="mr-2 h-4 w-4" />
-                    Stores
-                  </Button>
-                </>
+                <Button variant="outline" size="sm" onClick={() => setShowStores(true)} className="w-full md:w-auto">
+                  <Building2 className="mr-2 h-4 w-4" />
+                  Stores
+                </Button>
               )}
               {(isSuperAdmin || isStoreGM) && (
                 <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)} className="w-full md:w-auto">

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2, TrendingUp } from "lucide-react";
+import { Building2, ArrowLeft, CalendarIcon, Save, Bookmark, Trash2, TrendingUp, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { FixedCombinedTrendView } from "@/components/enterprise/FixedCombinedTrendView";
 import { KPITrendView } from "@/components/enterprise/KPITrendView";
 import { CombinedTrendView } from "@/components/enterprise/CombinedTrendView";
+import { useUserRole } from "@/hooks/use-user-role";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
@@ -78,12 +79,16 @@ export default function Enterprise() {
   const [selectedKpiMetrics, setSelectedKpiMetrics] = useState<string[]>([]);
   const [selectedFinancialMetrics, setSelectedFinancialMetrics] = useState<string[]>([]);
 
-  // Check authentication
+  // Check authentication and get user
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+  
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         navigate("/auth");
+      } else {
+        setUserId(session.user.id);
       }
     };
     checkAuth();
@@ -91,11 +96,67 @@ export default function Enterprise() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         navigate("/auth");
+      } else {
+        setUserId(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  // Check user roles
+  const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(userId);
+  
+  // Determine if user has access to Enterprise page
+  const hasEnterpriseAccess = isSuperAdmin || isStoreGM || isDepartmentManager;
+  
+  // Redirect unauthorized users
+  useEffect(() => {
+    if (!rolesLoading && userId && !hasEnterpriseAccess) {
+      toast.error("You don't have access to the Enterprise page");
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, userId, hasEnterpriseAccess, navigate]);
+
+  // Fetch user's store group info for non-super-admins
+  const { data: userStoreGroupInfo } = useQuery({
+    queryKey: ["user_store_group_info", userId],
+    queryFn: async () => {
+      // Get user's profile with store group info
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("store_group_id, store_id")
+        .eq("id", userId!)
+        .single();
+      
+      if (profileError) throw profileError;
+      
+      let groupId = profile?.store_group_id;
+      let groupName = "";
+      
+      // If no direct store_group_id, get it from the user's store
+      if (!groupId && profile?.store_id) {
+        const { data: store } = await supabase
+          .from("stores")
+          .select("group_id, store_groups(name)")
+          .eq("id", profile.store_id)
+          .single();
+        
+        groupId = store?.group_id;
+        groupName = (store?.store_groups as any)?.name || "";
+      } else if (groupId) {
+        const { data: group } = await supabase
+          .from("store_groups")
+          .select("name")
+          .eq("id", groupId)
+          .single();
+        groupName = group?.name || "";
+      }
+      
+      return { groupId, groupName };
+    },
+    enabled: !isSuperAdmin && !!userId,
+  });
 
   // Fetch saved filters
   const { data: savedFilters } = useQuery({
@@ -244,6 +305,22 @@ export default function Enterprise() {
       return data;
     },
   });
+
+  // Filter brands to only those with stores in user's group (for non-super-admins)
+  const availableBrands = useMemo(() => {
+    if (!brands || !stores) return [];
+    if (isSuperAdmin) return brands;
+    
+    // Get brand IDs that have stores the user can see (RLS already filters stores to user's group)
+    const brandIdsInUserGroup = new Set(stores.map(s => s.brand_id).filter(Boolean));
+    return brands.filter(b => brandIdsInUserGroup.has(b.id));
+  }, [brands, stores, isSuperAdmin]);
+
+  // For non-super-admins, stores are already filtered by RLS to their group
+  const availableStores = useMemo(() => {
+    if (!stores) return [];
+    return stores; // RLS already filters to user's group
+  }, [stores]);
 
   const filteredStores = useMemo(() => {
     if (!stores) return [];
@@ -414,6 +491,13 @@ export default function Enterprise() {
     const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
     return getMetricsForBrand(brand);
   }, [metricType, filteredStores]);
+
+  // Reset filter mode to "brand" if non-super-admin has "group" selected
+  useEffect(() => {
+    if (!isSuperAdmin && filterMode === "group") {
+      setFilterMode("brand");
+    }
+  }, [isSuperAdmin, filterMode]);
 
   // Auto-select Service Department by default
   useEffect(() => {
@@ -630,6 +714,15 @@ export default function Enterprise() {
           </div>
         </div>
 
+        {/* Store Group Banner for non-super-admins */}
+        {!isSuperAdmin && userStoreGroupInfo?.groupName && (
+          <div className="bg-muted/50 border border-border px-4 py-3 rounded-lg flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Viewing reports for: </span>
+            <span className="text-sm font-semibold">{userStoreGroupInfo.groupName}</span>
+          </div>
+        )}
+
         {/* Saved Filters */}
         {savedFilters && savedFilters.length > 0 && (
           <Card>
@@ -684,16 +777,16 @@ export default function Enterprise() {
                 value={filterMode}
                 onValueChange={(v) => setFilterMode(v as FilterMode)}
               >
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <TabsTrigger value="brand">Brand</TabsTrigger>
-                  <TabsTrigger value="group">Group</TabsTrigger>
+                  {isSuperAdmin && <TabsTrigger value="group">Group</TabsTrigger>}
                   <TabsTrigger value="custom">Custom</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="brand" className="mt-4">
                   <ScrollArea className="h-[300px] pr-4">
                     <div className="space-y-3">
-                      {brands?.map((brand) => (
+                      {availableBrands?.map((brand) => (
                         <div key={brand.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`brand-${brand.id}`}
@@ -737,7 +830,7 @@ export default function Enterprise() {
                 <TabsContent value="custom" className="mt-4">
                   <ScrollArea className="h-[300px] pr-4">
                     <div className="space-y-3">
-                      {stores?.map((store) => (
+                      {availableStores?.map((store) => (
                         <div key={store.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`store-${store.id}`}
@@ -749,6 +842,11 @@ export default function Enterprise() {
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                           >
                             {store.name}
+                            {store.store_groups && (
+                              <span className="text-muted-foreground ml-1">
+                                ({(store.store_groups as any).name})
+                              </span>
+                            )}
                           </label>
                         </div>
                       ))}
