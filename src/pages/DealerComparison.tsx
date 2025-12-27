@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Mail } from "lucide-react";
+import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Mail, Printer } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailComparisonDialog } from "@/components/enterprise/EmailComparisonDialog";
@@ -1254,6 +1254,15 @@ export default function DealerComparison() {
           >
             <RefreshCw className="h-4 w-4" />
             Refresh Now
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.print()}
+            className="gap-2"
+          >
+            <Printer className="h-4 w-4" />
+            Print
           </Button>
           <Button
             variant="outline"
