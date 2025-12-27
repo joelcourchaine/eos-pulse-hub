@@ -77,7 +77,7 @@ function generateExcelBuffer(
       const metricData = storeData[metricName] as Record<string, number | null> | undefined;
       const row: (string | number | null)[] = [metricName];
       
-      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent");
+      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent") || metricName.toLowerCase().includes("return on gross");
       rowFormats.push(isPercentage);
       
       const values: number[] = [];
@@ -191,7 +191,7 @@ function generateHtmlEmail(
         html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${formatValue(value, metricName)}</td>`;
       }
       
-      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent");
+      const isPercentage = metricName.includes("%") || metricName.toLowerCase().includes("percent") || metricName.toLowerCase().includes("return on gross");
       const total = values.length > 0 
         ? isPercentage 
           ? values.reduce((sum, v) => sum + v, 0) / values.length 
