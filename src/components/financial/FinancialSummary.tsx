@@ -1394,7 +1394,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const monthIds = months.map(m => m.identifier);
     const previousYearMonthIds = previousYearMonths.map(m => m.identifier);
     
-    const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds])];
+    // Also load all months of current year to calculate highest profit month across the full year
+    const allCurrentYearMonthIds = Array.from({ length: 12 }, (_, i) => 
+      `${year}-${String(i + 1).padStart(2, '0')}`
+    );
+    
+    const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds, ...allCurrentYearMonthIds])];
 
     const { data, error } = await supabase
       .from("financial_entries")
