@@ -14,6 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type TrendViewMode = "monthly" | "quarterly";
 
 interface CombinedTrendViewProps {
   storeIds: string[];
@@ -43,6 +46,7 @@ export function CombinedTrendView({
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailFormat, setEmailFormat] = useState<"html" | "excel">("html");
+  const [trendViewMode, setTrendViewMode] = useState<TrendViewMode>("monthly");
 
   // Generate list of months in range
   const months = useMemo(() => {
@@ -590,10 +594,19 @@ export function CombinedTrendView({
               {" • "}{format(new Date(startMonth + '-15'), 'MMM yyyy')} to {format(new Date(endMonth + '-15'), 'MMM yyyy')}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              KPI metrics weighted by Total Hours • Financial metrics weighted by Total Sales
+              {trendViewMode === "quarterly" 
+                ? "KPI metrics weighted by Total Hours • Financial metrics weighted by Total Sales"
+                : "Monthly breakdown view"
+              }
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Tabs value={trendViewMode} onValueChange={(v) => setTrendViewMode(v as TrendViewMode)}>
+              <TabsList>
+                <TabsTrigger value="monthly">Monthly</TabsTrigger>
+                <TabsTrigger value="quarterly">Quarterly</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <Button onClick={() => setEmailDialogOpen(true)} variant="outline" className="gap-2">
               <Mail className="h-4 w-4" />
               Email Report
@@ -658,7 +671,9 @@ export function CombinedTrendView({
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-primary">
                         KPI Scorecard Metrics
-                        <span className="text-xs font-normal text-muted-foreground ml-2">(Weighted by Total Hours)</span>
+                        {trendViewMode === "quarterly" && (
+                          <span className="text-xs font-normal text-muted-foreground ml-2">(Weighted by Total Hours)</span>
+                        )}
                       </h3>
                       <div className="overflow-x-auto">
                         <Table className="print:text-xs">
@@ -667,11 +682,19 @@ export function CombinedTrendView({
                               <TableHead className="sticky left-0 bg-background z-10 min-w-[180px] print:bg-gray-100 print:font-bold">
                                 KPI
                               </TableHead>
-                              {quarters.map(quarter => (
-                                <TableHead key={quarter} className="text-center min-w-[100px] print:bg-gray-100 print:font-bold">
-                                  {quarter}
-                                </TableHead>
-                              ))}
+                              {trendViewMode === "monthly" ? (
+                                months.map(month => (
+                                  <TableHead key={month} className="text-center min-w-[80px] print:bg-gray-100 print:font-bold">
+                                    {formatMonthHeader(month)}
+                                  </TableHead>
+                                ))
+                              ) : (
+                                quarters.map(quarter => (
+                                  <TableHead key={quarter} className="text-center min-w-[100px] print:bg-gray-100 print:font-bold">
+                                    {quarter}
+                                  </TableHead>
+                                ))
+                              )}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -680,14 +703,25 @@ export function CombinedTrendView({
                                 <TableCell className="font-medium sticky left-0 bg-background z-10 print:bg-white">
                                   {metricName}
                                 </TableCell>
-                                {quarters.map(quarter => {
-                                  const data = quarterlyData[store.id]?.kpiQuarters[quarter]?.[metricName];
-                                  return (
-                                    <TableCell key={quarter} className="text-center">
-                                      {formatKpiValue(data?.value ?? null, metricName)}
-                                    </TableCell>
-                                  );
-                                })}
+                                {trendViewMode === "monthly" ? (
+                                  months.map(month => {
+                                    const value = kpiData[store.id]?.[month]?.get(metricName) ?? null;
+                                    return (
+                                      <TableCell key={month} className="text-center">
+                                        {formatKpiValue(value, metricName)}
+                                      </TableCell>
+                                    );
+                                  })
+                                ) : (
+                                  quarters.map(quarter => {
+                                    const data = quarterlyData[store.id]?.kpiQuarters[quarter]?.[metricName];
+                                    return (
+                                      <TableCell key={quarter} className="text-center">
+                                        {formatKpiValue(data?.value ?? null, metricName)}
+                                      </TableCell>
+                                    );
+                                  })
+                                )}
                               </TableRow>
                             ))}
                           </TableBody>
@@ -701,7 +735,9 @@ export function CombinedTrendView({
                     <div>
                       <h3 className="text-lg font-semibold mb-2 text-primary">
                         Financial Summary Metrics
-                        <span className="text-xs font-normal text-muted-foreground ml-2">(Weighted by Total Sales)</span>
+                        {trendViewMode === "quarterly" && (
+                          <span className="text-xs font-normal text-muted-foreground ml-2">(Weighted by Total Sales)</span>
+                        )}
                       </h3>
                       <div className="overflow-x-auto">
                         <Table className="print:text-xs">
@@ -710,29 +746,53 @@ export function CombinedTrendView({
                               <TableHead className="sticky left-0 bg-background z-10 min-w-[180px] print:bg-gray-100 print:font-bold">
                                 Metric
                               </TableHead>
-                              {quarters.map(quarter => (
-                                <TableHead key={quarter} className="text-center min-w-[100px] print:bg-gray-100 print:font-bold">
-                                  {quarter}
-                                </TableHead>
-                              ))}
+                              {trendViewMode === "monthly" ? (
+                                months.map(month => (
+                                  <TableHead key={month} className="text-center min-w-[80px] print:bg-gray-100 print:font-bold">
+                                    {formatMonthHeader(month)}
+                                  </TableHead>
+                                ))
+                              ) : (
+                                quarters.map(quarter => (
+                                  <TableHead key={quarter} className="text-center min-w-[100px] print:bg-gray-100 print:font-bold">
+                                    {quarter}
+                                  </TableHead>
+                                ))
+                              )}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedFinancialMetrics.map(metricName => (
-                              <TableRow key={metricName} className="print:border-b print:border-gray-300">
-                                <TableCell className="font-medium sticky left-0 bg-background z-10 print:bg-white">
-                                  {metricName}
-                                </TableCell>
-                                {quarters.map(quarter => {
-                                  const data = quarterlyData[store.id]?.financialQuarters[quarter]?.[metricName];
-                                  return (
-                                    <TableCell key={quarter} className="text-center">
-                                      {formatFinancialValue(data?.value ?? null, metricName)}
-                                    </TableCell>
-                                  );
-                                })}
-                              </TableRow>
-                            ))}
+                            {selectedFinancialMetrics.map(metricName => {
+                              const { nameToKey } = financialMetricDefs;
+                              const metricKey = nameToKey.get(metricName);
+                              
+                              return (
+                                <TableRow key={metricName} className="print:border-b print:border-gray-300">
+                                  <TableCell className="font-medium sticky left-0 bg-background z-10 print:bg-white">
+                                    {metricName}
+                                  </TableCell>
+                                  {trendViewMode === "monthly" ? (
+                                    months.map(month => {
+                                      const value = metricKey ? financialData[store.id]?.[month]?.get(metricKey) ?? null : null;
+                                      return (
+                                        <TableCell key={month} className="text-center">
+                                          {formatFinancialValue(value, metricName)}
+                                        </TableCell>
+                                      );
+                                    })
+                                  ) : (
+                                    quarters.map(quarter => {
+                                      const data = quarterlyData[store.id]?.financialQuarters[quarter]?.[metricName];
+                                      return (
+                                        <TableCell key={quarter} className="text-center">
+                                          {formatFinancialValue(data?.value ?? null, metricName)}
+                                        </TableCell>
+                                      );
+                                    })
+                                  )}
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
