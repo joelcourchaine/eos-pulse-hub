@@ -444,25 +444,29 @@ export const importFinancialData = async (
     if (!departmentId) continue;
     
     for (const subMetric of subMetrics) {
-      if (subMetric.value === null) continue;
-      
+      // Import even when value is null so the sub-metric name still appears in the UI.
+      // This helps catch missing/blank cells (e.g., formula cells without cached values).
+
       // Create a metric name that includes the parent key, order index, and sub-metric name
       // Format: sub:{parent_key}:{order_index}:{name}
       // This allows us to group and sort them when displaying
       const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
-      
+
       const { error } = await supabase
         .from('financial_entries')
-        .upsert({
-          department_id: departmentId,
-          month: monthIdentifier,
-          metric_name: metricName,
-          value: subMetric.value,
-          created_by: userId,
-        }, {
-          onConflict: 'department_id,month,metric_name'
-        });
-      
+        .upsert(
+          {
+            department_id: departmentId,
+            month: monthIdentifier,
+            metric_name: metricName,
+            value: subMetric.value,
+            created_by: userId,
+          },
+          {
+            onConflict: 'department_id,month,metric_name',
+          }
+        );
+
       if (error) {
         console.error('Error upserting sub-metric entry:', error);
       } else {
