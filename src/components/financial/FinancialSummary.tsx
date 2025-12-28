@@ -216,6 +216,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [departmentName, setDepartmentName] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(year);
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
@@ -635,6 +636,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       setDepartmentName(department.name);
       
       if (department.store_id) {
+        setStoreId(department.store_id);
         const { data: store } = await supabase
           .from("stores")
           .select("brand, brand_id, brands(name)")
@@ -2196,6 +2198,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 <MonthDropZone
                                   monthIdentifier={period.identifier}
                                   departmentId={departmentId}
+                                  storeId={storeId || undefined}
+                                  storeBrand={storeBrand || undefined}
                                   attachment={attachments[period.identifier]}
                                   onAttachmentChange={fetchAttachments}
                                 >
@@ -2242,6 +2246,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <MonthDropZone
                               monthIdentifier={month.identifier}
                               departmentId={departmentId}
+                              storeId={storeId || undefined}
+                              storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
                               onAttachmentChange={fetchAttachments}
                             >
@@ -2267,6 +2273,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <MonthDropZone
                               monthIdentifier={month.identifier}
                               departmentId={departmentId}
+                              storeId={storeId || undefined}
+                              storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
                               onAttachmentChange={fetchAttachments}
                             >
