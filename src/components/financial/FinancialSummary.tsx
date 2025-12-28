@@ -2383,15 +2383,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <div className="truncate cursor-help">
-                                  <ExpandableMetricName
-                                    metricName={metric.name}
-                                    hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
-                                    isExpanded={expandedMetrics.has(metric.key)}
-                                    onToggle={() => toggleMetricExpansion(metric.key)}
-                                    isDepartmentProfit={isDepartmentProfit}
-                                  />
-                                </div>
+                                <ExpandableMetricName
+                                  metricName={metric.name}
+                                  hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
+                                  isExpanded={expandedMetrics.has(metric.key)}
+                                  onToggle={() => toggleMetricExpansion(metric.key)}
+                                  isDepartmentProfit={isDepartmentProfit}
+                                />
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-[350px] max-h-[500px] overflow-y-auto">
                                 <p className="font-medium">{metric.name}</p>
