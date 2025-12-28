@@ -420,13 +420,28 @@ export const MonthDropZone = ({
 
   const getMismatchTooltipContent = () => {
     if (validationStatus !== 'mismatch') return null;
-    const mismatchDetails = validationDetails.filter(r => r.status === 'mismatch');
-    return mismatchDetails.map(r => {
-      const discrepancyText = r.discrepancies?.map(d => 
-        `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
-      ).join(', ');
-      return `${r.departmentName}: ${discrepancyText}`;
-    }).join('\n');
+    
+    // Find discrepancies for the current department
+    const currentDeptResult = validationDetails.find(r => r.departmentId === departmentId && r.status === 'mismatch');
+    
+    if (!currentDeptResult || !currentDeptResult.discrepancies?.length) {
+      // If no mismatches for this specific department, show a summary
+      const mismatchCount = validationDetails.filter(r => r.status === 'mismatch').length;
+      if (mismatchCount > 0) {
+        return `${mismatchCount} department(s) have data discrepancies`;
+      }
+      return null;
+    }
+    
+    // Show detailed discrepancies for this department
+    return currentDeptResult.discrepancies.map(d => 
+      `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
+    ).join('\n');
+  };
+
+  const getCurrentDeptMismatchCount = () => {
+    const currentDeptResult = validationDetails.find(r => r.departmentId === departmentId && r.status === 'mismatch');
+    return currentDeptResult?.discrepancies?.length ?? 0;
   };
 
   return (
@@ -481,13 +496,23 @@ export const MonthDropZone = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[300px]">
-                  <p className="text-xs">{attachment.file_name}</p>
+                <TooltipContent side="top" className="max-w-[350px]">
+                  <p className="text-xs font-medium">{attachment.file_name}</p>
                   {validationStatus === 'mismatch' && (
                     <>
-                      <p className="text-xs font-medium mt-1 text-amber-500">Data Mismatch</p>
-                      <p className="text-xs whitespace-pre-wrap">{getMismatchTooltipContent()}</p>
+                      <p className="text-xs font-semibold mt-2 text-amber-500">
+                        Data Discrepancies ({getCurrentDeptMismatchCount()} items)
+                      </p>
+                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                        {getMismatchTooltipContent()}
+                      </p>
                     </>
+                  )}
+                  {validationStatus === 'match' && (
+                    <p className="text-xs mt-1 text-green-500">All data matches</p>
+                  )}
+                  {validationStatus === 'imported' && (
+                    <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
                   )}
                 </TooltipContent>
               </Tooltip>
