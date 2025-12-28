@@ -2242,7 +2242,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   storeId={storeId || undefined}
                                   storeBrand={storeBrand || undefined}
                                   attachment={attachments[period.identifier]}
-                                  onAttachmentChange={fetchAttachments}
+                                  onAttachmentChange={() => {
+                                    fetchAttachments();
+                                    loadFinancialData();
+                                  }}
                                 >
                                   <div className="flex flex-col items-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -2290,7 +2293,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               storeId={storeId || undefined}
                               storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
-                              onAttachmentChange={fetchAttachments}
+                              onAttachmentChange={() => {
+                                fetchAttachments();
+                                loadFinancialData();
+                              }}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -2317,7 +2323,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               storeId={storeId || undefined}
                               storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
-                              onAttachmentChange={fetchAttachments}
+                              onAttachmentChange={() => {
+                                fetchAttachments();
+                                loadFinancialData();
+                              }}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
