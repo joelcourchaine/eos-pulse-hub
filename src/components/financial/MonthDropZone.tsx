@@ -408,40 +408,54 @@ export const MonthDropZone = ({
     return <FileSpreadsheet className="h-3 w-3" />;
   };
 
+  // Get the validation result for the current department
+  const currentDeptValidation = validationDetails.find(r => r.departmentId === departmentId);
+  const currentDeptHasMismatch = currentDeptValidation?.status === 'mismatch';
+  const currentDeptDiscrepancies = currentDeptValidation?.discrepancies || [];
+
+  const getMismatchTooltipContent = () => {
+    // Show discrepancies for the current department if it has any
+    if (currentDeptHasMismatch && currentDeptDiscrepancies.length > 0) {
+      return currentDeptDiscrepancies.map(d => 
+        `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
+      ).join('\n');
+    }
+    
+    // If overall status is mismatch but not this dept, show summary
+    if (validationStatus === 'mismatch') {
+      const mismatchDepts = validationDetails.filter(r => r.status === 'mismatch');
+      if (mismatchDepts.length > 0) {
+        return mismatchDepts.map(r => {
+          const discrepancyCount = r.discrepancies?.length || 0;
+          return `${r.departmentName}: ${discrepancyCount} discrepancy(ies)`;
+        }).join('\n');
+      }
+    }
+    
+    return null;
+  };
+
+  const getCurrentDeptMismatchCount = () => {
+    return currentDeptDiscrepancies.length;
+  };
+  
+  // Determine the icon color based on the CURRENT department's status
   const getIconBackgroundColor = () => {
+    if (currentDeptHasMismatch) {
+      return 'bg-amber-500 hover:bg-amber-600';
+    }
+    if (currentDeptValidation?.status === 'match' || currentDeptValidation?.status === 'imported') {
+      return 'bg-green-500 hover:bg-green-600';
+    }
+    // If we have an overall mismatch but this dept is fine, show green
     if (validationStatus === 'match' || validationStatus === 'imported') {
       return 'bg-green-500 hover:bg-green-600';
     }
+    // If overall mismatch but this dept wasn't checked, show amber
     if (validationStatus === 'mismatch') {
       return 'bg-amber-500 hover:bg-amber-600';
     }
     return 'bg-primary hover:bg-primary/80';
-  };
-
-  const getMismatchTooltipContent = () => {
-    if (validationStatus !== 'mismatch') return null;
-    
-    // Find discrepancies for the current department
-    const currentDeptResult = validationDetails.find(r => r.departmentId === departmentId && r.status === 'mismatch');
-    
-    if (!currentDeptResult || !currentDeptResult.discrepancies?.length) {
-      // If no mismatches for this specific department, show a summary
-      const mismatchCount = validationDetails.filter(r => r.status === 'mismatch').length;
-      if (mismatchCount > 0) {
-        return `${mismatchCount} department(s) have data discrepancies`;
-      }
-      return null;
-    }
-    
-    // Show detailed discrepancies for this department
-    return currentDeptResult.discrepancies.map(d => 
-      `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
-    ).join('\n');
-  };
-
-  const getCurrentDeptMismatchCount = () => {
-    const currentDeptResult = validationDetails.find(r => r.departmentId === departmentId && r.status === 'mismatch');
-    return currentDeptResult?.discrepancies?.length ?? 0;
   };
 
   return (
@@ -498,7 +512,7 @@ export const MonthDropZone = ({
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[350px]">
                   <p className="text-xs font-medium">{attachment.file_name}</p>
-                  {validationStatus === 'mismatch' && (
+                  {currentDeptHasMismatch && (
                     <>
                       <p className="text-xs font-semibold mt-2 text-amber-500">
                         Data Discrepancies ({getCurrentDeptMismatchCount()} items)
@@ -508,10 +522,20 @@ export const MonthDropZone = ({
                       </p>
                     </>
                   )}
-                  {validationStatus === 'match' && (
+                  {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
+                    <>
+                      <p className="text-xs font-semibold mt-2 text-amber-500">
+                        Other departments have discrepancies
+                      </p>
+                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                        {getMismatchTooltipContent()}
+                      </p>
+                    </>
+                  )}
+                  {currentDeptValidation?.status === 'match' && (
                     <p className="text-xs mt-1 text-green-500">All data matches</p>
                   )}
-                  {validationStatus === 'imported' && (
+                  {currentDeptValidation?.status === 'imported' && (
                     <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
                   )}
                 </TooltipContent>
