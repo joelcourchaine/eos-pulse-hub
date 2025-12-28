@@ -2538,14 +2538,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                />
                              </TableCell>
                              {monthlyTrendPeriods.map((period, periodIndex) => {
-                                if (period.type === 'month') {
-                                  const monthIdentifier = `${period.year}-${String(period.month + 1).padStart(2, '0')}`;
-                                  const key = `${metric.key}-${monthIdentifier}`;
-                                  // Use sub-metric sum fallback if no manual entry exists
-                                  const entryValue = getValueWithSubMetricFallback(metric.key, monthIdentifier);
-                                  const mValue = entryValue ?? precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
-                                  // Check if metric should use calculation for this month (Honda legacy handling)
-                                  const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
+                                 if (period.type === 'month') {
+                                   const monthIdentifier = `${period.year}-${String(period.month + 1).padStart(2, '0')}`;
+                                   const key = `${metric.key}-${monthIdentifier}`;
+
+                                   const isFordServiceDept =
+                                     (storeBrand?.toLowerCase().includes('ford') ?? false) &&
+                                     (departmentName?.toLowerCase().includes('service') ?? false);
+
+                                   // For Ford Service, Total Sales should come from the mapped total cell (e.g., FORD5!J44),
+                                   // not by summing sub-metrics (which can include overlapping lines and inflate totals).
+                                   const precedingValue = precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
+                                   const mValue =
+                                     isFordServiceDept && metric.key === 'total_sales'
+                                       ? precedingValue
+                                       : (getValueWithSubMetricFallback(metric.key, monthIdentifier) ?? precedingValue);
+                                   // Check if metric should use calculation for this month (Honda legacy handling)
+                                   const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
                                   
                                   // For Honda Total Direct Expenses in legacy months, calculate as Sales Expense + Semi Fixed Expense
                                   if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
