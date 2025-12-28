@@ -3464,6 +3464,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         getSubMetricValue={(subMetricName, monthId) => 
                           getSubMetricValue(metric.key, subMetricName, monthId)
                         }
+                        periods={isMonthlyTrendMode ? monthlyTrendPeriods.map(p => ({ 
+                          identifier: p.identifier, 
+                          type: p.type 
+                        })) : undefined}
+                        hasSparklineColumn={isMonthlyTrendMode}
                       />
                       </React.Fragment>
                     );
