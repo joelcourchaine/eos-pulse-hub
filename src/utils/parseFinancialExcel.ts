@@ -99,7 +99,7 @@ export const parseFinancialExcel = (
           for (const mapping of deptMappings) {
             const sheet = workbook.Sheets[mapping.sheet_name];
             if (!sheet) {
-              console.warn(`Sheet "${mapping.sheet_name}" not found in workbook`);
+              console.warn(`Sheet "${mapping.sheet_name}" not found in workbook. Available sheets:`, workbook.SheetNames);
               result[deptName][mapping.metric_key] = null;
               continue;
             }
@@ -112,7 +112,9 @@ export const parseFinancialExcel = (
             }
             
             const cell = sheet[mapping.cell_reference];
-            result[deptName][mapping.metric_key] = extractNumericValue(cell);
+            const extractedValue = extractNumericValue(cell);
+            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${mapping.cell_reference} on sheet ${mapping.sheet_name} = `, cell, '→ extracted:', extractedValue);
+            result[deptName][mapping.metric_key] = extractedValue;
           }
         }
         
