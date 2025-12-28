@@ -2546,11 +2546,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                      (storeBrand?.toLowerCase().includes('ford') ?? false) &&
                                      (departmentName?.toLowerCase().includes('service') ?? false);
 
-                                   // For Ford Service, Total Sales should come from the mapped total cell (e.g., FORD5!J44),
+                                   // For Ford Service, certain metrics should come from the mapped total cell,
                                    // not by summing sub-metrics (which can include overlapping lines and inflate totals).
+                                   const fordServiceNoSubMetricSum = ['total_sales', 'sales_expense', 'gp_net'];
                                    const precedingValue = precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
                                    const mValue =
-                                     isFordServiceDept && metric.key === 'total_sales'
+                                     isFordServiceDept && fordServiceNoSubMetricSum.includes(metric.key)
                                        ? precedingValue
                                        : (getValueWithSubMetricFallback(metric.key, monthIdentifier) ?? precedingValue);
                                    // Check if metric should use calculation for this month (Honda legacy handling)
