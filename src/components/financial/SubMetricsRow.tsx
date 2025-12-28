@@ -10,7 +10,7 @@ interface SubMetricEntry {
 
 interface MonthlyPeriod {
   identifier: string;
-  type: 'month' | 'year-avg' | 'year-total';
+  type: 'month' | 'year-avg' | 'year-total' | 'quarter-avg' | 'quarter-target';
 }
 
 interface SubMetricsRowProps {
@@ -89,14 +89,16 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   </TableCell>
                 );
               }
-              // Summary columns (year-avg, year-total) - render empty placeholder
+              // Summary columns (year-avg, year-total, quarter-avg, quarter-target) - render empty placeholder
               return (
                 <TableCell 
                   key={period.identifier} 
                   className={cn(
                     "text-center py-1 text-xs text-muted-foreground min-w-[125px] max-w-[125px]",
                     period.type === 'year-avg' && "bg-primary/5 border-l-2 border-primary/30",
-                    period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30"
+                    period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30",
+                    period.type === 'quarter-avg' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]",
+                    period.type === 'quarter-target' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]"
                   )}
                 >
                   -
