@@ -336,6 +336,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     hasSubMetrics: checkHasSubMetrics,
     subMetrics: allSubMetrics,
     refetch: refetchSubMetrics,
+    getSubMetricSum,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
   
   // Fetch sub-metric targets
@@ -421,6 +422,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     return undefined;
   };
+
+  // Helper to get a metric value, falling back to sub-metric sum if no manual entry exists
+  // This is used for metrics like Total Sales, GP Net, Sales Expense that may have sub-metrics
+  const getValueWithSubMetricFallback = useCallback((metricKey: string, monthIdentifier: string): number | undefined => {
+    const entryKey = `${metricKey}-${monthIdentifier}`;
+    const existingValue = entries[entryKey];
+    
+    // If value exists in entries, return it
+    if (existingValue !== null && existingValue !== undefined) {
+      return existingValue;
+    }
+    
+    // Try to sum sub-metrics if they exist
+    const subMetricSum = getSubMetricSum(metricKey, monthIdentifier);
+    if (subMetricSum !== null) {
+      return subMetricSum;
+    }
+    
+    return undefined;
+  }, [entries, getSubMetricSum]);
 
   // Calculate the month with highest department profit in current year
   const highestProfitMonth = useMemo(() => {
@@ -2507,7 +2528,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 if (period.type === 'month') {
                                   const monthIdentifier = `${period.year}-${String(period.month + 1).padStart(2, '0')}`;
                                   const key = `${metric.key}-${monthIdentifier}`;
-                                  const entryValue = entries[key];
+                                  // Use sub-metric sum fallback if no manual entry exists
+                                  const entryValue = getValueWithSubMetricFallback(metric.key, monthIdentifier);
                                   const mValue = entryValue ?? precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
                                   // Check if metric should use calculation for this month (Honda legacy handling)
                                   const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
@@ -2515,8 +2537,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   // For Honda Total Direct Expenses in legacy months, calculate as Sales Expense + Semi Fixed Expense
                                   if (isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(monthIdentifier)) {
                                     const getVal = (k: string) => {
-                                      const directKey = `${k}-${monthIdentifier}`;
-                                      return entries[directKey] ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`];
+                                      return getValueWithSubMetricFallback(k, monthIdentifier) ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`];
                                     };
                                     const salesExpense = getVal('sales_expense');
                                     const semiFixedExpense = getVal('semi_fixed_expense');
@@ -2536,18 +2557,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     // Calculate the value using the same logic as the standard view
                                     let calculatedValue: number | undefined;
                                     if (metric.calculation && 'numerator' in metric.calculation) {
-                                      const numKey = `${metric.calculation.numerator}-${monthIdentifier}`;
-                                      const denKey = `${metric.calculation.denominator}-${monthIdentifier}`;
-                                      const numVal = entries[numKey] ?? precedingQuartersData[`${metric.calculation.numerator}-M${period.month + 1}-${period.year}`];
-                                      const denVal = entries[denKey] ?? precedingQuartersData[`${metric.calculation.denominator}-M${period.month + 1}-${period.year}`];
+                                      const numVal = getValueWithSubMetricFallback(metric.calculation.numerator, monthIdentifier) ?? precedingQuartersData[`${metric.calculation.numerator}-M${period.month + 1}-${period.year}`];
+                                      const denVal = getValueWithSubMetricFallback(metric.calculation.denominator, monthIdentifier) ?? precedingQuartersData[`${metric.calculation.denominator}-M${period.month + 1}-${period.year}`];
                                       
                                       if (numVal !== null && numVal !== undefined && denVal !== null && denVal !== undefined && denVal !== 0) {
                                         calculatedValue = (numVal / denVal) * 100;
                                       }
                                     } else if (metric.calculation && 'type' in metric.calculation) {
                                       const getVal = (k: string) => {
-                                        const directKey = `${k}-${monthIdentifier}`;
-                                        return entries[directKey] ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? 0;
+                                        return getValueWithSubMetricFallback(k, monthIdentifier) ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? 0;
                                       };
                                       
                                       if (metric.calculation.type === 'subtract') {
@@ -2931,16 +2949,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             })()}
                             {previousYearMonths.map((month) => {
                           const key = `${metric.key}-${month.identifier}`;
-                          let value = entries[key];
+                          // Use sub-metric sum fallback if no manual entry exists
+                          let value = getValueWithSubMetricFallback(metric.key, month.identifier);
                           
-                          // Helper function to get value for a metric (handles calculated fields)
+                          // Helper function to get value for a metric (handles calculated fields + sub-metric fallback)
                           const getValueForMetric = (metricKey: string): number | undefined => {
-                            const entryKey = `${metricKey}-${month.identifier}`;
-                            const existingValue = entries[entryKey];
-                            
-                            // If value exists in entries, return it
-                            if (existingValue !== null && existingValue !== undefined) {
-                              return existingValue;
+                            // First try entries or sub-metric sum fallback
+                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier);
+                            if (fallbackValue !== null && fallbackValue !== undefined) {
+                              return fallbackValue;
                             }
                             
                             // Check if this metric is calculated
@@ -3136,17 +3153,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         </TableCell>
                         {months.map((month, monthIndex) => {
                           const key = `${metric.key}-${month.identifier}`;
-                          let value = entries[key];
+                          // Use sub-metric sum fallback if no manual entry exists
+                          let value = getValueWithSubMetricFallback(metric.key, month.identifier);
                           const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
-                          // Helper function to get value for a metric (handles calculated fields)
+                          // Helper function to get value for a metric (handles calculated fields + sub-metric fallback)
                           const getValueForMetric = (metricKey: string): number | undefined => {
-                            const entryKey = `${metricKey}-${month.identifier}`;
-                            const existingValue = entries[entryKey];
-                            
-                            // If value exists in entries, return it
-                            if (existingValue !== null && existingValue !== undefined) {
-                              return existingValue;
+                            // First try entries or sub-metric sum fallback
+                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier);
+                            if (fallbackValue !== null && fallbackValue !== undefined) {
+                              return fallbackValue;
                             }
                             
                             // Check if this metric is calculated

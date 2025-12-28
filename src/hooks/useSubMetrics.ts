@@ -201,12 +201,35 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     [subMetrics]
   );
 
+  /**
+   * Sum all sub-metric values for a given parent metric and month.
+   * Returns null if no sub-metrics exist for that parent/month combination.
+   */
+  const getSubMetricSum = useCallback(
+    (parentMetricKey: string, monthId: string): number | null => {
+      const relevantSubMetrics = subMetrics.filter(
+        (sm) => sm.parentMetricKey === parentMetricKey && sm.monthIdentifier === monthId
+      );
+      if (relevantSubMetrics.length === 0) return null;
+      
+      let sum = 0;
+      for (const sm of relevantSubMetrics) {
+        if (sm.value !== null && sm.value !== undefined) {
+          sum += sm.value;
+        }
+      }
+      return sum;
+    },
+    [subMetrics]
+  );
+
   return {
     subMetrics,
     loading,
     getSubMetricNames,
     getSubMetricValue,
     hasSubMetrics,
+    getSubMetricSum,
     refetch: fetchSubMetrics,
   };
 };
