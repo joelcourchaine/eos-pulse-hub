@@ -25,6 +25,7 @@ export interface SubMetricData {
   parentMetricKey: string;
   name: string;
   value: number | null;
+  orderIndex: number; // Preserves Excel row order
 }
 
 export interface ValidationResult {
@@ -214,7 +215,13 @@ export const parseFinancialExcel = (
           subMetricsResult[deptName] = [];
           console.log(`[Excel Parse Sub] Processing ${deptSubMappings.length} sub-metric mappings for ${deptName}`);
           
-          for (const mapping of deptSubMappings) {
+          // Sort by metric_key to preserve order (e.g., total_sales_sub_1, total_sales_sub_2, ...)
+          const sortedMappings = [...deptSubMappings].sort((a, b) => 
+            a.metric_key.localeCompare(b.metric_key, undefined, { numeric: true })
+          );
+          
+          let orderIndex = 0;
+          for (const mapping of sortedMappings) {
             const sheet = workbook.Sheets[mapping.sheet_name];
             if (!sheet) {
               console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found. Available sheets:`, workbook.SheetNames);
@@ -242,8 +249,10 @@ export const parseFinancialExcel = (
                 parentMetricKey: mapping.parent_metric_key,
                 name: metricName,
                 value: value,
+                orderIndex: orderIndex,
               });
-              console.log(`[Excel Parse Sub] Added sub-metric: ${mapping.parent_metric_key} -> "${metricName}" = ${value}`);
+              console.log(`[Excel Parse Sub] Added sub-metric [${orderIndex}]: ${mapping.parent_metric_key} -> "${metricName}" = ${value}`);
+              orderIndex++;
             } else {
               console.log(`[Excel Parse Sub] Skipped: metricName="${metricName}", parent_metric_key="${mapping.parent_metric_key}"`);
             }
@@ -402,9 +411,10 @@ export const importFinancialData = async (
     for (const subMetric of subMetrics) {
       if (subMetric.value === null) continue;
       
-      // Create a metric name that includes the parent key and sub-metric name
-      // This allows us to group them when displaying
-      const metricName = `sub:${subMetric.parentMetricKey}:${subMetric.name}`;
+      // Create a metric name that includes the parent key, order index, and sub-metric name
+      // Format: sub:{parent_key}:{order_index}:{name}
+      // This allows us to group and sort them when displaying
+      const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
       
       const { error } = await supabase
         .from('financial_entries')
