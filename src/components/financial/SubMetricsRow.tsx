@@ -24,7 +24,21 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   formatValue,
   getSubMetricValue,
 }) => {
-  if (!isExpanded || subMetrics.length === 0) return null;
+  if (!isExpanded) return null;
+  
+  // Show placeholder when expanded but no sub-metrics data yet
+  if (subMetrics.length === 0) {
+    return (
+      <TableRow className="bg-muted/20">
+        <TableCell 
+          colSpan={monthIdentifiers.length + 1} 
+          className="sticky left-0 z-30 py-2 pl-8 text-xs text-muted-foreground italic"
+        >
+          No sub-metric data imported yet. Upload an Excel file with sub-metrics to see breakdown.
+        </TableCell>
+      </TableRow>
+    );
+  }
 
   return (
     <>
