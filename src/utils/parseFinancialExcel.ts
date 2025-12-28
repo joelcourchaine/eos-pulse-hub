@@ -84,7 +84,19 @@ const extractNumericValue = (
   workbook: XLSX.WorkBook
 ): number | null => {
   if (!cell) return null;
-  
+
+  const parseNumeric = (raw: unknown): number | null => {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string') {
+      const cleaned = raw.replace(/[,$%\s]/g, '');
+      if (!cleaned) return null;
+      const parsed = parseFloat(cleaned);
+      return isNaN(parsed) ? null : parsed;
+    }
+    return null;
+  };
+
   // If cell has a formula that's a simple cell reference, follow it to get the source value
   if (cell.f && typeof cell.f === 'string') {
     const ref = parseFormulaReference(cell.f);
@@ -93,26 +105,20 @@ const extractNumericValue = (
       if (refSheet) {
         const refCell = refSheet[ref.cell] as XLSX.CellObject | undefined;
         if (refCell) {
-          console.log(`[Excel Parse] Following formula ${cell.f} → ${ref.sheet}!${ref.cell} = `, refCell.v);
-          if (typeof refCell.v === 'number') return refCell.v;
-          if (typeof refCell.v === 'string') {
-            const parsed = parseFloat(refCell.v.replace(/[,$%]/g, ''));
-            return isNaN(parsed) ? null : parsed;
-          }
+          console.log(`[Excel Parse] Following formula ${cell.f} → ${ref.sheet}!${ref.cell} = `, refCell.v ?? refCell.w);
+          return parseNumeric(refCell.v ?? refCell.w);
         }
       } else {
         console.warn(`[Excel Parse] Sheet "${ref.sheet}" not found for formula ${cell.f}`);
       }
+    } else {
+      // We cannot evaluate complex formulas in-browser; rely on cached value if present.
+      console.log(`[Excel Parse] Non-reference formula in cell; using cached value if present:`, cell.f);
     }
   }
-  
-  // Fall back to the cell's own value
-  if (typeof cell.v === 'number') return cell.v;
-  if (typeof cell.v === 'string') {
-    const parsed = parseFloat(cell.v.replace(/[,$%]/g, ''));
-    return isNaN(parsed) ? null : parsed;
-  }
-  return null;
+
+  // Prefer the cached raw value, then formatted string (w) when v is missing.
+  return parseNumeric((cell as any).v ?? (cell as any).w);
 };
 
 /**
