@@ -702,20 +702,27 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
   };
 
-  // Update local values when entries change
+  // Update local values when entries change - sync from database
   useEffect(() => {
-    const newLocalValues: { [key: string]: string } = {};
-    Object.entries(entries).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
-        newLocalValues[key] = value.toString();
-      }
-    });
     setLocalValues(prev => {
-      // Only update if we don't have pending saves for these keys
       const updated = { ...prev };
-      Object.keys(newLocalValues).forEach(key => {
-        if (!saveTimeoutRef.current[key]) {
-          updated[key] = newLocalValues[key];
+      // Sync entries to localValues, but keep values that have pending saves
+      Object.entries(entries).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) {
+          // Only skip if there's an active save timeout for this key
+          if (!saveTimeoutRef.current[key]) {
+            updated[key] = value.toString();
+          }
+        }
+      });
+      // Clear localValues for keys that exist in localValues but NOT in entries
+      // This handles the case where data was deleted or replaced by import
+      Object.keys(prev).forEach(key => {
+        if (entries[key] === undefined && !saveTimeoutRef.current[key]) {
+          // Only clear if this is a metric-month key format (contains dash)
+          if (key.includes('-')) {
+            delete updated[key];
+          }
         }
       });
       return updated;
