@@ -183,9 +183,13 @@ export const MonthDropZone = ({
     const hasImported = validationResults.some(r => r.status === 'imported');
     const hasMismatch = validationResults.some(r => r.status === 'mismatch');
     const allMatch = validationResults.every(r => r.status === 'match' || r.status === 'error');
+    
+    // Check if there are any sub-metrics to import
+    const hasSubMetrics = Object.values(parsedData.subMetrics).some(arr => arr.length > 0);
 
-    // If any department needs import, do it
-    if (hasImported) {
+    // If any department needs import OR there are sub-metrics, do it
+    // Sub-metrics are always imported since they're not checked in validation
+    if (hasImported || hasSubMetrics) {
       const importResult = await importFinancialData(
         parsedData,
         departmentsByName,
