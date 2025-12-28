@@ -188,9 +188,12 @@ export function FixedCombinedTrendView({
         .gte("month", startMonth)
         .lte("month", endMonth);
       if (error) throw error;
+      console.log('[Trend View] Fetched financial entries:', data?.length, 'entries for', departmentIds.length, 'departments');
       return data || [];
     },
     enabled: departmentIds.length > 0,
+    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: 'always',
   });
 
   // Process data: aggregate by store (combining Parts + Service) and month
