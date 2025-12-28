@@ -301,6 +301,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const isMonthlyTrendMode = quarter === -1;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastMonthlyColumnRef = useRef<HTMLTableCellElement | null>(null);
+  const hasInitialScrolled = useRef(false);
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
@@ -559,11 +560,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     loadData();
   }, [departmentId, year, quarter]);
 
-  // Auto-scroll to the far right in monthly trend mode to show the current year on load
+  // Auto-scroll to the far right in monthly trend mode to show the current year on load (once only)
   useLayoutEffect(() => {
     if (!isMonthlyTrendMode || !isOpen) return;
     if (!scrollContainerRef.current) return;
     if (Object.keys(precedingQuartersData).length === 0) return;
+    
+    // Only scroll once on initial load, not on every data update
+    if (hasInitialScrolled.current) return;
+    hasInitialScrolled.current = true;
 
     const container = scrollContainerRef.current;
 
@@ -587,6 +592,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     requestAnimationFrame(tick);
   }, [isMonthlyTrendMode, isOpen, precedingQuartersData, monthlyTrendPeriods.length]);
+  
+  // Reset scroll flag when switching out of monthly trend mode
+  useEffect(() => {
+    if (!isMonthlyTrendMode) {
+      hasInitialScrolled.current = false;
+    }
+  }, [isMonthlyTrendMode]);
   // Real-time subscription for financial entries
   useEffect(() => {
     if (!departmentId) return;
