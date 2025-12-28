@@ -15,27 +15,68 @@ export interface SubMetricEntry {
 export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) => {
   const [subMetrics, setSubMetrics] = useState<SubMetricEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasFetched, setHasFetched] = useState(false);
 
   // Stabilize the month identifiers to prevent unnecessary re-fetches
   const stableMonthIds = useMemo(() => {
     return [...monthIdentifiers].sort().join(',');
   }, [monthIdentifiers]);
 
+  const upsertFromRow = useCallback((row: { metric_name?: string; month?: string; value?: number | null } | null | undefined) => {
+    if (!row?.metric_name || !row.month) return;
+    if (!row.metric_name.startsWith('sub:')) return;
+
+    const parts = row.metric_name.split(':');
+    if (parts.length < 3) return;
+
+    const parentMetricKey = parts[1];
+    const name = parts.slice(2).join(':');
+
+    setSubMetrics((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex(
+        (sm) => sm.parentMetricKey === parentMetricKey && sm.name === name && sm.monthIdentifier === row.month
+      );
+      const entry: SubMetricEntry = {
+        parentMetricKey,
+        name,
+        monthIdentifier: row.month,
+        value: row.value ?? null,
+      };
+
+      if (idx >= 0) {
+        next[idx] = entry;
+        return next;
+      }
+      next.push(entry);
+      return next;
+    });
+  }, []);
+
+  const removeFromRow = useCallback((row: { metric_name?: string; month?: string } | null | undefined) => {
+    if (!row?.metric_name || !row.month) return;
+    if (!row.metric_name.startsWith('sub:')) return;
+
+    const parts = row.metric_name.split(':');
+    if (parts.length < 3) return;
+
+    const parentMetricKey = parts[1];
+    const name = parts.slice(2).join(':');
+
+    setSubMetrics((prev) =>
+      prev.filter(
+        (sm) => !(sm.parentMetricKey === parentMetricKey && sm.name === name && sm.monthIdentifier === row.month)
+      )
+    );
+  }, []);
+
   const fetchSubMetrics = useCallback(async () => {
     if (!departmentId || !stableMonthIds) return;
-    
-    // Prevent duplicate fetches
-    if (hasFetched) return;
-    
+
     setLoading(true);
-    setHasFetched(true);
-    
     try {
       const monthList = stableMonthIds.split(',').filter(Boolean);
       if (monthList.length === 0) return;
-      
-      // Fetch all financial entries that start with "sub:"
+
       const { data, error } = await supabase
         .from('financial_entries')
         .select('metric_name, month, value')
@@ -48,14 +89,12 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
         return;
       }
 
-      // Parse the sub-metric entries
       const parsed: SubMetricEntry[] = [];
-      data?.forEach(entry => {
-        // Parse metric_name format: sub:{parent_key}:{name}
+      data?.forEach((entry) => {
         const parts = entry.metric_name.split(':');
         if (parts.length >= 3) {
           const parentKey = parts[1];
-          const name = parts.slice(2).join(':'); // Handle names that might contain colons
+          const name = parts.slice(2).join(':');
           parsed.push({
             name,
             parentMetricKey: parentKey,
@@ -69,40 +108,73 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     } finally {
       setLoading(false);
     }
-  }, [departmentId, stableMonthIds, hasFetched]);
-
-  // Reset hasFetched when key dependencies change
-  useEffect(() => {
-    setHasFetched(false);
   }, [departmentId, stableMonthIds]);
 
+  // Fetch whenever department/month-range changes
   useEffect(() => {
     fetchSubMetrics();
   }, [fetchSubMetrics]);
 
-  // Get unique sub-metric names for a parent metric
-  const getSubMetricNames = useCallback((parentMetricKey: string): string[] => {
-    const names = new Set<string>();
-    subMetrics
-      .filter(sm => sm.parentMetricKey === parentMetricKey)
-      .forEach(sm => names.add(sm.name));
-    return Array.from(names);
-  }, [subMetrics]);
+  // Live-update whenever sub-metrics are imported/changed
+  useEffect(() => {
+    if (!departmentId) return;
 
-  // Get value for a specific sub-metric and month
-  const getSubMetricValue = useCallback((parentMetricKey: string, subMetricName: string, monthId: string): number | null => {
-    const entry = subMetrics.find(
-      sm => sm.parentMetricKey === parentMetricKey && 
-            sm.name === subMetricName && 
-            sm.monthIdentifier === monthId
-    );
-    return entry?.value ?? null;
-  }, [subMetrics]);
+    const channel = supabase
+      .channel(`sub-metrics:${departmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_entries',
+          filter: `department_id=eq.${departmentId}`,
+        },
+        (payload) => {
+          const rowNew = payload.new as any;
+          const rowOld = payload.old as any;
 
-  // Check if a parent metric has any sub-metrics
-  const hasSubMetrics = useCallback((parentMetricKey: string): boolean => {
-    return subMetrics.some(sm => sm.parentMetricKey === parentMetricKey);
-  }, [subMetrics]);
+          if (payload.eventType === 'DELETE') {
+            removeFromRow(rowOld);
+          } else {
+            upsertFromRow(rowNew);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [departmentId, removeFromRow, upsertFromRow]);
+
+  const getSubMetricNames = useCallback(
+    (parentMetricKey: string): string[] => {
+      const names = new Set<string>();
+      subMetrics
+        .filter((sm) => sm.parentMetricKey === parentMetricKey)
+        .forEach((sm) => names.add(sm.name));
+      return Array.from(names);
+    },
+    [subMetrics]
+  );
+
+  const getSubMetricValue = useCallback(
+    (parentMetricKey: string, subMetricName: string, monthId: string): number | null => {
+      const entry = subMetrics.find(
+        (sm) =>
+          sm.parentMetricKey === parentMetricKey && sm.name === subMetricName && sm.monthIdentifier === monthId
+      );
+      return entry?.value ?? null;
+    },
+    [subMetrics]
+  );
+
+  const hasSubMetrics = useCallback(
+    (parentMetricKey: string): boolean => {
+      return subMetrics.some((sm) => sm.parentMetricKey === parentMetricKey);
+    },
+    [subMetrics]
+  );
 
   return {
     subMetrics,
