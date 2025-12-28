@@ -414,6 +414,39 @@ export type Database = {
           },
         ]
       }
+      financial_cell_mappings: {
+        Row: {
+          brand: string
+          cell_reference: string
+          created_at: string
+          department_name: string
+          id: string
+          metric_key: string
+          sheet_name: string
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          cell_reference: string
+          created_at?: string
+          department_name: string
+          id?: string
+          metric_key: string
+          sheet_name: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          cell_reference?: string
+          created_at?: string
+          department_name?: string
+          id?: string
+          metric_key?: string
+          sheet_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       financial_entries: {
         Row: {
           created_at: string

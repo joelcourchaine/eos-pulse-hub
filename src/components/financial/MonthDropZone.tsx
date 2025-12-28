@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2, Check, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -15,6 +15,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  fetchCellMappings,
+  parseFinancialExcel,
+  validateAgainstDatabase,
+  importFinancialData,
+  type ValidationResult,
+} from "@/utils/parseFinancialExcel";
 
 interface Attachment {
   id: string;
@@ -27,6 +34,8 @@ interface MonthDropZoneProps {
   children: React.ReactNode;
   monthIdentifier: string;
   departmentId: string;
+  storeId?: string;
+  storeBrand?: string;
   attachment?: Attachment | null;
   onAttachmentChange: () => void;
   className?: string;
@@ -43,12 +52,16 @@ export const MonthDropZone = ({
   children,
   monthIdentifier,
   departmentId,
+  storeId,
+  storeBrand,
   attachment,
   onAttachmentChange,
   className,
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [validationStatus, setValidationStatus] = useState<'match' | 'mismatch' | 'imported' | null>(null);
+  const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -62,6 +75,120 @@ export const MonthDropZone = ({
     e.stopPropagation();
     setIsDragOver(false);
   }, []);
+
+  const processNissanExcel = async (
+    file: File,
+    filePath: string,
+    userId: string
+  ) => {
+    if (!storeId) return;
+
+    // Fetch cell mappings for Nissan
+    const mappings = await fetchCellMappings('Nissan');
+    if (mappings.length === 0) {
+      console.log('No cell mappings found for Nissan');
+      return;
+    }
+
+    // Get all departments for this store
+    const { data: storeDepartments } = await supabase
+      .from('departments')
+      .select('id, name')
+      .eq('store_id', storeId);
+
+    if (!storeDepartments || storeDepartments.length === 0) return;
+
+    // Create lookup maps
+    const departmentsByName: Record<string, string> = {};
+    const departmentIds: string[] = [];
+    storeDepartments.forEach(dept => {
+      departmentsByName[dept.name] = dept.id;
+      departmentIds.push(dept.id);
+    });
+
+    // Parse the Excel file
+    const parsedData = await parseFinancialExcel(file, mappings);
+
+    // Validate against database
+    const validationResults = await validateAgainstDatabase(
+      parsedData,
+      departmentsByName,
+      monthIdentifier
+    );
+
+    // Determine overall status
+    const hasImported = validationResults.some(r => r.status === 'imported');
+    const hasMismatch = validationResults.some(r => r.status === 'mismatch');
+    const allMatch = validationResults.every(r => r.status === 'match' || r.status === 'error');
+
+    // If any department needs import, do it
+    if (hasImported) {
+      const importResult = await importFinancialData(
+        parsedData,
+        departmentsByName,
+        monthIdentifier,
+        userId
+      );
+
+      if (importResult.success) {
+        toast({
+          title: "Financial data imported",
+          description: `Imported ${importResult.importedCount} values from Excel`,
+        });
+      }
+    }
+
+    // Create attachment records for ALL departments at this store
+    for (const dept of storeDepartments) {
+      // Skip if this is the current department (already handled)
+      if (dept.id === departmentId) continue;
+
+      // Check if attachment already exists for this department
+      const { data: existingAttachment } = await supabase
+        .from('financial_attachments')
+        .select('id')
+        .eq('department_id', dept.id)
+        .eq('month_identifier', monthIdentifier)
+        .single();
+
+      if (!existingAttachment) {
+        // Create new attachment record pointing to same file
+        await supabase
+          .from('financial_attachments')
+          .insert({
+            department_id: dept.id,
+            month_identifier: monthIdentifier,
+            file_name: file.name,
+            file_path: filePath,
+            file_type: 'excel',
+            file_size: file.size,
+            uploaded_by: userId,
+          });
+      } else {
+        // Update existing attachment to point to new file
+        await supabase
+          .from('financial_attachments')
+          .update({
+            file_name: file.name,
+            file_path: filePath,
+            file_type: 'excel',
+            file_size: file.size,
+            uploaded_by: userId,
+          })
+          .eq('id', existingAttachment.id);
+      }
+    }
+
+    // Set validation status
+    setValidationDetails(validationResults);
+    if (hasImported) {
+      setValidationStatus('imported');
+    } else if (hasMismatch) {
+      setValidationStatus('mismatch');
+    } else if (allMatch) {
+      setValidationStatus('match');
+    }
+  };
 
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -85,6 +212,8 @@ export const MonthDropZone = ({
       }
 
       setIsUploading(true);
+      setValidationStatus(null);
+      setValidationDetails([]);
 
       try {
         // Get current user
@@ -135,6 +264,11 @@ export const MonthDropZone = ({
 
         if (dbError) throw dbError;
 
+        // If this is a Nissan store and it's an Excel file, process it
+        if (storeBrand === 'Nissan' && (fileType === 'excel' || fileType === 'csv')) {
+          await processNissanExcel(file, filePath, user.id);
+        }
+
         toast({
           title: "File attached",
           description: `${file.name} has been attached to ${monthIdentifier}`,
@@ -152,7 +286,7 @@ export const MonthDropZone = ({
         setIsUploading(false);
       }
     },
-    [departmentId, monthIdentifier, attachment, onAttachmentChange, toast]
+    [departmentId, monthIdentifier, attachment, onAttachmentChange, toast, storeId, storeBrand]
   );
 
   const handleRemoveAttachment = async () => {
@@ -171,6 +305,9 @@ export const MonthDropZone = ({
         .eq("id", attachment.id);
 
       if (error) throw error;
+
+      setValidationStatus(null);
+      setValidationDetails([]);
 
       toast({
         title: "Attachment removed",
@@ -204,6 +341,50 @@ export const MonthDropZone = ({
     return <FileSpreadsheet className="h-3 w-3" />;
   };
 
+  const getValidationIndicator = () => {
+    if (!validationStatus) return null;
+
+    if (validationStatus === 'match') {
+      return (
+        <div className="absolute -top-2 -left-1 z-30">
+          <div className="bg-green-500 text-white rounded-full p-0.5">
+            <Check className="h-2 w-2" />
+          </div>
+        </div>
+      );
+    }
+
+    if (validationStatus === 'mismatch') {
+      const mismatchDetails = validationDetails.filter(r => r.status === 'mismatch');
+      const tooltipContent = mismatchDetails.map(r => {
+        const discrepancyText = r.discrepancies?.map(d => 
+          `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
+        ).join(', ');
+        return `${r.departmentName}: ${discrepancyText}`;
+      }).join('\n');
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="absolute -top-2 -left-1 z-30 cursor-help">
+                <div className="bg-amber-500 text-white rounded-full p-0.5">
+                  <AlertTriangle className="h-2 w-2" />
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[300px]">
+              <p className="text-xs font-medium">Data Mismatch</p>
+              <p className="text-xs whitespace-pre-wrap">{tooltipContent}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div
       className={cn(
@@ -222,6 +403,9 @@ export const MonthDropZone = ({
       >
         {children}
       </div>
+
+      {/* Validation indicator */}
+      {getValidationIndicator()}
 
       {/* Attachment indicator */}
       {(attachment || isUploading) && (
