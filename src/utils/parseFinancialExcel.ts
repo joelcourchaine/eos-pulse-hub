@@ -190,11 +190,14 @@ export const validateAgainstDatabase = async (
       for (const [metricKey, excelValue] of Object.entries(metrics)) {
         const dbValue = existingMap[metricKey] ?? null;
         
-        // Compare with small tolerance for floating point
+        // Compare with $1 tolerance
         const excelRounded = excelValue !== null ? Math.round(excelValue * 100) / 100 : null;
         const dbRounded = dbValue !== null ? Math.round(dbValue * 100) / 100 : null;
         
-        if (excelRounded !== dbRounded) {
+        const isMatch = (excelRounded === null && dbRounded === null) ||
+          (excelRounded !== null && dbRounded !== null && Math.abs(excelRounded - dbRounded) <= 1);
+        
+        if (!isMatch) {
           discrepancies.push({
             metric: metricKey,
             excelValue: excelRounded,
