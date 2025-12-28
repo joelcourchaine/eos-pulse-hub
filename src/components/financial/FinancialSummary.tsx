@@ -2580,8 +2580,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     // Calculate the value using the same logic as the standard view
                                     let calculatedValue: number | undefined;
                                     if (metric.calculation && 'numerator' in metric.calculation) {
-                                      const numVal = getValueWithSubMetricFallback(metric.calculation.numerator, monthIdentifier) ?? precedingQuartersData[`${metric.calculation.numerator}-M${period.month + 1}-${period.year}`];
-                                      const denVal = getValueWithSubMetricFallback(metric.calculation.denominator, monthIdentifier) ?? precedingQuartersData[`${metric.calculation.denominator}-M${period.month + 1}-${period.year}`];
+                                      // For Ford Service, use direct entry values for metrics that would otherwise be inflated by sub-metric summing
+                                      const getCalcVal = (k: string) => {
+                                        if (isFordServiceDept && fordServiceNoSubMetricSum.includes(k)) {
+                                          return precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? entries[`${k}-${monthIdentifier}`];
+                                        }
+                                        return getValueWithSubMetricFallback(k, monthIdentifier) ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`];
+                                      };
+                                      const numVal = getCalcVal(metric.calculation.numerator);
+                                      const denVal = getCalcVal(metric.calculation.denominator);
                                       
                                       if (numVal !== null && numVal !== undefined && denVal !== null && denVal !== undefined && denVal !== 0) {
                                         calculatedValue = (numVal / denVal) * 100;
