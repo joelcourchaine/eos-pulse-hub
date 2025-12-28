@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SubMetricEntry {
@@ -15,59 +15,12 @@ export interface SubMetricEntry {
 export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) => {
   const [subMetrics, setSubMetrics] = useState<SubMetricEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const isMountedRef = useRef(true);
 
   // Stabilize the month identifiers to prevent unnecessary re-fetches
   const stableMonthIds = useMemo(() => {
     return [...monthIdentifiers].sort().join(',');
   }, [monthIdentifiers]);
-
-  const upsertFromRow = useCallback((row: { metric_name?: string; month?: string; value?: number | null } | null | undefined) => {
-    if (!row?.metric_name || !row.month) return;
-    if (!row.metric_name.startsWith('sub:')) return;
-
-    const parts = row.metric_name.split(':');
-    if (parts.length < 3) return;
-
-    const parentMetricKey = parts[1];
-    const name = parts.slice(2).join(':');
-
-    setSubMetrics((prev) => {
-      const next = [...prev];
-      const idx = next.findIndex(
-        (sm) => sm.parentMetricKey === parentMetricKey && sm.name === name && sm.monthIdentifier === row.month
-      );
-      const entry: SubMetricEntry = {
-        parentMetricKey,
-        name,
-        monthIdentifier: row.month,
-        value: row.value ?? null,
-      };
-
-      if (idx >= 0) {
-        next[idx] = entry;
-        return next;
-      }
-      next.push(entry);
-      return next;
-    });
-  }, []);
-
-  const removeFromRow = useCallback((row: { metric_name?: string; month?: string } | null | undefined) => {
-    if (!row?.metric_name || !row.month) return;
-    if (!row.metric_name.startsWith('sub:')) return;
-
-    const parts = row.metric_name.split(':');
-    if (parts.length < 3) return;
-
-    const parentMetricKey = parts[1];
-    const name = parts.slice(2).join(':');
-
-    setSubMetrics((prev) =>
-      prev.filter(
-        (sm) => !(sm.parentMetricKey === parentMetricKey && sm.name === name && sm.monthIdentifier === row.month)
-      )
-    );
-  }, []);
 
   const fetchSubMetrics = useCallback(async () => {
     if (!departmentId || !stableMonthIds) return;
@@ -89,6 +42,8 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
         return;
       }
 
+      if (!isMountedRef.current) return;
+
       const parsed: SubMetricEntry[] = [];
       data?.forEach((entry) => {
         const parts = entry.metric_name.split(':');
@@ -106,9 +61,19 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
 
       setSubMetrics(parsed);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [departmentId, stableMonthIds]);
+
+  // Track mount state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Fetch whenever department/month-range changes
   useEffect(() => {
@@ -130,13 +95,45 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
           filter: `department_id=eq.${departmentId}`,
         },
         (payload) => {
+          if (!isMountedRef.current) return;
+
           const rowNew = payload.new as any;
           const rowOld = payload.old as any;
 
           if (payload.eventType === 'DELETE') {
-            removeFromRow(rowOld);
+            if (!rowOld?.metric_name?.startsWith('sub:')) return;
+            const parts = rowOld.metric_name.split(':');
+            if (parts.length < 3) return;
+            const parentKey = parts[1];
+            const name = parts.slice(2).join(':');
+            setSubMetrics((prev) =>
+              prev.filter(
+                (sm) => !(sm.parentMetricKey === parentKey && sm.name === name && sm.monthIdentifier === rowOld.month)
+              )
+            );
           } else {
-            upsertFromRow(rowNew);
+            if (!rowNew?.metric_name?.startsWith('sub:')) return;
+            const parts = rowNew.metric_name.split(':');
+            if (parts.length < 3) return;
+            const parentKey = parts[1];
+            const name = parts.slice(2).join(':');
+            const entry: SubMetricEntry = {
+              parentMetricKey: parentKey,
+              name,
+              monthIdentifier: rowNew.month,
+              value: rowNew.value ?? null,
+            };
+            setSubMetrics((prev) => {
+              const idx = prev.findIndex(
+                (sm) => sm.parentMetricKey === parentKey && sm.name === name && sm.monthIdentifier === rowNew.month
+              );
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = entry;
+                return next;
+              }
+              return [...prev, entry];
+            });
           }
         }
       )
@@ -145,7 +142,7 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [departmentId, removeFromRow, upsertFromRow]);
+  }, [departmentId]);
 
   const getSubMetricNames = useCallback(
     (parentMetricKey: string): string[] => {
