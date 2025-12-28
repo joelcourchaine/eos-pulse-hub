@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface SubMetricEntry {
@@ -15,18 +15,32 @@ export interface SubMetricEntry {
 export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) => {
   const [subMetrics, setSubMetrics] = useState<SubMetricEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
+
+  // Stabilize the month identifiers to prevent unnecessary re-fetches
+  const stableMonthIds = useMemo(() => {
+    return [...monthIdentifiers].sort().join(',');
+  }, [monthIdentifiers]);
 
   const fetchSubMetrics = useCallback(async () => {
-    if (!departmentId || monthIdentifiers.length === 0) return;
+    if (!departmentId || !stableMonthIds) return;
+    
+    // Prevent duplicate fetches
+    if (hasFetched) return;
     
     setLoading(true);
+    setHasFetched(true);
+    
     try {
+      const monthList = stableMonthIds.split(',').filter(Boolean);
+      if (monthList.length === 0) return;
+      
       // Fetch all financial entries that start with "sub:"
       const { data, error } = await supabase
         .from('financial_entries')
         .select('metric_name, month, value')
         .eq('department_id', departmentId)
-        .in('month', monthIdentifiers)
+        .in('month', monthList)
         .like('metric_name', 'sub:%');
 
       if (error) {
@@ -55,7 +69,12 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     } finally {
       setLoading(false);
     }
-  }, [departmentId, monthIdentifiers]);
+  }, [departmentId, stableMonthIds, hasFetched]);
+
+  // Reset hasFetched when key dependencies change
+  useEffect(() => {
+    setHasFetched(false);
+  }, [departmentId, stableMonthIds]);
 
   useEffect(() => {
     fetchSubMetrics();
