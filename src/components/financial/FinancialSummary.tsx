@@ -2588,6 +2588,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       }
                                     } else if (metric.calculation && 'type' in metric.calculation) {
                                       const getVal = (k: string) => {
+                                        // For Ford Service, use direct entry values for metrics that would otherwise be inflated by sub-metric summing
+                                        if (isFordServiceDept && fordServiceNoSubMetricSum.includes(k)) {
+                                          return precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? entries[`${k}-${monthIdentifier}`] ?? 0;
+                                        }
                                         return getValueWithSubMetricFallback(k, monthIdentifier) ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? 0;
                                       };
                                       
