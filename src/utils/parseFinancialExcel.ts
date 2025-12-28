@@ -150,9 +150,14 @@ export const parseFinancialExcel = (
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         
+        console.log('[Excel Parse] Available sheets:', workbook.SheetNames);
+        console.log('[Excel Parse] Total mappings:', mappings.length);
+        
         // Separate regular mappings from sub-metric mappings
         const regularMappings = mappings.filter(m => !m.is_sub_metric);
         const subMetricMappings = mappings.filter(m => m.is_sub_metric);
+        
+        console.log('[Excel Parse] Regular mappings:', regularMappings.length, ', Sub-metric mappings:', subMetricMappings.length);
         
         // Group regular mappings by department
         const mappingsByDept = regularMappings.reduce((acc, mapping) => {
@@ -207,11 +212,12 @@ export const parseFinancialExcel = (
         
         for (const [deptName, deptSubMappings] of Object.entries(subMetricsByDept)) {
           subMetricsResult[deptName] = [];
+          console.log(`[Excel Parse Sub] Processing ${deptSubMappings.length} sub-metric mappings for ${deptName}`);
           
           for (const mapping of deptSubMappings) {
             const sheet = workbook.Sheets[mapping.sheet_name];
             if (!sheet) {
-              console.warn(`Sheet "${mapping.sheet_name}" not found for sub-metric. Available sheets:`, workbook.SheetNames);
+              console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found. Available sheets:`, workbook.SheetNames);
               continue;
             }
             
@@ -220,13 +226,15 @@ export const parseFinancialExcel = (
             if (mapping.name_cell_reference) {
               const nameCell = sheet[mapping.name_cell_reference];
               metricName = extractStringValue(nameCell);
-              console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}"`);
+              console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}" (cell exists: ${!!nameCell})`);
+            } else {
+              console.log(`[Excel Parse Sub] ${deptName} - No name_cell_reference defined for ${mapping.metric_key}`);
             }
             
             // Read the value from cell_reference
             const valueCell = sheet[mapping.cell_reference];
             const value = extractNumericValue(valueCell, workbook);
-            console.log(`[Excel Parse Sub] ${deptName} - Value cell ${mapping.cell_reference}: ${value}`);
+            console.log(`[Excel Parse Sub] ${deptName} - Value cell ${mapping.cell_reference}: ${value} (cell exists: ${!!valueCell})`);
             
             // Only include if we have both a name and the parent key
             if (metricName && mapping.parent_metric_key) {
@@ -235,6 +243,9 @@ export const parseFinancialExcel = (
                 name: metricName,
                 value: value,
               });
+              console.log(`[Excel Parse Sub] Added sub-metric: ${mapping.parent_metric_key} -> "${metricName}" = ${value}`);
+            } else {
+              console.log(`[Excel Parse Sub] Skipped: metricName="${metricName}", parent_metric_key="${mapping.parent_metric_key}"`);
             }
           }
         }
