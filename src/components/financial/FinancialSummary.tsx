@@ -23,6 +23,7 @@ import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { MonthDropZone } from "./MonthDropZone";
 import { useSubMetrics } from "@/hooks/useSubMetrics";
+import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
 interface FinancialSummaryProps {
   departmentId: string;
   year: number;
@@ -308,6 +309,44 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
+  
+  // Collect all month identifiers for sub-metrics
+  const allMonthIdentifiers = useMemo(() => {
+    const identifiers: string[] = [];
+    // Add current quarter months
+    months.forEach(m => identifiers.push(m.identifier));
+    // Add previous year months
+    previousYearMonths.forEach(m => identifiers.push(m.identifier));
+    // Add monthly trend periods if applicable
+    if (isMonthlyTrendMode) {
+      monthlyTrendPeriods.forEach(p => {
+        if (p.type === 'month') {
+          identifiers.push(p.identifier);
+        }
+      });
+    }
+    return [...new Set(identifiers)]; // Remove duplicates
+  }, [months, previousYearMonths, isMonthlyTrendMode, monthlyTrendPeriods]);
+  
+  // Fetch sub-metrics for the department
+  const { 
+    getSubMetricNames, 
+    getSubMetricValue, 
+    hasSubMetrics: checkHasSubMetrics 
+  } = useSubMetrics(departmentId, allMonthIdentifiers);
+  
+  // Toggle metric expansion
+  const toggleMetricExpansion = useCallback((metricKey: string) => {
+    setExpandedMetrics(prev => {
+      const next = new Set(prev);
+      if (next.has(metricKey)) {
+        next.delete(metricKey);
+      } else {
+        next.add(metricKey);
+      }
+      return next;
+    });
+  }, []);
   const FINANCIAL_METRICS = useMemo(() => {
     const metrics = getMetricsForBrand(storeBrand);
     
@@ -2318,12 +2357,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const target = targets[metric.key];
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     const isDepartmentProfit = metric.key === 'department_profit';
+                    const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(metric.key);
+                    const isMetricExpanded = expandedMetrics.has(metric.key);
+                    const subMetricNames = metricHasSubMetrics ? getSubMetricNames(metric.key) : [];
+                    
+                    // Determine which months to show sub-metrics for
+                    const displayMonthIds = isMonthlyTrendMode 
+                      ? monthlyTrendPeriods.filter(p => p.type === 'month').map(p => p.identifier)
+                      : [...previousYearMonths.map(m => m.identifier), ...months.map(m => m.identifier)];
                     
                     // Honda brand Total Direct Expenses is always shown (calculated for legacy, manual for Nov 2025+)
                     
                     return (
+                      <React.Fragment key={metric.key}>
                       <TableRow 
-                        key={metric.key} 
                         className={cn(
                           "hover:bg-muted/30",
                           isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5"
@@ -2337,12 +2384,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div className="truncate cursor-help">
-                                  <p className={cn(
-                                    "text-sm truncate",
-                                    isDepartmentProfit ? "font-bold text-base" : "font-medium"
-                                  )}>
-                                    {metric.name}
-                                  </p>
+                                  <ExpandableMetricName
+                                    metricName={metric.name}
+                                    hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
+                                    isExpanded={expandedMetrics.has(metric.key)}
+                                    onToggle={() => toggleMetricExpansion(metric.key)}
+                                    isDepartmentProfit={isDepartmentProfit}
+                                  />
                                 </div>
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-[350px] max-h-[500px] overflow-y-auto">
@@ -3383,6 +3431,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         </>
                       )}
                       </TableRow>
+                      {/* Sub-metrics rows for expandable metrics */}
+                      <SubMetricsRow
+                        subMetrics={subMetricNames.map(name => ({ name, value: null }))}
+                        isExpanded={isMetricExpanded}
+                        monthIdentifiers={displayMonthIds}
+                        formatValue={(val) => val !== null ? formatTarget(val, metric.type) : "-"}
+                        getSubMetricValue={(subMetricName, monthId) => 
+                          getSubMetricValue(metric.key, subMetricName, monthId)
+                        }
+                      />
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>
