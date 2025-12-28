@@ -282,7 +282,8 @@ export const parseFinancialExcel = (
             // Read the value from cell_reference
             const valueCell = sheet[mapping.cell_reference];
             const value = extractNumericValue(valueCell, workbook);
-            console.log(`[Excel Parse Sub] ${deptName} - Value cell ${mapping.cell_reference}: ${value} (cell exists: ${!!valueCell})`);
+            console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${mapping.cell_reference}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
+
             
             // Only include if we have both a name and the parent key
             if (metricName && mapping.parent_metric_key) {
