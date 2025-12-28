@@ -11,6 +11,7 @@ interface SubMetricEntry {
 interface MonthlyPeriod {
   identifier: string;
   type: 'month' | 'year-avg' | 'year-total' | 'quarter-avg' | 'quarter-target';
+  year?: number;
 }
 
 interface SubMetricsRowProps {
@@ -25,6 +26,20 @@ interface SubMetricsRowProps {
   // Whether to include sparkline column
   hasSparklineColumn?: boolean;
 }
+
+// Helper to calculate average from values
+const calculateAverage = (values: (number | null)[]): number | null => {
+  const validValues = values.filter((v): v is number => v !== null);
+  if (validValues.length === 0) return null;
+  return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
+};
+
+// Helper to calculate total from values
+const calculateTotal = (values: (number | null)[]): number | null => {
+  const validValues = values.filter((v): v is number => v !== null);
+  if (validValues.length === 0) return null;
+  return validValues.reduce((sum, v) => sum + v, 0);
+};
 
 export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   subMetrics,
@@ -54,6 +69,32 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
       </TableRow>
     );
   }
+
+  // Helper to get summary value for a sub-metric
+  const getSummaryValue = (subMetricName: string, periodType: MonthlyPeriod['type'], year?: number): number | null => {
+    if (!periods) return null;
+    
+    // Get all month periods for the relevant year
+    const monthPeriods = periods.filter(p => {
+      if (p.type !== 'month') return false;
+      if (year !== undefined) {
+        // Extract year from month identifier (format: "2025-01")
+        const periodYear = parseInt(p.identifier.split('-')[0]);
+        return periodYear === year;
+      }
+      return true;
+    });
+    
+    const values = monthPeriods.map(p => getSubMetricValue(subMetricName, p.identifier));
+    
+    if (periodType === 'year-avg' || periodType === 'quarter-avg') {
+      return calculateAverage(values);
+    } else if (periodType === 'year-total') {
+      return calculateTotal(values);
+    }
+    
+    return null;
+  };
 
   // If we have periods, render columns matching the parent row structure
   if (periods && periods.length > 0) {
@@ -89,19 +130,37 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   </TableCell>
                 );
               }
-              // Summary columns (year-avg, year-total, quarter-avg, quarter-target) - render empty placeholder
+              
+              // Summary columns - calculate and display the appropriate value
+              if (period.type === 'quarter-target') {
+                // Quarter target doesn't apply to sub-metrics
+                return (
+                  <TableCell 
+                    key={period.identifier} 
+                    className={cn(
+                      "text-center py-1 text-xs text-muted-foreground min-w-[100px] max-w-[100px]",
+                      "bg-primary/5 border-x-2 border-primary/30"
+                    )}
+                  >
+                    -
+                  </TableCell>
+                );
+              }
+              
+              // Calculate summary value for year-avg, year-total, quarter-avg
+              const summaryValue = getSummaryValue(subMetric.name, period.type, period.year);
+              
               return (
                 <TableCell 
                   key={period.identifier} 
                   className={cn(
-                    "text-center py-1 text-xs text-muted-foreground min-w-[125px] max-w-[125px]",
-                    period.type === 'year-avg' && "bg-primary/5 border-l-2 border-primary/30",
-                    period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30",
-                    period.type === 'quarter-avg' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]",
-                    period.type === 'quarter-target' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]"
+                    "text-center py-1 text-xs text-muted-foreground",
+                    period.type === 'year-avg' && "bg-primary/5 border-l-2 border-primary/30 min-w-[125px] max-w-[125px]",
+                    period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30 min-w-[125px] max-w-[125px]",
+                    period.type === 'quarter-avg' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]"
                   )}
                 >
-                  -
+                  {summaryValue !== null ? formatValue(summaryValue) : "-"}
                 </TableCell>
               );
             })}
