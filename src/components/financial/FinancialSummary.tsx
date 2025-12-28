@@ -335,6 +335,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     getSubMetricValue, 
     hasSubMetrics: checkHasSubMetrics,
     subMetrics: allSubMetrics,
+    refetch: refetchSubMetrics,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
   
   // Fetch sub-metric targets
@@ -2260,6 +2261,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   onAttachmentChange={() => {
                                     fetchAttachments();
                                     loadFinancialData();
+                                    refetchSubMetrics();
                                   }}
                                 >
                                   <div className="flex flex-col items-center">
@@ -2311,6 +2313,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               onAttachmentChange={() => {
                                 fetchAttachments();
                                 loadFinancialData();
+                                refetchSubMetrics();
                               }}
                             >
                               <div className="flex flex-col items-center">
@@ -2341,6 +2344,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               onAttachmentChange={() => {
                                 fetchAttachments();
                                 loadFinancialData();
+                                refetchSubMetrics();
                               }}
                             >
                               <div className="flex flex-col items-center">
