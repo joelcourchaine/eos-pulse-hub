@@ -3467,21 +3467,22 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         periods={isMonthlyTrendMode 
                           ? monthlyTrendPeriods.map(p => ({ 
                               identifier: p.identifier, 
-                              type: p.type 
+                              type: p.type,
+                              year: p.type === 'month' ? p.year : p.summaryYear
                             })) 
                           : isQuarterTrendMode 
                             ? undefined 
                             : [
                                 // Q Avg (previous year)
-                                { identifier: `q${quarter}-avg-${year - 1}`, type: 'quarter-avg' as const },
+                                { identifier: `q${quarter}-avg-${year - 1}`, type: 'quarter-avg' as const, year: year - 1 },
                                 // Previous year months
-                                ...previousYearMonths.map(m => ({ identifier: m.identifier, type: 'month' as const })),
+                                ...previousYearMonths.map(m => ({ identifier: m.identifier, type: 'month' as const, year: year - 1 })),
                                 // Q Target (current year)
-                                { identifier: `q${quarter}-target-${year}`, type: 'quarter-target' as const },
+                                { identifier: `q${quarter}-target-${year}`, type: 'quarter-target' as const, year: year },
                                 // Current year months
-                                ...months.map(m => ({ identifier: m.identifier, type: 'month' as const })),
+                                ...months.map(m => ({ identifier: m.identifier, type: 'month' as const, year: year })),
                                 // Q Avg (current year)
-                                { identifier: `q${quarter}-avg-${year}`, type: 'quarter-avg' as const },
+                                { identifier: `q${quarter}-avg-${year}`, type: 'quarter-avg' as const, year: year },
                               ]
                         }
                         hasSparklineColumn={isMonthlyTrendMode}
