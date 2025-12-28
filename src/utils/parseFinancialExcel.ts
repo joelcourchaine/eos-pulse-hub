@@ -55,10 +55,46 @@ const parseCellReference = (ref: string): { col: string; row: number } | null =>
 };
 
 /**
- * Extract numeric value from a cell
+ * Parse a formula reference like "Nissan5!D70" or "Sheet1!A1"
  */
-const extractNumericValue = (cell: XLSX.CellObject | undefined): number | null => {
+const parseFormulaReference = (formula: string): { sheet: string; cell: string } | null => {
+  // Match patterns like "SheetName!CellRef" or "'Sheet Name'!CellRef"
+  const match = formula.match(/^'?([^'!]+)'?!([A-Z]+\d+)$/i);
+  if (!match) return null;
+  return { sheet: match[1], cell: match[2].toUpperCase() };
+};
+
+/**
+ * Extract numeric value from a cell, following simple formula references to get the source value
+ */
+const extractNumericValue = (
+  cell: XLSX.CellObject | undefined,
+  workbook: XLSX.WorkBook
+): number | null => {
   if (!cell) return null;
+  
+  // If cell has a formula that's a simple cell reference, follow it to get the source value
+  if (cell.f && typeof cell.f === 'string') {
+    const ref = parseFormulaReference(cell.f);
+    if (ref) {
+      const refSheet = workbook.Sheets[ref.sheet];
+      if (refSheet) {
+        const refCell = refSheet[ref.cell] as XLSX.CellObject | undefined;
+        if (refCell) {
+          console.log(`[Excel Parse] Following formula ${cell.f} → ${ref.sheet}!${ref.cell} = `, refCell.v);
+          if (typeof refCell.v === 'number') return refCell.v;
+          if (typeof refCell.v === 'string') {
+            const parsed = parseFloat(refCell.v.replace(/[,$%]/g, ''));
+            return isNaN(parsed) ? null : parsed;
+          }
+        }
+      } else {
+        console.warn(`[Excel Parse] Sheet "${ref.sheet}" not found for formula ${cell.f}`);
+      }
+    }
+  }
+  
+  // Fall back to the cell's own value
   if (typeof cell.v === 'number') return cell.v;
   if (typeof cell.v === 'string') {
     const parsed = parseFloat(cell.v.replace(/[,$%]/g, ''));
@@ -112,8 +148,8 @@ export const parseFinancialExcel = (
             }
             
             const cell = sheet[mapping.cell_reference];
-            const extractedValue = extractNumericValue(cell);
-            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${mapping.cell_reference} on sheet ${mapping.sheet_name} = `, cell, '→ extracted:', extractedValue);
+            const extractedValue = extractNumericValue(cell, workbook);
+            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${mapping.cell_reference} on sheet ${mapping.sheet_name} → extracted: ${extractedValue}`);
             result[deptName][mapping.metric_key] = extractedValue;
           }
         }
