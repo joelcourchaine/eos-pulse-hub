@@ -3464,10 +3464,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         getSubMetricValue={(subMetricName, monthId) => 
                           getSubMetricValue(metric.key, subMetricName, monthId)
                         }
-                        periods={isMonthlyTrendMode ? monthlyTrendPeriods.map(p => ({ 
-                          identifier: p.identifier, 
-                          type: p.type 
-                        })) : undefined}
+                        periods={isMonthlyTrendMode 
+                          ? monthlyTrendPeriods.map(p => ({ 
+                              identifier: p.identifier, 
+                              type: p.type 
+                            })) 
+                          : isQuarterTrendMode 
+                            ? undefined 
+                            : [
+                                // Q Avg (previous year)
+                                { identifier: `q${quarter}-avg-${year - 1}`, type: 'quarter-avg' as const },
+                                // Previous year months
+                                ...previousYearMonths.map(m => ({ identifier: m.identifier, type: 'month' as const })),
+                                // Q Target (current year)
+                                { identifier: `q${quarter}-target-${year}`, type: 'quarter-target' as const },
+                                // Current year months
+                                ...months.map(m => ({ identifier: m.identifier, type: 'month' as const })),
+                                // Q Avg (current year)
+                                { identifier: `q${quarter}-avg-${year}`, type: 'quarter-avg' as const },
+                              ]
+                        }
                         hasSparklineColumn={isMonthlyTrendMode}
                       />
                       </React.Fragment>
