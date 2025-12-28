@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -64,10 +64,14 @@ export const MonthDropZone = ({
   const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
 
-  // Re-validate on mount if there's an existing attachment for Nissan stores
+  // Supported brands for Excel processing
+  const SUPPORTED_BRANDS = ['Nissan', 'Ford'];
+  const isSupportedBrand = storeBrand && SUPPORTED_BRANDS.includes(storeBrand);
+
+  // Re-validate on mount if there's an existing attachment for supported brands
   useEffect(() => {
     const checkExistingValidation = async () => {
-      if (!attachment || !storeId || storeBrand !== 'Nissan') return;
+      if (!attachment || !storeId || !isSupportedBrand) return;
       if (attachment.file_type !== 'excel' && attachment.file_type !== 'csv') return;
 
       try {
@@ -81,8 +85,8 @@ export const MonthDropZone = ({
         // Convert to File object
         const file = new File([fileData], attachment.file_name, { type: fileData.type });
 
-        // Fetch cell mappings for Nissan
-        const mappings = await fetchCellMappings('Nissan');
+        // Fetch cell mappings for the brand
+        const mappings = await fetchCellMappings(storeBrand);
         if (mappings.length === 0) return;
 
         // Get all departments for this store
@@ -125,7 +129,7 @@ export const MonthDropZone = ({
     };
 
     checkExistingValidation();
-  }, [attachment, storeId, storeBrand, monthIdentifier]);
+  }, [attachment, storeId, storeBrand, monthIdentifier, isSupportedBrand]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -139,17 +143,18 @@ export const MonthDropZone = ({
     setIsDragOver(false);
   }, []);
 
-  const processNissanExcel = async (
+  const processBrandExcel = async (
     file: File,
     filePath: string,
-    userId: string
+    userId: string,
+    brand: string
   ) => {
     if (!storeId) return;
 
-    // Fetch cell mappings for Nissan
-    const mappings = await fetchCellMappings('Nissan');
+    // Fetch cell mappings for the brand
+    const mappings = await fetchCellMappings(brand);
     if (mappings.length === 0) {
-      console.log('No cell mappings found for Nissan');
+      console.log(`No cell mappings found for ${brand}`);
       return;
     }
 
@@ -216,7 +221,7 @@ export const MonthDropZone = ({
         .select('id')
         .eq('department_id', dept.id)
         .eq('month_identifier', monthIdentifier)
-        .single();
+        .maybeSingle();
 
       if (!existingAttachment) {
         // Create new attachment record pointing to same file
@@ -254,6 +259,59 @@ export const MonthDropZone = ({
       setValidationStatus('mismatch');
     } else if (allMatch) {
       setValidationStatus('match');
+    }
+  };
+
+  // Re-import existing attachment
+  const handleReimport = async () => {
+    if (!attachment || !storeId || !storeBrand) return;
+    if (attachment.file_type !== 'excel' && attachment.file_type !== 'csv') {
+      toast({
+        title: "Cannot re-import",
+        description: "Only Excel files can be re-imported",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setValidationStatus(null);
+    setValidationDetails([]);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Fetch the file from storage
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('financial-attachments')
+        .download(attachment.file_path);
+
+      if (downloadError || !fileData) {
+        throw new Error("Failed to download file");
+      }
+
+      // Convert to File object
+      const file = new File([fileData], attachment.file_name, { type: fileData.type });
+
+      // Process the file
+      await processBrandExcel(file, attachment.file_path, user.id, storeBrand);
+
+      toast({
+        title: "Re-import complete",
+        description: `${attachment.file_name} has been re-processed`,
+      });
+
+      onAttachmentChange();
+    } catch (error: any) {
+      console.error("Re-import error:", error);
+      toast({
+        title: "Re-import failed",
+        description: error.message || "Failed to re-import file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -331,9 +389,9 @@ export const MonthDropZone = ({
 
         if (dbError) throw dbError;
 
-        // If this is a Nissan store and it's an Excel file, process it
-        if (storeBrand === 'Nissan' && (fileType === 'excel' || fileType === 'csv')) {
-          await processNissanExcel(file, filePath, user.id);
+        // If this is a supported brand store and it's an Excel file, process it
+        if (isSupportedBrand && (fileType === 'excel' || fileType === 'csv')) {
+          await processBrandExcel(file, filePath, user.id, storeBrand);
         }
 
         toast({
@@ -501,6 +559,12 @@ export const MonthDropZone = ({
                       <DropdownMenuItem onClick={handleViewAttachment}>
                         View / Download
                       </DropdownMenuItem>
+                      {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
+                        <DropdownMenuItem onClick={handleReimport}>
+                          <RefreshCw className="h-3 w-3 mr-2" />
+                          Re-import Data
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem 
                         onClick={handleRemoveAttachment}
                         className="text-destructive focus:text-destructive"
