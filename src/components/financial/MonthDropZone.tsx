@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Paperclip, X, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +63,69 @@ export const MonthDropZone = ({
   const [validationStatus, setValidationStatus] = useState<'match' | 'mismatch' | 'imported' | null>(null);
   const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
+
+  // Re-validate on mount if there's an existing attachment for Nissan stores
+  useEffect(() => {
+    const checkExistingValidation = async () => {
+      if (!attachment || !storeId || storeBrand !== 'Nissan') return;
+      if (attachment.file_type !== 'excel' && attachment.file_type !== 'csv') return;
+
+      try {
+        // Fetch the file from storage
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('financial-attachments')
+          .download(attachment.file_path);
+
+        if (downloadError || !fileData) return;
+
+        // Convert to File object
+        const file = new File([fileData], attachment.file_name, { type: fileData.type });
+
+        // Fetch cell mappings for Nissan
+        const mappings = await fetchCellMappings('Nissan');
+        if (mappings.length === 0) return;
+
+        // Get all departments for this store
+        const { data: storeDepartments } = await supabase
+          .from('departments')
+          .select('id, name')
+          .eq('store_id', storeId);
+
+        if (!storeDepartments || storeDepartments.length === 0) return;
+
+        // Create lookup map
+        const departmentsByName: Record<string, string> = {};
+        storeDepartments.forEach(dept => {
+          departmentsByName[dept.name] = dept.id;
+        });
+
+        // Parse the Excel file
+        const parsedData = await parseFinancialExcel(file, mappings);
+
+        // Validate against database
+        const validationResults = await validateAgainstDatabase(
+          parsedData,
+          departmentsByName,
+          monthIdentifier
+        );
+
+        // Determine overall status
+        const hasMismatch = validationResults.some(r => r.status === 'mismatch');
+        const allMatch = validationResults.every(r => r.status === 'match' || r.status === 'error');
+
+        setValidationDetails(validationResults);
+        if (hasMismatch) {
+          setValidationStatus('mismatch');
+        } else if (allMatch) {
+          setValidationStatus('match');
+        }
+      } catch (error) {
+        console.error('Error checking existing validation:', error);
+      }
+    };
+
+    checkExistingValidation();
+  }, [attachment, storeId, storeBrand, monthIdentifier]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
