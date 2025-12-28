@@ -258,13 +258,18 @@ export const parseFinancialExcel = (
             }
             
             // If no name_cell_reference or it returned garbage (single char), extract name from metric_key
-            // metric_key format: "sub:parent_key:Name" e.g., "sub:total_sales:Repair Shop"
+            // metric_key format: "sub:parent_key:order:Name" e.g., "sub:total_sales:01:Repair Shop"
+            // or legacy format: "sub:parent_key:Name" e.g., "sub:total_sales:Repair Shop"
             if (!metricName || metricName.length <= 2) {
               const parts = mapping.metric_key.split(':');
-              if (parts.length >= 3) {
-                // Join all parts after the second colon (handles names with colons)
+              if (parts.length >= 4) {
+                // New format with order: sub:parent:order:name - take everything after the 3rd colon
+                metricName = parts.slice(3).join(':');
+                console.log(`[Excel Parse Sub] ${deptName} - Using name from metric_key (with order): "${metricName}"`);
+              } else if (parts.length >= 3) {
+                // Legacy format: sub:parent:name - take everything after the 2nd colon
                 metricName = parts.slice(2).join(':');
-                console.log(`[Excel Parse Sub] ${deptName} - Using name from metric_key: "${metricName}"`);
+                console.log(`[Excel Parse Sub] ${deptName} - Using name from metric_key (legacy): "${metricName}"`);
               }
             }
             
