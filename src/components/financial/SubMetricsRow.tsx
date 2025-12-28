@@ -150,9 +150,19 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             key={`sub-${subMetric.name}-${idx}`}
             className="bg-muted/20 hover:bg-muted/30"
           >
-            <TableCell className="sticky left-0 z-30 py-1 pl-8 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">└</span>
+            <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-1.5">
+                <svg 
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 12 12" 
+                  className="text-muted-foreground/60 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 <p className="text-xs text-muted-foreground truncate">
                   {subMetric.name}
                 </p>
@@ -242,9 +252,19 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           key={`sub-${subMetric.name}-${idx}`}
           className="bg-muted/20 hover:bg-muted/30"
         >
-          <TableCell className="sticky left-0 z-30 py-1 pl-8 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">└</span>
+          <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+            <div className="flex items-center gap-1.5">
+              <svg 
+                width="12" 
+                height="12" 
+                viewBox="0 0 12 12" 
+                className="text-muted-foreground/60 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               <p className="text-xs text-muted-foreground truncate">
                 {subMetric.name}
               </p>
