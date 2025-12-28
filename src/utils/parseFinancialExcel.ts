@@ -222,9 +222,30 @@ export const parseFinancialExcel = (
           
           let orderIndex = 0;
           for (const mapping of sortedMappings) {
-            const sheet = workbook.Sheets[mapping.sheet_name];
+            // Try exact match first, then case-insensitive match, then fall back to first sheet
+            let sheet = workbook.Sheets[mapping.sheet_name];
+            let actualSheetName = mapping.sheet_name;
+            
             if (!sheet) {
-              console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found. Available sheets:`, workbook.SheetNames);
+              // Try case-insensitive match
+              const sheetNameLower = mapping.sheet_name.toLowerCase();
+              const foundSheetName = workbook.SheetNames.find(
+                s => s.toLowerCase() === sheetNameLower
+              );
+              if (foundSheetName) {
+                sheet = workbook.Sheets[foundSheetName];
+                actualSheetName = foundSheetName;
+                console.log(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" matched (case-insensitive) to "${foundSheetName}"`);
+              } else {
+                // Fall back to first sheet
+                sheet = workbook.Sheets[workbook.SheetNames[0]];
+                actualSheetName = workbook.SheetNames[0];
+                console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found; using "${actualSheetName}" instead. Available sheets:`, workbook.SheetNames);
+              }
+            }
+            
+            if (!sheet) {
+              console.warn(`[Excel Parse Sub] No sheets found in workbook.`);
               continue;
             }
             
