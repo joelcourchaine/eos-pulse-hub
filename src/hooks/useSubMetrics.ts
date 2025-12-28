@@ -6,6 +6,7 @@ export interface SubMetricEntry {
   parentMetricKey: string;
   monthIdentifier: string;
   value: number | null;
+  orderIndex: number; // Preserves Excel statement order
 }
 
 /**
@@ -46,8 +47,23 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
 
       const parsed: SubMetricEntry[] = [];
       data?.forEach((entry) => {
+        // Format: sub:{parent_key}:{order_index}:{name}
+        // Legacy format (no order): sub:{parent_key}:{name}
         const parts = entry.metric_name.split(':');
-        if (parts.length >= 3) {
+        if (parts.length >= 4) {
+          // New format with order index
+          const parentKey = parts[1];
+          const orderIndex = parseInt(parts[2], 10) || 0;
+          const name = parts.slice(3).join(':');
+          parsed.push({
+            name,
+            parentMetricKey: parentKey,
+            monthIdentifier: entry.month,
+            value: entry.value,
+            orderIndex,
+          });
+        } else if (parts.length >= 3) {
+          // Legacy format without order index
           const parentKey = parts[1];
           const name = parts.slice(2).join(':');
           parsed.push({
@@ -55,9 +71,13 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
             parentMetricKey: parentKey,
             monthIdentifier: entry.month,
             value: entry.value,
+            orderIndex: 999, // Put legacy entries at the end
           });
         }
       });
+
+      // Sort by order index
+      parsed.sort((a, b) => a.orderIndex - b.orderIndex);
 
       setSubMetrics(parsed);
     } finally {
@@ -105,7 +125,7 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
             const parts = rowOld.metric_name.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
-            const name = parts.slice(2).join(':');
+            const name = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
             setSubMetrics((prev) =>
               prev.filter(
                 (sm) => !(sm.parentMetricKey === parentKey && sm.name === name && sm.monthIdentifier === rowOld.month)
@@ -116,12 +136,14 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
             const parts = rowNew.metric_name.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
-            const name = parts.slice(2).join(':');
+            const orderIndex = parts.length >= 4 ? (parseInt(parts[2], 10) || 0) : 999;
+            const name = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
             const entry: SubMetricEntry = {
               parentMetricKey: parentKey,
               name,
               monthIdentifier: rowNew.month,
               value: rowNew.value ?? null,
+              orderIndex,
             };
             setSubMetrics((prev) => {
               const idx = prev.findIndex(
@@ -146,11 +168,17 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
 
   const getSubMetricNames = useCallback(
     (parentMetricKey: string): string[] => {
-      const names = new Set<string>();
-      subMetrics
-        .filter((sm) => sm.parentMetricKey === parentMetricKey)
-        .forEach((sm) => names.add(sm.name));
-      return Array.from(names);
+      // Filter to parent, dedupe by name while preserving order
+      const filtered = subMetrics.filter((sm) => sm.parentMetricKey === parentMetricKey);
+      const seen = new Set<string>();
+      const orderedNames: string[] = [];
+      for (const sm of filtered) {
+        if (!seen.has(sm.name)) {
+          seen.add(sm.name);
+          orderedNames.push(sm.name);
+        }
+      }
+      return orderedNames;
     },
     [subMetrics]
   );
