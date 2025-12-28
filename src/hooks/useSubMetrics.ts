@@ -178,6 +178,19 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
           orderedNames.push(sm.name);
         }
       }
+      
+      // Special case: For gp_percent, include "Unapplied Time" if it exists in gp_net
+      // This enables calculated sub-metrics that derive from other parent metrics
+      if (parentMetricKey === 'gp_percent') {
+        const gpNetSubMetrics = subMetrics.filter((sm) => sm.parentMetricKey === 'gp_net');
+        for (const sm of gpNetSubMetrics) {
+          if (sm.name === 'Unapplied Time' && !seen.has(sm.name)) {
+            seen.add(sm.name);
+            orderedNames.push(sm.name);
+          }
+        }
+      }
+      
       return orderedNames;
     },
     [subMetrics]
@@ -223,6 +236,34 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     [subMetrics]
   );
 
+  /**
+   * Get a calculated sub-metric value (e.g., Unapplied Time GP % = Unapplied Time GP Net / Total Sales)
+   * This handles special cases where sub-metrics need to be derived from other values.
+   */
+  const getCalculatedSubMetricValue = useCallback(
+    (
+      parentMetricKey: string,
+      subMetricName: string,
+      monthId: string,
+      getFinancialValue: (metricKey: string, monthId: string) => number | null
+    ): number | null => {
+      // Special case: Unapplied Time GP % = Unapplied Time GP Net / Total Sales
+      if (parentMetricKey === 'gp_percent' && subMetricName === 'Unapplied Time') {
+        const unappliedTimeGpNet = getSubMetricValue('gp_net', 'Unapplied Time', monthId);
+        const totalSales = getFinancialValue('total_sales', monthId);
+        
+        if (unappliedTimeGpNet !== null && totalSales !== null && totalSales !== 0) {
+          return (unappliedTimeGpNet / totalSales) * 100; // Return as percentage
+        }
+        return null;
+      }
+      
+      // Default: return the actual stored value
+      return getSubMetricValue(parentMetricKey, subMetricName, monthId);
+    },
+    [getSubMetricValue]
+  );
+
   return {
     subMetrics,
     loading,
@@ -230,6 +271,7 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     getSubMetricValue,
     hasSubMetrics,
     getSubMetricSum,
+    getCalculatedSubMetricValue,
     refetch: fetchSubMetrics,
   };
 };

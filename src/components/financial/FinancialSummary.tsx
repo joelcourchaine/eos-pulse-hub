@@ -337,6 +337,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     subMetrics: allSubMetrics,
     refetch: refetchSubMetrics,
     getSubMetricSum,
+    getCalculatedSubMetricValue,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
   
   // Fetch sub-metric targets
@@ -3499,9 +3500,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         isExpanded={isMetricExpanded}
                         monthIdentifiers={displayMonthIds}
                         formatValue={(val) => val !== null ? formatTarget(val, metric.type) : "-"}
-                        getSubMetricValue={(subMetricName, monthId) => 
-                          getSubMetricValue(metric.key, subMetricName, monthId)
-                        }
+                        getSubMetricValue={(subMetricName, monthId) => {
+                          // Use calculated value for gp_percent sub-metrics (e.g., Unapplied Time GP %)
+                          if (metric.key === 'gp_percent') {
+                            return getCalculatedSubMetricValue(
+                              metric.key, 
+                              subMetricName, 
+                              monthId, 
+                              (metricKey, mId) => getValueWithSubMetricFallback(metricKey, mId) ?? null
+                            );
+                          }
+                          return getSubMetricValue(metric.key, subMetricName, monthId);
+                        }}
                         periods={isMonthlyTrendMode 
                           ? monthlyTrendPeriods.map(p => ({ 
                               identifier: p.identifier, 
