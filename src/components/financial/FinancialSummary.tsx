@@ -2586,7 +2586,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   }
                                   
                                   // Editable cells for non-calculated metrics
-                                  const displayValue = localValues[key] !== undefined ? localValues[key] : (mValue !== null && mValue !== undefined ? String(mValue) : "");
+                                  const localValue = localValues[key];
+                                  const displayValue =
+                                    localValue !== undefined && !(localValue === "" && mValue !== null && mValue !== undefined)
+                                      ? localValue
+                                      : mValue !== null && mValue !== undefined
+                                        ? String(mValue)
+                                        : "";
                                   
                                   // Calculate status for non-calculated metrics using quarter-specific targets
                                   const monthQuarter = Math.floor(period.month / 3) + 1;
@@ -3322,13 +3328,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                    </div>
                                                  );
                                                })()}
-                                               <Input
-                                                 type="number"
-                                                 step="any"
-                                                 value={localValues[key] !== undefined ? localValues[key] : (value !== null && value !== undefined ? String(value) : "")}
-                                                 onChange={(e) =>
-                                                   handleValueChange(metric.key, month.identifier, e.target.value)
-                                                 }
+                                                <Input
+                                                  type="number"
+                                                  step="any"
+                                                  value={(() => {
+                                                    const lv = localValues[key];
+                                                    if (lv !== undefined && !(lv === "" && value !== null && value !== undefined)) return lv;
+                                                    return value !== null && value !== undefined ? String(value) : "";
+                                                  })()}
+                                                  onChange={(e) =>
+                                                    handleValueChange(metric.key, month.identifier, e.target.value)
+                                                  }
                                                  onKeyDown={(e) => {
                                                     if (e.key === 'Enter') {
                                                       e.preventDefault();
