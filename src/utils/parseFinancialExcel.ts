@@ -249,14 +249,23 @@ export const parseFinancialExcel = (
               continue;
             }
             
-            // Read the metric name from name_cell_reference
+            // Read the metric name from name_cell_reference OR extract from metric_key
             let metricName: string | null = null;
             if (mapping.name_cell_reference) {
               const nameCell = sheet[mapping.name_cell_reference];
               metricName = extractStringValue(nameCell);
               console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}" (cell exists: ${!!nameCell})`);
-            } else {
-              console.log(`[Excel Parse Sub] ${deptName} - No name_cell_reference defined for ${mapping.metric_key}`);
+            }
+            
+            // If no name_cell_reference or it returned garbage (single char), extract name from metric_key
+            // metric_key format: "sub:parent_key:Name" e.g., "sub:total_sales:Repair Shop"
+            if (!metricName || metricName.length <= 2) {
+              const parts = mapping.metric_key.split(':');
+              if (parts.length >= 3) {
+                // Join all parts after the second colon (handles names with colons)
+                metricName = parts.slice(2).join(':');
+                console.log(`[Excel Parse Sub] ${deptName} - Using name from metric_key: "${metricName}"`);
+              }
             }
             
             // Read the value from cell_reference
