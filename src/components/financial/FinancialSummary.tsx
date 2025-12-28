@@ -11,7 +11,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,7 @@ import { FinancialDataImport } from "./FinancialDataImport";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { MonthDropZone } from "./MonthDropZone";
+import { useSubMetrics } from "@/hooks/useSubMetrics";
 interface FinancialSummaryProps {
   departmentId: string;
   year: number;
@@ -244,6 +245,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
+  const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 

@@ -421,7 +421,10 @@ export type Database = {
           created_at: string
           department_name: string
           id: string
+          is_sub_metric: boolean | null
           metric_key: string
+          name_cell_reference: string | null
+          parent_metric_key: string | null
           sheet_name: string
           updated_at: string
         }
@@ -431,7 +434,10 @@ export type Database = {
           created_at?: string
           department_name: string
           id?: string
+          is_sub_metric?: boolean | null
           metric_key: string
+          name_cell_reference?: string | null
+          parent_metric_key?: string | null
           sheet_name: string
           updated_at?: string
         }
@@ -441,7 +447,10 @@ export type Database = {
           created_at?: string
           department_name?: string
           id?: string
+          is_sub_metric?: boolean | null
           metric_key?: string
+          name_cell_reference?: string | null
+          parent_metric_key?: string | null
           sheet_name?: string
           updated_at?: string
         }

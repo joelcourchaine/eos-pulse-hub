@@ -8,12 +8,23 @@ export interface CellMapping {
   metric_key: string;
   sheet_name: string;
   cell_reference: string;
+  // New fields for sub-metric support
+  name_cell_reference?: string | null;
+  parent_metric_key?: string | null;
+  is_sub_metric?: boolean;
 }
 
 export interface ParsedDepartmentData {
   departmentName: string;
   departmentId: string;
   metrics: Record<string, number | null>;
+}
+
+// Sub-metric data with dynamic name from Excel
+export interface SubMetricData {
+  parentMetricKey: string;
+  name: string;
+  value: number | null;
 }
 
 export interface ValidationResult {
@@ -104,12 +115,33 @@ const extractNumericValue = (
 };
 
 /**
+ * Extract string value from a cell (for reading metric names)
+ */
+const extractStringValue = (
+  cell: XLSX.CellObject | undefined
+): string | null => {
+  if (!cell) return null;
+  if (typeof cell.v === 'string') return cell.v.trim();
+  if (typeof cell.v === 'number') return String(cell.v);
+  return null;
+};
+
+/**
+ * Result type for parseFinancialExcel that includes sub-metrics
+ */
+export interface ParsedFinancialData {
+  metrics: Record<string, Record<string, number | null>>;
+  subMetrics: Record<string, SubMetricData[]>; // keyed by department name
+}
+
+/**
  * Parse Excel file and extract data for all mapped departments
+ * Now also extracts sub-metrics with dynamic names from Excel
  */
 export const parseFinancialExcel = (
   file: File,
   mappings: CellMapping[]
-): Promise<Record<string, Record<string, number | null>>> => {
+): Promise<ParsedFinancialData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -118,8 +150,12 @@ export const parseFinancialExcel = (
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         
-        // Group mappings by department
-        const mappingsByDept = mappings.reduce((acc, mapping) => {
+        // Separate regular mappings from sub-metric mappings
+        const regularMappings = mappings.filter(m => !m.is_sub_metric);
+        const subMetricMappings = mappings.filter(m => m.is_sub_metric);
+        
+        // Group regular mappings by department
+        const mappingsByDept = regularMappings.reduce((acc, mapping) => {
           if (!acc[mapping.department_name]) {
             acc[mapping.department_name] = [];
           }
@@ -128,7 +164,9 @@ export const parseFinancialExcel = (
         }, {} as Record<string, CellMapping[]>);
         
         const result: Record<string, Record<string, number | null>> = {};
+        const subMetricsResult: Record<string, SubMetricData[]> = {};
         
+        // Process regular metrics
         for (const [deptName, deptMappings] of Object.entries(mappingsByDept)) {
           result[deptName] = {};
           
@@ -158,7 +196,50 @@ export const parseFinancialExcel = (
           }
         }
         
-        resolve(result);
+        // Process sub-metrics (grouped by department)
+        const subMetricsByDept = subMetricMappings.reduce((acc, mapping) => {
+          if (!acc[mapping.department_name]) {
+            acc[mapping.department_name] = [];
+          }
+          acc[mapping.department_name].push(mapping);
+          return acc;
+        }, {} as Record<string, CellMapping[]>);
+        
+        for (const [deptName, deptSubMappings] of Object.entries(subMetricsByDept)) {
+          subMetricsResult[deptName] = [];
+          
+          for (const mapping of deptSubMappings) {
+            const sheet = workbook.Sheets[mapping.sheet_name];
+            if (!sheet) {
+              console.warn(`Sheet "${mapping.sheet_name}" not found for sub-metric. Available sheets:`, workbook.SheetNames);
+              continue;
+            }
+            
+            // Read the metric name from name_cell_reference
+            let metricName: string | null = null;
+            if (mapping.name_cell_reference) {
+              const nameCell = sheet[mapping.name_cell_reference];
+              metricName = extractStringValue(nameCell);
+              console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}"`);
+            }
+            
+            // Read the value from cell_reference
+            const valueCell = sheet[mapping.cell_reference];
+            const value = extractNumericValue(valueCell, workbook);
+            console.log(`[Excel Parse Sub] ${deptName} - Value cell ${mapping.cell_reference}: ${value}`);
+            
+            // Only include if we have both a name and the parent key
+            if (metricName && mapping.parent_metric_key) {
+              subMetricsResult[deptName].push({
+                parentMetricKey: mapping.parent_metric_key,
+                name: metricName,
+                value: value,
+              });
+            }
+          }
+        }
+        
+        resolve({ metrics: result, subMetrics: subMetricsResult });
       } catch (error) {
         reject(error);
       }
@@ -171,15 +252,16 @@ export const parseFinancialExcel = (
 
 /**
  * Validate parsed Excel data against existing database entries
+ * Now accepts ParsedFinancialData structure
  */
 export const validateAgainstDatabase = async (
-  parsedData: Record<string, Record<string, number | null>>,
+  parsedData: ParsedFinancialData,
   departmentsByName: Record<string, string>, // department_name -> department_id
   monthIdentifier: string
 ): Promise<ValidationResult[]> => {
   const results: ValidationResult[] = [];
   
-  for (const [deptName, metrics] of Object.entries(parsedData)) {
+  for (const [deptName, metrics] of Object.entries(parsedData.metrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) {
       results.push({
@@ -262,16 +344,18 @@ export const validateAgainstDatabase = async (
 
 /**
  * Import parsed Excel data into the database
+ * Now also imports sub-metrics
  */
 export const importFinancialData = async (
-  parsedData: Record<string, Record<string, number | null>>,
+  parsedData: ParsedFinancialData,
   departmentsByName: Record<string, string>,
   monthIdentifier: string,
   userId: string
 ): Promise<{ success: boolean; importedCount: number; error?: string }> => {
   let importedCount = 0;
   
-  for (const [deptName, metrics] of Object.entries(parsedData)) {
+  // Import regular metrics
+  for (const [deptName, metrics] of Object.entries(parsedData.metrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) continue;
     
@@ -292,6 +376,39 @@ export const importFinancialData = async (
       
       if (error) {
         console.error('Error upserting financial entry:', error);
+      } else {
+        importedCount++;
+      }
+    }
+  }
+  
+  // Import sub-metrics with their dynamic names
+  // We store them with a special naming convention: sub:{parent_key}:{name}
+  for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
+    const departmentId = departmentsByName[deptName];
+    if (!departmentId) continue;
+    
+    for (const subMetric of subMetrics) {
+      if (subMetric.value === null) continue;
+      
+      // Create a metric name that includes the parent key and sub-metric name
+      // This allows us to group them when displaying
+      const metricName = `sub:${subMetric.parentMetricKey}:${subMetric.name}`;
+      
+      const { error } = await supabase
+        .from('financial_entries')
+        .upsert({
+          department_id: departmentId,
+          month: monthIdentifier,
+          metric_name: metricName,
+          value: subMetric.value,
+          created_by: userId,
+        }, {
+          onConflict: 'department_id,month,metric_name'
+        });
+      
+      if (error) {
+        console.error('Error upserting sub-metric entry:', error);
       } else {
         importedCount++;
       }

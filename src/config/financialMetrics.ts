@@ -18,6 +18,8 @@ export interface FinancialMetric {
     deductions: string[];
     additions: string[];
   };
+  // New: Flag indicating this metric has expandable sub-metrics
+  hasSubMetrics?: boolean;
 }
 
 export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
@@ -280,7 +282,8 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     key: "total_sales", 
     type: "dollar", 
     description: "Total revenue for the period", 
-    targetDirection: "above" 
+    targetDirection: "above",
+    hasSubMetrics: true  // This metric has expandable sub-line items
   },
   { 
     name: "GP Net", 
