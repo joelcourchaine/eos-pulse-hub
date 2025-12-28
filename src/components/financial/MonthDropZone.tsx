@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2, Check, AlertTriangle } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -341,48 +341,25 @@ export const MonthDropZone = ({
     return <FileSpreadsheet className="h-3 w-3" />;
   };
 
-  const getValidationIndicator = () => {
-    if (!validationStatus) return null;
-
-    if (validationStatus === 'match') {
-      return (
-        <div className="absolute -top-2 -left-1 z-30">
-          <div className="bg-green-500 text-white rounded-full p-0.5">
-            <Check className="h-2 w-2" />
-          </div>
-        </div>
-      );
+  const getIconBackgroundColor = () => {
+    if (validationStatus === 'match' || validationStatus === 'imported') {
+      return 'bg-green-500 hover:bg-green-600';
     }
-
     if (validationStatus === 'mismatch') {
-      const mismatchDetails = validationDetails.filter(r => r.status === 'mismatch');
-      const tooltipContent = mismatchDetails.map(r => {
-        const discrepancyText = r.discrepancies?.map(d => 
-          `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
-        ).join(', ');
-        return `${r.departmentName}: ${discrepancyText}`;
-      }).join('\n');
-
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="absolute -top-2 -left-1 z-30 cursor-help">
-                <div className="bg-amber-500 text-white rounded-full p-0.5">
-                  <AlertTriangle className="h-2 w-2" />
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[300px]">
-              <p className="text-xs font-medium">Data Mismatch</p>
-              <p className="text-xs whitespace-pre-wrap">{tooltipContent}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      );
+      return 'bg-amber-500 hover:bg-amber-600';
     }
+    return 'bg-primary hover:bg-primary/80';
+  };
 
-    return null;
+  const getMismatchTooltipContent = () => {
+    if (validationStatus !== 'mismatch') return null;
+    const mismatchDetails = validationDetails.filter(r => r.status === 'mismatch');
+    return mismatchDetails.map(r => {
+      const discrepancyText = r.discrepancies?.map(d => 
+        `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
+      ).join(', ');
+      return `${r.departmentName}: ${discrepancyText}`;
+    }).join('\n');
   };
 
   return (
@@ -404,10 +381,7 @@ export const MonthDropZone = ({
         {children}
       </div>
 
-      {/* Validation indicator */}
-      {getValidationIndicator()}
-
-      {/* Attachment indicator */}
+      {/* Attachment indicator with validation status color */}
       {(attachment || isUploading) && (
         <div className="absolute -top-1 -right-1 z-20">
           {isUploading ? (
@@ -420,7 +394,10 @@ export const MonthDropZone = ({
                 <TooltipTrigger asChild>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="bg-primary text-primary-foreground rounded-full p-0.5 hover:bg-primary/80 transition-colors">
+                      <button className={cn(
+                        "text-white rounded-full p-0.5 transition-colors",
+                        getIconBackgroundColor()
+                      )}>
                         {getFileIcon(attachment.file_type)}
                       </button>
                     </DropdownMenuTrigger>
@@ -437,8 +414,14 @@ export const MonthDropZone = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TooltipTrigger>
-                <TooltipContent side="top">
+                <TooltipContent side="top" className="max-w-[300px]">
                   <p className="text-xs">{attachment.file_name}</p>
+                  {validationStatus === 'mismatch' && (
+                    <>
+                      <p className="text-xs font-medium mt-1 text-amber-500">Data Mismatch</p>
+                      <p className="text-xs whitespace-pre-wrap">{getMismatchTooltipContent()}</p>
+                    </>
+                  )}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
