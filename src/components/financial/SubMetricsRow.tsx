@@ -163,7 +163,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 >
                   <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
                   {subMetric.name}
                 </p>
               </div>
@@ -265,7 +265,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               >
                 <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
                 {subMetric.name}
               </p>
             </div>
