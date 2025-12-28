@@ -150,7 +150,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             key={`sub-${subMetric.name}-${idx}`}
             className="bg-muted/20 hover:bg-muted/30"
           >
-            <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+            <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
               <div className="flex items-center gap-1.5">
                 <svg 
                   width="12" 
@@ -252,7 +252,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           key={`sub-${subMetric.name}-${idx}`}
           className="bg-muted/20 hover:bg-muted/30"
         >
-          <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-muted/20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+          <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
             <div className="flex items-center gap-1.5">
               <svg 
                 width="12" 
