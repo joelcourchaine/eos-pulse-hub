@@ -133,11 +133,15 @@ export const parseFinancialExcel = (
           result[deptName] = {};
           
           for (const mapping of deptMappings) {
-            const sheet = workbook.Sheets[mapping.sheet_name];
+            // Prefer the mapped sheet name, but fall back to the first sheet (helps with CSV exports)
+            const sheet = workbook.Sheets[mapping.sheet_name] || workbook.Sheets[workbook.SheetNames[0]];
             if (!sheet) {
-              console.warn(`Sheet "${mapping.sheet_name}" not found in workbook. Available sheets:`, workbook.SheetNames);
+              console.warn(`No sheets found in workbook. Available sheets:`, workbook.SheetNames);
               result[deptName][mapping.metric_key] = null;
               continue;
+            }
+            if (!workbook.Sheets[mapping.sheet_name]) {
+              console.warn(`Sheet "${mapping.sheet_name}" not found; using "${workbook.SheetNames[0]}" instead.`);
             }
             
             const cellRef = parseCellReference(mapping.cell_reference);
