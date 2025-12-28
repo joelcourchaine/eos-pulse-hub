@@ -23,6 +23,7 @@ import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { MonthDropZone } from "./MonthDropZone";
 import { useSubMetrics } from "@/hooks/useSubMetrics";
+import { useSubMetricTargets } from "@/hooks/useSubMetricTargets";
 import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
 interface FinancialSummaryProps {
   departmentId: string;
@@ -332,8 +333,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const { 
     getSubMetricNames, 
     getSubMetricValue, 
-    hasSubMetrics: checkHasSubMetrics 
+    hasSubMetrics: checkHasSubMetrics,
+    subMetrics: allSubMetrics,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
+  
+  // Fetch sub-metric targets
+  const {
+    getSubMetricTarget,
+    saveSubMetricTarget,
+  } = useSubMetricTargets(departmentId);
   
   // Toggle metric expansion
   const toggleMetricExpansion = useCallback((metricKey: string) => {
@@ -3457,7 +3465,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       </TableRow>
                       {/* Sub-metrics rows for expandable metrics */}
                       <SubMetricsRow
-                        subMetrics={subMetricNames.map(name => ({ name, value: null }))}
+                        subMetrics={subMetricNames.map((name, idx) => {
+                          // Find the order index from the raw sub-metrics data
+                          const subMetricEntry = allSubMetrics.find(
+                            sm => sm.parentMetricKey === metric.key && sm.name === name
+                          );
+                          return { 
+                            name, 
+                            value: null,
+                            orderIndex: subMetricEntry?.orderIndex ?? idx 
+                          };
+                        })}
                         isExpanded={isMetricExpanded}
                         monthIdentifiers={displayMonthIds}
                         formatValue={(val) => val !== null ? formatTarget(val, metric.type) : "-"}
@@ -3486,6 +3504,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               ]
                         }
                         hasSparklineColumn={isMonthlyTrendMode}
+                        parentMetricKey={metric.key}
+                        quarter={quarter}
+                        currentYear={year}
+                        getSubMetricTarget={(subMetricName, q, y) => 
+                          getSubMetricTarget(metric.key, subMetricName, q, y)
+                        }
+                        onSaveSubMetricTarget={async (subMetricName, orderIndex, q, y, value) => {
+                          const success = await saveSubMetricTarget(
+                            metric.key, subMetricName, orderIndex, q, y, value
+                          );
+                          if (success) {
+                            toast({
+                              title: "Success",
+                              description: "Sub-metric target saved",
+                            });
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to save sub-metric target",
+                              variant: "destructive",
+                            });
+                          }
+                          return success;
+                        }}
                       />
                       </React.Fragment>
                     );

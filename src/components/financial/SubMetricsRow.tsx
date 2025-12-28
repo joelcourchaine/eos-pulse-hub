@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface SubMetricEntry {
   name: string;
   value: number | null;
+  orderIndex?: number;
 }
 
 interface MonthlyPeriod {
@@ -25,6 +27,14 @@ interface SubMetricsRowProps {
   periods?: MonthlyPeriod[];
   // Whether to include sparkline column
   hasSparklineColumn?: boolean;
+  // Parent metric key for target management
+  parentMetricKey?: string;
+  // Quarter and year for target context
+  quarter?: number;
+  currentYear?: number;
+  // Target management callbacks
+  getSubMetricTarget?: (subMetricName: string, quarter: number, year: number) => number | null;
+  onSaveSubMetricTarget?: (subMetricName: string, orderIndex: number, quarter: number, year: number, value: number) => Promise<boolean>;
 }
 
 // Helper to calculate average from values
@@ -49,7 +59,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   getSubMetricValue,
   periods,
   hasSparklineColumn = false,
+  parentMetricKey,
+  quarter,
+  currentYear,
+  getSubMetricTarget,
+  onSaveSubMetricTarget,
 }) => {
+  const [editingTarget, setEditingTarget] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
   if (!isExpanded) return null;
   
   // Calculate total column count for colSpan
@@ -96,6 +114,33 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     return null;
   };
 
+  const handleTargetClick = (subMetricName: string, currentValue: number | null) => {
+    const key = subMetricName;
+    setEditingTarget(key);
+    setEditValue(currentValue !== null ? currentValue.toString() : "");
+  };
+
+  const handleTargetSave = async (subMetricName: string, orderIndex: number) => {
+    if (!onSaveSubMetricTarget || !quarter || !currentYear) {
+      setEditingTarget(null);
+      return;
+    }
+
+    const newValue = parseFloat(editValue);
+    if (!isNaN(newValue)) {
+      await onSaveSubMetricTarget(subMetricName, orderIndex, quarter, currentYear, newValue);
+    }
+    setEditingTarget(null);
+  };
+
+  const handleTargetKeyDown = (e: React.KeyboardEvent, subMetricName: string, orderIndex: number) => {
+    if (e.key === 'Enter') {
+      handleTargetSave(subMetricName, orderIndex);
+    } else if (e.key === 'Escape') {
+      setEditingTarget(null);
+    }
+  };
+
   // If we have periods, render columns matching the parent row structure
   if (periods && periods.length > 0) {
     return (
@@ -131,18 +176,37 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 );
               }
               
-              // Summary columns - calculate and display the appropriate value
+              // Quarter target - now editable
               if (period.type === 'quarter-target') {
-                // Quarter target doesn't apply to sub-metrics
+                const targetValue = getSubMetricTarget && quarter && currentYear
+                  ? getSubMetricTarget(subMetric.name, quarter, currentYear)
+                  : null;
+                const isEditing = editingTarget === subMetric.name;
+                const orderIndex = subMetric.orderIndex ?? idx;
+
                 return (
                   <TableCell 
                     key={period.identifier} 
                     className={cn(
                       "text-center py-1 text-xs text-muted-foreground min-w-[100px] max-w-[100px]",
-                      "bg-primary/5 border-x-2 border-primary/30"
+                      "bg-primary/5 border-x-2 border-primary/30 cursor-pointer hover:bg-primary/10"
                     )}
+                    onClick={() => !isEditing && handleTargetClick(subMetric.name, targetValue)}
                   >
-                    -
+                    {isEditing ? (
+                      <Input
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => handleTargetSave(subMetric.name, orderIndex)}
+                        onKeyDown={(e) => handleTargetKeyDown(e, subMetric.name, orderIndex)}
+                        className="h-6 text-xs text-center w-full"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      targetValue !== null ? formatValue(targetValue) : "-"
+                    )}
                   </TableCell>
                 );
               }
