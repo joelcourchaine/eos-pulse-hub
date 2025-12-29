@@ -52,6 +52,23 @@ const calculateTotal = (values: (number | null)[]): number | null => {
   return validValues.reduce((sum, v) => sum + v, 0);
 };
 
+// Helper to get variance status (same logic as parent financial metrics)
+const getVarianceStatus = (
+  value: number | null, 
+  targetValue: number | null, 
+  targetDirection: 'above' | 'below' = 'above'
+): 'success' | 'warning' | 'destructive' | null => {
+  if (value === null || targetValue === null || targetValue === 0) return null;
+  
+  const variance = ((value - targetValue) / Math.abs(targetValue)) * 100;
+  
+  if (targetDirection === 'above') {
+    return variance >= 0 ? 'success' : variance >= -10 ? 'warning' : 'destructive';
+  } else {
+    return variance <= 0 ? 'success' : variance <= 10 ? 'warning' : 'destructive';
+  }
+};
+
 export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   subMetrics,
   isExpanded,
@@ -152,54 +169,38 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             className="bg-muted/20 hover:bg-muted/30"
           >
             <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-              {(() => {
-                const targetValue = getSubMetricTarget && quarter && currentYear
-                  ? getSubMetricTarget(subMetric.name, quarter, currentYear)
-                  : null;
-                const hasTarget = targetValue !== null;
-                
-                // Debug logging - remove after testing
-                // console.log('[SubMetricsRow] Checking target for:', {
-                //   subMetricName: subMetric.name,
-                //   quarter,
-                //   year: currentYear,
-                //   targetValue,
-                //   hasTarget
-                // });
-                
-                return (
-                  <div className="flex items-center gap-1.5">
-                    <svg 
-                      width="12" 
-                      height="12" 
-                      viewBox="0 0 12 12" 
-                      className="text-muted-foreground/60 flex-shrink-0"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    >
-                      <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                      {subMetric.name}
-                    </p>
-                    {hasTarget && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 flex-shrink-0">
-                              <Target className="h-2.5 w-2.5 text-primary" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Target: {targetValue} (Q{quarter})</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                );
-              })()}
+              <div className="flex items-center gap-1.5">
+                <svg 
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 12 12" 
+                  className="text-muted-foreground/60 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                  {subMetric.name}
+                </p>
+                {/* Show target indicator if target is set */}
+                {getSubMetricTarget && quarter && currentYear && 
+                  getSubMetricTarget(subMetric.name, quarter, currentYear) !== null && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 flex-shrink-0">
+                          <Target className="h-2.5 w-2.5 text-primary" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Target: {getSubMetricTarget(subMetric.name, quarter, currentYear)} (Q{quarter})</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             </TableCell>
             {/* Sparkline column placeholder */}
             {hasSparklineColumn && (
@@ -207,23 +208,44 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             )}
             {/* Render cells for each period, matching parent row structure */}
             {periods.map((period) => {
+              // Get target for this sub-metric (for the current quarter/year context)
+              const targetValue = getSubMetricTarget && quarter && currentYear
+                ? getSubMetricTarget(subMetric.name, quarter, currentYear)
+                : null;
+              
               if (period.type === 'month') {
                 const value = getSubMetricValue(subMetric.name, period.identifier);
+                // Only apply variance coloring for current year months
+                const periodYear = parseInt(period.identifier.split('-')[0]);
+                const isCurrentYear = periodYear === currentYear;
+                const status = isCurrentYear && targetValue !== null 
+                  ? getVarianceStatus(value, targetValue, 'above') 
+                  : null;
+                
                 return (
                   <TableCell 
                     key={period.identifier} 
-                    className="text-center py-1 text-xs text-muted-foreground min-w-[125px] max-w-[125px]"
+                    className={cn(
+                      "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
+                      status === 'success' && "bg-success/10",
+                      status === 'warning' && "bg-warning/10",
+                      status === 'destructive' && "bg-destructive/10",
+                      !status && "text-muted-foreground"
+                    )}
                   >
-                    {value !== null ? formatValue(value) : "-"}
+                    <span className={cn(
+                      status === 'success' && "text-success font-medium",
+                      status === 'warning' && "text-warning font-medium",
+                      status === 'destructive' && "text-destructive font-medium"
+                    )}>
+                      {value !== null ? formatValue(value) : "-"}
+                    </span>
                   </TableCell>
                 );
               }
               
               // Quarter target - now editable
               if (period.type === 'quarter-target') {
-                const targetValue = getSubMetricTarget && quarter && currentYear
-                  ? getSubMetricTarget(subMetric.name, quarter, currentYear)
-                  : null;
                 const isEditing = editingTarget === subMetric.name;
                 const orderIndex = subMetric.orderIndex ?? idx;
 
@@ -286,53 +308,69 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           className="bg-muted/20 hover:bg-muted/30"
         >
           <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-            {(() => {
-              const targetValue = getSubMetricTarget && quarter && currentYear
-                ? getSubMetricTarget(subMetric.name, quarter, currentYear)
-                : null;
-              const hasTarget = targetValue !== null;
-              return (
-                <div className="flex items-center gap-1.5">
-                  <svg 
-                    width="12" 
-                    height="12" 
-                    viewBox="0 0 12 12" 
-                    className="text-muted-foreground/60 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                    {subMetric.name}
-                  </p>
-                  {hasTarget && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 flex-shrink-0">
-                            <Target className="h-2.5 w-2.5 text-primary" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Target: {targetValue} (Q{quarter})</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              );
-            })()}
+            <div className="flex items-center gap-1.5">
+              <svg 
+                width="12" 
+                height="12" 
+                viewBox="0 0 12 12" 
+                className="text-muted-foreground/60 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                {subMetric.name}
+              </p>
+              {/* Show target indicator if target is set */}
+              {getSubMetricTarget && quarter && currentYear && 
+                getSubMetricTarget(subMetric.name, quarter, currentYear) !== null && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center justify-center h-4 w-4 rounded-full bg-primary/20 flex-shrink-0">
+                        <Target className="h-2.5 w-2.5 text-primary" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Target: {getSubMetricTarget(subMetric.name, quarter, currentYear)} (Q{quarter})</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
           </TableCell>
           {monthIdentifiers.map((monthId) => {
             const value = getSubMetricValue(subMetric.name, monthId);
+            const targetValue = getSubMetricTarget && quarter && currentYear
+              ? getSubMetricTarget(subMetric.name, quarter, currentYear)
+              : null;
+            // Only apply variance coloring for current year months
+            const periodYear = parseInt(monthId.split('-')[0]);
+            const isCurrentYear = periodYear === currentYear;
+            const status = isCurrentYear && targetValue !== null 
+              ? getVarianceStatus(value, targetValue, 'above') 
+              : null;
+            
             return (
               <TableCell 
                 key={monthId} 
-                className="text-center py-1 text-xs text-muted-foreground min-w-[125px] max-w-[125px]"
+                className={cn(
+                  "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
+                  status === 'success' && "bg-success/10",
+                  status === 'warning' && "bg-warning/10",
+                  status === 'destructive' && "bg-destructive/10",
+                  !status && "text-muted-foreground"
+                )}
               >
-                {value !== null ? formatValue(value) : "-"}
+                <span className={cn(
+                  status === 'success' && "text-success font-medium",
+                  status === 'warning' && "text-warning font-medium",
+                  status === 'destructive' && "text-destructive font-medium"
+                )}>
+                  {value !== null ? formatValue(value) : "-"}
+                </span>
               </TableCell>
             );
           })}
