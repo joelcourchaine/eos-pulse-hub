@@ -105,18 +105,22 @@ export default function Enterprise() {
   }, [navigate]);
 
   // Check user roles
-  const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(userId);
+  const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading, roles } = useUserRole(userId);
   
   // Determine if user has access to Enterprise page
   const hasEnterpriseAccess = isSuperAdmin || isStoreGM || isDepartmentManager;
   
-  // Redirect unauthorized users
+  // Redirect unauthorized users - only after roles have been fetched
   useEffect(() => {
-    if (!rolesLoading && userId && !hasEnterpriseAccess) {
+    // Wait until we have a userId and roles have been loaded
+    if (!userId || rolesLoading) return;
+    
+    // Only redirect if roles were fetched and user doesn't have access
+    if (roles.length > 0 && !hasEnterpriseAccess) {
       toast.error("You don't have access to the Enterprise page");
       navigate("/dashboard");
     }
-  }, [rolesLoading, userId, hasEnterpriseAccess, navigate]);
+  }, [rolesLoading, userId, hasEnterpriseAccess, navigate, roles.length]);
 
   // Fetch user's store group info for non-super-admins
   const { data: userStoreGroupInfo } = useQuery({
