@@ -615,12 +615,14 @@ export default function Enterprise() {
         }
       }
       if (selectedFinancialMetrics.length === 0 && availableFinancialMetricsForCombined.length > 0) {
-        const metricNames = availableFinancialMetricsForCombined.map((m: any) => m.name);
-        setSelectedFinancialMetrics(metricNames);
+        // Use key for sub-metrics, name for parent metrics
+        const metricIds = availableFinancialMetricsForCombined.map((m: any) => m.isSubMetric ? m.key : m.name);
+        setSelectedFinancialMetrics(metricIds);
       }
     } else if (availableMetrics.length > 0 && selectedMetrics.length === 0) {
-      const metricNames = availableMetrics.map((m: any) => m.name);
-      setSelectedMetrics(metricNames);
+      // Use key for sub-metrics, name for parent metrics
+      const metricIds = availableMetrics.map((m: any) => m.isSubMetric ? m.key : m.name);
+      setSelectedMetrics(metricIds);
     }
   }, [metricType, availableMetrics, availableKpiMetricsForCombined, availableFinancialMetricsForCombined]);
 
@@ -1193,14 +1195,18 @@ export default function Enterprise() {
                       <div className="space-y-2">
                         {availableFinancialMetricsForCombined.map((metric: any) => {
                           const metricName = metric.name;
+                          const metricKey = metric.key ?? metricName;
+                          const isSubMetric = metric.isSubMetric === true;
+                          // Use key for sub-metrics (unique) and name for parent metrics
+                          const selectionId = isSubMetric ? metricKey : metricName;
                           return (
-                            <div key={metricName} className="flex items-center space-x-2">
+                            <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
                               <Checkbox
-                                id={`fin-${metricName}`}
-                                checked={selectedFinancialMetrics.includes(metricName)}
-                                onCheckedChange={() => toggleFinancialMetricSelection(metricName)}
+                                id={`fin-${metricKey}`}
+                                checked={selectedFinancialMetrics.includes(selectionId)}
+                                onCheckedChange={() => toggleFinancialMetricSelection(selectionId)}
                               />
-                              <label htmlFor={`fin-${metricName}`} className="text-sm cursor-pointer">
+                              <label htmlFor={`fin-${metricKey}`} className={`text-sm cursor-pointer ${isSubMetric ? 'text-muted-foreground' : ''}`}>
                                 {metricName}
                               </label>
                             </div>
@@ -1220,18 +1226,21 @@ export default function Enterprise() {
                       {availableMetrics.map((metric: any) => {
                         const metricName = typeof metric === "string" ? metric : metric.name;
                         const metricKey = typeof metric === "string" ? metricName : (metric.key ?? metricName);
+                        const isSubMetric = metric.isSubMetric === true;
                         const checkboxId = `metric-${metricKey}`;
+                        // Use key for sub-metrics (unique) and name for parent metrics
+                        const selectionId = isSubMetric ? metricKey : metricName;
 
                         return (
-                          <div key={metricKey} className="flex items-center space-x-2">
+                          <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
                             <Checkbox
                               id={checkboxId}
-                              checked={selectedMetrics.includes(metricName)}
-                              onCheckedChange={() => toggleMetricSelection(metricName)}
+                              checked={selectedMetrics.includes(selectionId)}
+                              onCheckedChange={() => toggleMetricSelection(selectionId)}
                             />
                             <label
                               htmlFor={checkboxId}
-                              className="text-sm font-medium leading-none cursor-pointer"
+                              className={`text-sm leading-none cursor-pointer ${isSubMetric ? 'text-muted-foreground' : 'font-medium'}`}
                             >
                               {metricName}
                             </label>
