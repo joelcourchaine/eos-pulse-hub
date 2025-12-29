@@ -1241,61 +1241,85 @@ export default function Enterprise() {
                       Financial Metrics ({selectedFinancialMetrics.length} selected)
                     </label>
                     <ScrollArea className="h-[150px] pr-4 border rounded-md p-2">
-                      <div className="space-y-2">
-                        {availableFinancialMetricsForCombined.map((metric: any) => {
-                          const metricName = metric.name;
-                          const metricKey = metric.key ?? metricName;
-                          const isSubMetric = metric.isSubMetric === true;
-                          // Use key for sub-metrics (unique) and name for parent metrics
-                          const selectionId = isSubMetric ? metricKey : metricName;
-                          
-                          // Check if this parent metric has sub-metrics
-                          const hasSubMetrics = !isSubMetric && availableFinancialMetricsForCombined.some(
-                            (m: any) => m.isSubMetric && m.parentKey === metric.key
-                          );
-                          
-                          // Get all sub-metric selection IDs for this parent
-                          const subMetricIds = hasSubMetrics 
-                            ? availableFinancialMetricsForCombined
-                                .filter((m: any) => m.isSubMetric && m.parentKey === metric.key)
-                                .map((m: any) => m.key)
-                            : [];
-                          
-                          const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedFinancialMetrics.includes(id));
-                          const someSubsSelected = hasSubMetrics && subMetricIds.some((id: string) => selectedFinancialMetrics.includes(id));
-                          
-                          return (
-                            <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
-                              <Checkbox
-                                id={`fin-${metricKey}`}
-                                checked={selectedFinancialMetrics.includes(selectionId)}
-                                onCheckedChange={() => toggleFinancialMetricSelection(selectionId)}
-                              />
-                              <label htmlFor={`fin-${metricKey}`} className={`text-sm cursor-pointer ${isSubMetric ? 'text-muted-foreground' : ''}`}>
-                                {metricName}
-                              </label>
-                              {hasSubMetrics && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (allSubsSelected) {
-                                      setSelectedFinancialMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
-                                    } else {
-                                      setSelectedFinancialMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
-                                    }
-                                  }}
-                                  className={`text-xs px-2 py-0.5 rounded ${
-                                    allSubsSelected 
-                                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                  }`}
-                                >
-                                  {allSubsSelected ? 'Deselect subs' : 'Select all subs'}
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
+                      <div className="space-y-1">
+                        {availableFinancialMetricsForCombined
+                          .filter((metric: any) => !metric.isSubMetric)
+                          .map((metric: any) => {
+                            const metricName = metric.name;
+                            const metricKey = metric.key ?? metricName;
+                            const selectionId = metricName;
+
+                            // Get sub-metrics for this parent
+                            const subMetricsForParent = availableFinancialMetricsForCombined.filter(
+                              (m: any) => m.isSubMetric && m.parentKey === metric.key
+                            );
+                            const hasSubMetrics = subMetricsForParent.length > 0;
+                            
+                            const subMetricIds = subMetricsForParent.map((m: any) => m.key);
+                            const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedFinancialMetrics.includes(id));
+
+                            return (
+                              <div key={metricKey} className="space-y-1">
+                                {/* Parent metric row */}
+                                <div className="flex items-center space-x-2 py-0.5">
+                                  <Checkbox
+                                    id={`fin-${metricKey}`}
+                                    checked={selectedFinancialMetrics.includes(selectionId)}
+                                    onCheckedChange={() => toggleFinancialMetricSelection(selectionId)}
+                                  />
+                                  <label htmlFor={`fin-${metricKey}`} className="text-sm cursor-pointer font-medium flex-1">
+                                    {metricName}
+                                  </label>
+                                  {hasSubMetrics && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (allSubsSelected) {
+                                          setSelectedFinancialMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
+                                        } else {
+                                          setSelectedFinancialMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
+                                        }
+                                      }}
+                                      className={`text-xs px-2 py-0.5 rounded ${
+                                        allSubsSelected 
+                                          ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                      }`}
+                                    >
+                                      {allSubsSelected ? 'Deselect subs' : `Select all (${subMetricsForParent.length})`}
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {/* Sub-metrics nested under parent */}
+                                {hasSubMetrics && (
+                                  <div className="ml-6 pl-2 border-l-2 border-muted space-y-0.5">
+                                    {subMetricsForParent.map((subMetric: any) => {
+                                      const subMetricName = subMetric.name;
+                                      const subMetricKey = subMetric.key;
+                                      const subSelectionId = subMetricKey;
+                                      
+                                      return (
+                                        <div key={subMetricKey} className="flex items-center space-x-2 py-0.5">
+                                          <Checkbox
+                                            id={`fin-${subMetricKey}`}
+                                            checked={selectedFinancialMetrics.includes(subSelectionId)}
+                                            onCheckedChange={() => toggleFinancialMetricSelection(subSelectionId)}
+                                          />
+                                          <label
+                                            htmlFor={`fin-${subMetricKey}`}
+                                            className="text-sm cursor-pointer text-muted-foreground"
+                                          >
+                                            {subMetricName.replace('↳ ', '')}
+                                          </label>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     </ScrollArea>
                   </div>
@@ -1306,69 +1330,92 @@ export default function Enterprise() {
                     Metrics ({selectedMetrics.length} selected)
                   </label>
                   <ScrollArea className="h-[300px] pr-4">
-                    <div className="space-y-3">
-                      {availableMetrics.map((metric: any) => {
-                        const metricName = typeof metric === "string" ? metric : metric.name;
-                        const metricKey = typeof metric === "string" ? metricName : (metric.key ?? metricName);
-                        const isSubMetric = metric.isSubMetric === true;
-                        const checkboxId = `metric-${metricKey}`;
-                        // Use key for sub-metrics (unique) and name for parent metrics
-                        const selectionId = isSubMetric ? metricKey : metricName;
+                    <div className="space-y-1">
+                      {availableMetrics
+                        .filter((metric: any) => !metric.isSubMetric)
+                        .map((metric: any) => {
+                          const metricName = typeof metric === "string" ? metric : metric.name;
+                          const metricKey = typeof metric === "string" ? metricName : (metric.key ?? metricName);
+                          const checkboxId = `metric-${metricKey}`;
+                          const selectionId = metricName;
 
-                        // Check if this parent metric has sub-metrics
-                        const hasSubMetrics = !isSubMetric && availableMetrics.some(
-                          (m: any) => m.isSubMetric && m.parentKey === metric.key
-                        );
-                        
-                        // Get all sub-metric selection IDs for this parent
-                        const subMetricIds = hasSubMetrics 
-                          ? availableMetrics
-                              .filter((m: any) => m.isSubMetric && m.parentKey === metric.key)
-                              .map((m: any) => m.key)
-                          : [];
-                        
-                        const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedMetrics.includes(id));
-                        const someSubsSelected = hasSubMetrics && subMetricIds.some((id: string) => selectedMetrics.includes(id));
+                          // Get sub-metrics for this parent
+                          const subMetricsForParent = availableMetrics.filter(
+                            (m: any) => m.isSubMetric && m.parentKey === metric.key
+                          );
+                          const hasSubMetrics = subMetricsForParent.length > 0;
+                          
+                          // Get all sub-metric selection IDs for this parent
+                          const subMetricIds = subMetricsForParent.map((m: any) => m.key);
+                          const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedMetrics.includes(id));
+                          const selectedSubCount = subMetricIds.filter((id: string) => selectedMetrics.includes(id)).length;
 
-                        return (
-                          <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
-                            <Checkbox
-                              id={checkboxId}
-                              checked={selectedMetrics.includes(selectionId)}
-                              onCheckedChange={() => toggleMetricSelection(selectionId)}
-                            />
-                            <label
-                              htmlFor={checkboxId}
-                              className={`text-sm leading-none cursor-pointer ${isSubMetric ? 'text-muted-foreground' : 'font-medium'}`}
-                            >
-                              {metricName}
-                            </label>
-                            {hasSubMetrics && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (allSubsSelected) {
-                                    // Deselect all sub-metrics
-                                    setSelectedMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
-                                  } else {
-                                    // Select all sub-metrics
-                                    setSelectedMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
-                                  }
-                                }}
-                                className={`text-xs px-2 py-0.5 rounded ${
-                                  allSubsSelected 
-                                    ? 'bg-primary/20 text-primary hover:bg-primary/30' 
-                                    : someSubsSelected
-                                      ? 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                }`}
-                              >
-                                {allSubsSelected ? 'Deselect subs' : 'Select all subs'}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })}
+                          return (
+                            <div key={metricKey} className="space-y-1">
+                              {/* Parent metric row */}
+                              <div className="flex items-center space-x-2 py-1">
+                                <Checkbox
+                                  id={checkboxId}
+                                  checked={selectedMetrics.includes(selectionId)}
+                                  onCheckedChange={() => toggleMetricSelection(selectionId)}
+                                />
+                                <label
+                                  htmlFor={checkboxId}
+                                  className="text-sm leading-none cursor-pointer font-medium flex-1"
+                                >
+                                  {metricName}
+                                </label>
+                                {hasSubMetrics && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (allSubsSelected) {
+                                        setSelectedMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
+                                      } else {
+                                        setSelectedMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
+                                      }
+                                    }}
+                                    className={`text-xs px-2 py-0.5 rounded ${
+                                      allSubsSelected 
+                                        ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                    }`}
+                                  >
+                                    {allSubsSelected ? 'Deselect subs' : `Select all (${subMetricsForParent.length})`}
+                                  </button>
+                                )}
+                              </div>
+                              
+                              {/* Sub-metrics nested under parent */}
+                              {hasSubMetrics && (
+                                <div className="ml-6 pl-2 border-l-2 border-muted space-y-1">
+                                  {subMetricsForParent.map((subMetric: any) => {
+                                    const subMetricName = subMetric.name;
+                                    const subMetricKey = subMetric.key;
+                                    const subCheckboxId = `metric-${subMetricKey}`;
+                                    const subSelectionId = subMetricKey;
+                                    
+                                    return (
+                                      <div key={subMetricKey} className="flex items-center space-x-2 py-0.5">
+                                        <Checkbox
+                                          id={subCheckboxId}
+                                          checked={selectedMetrics.includes(subSelectionId)}
+                                          onCheckedChange={() => toggleMetricSelection(subSelectionId)}
+                                        />
+                                        <label
+                                          htmlFor={subCheckboxId}
+                                          className="text-sm leading-none cursor-pointer text-muted-foreground"
+                                        >
+                                          {subMetricName.replace('↳ ', '')}
+                                        </label>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </ScrollArea>
                 </div>
