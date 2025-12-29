@@ -27,25 +27,43 @@ type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
 type DatePeriodType = "month" | "full_year" | "custom_range";
 type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
+// Helper to get initial state from sessionStorage
+const getStoredState = <T,>(key: string, defaultValue: T): T => {
+  try {
+    const stored = sessionStorage.getItem(`enterprise_${key}`);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Handle Date objects
+      if (key === 'selectedMonth' || key === 'startMonth' || key === 'endMonth') {
+        return new Date(parsed) as T;
+      }
+      return parsed;
+    }
+  } catch (e) {
+    console.error(`Failed to parse stored ${key}:`, e);
+  }
+  return defaultValue;
+};
+
 export default function Enterprise() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [filterMode, setFilterMode] = useState<FilterMode>("brand");
-  const [metricType, setMetricType] = useState<MetricType>("weekly");
-  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
-  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
-  const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>("none");
-  const [datePeriodType, setDatePeriodType] = useState<DatePeriodType>("month");
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [startMonth, setStartMonth] = useState<Date>(new Date(new Date().getFullYear(), 0, 1)); // Jan 1st
-  const [endMonth, setEndMonth] = useState<Date>(new Date());
+  const [filterMode, setFilterMode] = useState<FilterMode>(() => getStoredState('filterMode', 'brand'));
+  const [metricType, setMetricType] = useState<MetricType>(() => getStoredState('metricType', 'weekly'));
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>(() => getStoredState('selectedStoreIds', []));
+  const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>(() => getStoredState('selectedBrandIds', []));
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() => getStoredState('selectedGroupIds', []));
+  const [selectedDepartmentNames, setSelectedDepartmentNames] = useState<string[]>(() => getStoredState('selectedDepartmentNames', []));
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(() => getStoredState('selectedMetrics', []));
+  const [selectedMonth, setSelectedMonth] = useState<Date>(() => getStoredState('selectedMonth', new Date()));
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(() => getStoredState('comparisonMode', 'none'));
+  const [datePeriodType, setDatePeriodType] = useState<DatePeriodType>(() => getStoredState('datePeriodType', 'month'));
+  const [selectedYear, setSelectedYear] = useState<number>(() => getStoredState('selectedYear', new Date().getFullYear()));
+  const [startMonth, setStartMonth] = useState<Date>(() => getStoredState('startMonth', new Date(new Date().getFullYear(), 0, 1)));
+  const [endMonth, setEndMonth] = useState<Date>(() => getStoredState('endMonth', new Date()));
   const [saveFilterName, setSaveFilterName] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [sortByMetric, setSortByMetric] = useState<string>("");
+  const [sortByMetric, setSortByMetric] = useState<string>(() => getStoredState('sortByMetric', ''));
   const [viewMode, setViewMode] = useState<ViewMode>("filters");
   const [trendReportParams, setTrendReportParams] = useState<{
     storeIds: string[];
@@ -76,8 +94,28 @@ export default function Enterprise() {
   } | null>(null);
   
   // Separate state for combined metric selection
-  const [selectedKpiMetrics, setSelectedKpiMetrics] = useState<string[]>([]);
-  const [selectedFinancialMetrics, setSelectedFinancialMetrics] = useState<string[]>([]);
+  const [selectedKpiMetrics, setSelectedKpiMetrics] = useState<string[]>(() => getStoredState('selectedKpiMetrics', []));
+  const [selectedFinancialMetrics, setSelectedFinancialMetrics] = useState<string[]>(() => getStoredState('selectedFinancialMetrics', []));
+
+  // Save state to sessionStorage whenever it changes
+  useEffect(() => {
+    sessionStorage.setItem('enterprise_filterMode', JSON.stringify(filterMode));
+    sessionStorage.setItem('enterprise_metricType', JSON.stringify(metricType));
+    sessionStorage.setItem('enterprise_selectedStoreIds', JSON.stringify(selectedStoreIds));
+    sessionStorage.setItem('enterprise_selectedBrandIds', JSON.stringify(selectedBrandIds));
+    sessionStorage.setItem('enterprise_selectedGroupIds', JSON.stringify(selectedGroupIds));
+    sessionStorage.setItem('enterprise_selectedDepartmentNames', JSON.stringify(selectedDepartmentNames));
+    sessionStorage.setItem('enterprise_selectedMetrics', JSON.stringify(selectedMetrics));
+    sessionStorage.setItem('enterprise_selectedMonth', JSON.stringify(selectedMonth));
+    sessionStorage.setItem('enterprise_comparisonMode', JSON.stringify(comparisonMode));
+    sessionStorage.setItem('enterprise_datePeriodType', JSON.stringify(datePeriodType));
+    sessionStorage.setItem('enterprise_selectedYear', JSON.stringify(selectedYear));
+    sessionStorage.setItem('enterprise_startMonth', JSON.stringify(startMonth));
+    sessionStorage.setItem('enterprise_endMonth', JSON.stringify(endMonth));
+    sessionStorage.setItem('enterprise_sortByMetric', JSON.stringify(sortByMetric));
+    sessionStorage.setItem('enterprise_selectedKpiMetrics', JSON.stringify(selectedKpiMetrics));
+    sessionStorage.setItem('enterprise_selectedFinancialMetrics', JSON.stringify(selectedFinancialMetrics));
+  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics]);
 
   // Check authentication and get user
   const [userId, setUserId] = useState<string | undefined>(undefined);
