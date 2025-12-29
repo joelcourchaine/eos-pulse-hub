@@ -1074,6 +1074,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                   const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
                   averages[mKey] = calculatedValue;
                 }
+              } else {
+                // For non-calculated metrics without direct entries, try to sum sub-metrics
+                const subMetricSum = getValueForMetric(monthData, metric.key, monthObj);
+                if (subMetricSum !== undefined) {
+                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
+                  averages[mKey] = subMetricSum;
+                }
               }
             });
           }
