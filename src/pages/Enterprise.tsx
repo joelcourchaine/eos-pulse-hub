@@ -1482,11 +1482,21 @@ export default function Enterprise() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">No sorting</SelectItem>
-                          {selectedMetrics.map((metric) => (
-                            <SelectItem key={metric} value={metric}>
-                              {metric}
-                            </SelectItem>
-                          ))}
+                          {selectedMetrics.map((selectionId) => {
+                            // Convert selection ID to display name for sub-metrics
+                            let displayName = selectionId;
+                            if (selectionId.startsWith('sub:')) {
+                              const parts = selectionId.split(':');
+                              if (parts.length >= 3) {
+                                displayName = `↳ ${parts.slice(2).join(':')}`;
+                              }
+                            }
+                            return (
+                              <SelectItem key={selectionId} value={selectionId}>
+                                {displayName}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1517,16 +1527,32 @@ export default function Enterprise() {
                             : selectedBrandNames.join(", ");
                         }
                         
+                        // Convert selection IDs to display names for DealerComparison
+                        // Sub-metric selection IDs are like "sub:parent_key:SubName" but display names are "↳ SubName"
+                        const convertToDisplayName = (selectionId: string) => {
+                          if (selectionId.startsWith('sub:')) {
+                            const parts = selectionId.split(':');
+                            if (parts.length >= 3) {
+                              const subName = parts.slice(2).join(':');
+                              return `↳ ${subName}`;
+                            }
+                          }
+                          return selectionId; // Parent metrics use name as selectionId
+                        };
+                        
+                        const displayMetrics = selectedMetrics.map(convertToDisplayName);
+                        const displaySortByMetric = sortByMetric ? convertToDisplayName(sortByMetric) : "";
+                        
                         navigate("/dealer-comparison", {
                           state: {
                             metricType,
-                            selectedMetrics,
+                            selectedMetrics: displayMetrics,
                             ...dateParams,
                             comparisonMode,
                             departmentIds,
                             isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
                             selectedDepartmentNames,
-                            sortByMetric,
+                            sortByMetric: displaySortByMetric,
                             storeIds: filteredStores.map(s => s.id),
                             brandDisplayName,
                             filterName: loadedFilterName,
@@ -1560,9 +1586,20 @@ export default function Enterprise() {
                               : selectedBrandNames.join(", ");
                           }
                           
+                          // Convert selection IDs to display names for sub-metrics
+                          const displayMetrics = selectedMetrics.map(selectionId => {
+                            if (selectionId.startsWith('sub:')) {
+                              const parts = selectionId.split(':');
+                              if (parts.length >= 3) {
+                                return `↳ ${parts.slice(2).join(':')}`;
+                              }
+                            }
+                            return selectionId;
+                          });
+                          
                           setTrendReportParams({
                             storeIds: filteredStores.map(s => s.id),
-                            selectedMetrics,
+                            selectedMetrics: displayMetrics,
                             startMonth: start,
                             endMonth: end,
                             brandDisplayName,
