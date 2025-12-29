@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Target } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface SubMetricEntry {
   name: string;
@@ -151,22 +152,41 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             className="bg-muted/20 hover:bg-muted/30"
           >
             <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-              <div className="flex items-center gap-1.5">
-                <svg 
-                  width="12" 
-                  height="12" 
-                  viewBox="0 0 12 12" 
-                  className="text-muted-foreground/60 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                  {subMetric.name}
-                </p>
-              </div>
+              {(() => {
+                const hasTarget = getSubMetricTarget && quarter && currentYear
+                  ? getSubMetricTarget(subMetric.name, quarter, currentYear) !== null
+                  : false;
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <svg 
+                      width="12" 
+                      height="12" 
+                      viewBox="0 0 12 12" 
+                      className="text-muted-foreground/60 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                      {subMetric.name}
+                    </p>
+                    {hasTarget && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Target className="h-3 w-3 text-primary flex-shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Target set for Q{quarter}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                );
+              })()}
             </TableCell>
             {/* Sparkline column placeholder */}
             {hasSparklineColumn && (
@@ -253,22 +273,41 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           className="bg-muted/20 hover:bg-muted/30"
         >
           <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-            <div className="flex items-center gap-1.5">
-              <svg 
-                width="12" 
-                height="12" 
-                viewBox="0 0 12 12" 
-                className="text-muted-foreground/60 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                {subMetric.name}
-              </p>
-            </div>
+            {(() => {
+              const hasTarget = getSubMetricTarget && quarter && currentYear
+                ? getSubMetricTarget(subMetric.name, quarter, currentYear) !== null
+                : false;
+              return (
+                <div className="flex items-center gap-1.5">
+                  <svg 
+                    width="12" 
+                    height="12" 
+                    viewBox="0 0 12 12" 
+                    className="text-muted-foreground/60 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                    {subMetric.name}
+                  </p>
+                  {hasTarget && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Target className="h-3 w-3 text-primary flex-shrink-0" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Target set for Q{quarter}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              );
+            })()}
           </TableCell>
           {monthIdentifiers.map((monthId) => {
             const value = getSubMetricValue(subMetric.name, monthId);
