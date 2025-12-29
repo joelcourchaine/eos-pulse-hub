@@ -1210,6 +1210,22 @@ export default function Enterprise() {
                           const isSubMetric = metric.isSubMetric === true;
                           // Use key for sub-metrics (unique) and name for parent metrics
                           const selectionId = isSubMetric ? metricKey : metricName;
+                          
+                          // Check if this parent metric has sub-metrics
+                          const hasSubMetrics = !isSubMetric && availableFinancialMetricsForCombined.some(
+                            (m: any) => m.isSubMetric && m.parentKey === metric.key
+                          );
+                          
+                          // Get all sub-metric selection IDs for this parent
+                          const subMetricIds = hasSubMetrics 
+                            ? availableFinancialMetricsForCombined
+                                .filter((m: any) => m.isSubMetric && m.parentKey === metric.key)
+                                .map((m: any) => m.key)
+                            : [];
+                          
+                          const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedFinancialMetrics.includes(id));
+                          const someSubsSelected = hasSubMetrics && subMetricIds.some((id: string) => selectedFinancialMetrics.includes(id));
+                          
                           return (
                             <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
                               <Checkbox
@@ -1220,6 +1236,25 @@ export default function Enterprise() {
                               <label htmlFor={`fin-${metricKey}`} className={`text-sm cursor-pointer ${isSubMetric ? 'text-muted-foreground' : ''}`}>
                                 {metricName}
                               </label>
+                              {hasSubMetrics && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (allSubsSelected) {
+                                      setSelectedFinancialMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
+                                    } else {
+                                      setSelectedFinancialMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
+                                    }
+                                  }}
+                                  className={`text-xs px-2 py-0.5 rounded ${
+                                    allSubsSelected 
+                                      ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                  }`}
+                                >
+                                  {allSubsSelected ? 'Deselect subs' : 'Select all subs'}
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -1242,6 +1277,21 @@ export default function Enterprise() {
                         // Use key for sub-metrics (unique) and name for parent metrics
                         const selectionId = isSubMetric ? metricKey : metricName;
 
+                        // Check if this parent metric has sub-metrics
+                        const hasSubMetrics = !isSubMetric && availableMetrics.some(
+                          (m: any) => m.isSubMetric && m.parentKey === metric.key
+                        );
+                        
+                        // Get all sub-metric selection IDs for this parent
+                        const subMetricIds = hasSubMetrics 
+                          ? availableMetrics
+                              .filter((m: any) => m.isSubMetric && m.parentKey === metric.key)
+                              .map((m: any) => m.key)
+                          : [];
+                        
+                        const allSubsSelected = hasSubMetrics && subMetricIds.every((id: string) => selectedMetrics.includes(id));
+                        const someSubsSelected = hasSubMetrics && subMetricIds.some((id: string) => selectedMetrics.includes(id));
+
                         return (
                           <div key={metricKey} className={`flex items-center space-x-2 ${isSubMetric ? 'ml-4' : ''}`}>
                             <Checkbox
@@ -1255,6 +1305,29 @@ export default function Enterprise() {
                             >
                               {metricName}
                             </label>
+                            {hasSubMetrics && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (allSubsSelected) {
+                                    // Deselect all sub-metrics
+                                    setSelectedMetrics(prev => prev.filter(id => !subMetricIds.includes(id)));
+                                  } else {
+                                    // Select all sub-metrics
+                                    setSelectedMetrics(prev => [...new Set([...prev, ...subMetricIds])]);
+                                  }
+                                }}
+                                className={`text-xs px-2 py-0.5 rounded ${
+                                  allSubsSelected 
+                                    ? 'bg-primary/20 text-primary hover:bg-primary/30' 
+                                    : someSubsSelected
+                                      ? 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }`}
+                              >
+                                {allSubsSelected ? 'Deselect subs' : 'Select all subs'}
+                              </button>
+                            )}
                           </div>
                         );
                       })}
