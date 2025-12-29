@@ -167,12 +167,55 @@ export const MonthDropZone = ({
     if (!storeDepartments || storeDepartments.length === 0) return;
 
     // Create lookup maps
+    // IMPORTANT: avoid fragile exact-name matching (e.g., "Parts" vs "Parts Department").
+    // We build a normalized lookup so mappings keep working even if department display names vary.
+    const normalizeDeptName = (name: string) =>
+      name
+        .toLowerCase()
+        .replace(/department/g, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
     const departmentsByName: Record<string, string> = {};
     const departmentIds: string[] = [];
-    storeDepartments.forEach(dept => {
+
+    // First: exact keys for real department names
+    storeDepartments.forEach((dept) => {
       departmentsByName[dept.name] = dept.id;
       departmentIds.push(dept.id);
     });
+
+    // Second: add normalized keys for real department names
+    const departmentsByNormalized = new Map<string, { id: string; name: string }>();
+    storeDepartments.forEach((dept) => {
+      departmentsByNormalized.set(normalizeDeptName(dept.name), { id: dept.id, name: dept.name });
+    });
+
+    // Third: add mapping-department aliases so parseFinancialExcel output can always resolve.
+    // (parseFinancialExcel groups by mapping.department_name)
+    const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
+    const unresolved: string[] = [];
+
+    for (const mappingDeptName of mappingDeptNames) {
+      if (departmentsByName[mappingDeptName]) continue; // exact match already
+
+      const normalized = normalizeDeptName(mappingDeptName);
+      const match = departmentsByNormalized.get(normalized);
+      if (match) {
+        departmentsByName[mappingDeptName] = match.id;
+      } else {
+        unresolved.push(mappingDeptName);
+      }
+    }
+
+    if (unresolved.length > 0) {
+      console.warn('[Excel Import] Some mapping departments could not be matched to store departments', {
+        storeId,
+        storeBrand,
+        unresolved,
+        storeDepartments: storeDepartments.map((d) => d.name),
+      });
+    }
 
     // Parse the Excel file
     const parsedData = await parseFinancialExcel(file, mappings);
