@@ -601,6 +601,13 @@ export default function Enterprise() {
     }
   }, [uniqueDepartmentNames]);
 
+  // Clear selected metrics when metric type changes to ensure fresh selection
+  useEffect(() => {
+    setSelectedMetrics([]);
+    setSelectedKpiMetrics([]);
+    setSelectedFinancialMetrics([]);
+  }, [metricType]);
+
   // Auto-select all metrics when switching types (only if none are selected)
   useEffect(() => {
     if (metricType === "monthly_combined") {
