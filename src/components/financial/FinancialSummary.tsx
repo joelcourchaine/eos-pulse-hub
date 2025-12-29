@@ -361,24 +361,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   }, []);
   const FINANCIAL_METRICS = useMemo(() => {
     const metrics = getMetricsForBrand(storeBrand);
-    
+
     // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
     const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
     const isServiceOrParts = departmentName ? ['service', 'parts'].some(d => departmentName.toLowerCase().includes(d)) : false;
-    
-    console.log('Financial metrics filtering:', { 
-      storeBrand, 
-      departmentName, 
-      isStellantis, 
+
+    console.log('Financial metrics filtering:', {
+      storeBrand,
+      departmentName,
+      isStellantis,
       isServiceOrParts,
-      willFilter: isStellantis && isServiceOrParts 
+      willFilter: isStellantis && isServiceOrParts
     });
-    
-    if (isStellantis && isServiceOrParts) {
-      return metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key));
-    }
-    
-    return metrics;
+
+    const filtered = (isStellantis && isServiceOrParts)
+      ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
+      : metrics;
+
+    // Defensive: ensure we never render duplicate metric rows (same key) even if configs change.
+    const seen = new Set<string>();
+    return filtered.filter((m) => {
+      if (seen.has(m.key)) return false;
+      seen.add(m.key);
+      return true;
+    });
   }, [storeBrand, departmentName]);
 
   // Check if brand is Honda
@@ -1508,13 +1514,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     const entriesMap: { [key: string]: number } = {};
     const notesMap: { [key: string]: string } = {};
+    const duplicates: Array<{ key: string; metric: string; month: string }> = [];
+
     data?.forEach(entry => {
       const key = `${entry.metric_name}-${entry.month}`;
+
+      // Detect duplicates (should not happen with DB constraint, but helps catch any edge case)
+      if (Object.prototype.hasOwnProperty.call(entriesMap, key)) {
+        duplicates.push({ key, metric: entry.metric_name, month: entry.month });
+      }
+
       entriesMap[key] = entry.value || 0;
       if (entry.notes) {
         notesMap[key] = entry.notes;
       }
     });
+
+    if (duplicates.length > 0) {
+      console.warn('[FinancialSummary] Duplicate financial_entries detected for department/month/metric', {
+        departmentId,
+        duplicates,
+      });
+    }
 
     setEntries(entriesMap);
     setNotes(notesMap);
