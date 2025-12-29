@@ -1218,16 +1218,19 @@ export default function Enterprise() {
                   <ScrollArea className="h-[300px] pr-4">
                     <div className="space-y-3">
                       {availableMetrics.map((metric: any) => {
-                        const metricName = typeof metric === 'string' ? metric : metric.name;
+                        const metricName = typeof metric === "string" ? metric : metric.name;
+                        const metricKey = typeof metric === "string" ? metricName : (metric.key ?? metricName);
+                        const checkboxId = `metric-${metricKey}`;
+
                         return (
-                          <div key={metricName} className="flex items-center space-x-2">
+                          <div key={metricKey} className="flex items-center space-x-2">
                             <Checkbox
-                              id={`metric-${metricName}`}
+                              id={checkboxId}
                               checked={selectedMetrics.includes(metricName)}
                               onCheckedChange={() => toggleMetricSelection(metricName)}
                             />
                             <label
-                              htmlFor={`metric-${metricName}`}
+                              htmlFor={checkboxId}
                               className="text-sm font-medium leading-none cursor-pointer"
                             >
                               {metricName}
