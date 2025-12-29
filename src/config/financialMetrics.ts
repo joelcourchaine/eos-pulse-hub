@@ -242,12 +242,12 @@ export const FORD_METRICS: FinancialMetric[] = [
     name: "Parts Transfer", 
     key: "parts_transfer", 
     type: "dollar", 
-    description: "Net Selling Gross less Adjusted Selling Gross", 
+    description: "Adjusted Selling Gross less Net Selling Gross", 
     targetDirection: "above",
     calculation: {
       type: "subtract",
-      base: "net_selling_gross",
-      deductions: ["adjusted_selling_gross"]
+      base: "adjusted_selling_gross",
+      deductions: ["net_selling_gross"]
     }
   },
   { 
