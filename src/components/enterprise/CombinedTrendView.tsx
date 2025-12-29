@@ -285,8 +285,6 @@ export function CombinedTrendView({
   const financialData = useMemo(() => {
     if (!financialEntries || !stores || !departments) return {};
     
-    const { nameToKey, keyToDef, allMetrics } = financialMetricDefs;
-    
     const storeMonthData: Record<string, Record<string, Map<string, number>>> = {};
     
     stores.forEach(store => {
@@ -308,7 +306,7 @@ export function CombinedTrendView({
       storeMonthData[storeId][month].set(entry.metric_name, currentValue + (entry.value || 0));
     });
 
-    // Calculate derived metrics
+    // Calculate derived metrics using store-specific brand
     const calculateDerivedMetric = (storeMetrics: Map<string, number>, metricDef: any): number => {
       if (!metricDef.calculation) return storeMetrics.get(metricDef.key) || 0;
       
@@ -343,27 +341,31 @@ export function CombinedTrendView({
     };
 
     stores.forEach(store => {
+      // Use store-specific brand metrics for calculations
+      const storeBrand = store.brand || (store as any).brands?.name || null;
+      const storeMetrics = getMetricsForBrand(storeBrand);
+      
       months.forEach(month => {
-        const storeMetrics = storeMonthData[store.id][month];
+        const monthData = storeMonthData[store.id][month];
         
-        allMetrics.forEach((metricDef: any) => {
+        storeMetrics.forEach((metricDef: any) => {
           if (metricDef.type === 'dollar' && metricDef.calculation) {
-            const calculated = calculateDerivedMetric(storeMetrics, metricDef);
-            storeMetrics.set(metricDef.key, calculated);
+            const calculated = calculateDerivedMetric(monthData, metricDef);
+            monthData.set(metricDef.key, calculated);
           }
         });
         
-        allMetrics.forEach((metricDef: any) => {
+        storeMetrics.forEach((metricDef: any) => {
           if (metricDef.type === 'percentage') {
-            const calculated = calculateDerivedMetric(storeMetrics, metricDef);
-            storeMetrics.set(metricDef.key, calculated);
+            const calculated = calculateDerivedMetric(monthData, metricDef);
+            monthData.set(metricDef.key, calculated);
           }
         });
       });
     });
 
     return storeMonthData;
-  }, [financialEntries, stores, departments, months, financialMetricDefs]);
+  }, [financialEntries, stores, departments, months]);
 
   // Calculate quarterly weighted averages
   const quarterlyData = useMemo(() => {

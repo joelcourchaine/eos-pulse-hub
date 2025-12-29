@@ -200,16 +200,14 @@ export function FixedCombinedTrendView({
   const processedData = useMemo(() => {
     if (!financialEntries || !stores || !departments) return {};
     
-    // Build metric key/name maps
-    const allMetrics = getMetricsForBrand(null);
+    // Build a default metric name/key map for selected metrics display
+    const defaultMetrics = getMetricsForBrand(null);
     const nameToKey = new Map<string, string>();
     const keyToName = new Map<string, string>();
-    const keyToDef = new Map<string, any>();
     
-    allMetrics.forEach((m: any) => {
+    defaultMetrics.forEach((m: any) => {
       nameToKey.set(m.name, m.key);
       keyToName.set(m.key, m.name);
-      keyToDef.set(m.key, m);
     });
 
     // Group entries by store and month
@@ -268,13 +266,16 @@ export function FixedCombinedTrendView({
       return storeMetrics.get(metricDef.key) || 0;
     };
 
-    // Calculate derived metrics for each store/month
+    // Calculate derived metrics for each store/month using store-specific brand
     stores.forEach(store => {
+      const storeBrand = store.brand || (store as any).brands?.name || null;
+      const storeMetricDefs = getMetricsForBrand(storeBrand);
+      
       months.forEach(month => {
         const storeMetrics = storeMonthData[store.id][month];
         
         // First pass: calculate dollar metrics
-        allMetrics.forEach((metricDef: any) => {
+        storeMetricDefs.forEach((metricDef: any) => {
           if (metricDef.type === 'dollar' && metricDef.calculation) {
             const calculated = calculateDerivedMetric(storeMetrics, metricDef);
             storeMetrics.set(metricDef.key, calculated);
@@ -282,7 +283,7 @@ export function FixedCombinedTrendView({
         });
         
         // Second pass: calculate percentage metrics
-        allMetrics.forEach((metricDef: any) => {
+        storeMetricDefs.forEach((metricDef: any) => {
           if (metricDef.type === 'percentage') {
             const calculated = calculateDerivedMetric(storeMetrics, metricDef);
             storeMetrics.set(metricDef.key, calculated);
