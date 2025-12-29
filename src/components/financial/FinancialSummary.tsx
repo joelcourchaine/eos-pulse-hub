@@ -1515,16 +1515,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const entriesMap: { [key: string]: number } = {};
     const notesMap: { [key: string]: string } = {};
     const duplicates: Array<{ key: string; metric: string; month: string }> = [];
+    const seenKeys = new Set<string>();
 
     data?.forEach(entry => {
       const key = `${entry.metric_name}-${entry.month}`;
 
-      // Detect duplicates (should not happen with DB constraint, but helps catch any edge case)
-      if (Object.prototype.hasOwnProperty.call(entriesMap, key)) {
+      // Detect duplicates
+      if (seenKeys.has(key)) {
         duplicates.push({ key, metric: entry.metric_name, month: entry.month });
       }
+      seenKeys.add(key);
 
-      entriesMap[key] = entry.value || 0;
+      // IMPORTANT: don't coerce null/undefined to 0.
+      // Missing values must remain undefined so calculated metrics can fall back to sub-metric sums.
+      if (entry.value !== null && entry.value !== undefined) {
+        entriesMap[key] = entry.value;
+      }
+
       if (entry.notes) {
         notesMap[key] = entry.notes;
       }
