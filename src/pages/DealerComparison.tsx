@@ -469,6 +469,9 @@ export default function DealerComparison() {
       // Use all metrics from the default map for the combined list
       const metrics = Array.from(keyToDef.values());
 
+      // Convert selection IDs (e.g., "sub:parent:Name") into the metric names used throughout processing (e.g., "↳ Name")
+      const selectedMetricNames = selectedMetrics.map(selectionIdToDisplayName);
+
       console.log("DealerComparison - Using brand-specific metrics for calculations");
       
       // Build comparison baseline map (targets, averages, or previous year)
@@ -915,7 +918,7 @@ export default function DealerComparison() {
           const storeBrand = storeBrands.get(storeId) || null;
           
           // Process all selected metrics
-          selectedMetrics.forEach(metricName => {
+          selectedMetricNames.forEach(metricName => {
             const metricKey = nameToKey.get(metricName);
             if (!metricKey) return;
             
@@ -983,7 +986,7 @@ export default function DealerComparison() {
           if (!sampleEntry) return;
           
           // Calculate each selected metric that has a calculation formula using brand-specific definitions
-          selectedMetrics.forEach(metricName => {
+          selectedMetricNames.forEach(metricName => {
             const metricKey = nameToKey.get(metricName);
             if (!metricKey) return;
             
@@ -1085,9 +1088,9 @@ export default function DealerComparison() {
           
           // Only add placeholder if it doesn't exist
           if (!dataMap[key]) {
-            // Check if this metric is in selectedMetrics - if not, only add if it's needed for calculations
+            // Check if this metric is in selected metrics - if not, only add if it's needed for calculations
             const metricDef = keyToDef.get(metricKey);
-            const isSelected = selectedMetrics.includes(metricName);
+            const isSelected = selectedMetricNames.includes(metricName);
             
             // Add placeholder for selected metrics or metrics needed for calculations
             if (isSelected) {
@@ -1111,7 +1114,7 @@ export default function DealerComparison() {
       
       // Filter to only selected metrics
       const result = Object.values(dataMap).filter(item => 
-        selectedMetrics.includes(item.metricName)
+        selectedMetricNames.includes(item.metricName)
       );
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
