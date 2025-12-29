@@ -615,14 +615,18 @@ export default function Enterprise() {
         }
       }
       if (selectedFinancialMetrics.length === 0 && availableFinancialMetricsForCombined.length > 0) {
-        // Use key for sub-metrics, name for parent metrics
-        const metricIds = availableFinancialMetricsForCombined.map((m: any) => m.isSubMetric ? m.key : m.name);
-        setSelectedFinancialMetrics(metricIds);
+        // Only auto-select parent metrics, not sub-metrics
+        const parentMetricNames = availableFinancialMetricsForCombined
+          .filter((m: any) => !m.isSubMetric)
+          .map((m: any) => m.name);
+        setSelectedFinancialMetrics(parentMetricNames);
       }
     } else if (availableMetrics.length > 0 && selectedMetrics.length === 0) {
-      // Use key for sub-metrics, name for parent metrics
-      const metricIds = availableMetrics.map((m: any) => m.isSubMetric ? m.key : m.name);
-      setSelectedMetrics(metricIds);
+      // Only auto-select parent metrics, not sub-metrics
+      const parentMetricIds = availableMetrics
+        .filter((m: any) => !m.isSubMetric)
+        .map((m: any) => m.name);
+      setSelectedMetrics(parentMetricIds);
     }
   }, [metricType, availableMetrics, availableKpiMetricsForCombined, availableFinancialMetricsForCombined]);
 
