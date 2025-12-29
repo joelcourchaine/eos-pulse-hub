@@ -445,18 +445,34 @@ export const importFinancialData = async (
   }
   
   // Import sub-metrics with their dynamic names
-  // We store them with a special naming convention: sub:{parent_key}:{name}
+  // IMPORTANT: before inserting, delete any existing sub-metrics for the same parent+month.
+  // Otherwise, if the orderIndex changes between imports, the metric_name changes and old rows linger,
+  // causing duplicate sub-metric rows in the UI.
   for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) continue;
-    
+
+    // Delete existing sub-metrics for each parent metric key for this month
+    const parentKeys = Array.from(new Set(subMetrics.map((sm) => sm.parentMetricKey).filter(Boolean)));
+    for (const parentKey of parentKeys) {
+      const { error: deleteError } = await supabase
+        .from('financial_entries')
+        .delete()
+        .eq('department_id', departmentId)
+        .eq('month', monthIdentifier)
+        .like('metric_name', `sub:${parentKey}:%`);
+
+      if (deleteError) {
+        console.error('Error deleting existing sub-metric entries:', deleteError);
+      }
+    }
+
+    // Insert the new sub-metrics (use upsert so repeated names in the same import are still stable)
     for (const subMetric of subMetrics) {
       // Import even when value is null so the sub-metric name still appears in the UI.
       // This helps catch missing/blank cells (e.g., formula cells without cached values).
 
-      // Create a metric name that includes the parent key, order index, and sub-metric name
       // Format: sub:{parent_key}:{order_index}:{name}
-      // This allows us to group and sort them when displaying
       const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
 
       const { error } = await supabase
@@ -481,6 +497,5 @@ export const importFinancialData = async (
       }
     }
   }
-  
   return { success: true, importedCount };
 };
