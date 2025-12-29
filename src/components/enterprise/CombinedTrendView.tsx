@@ -227,7 +227,7 @@ export function CombinedTrendView({
     return map;
   }, [kpiDefinitions]);
 
-  // Build financial metric mapping
+  // Build financial metric mapping (including support for sub-metrics)
   const financialMetricDefs = useMemo(() => {
     const allMetrics = getMetricsForBrand(null);
     const nameToKey = new Map<string, string>();
@@ -242,6 +242,44 @@ export function CombinedTrendView({
     
     return { nameToKey, keyToName, keyToDef, allMetrics };
   }, []);
+
+  // Parse sub-metric key to get lookup pattern
+  const parseSubMetricKey = (metricName: string): { isSubMetric: boolean; parentKey: string; subName: string } | null => {
+    // Sub-metrics are named like "↳ SubMetricName"
+    if (metricName.startsWith('↳ ')) {
+      // This means it's a sub-metric, but we need to find the actual key from selectedFinancialMetrics
+      return null; // Will be handled by direct lookup
+    }
+    return null;
+  };
+
+  // Get the metric key for lookup - handles both regular metrics and sub-metrics
+  const getMetricLookupKey = (metricName: string, monthData: Map<string, number>): string | null => {
+    const { nameToKey } = financialMetricDefs;
+    
+    // Check if it's a sub-metric (starts with arrow)
+    if (metricName.startsWith('↳ ')) {
+      const subName = metricName.substring(2); // Remove "↳ "
+      
+      // Find matching sub-metric entry in the month data
+      // Sub-metrics are stored as "sub:parentKey:order:subName"
+      for (const [key] of monthData) {
+        if (key.startsWith('sub:')) {
+          const parts = key.split(':');
+          if (parts.length >= 4) {
+            const storedName = parts.slice(3).join(':');
+            if (storedName === subName) {
+              return key; // Return the full sub-metric key
+            }
+          }
+        }
+      }
+      return null;
+    }
+    
+    // Regular metric - use name to key mapping
+    return nameToKey.get(metricName) || null;
+  };
 
   // Process KPI data
   const kpiData = useMemo(() => {
@@ -430,16 +468,38 @@ export function CombinedTrendView({
         
         // Calculate weighted averages for financial metrics
         selectedFinancialMetrics.forEach(metricName => {
-          const metricKey = nameToKey.get(metricName);
-          if (!metricKey) return;
+          const isSubMetric = metricName.startsWith('↳ ');
+          let metricKey: string | null = null;
+          
+          // For sub-metrics, we need to find the key dynamically
+          if (isSubMetric) {
+            // Try to find the sub-metric key from any month's data
+            for (const month of monthList) {
+              const finMonthData = financialData[store.id]?.[month];
+              if (finMonthData) {
+                metricKey = getMetricLookupKey(metricName, finMonthData);
+                if (metricKey) break;
+              }
+            }
+          } else {
+            metricKey = nameToKey.get(metricName) || null;
+          }
+          
+          if (!metricKey) {
+            financialQuarterData[metricName] = { value: null, weight: 0 };
+            return;
+          }
           
           let weightedSum = 0;
           let totalWeight = 0;
-          let isPercentage = financialMetricDefs.keyToDef.get(metricKey)?.type === 'percentage';
+          // Sub-metrics are typically dollar amounts, not percentages
+          let isPercentage = !isSubMetric && financialMetricDefs.keyToDef.get(metricKey)?.type === 'percentage';
           
           monthList.forEach(month => {
             const finMonthData = financialData[store.id]?.[month];
-            const value = finMonthData?.get(metricKey);
+            // For sub-metrics, look up the value using the dynamic key finder
+            const lookupKey = isSubMetric ? getMetricLookupKey(metricName, finMonthData || new Map()) : metricKey;
+            const value = lookupKey ? finMonthData?.get(lookupKey) : undefined;
             const sales = finMonthData?.get('total_sales') || 0;
             
             if (value !== undefined) {
@@ -468,7 +528,7 @@ export function CombinedTrendView({
     });
 
     return result;
-  }, [stores, quarterlyMonths, kpiData, financialData, selectedKpiMetrics, selectedFinancialMetrics, financialMetricDefs]);
+  }, [stores, quarterlyMonths, kpiData, financialData, selectedKpiMetrics, selectedFinancialMetrics, financialMetricDefs, getMetricLookupKey]);
 
   const formatKpiValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
@@ -496,6 +556,16 @@ export function CombinedTrendView({
 
   const formatFinancialValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
+    
+    // Sub-metrics (starting with ↳) are always dollar amounts
+    if (metricName.startsWith('↳ ')) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
     
     const metrics = getMetricsForBrand(null);
     const metricDef = metrics.find((m: any) => m.name === metricName);
@@ -765,17 +835,18 @@ export function CombinedTrendView({
                           </TableHeader>
                           <TableBody>
                             {selectedFinancialMetrics.map(metricName => {
-                              const { nameToKey } = financialMetricDefs;
-                              const metricKey = nameToKey.get(metricName);
+                              const isSubMetric = metricName.startsWith('↳ ');
                               
                               return (
-                                <TableRow key={metricName} className="print:border-b print:border-gray-300">
-                                  <TableCell className="font-medium sticky left-0 bg-background z-10 print:bg-white">
+                                <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/30' : ''}`}>
+                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted/30 pl-6 text-muted-foreground' : 'bg-background'}`}>
                                     {metricName}
                                   </TableCell>
                                   {trendViewMode === "monthly" ? (
                                     months.map(month => {
-                                      const value = metricKey ? financialData[store.id]?.[month]?.get(metricKey) ?? null : null;
+                                      const monthData = financialData[store.id]?.[month];
+                                      const metricKey = monthData ? getMetricLookupKey(metricName, monthData) : null;
+                                      const value = metricKey ? monthData?.get(metricKey) ?? null : null;
                                       return (
                                         <TableCell key={month} className="text-center">
                                           {formatFinancialValue(value, metricName)}

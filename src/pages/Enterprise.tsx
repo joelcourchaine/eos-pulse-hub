@@ -450,13 +450,74 @@ export default function Enterprise() {
     enabled: departmentIds.length > 0 && (metricType === "weekly" || metricType === "monthly" || metricType === "monthly_combined"),
   });
 
-  // Get available metrics based on metric type
+  // Fetch sub-metrics from financial_entries for selected departments
+  const { data: subMetrics } = useQuery({
+    queryKey: ["enterprise_sub_metrics", departmentIds],
+    queryFn: async () => {
+      if (departmentIds.length === 0) return new Map<string, Set<string>>();
+      
+      // Fetch distinct sub-metric names from financial_entries
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("metric_name")
+        .in("department_id", departmentIds)
+        .like("metric_name", "sub:%");
+      
+      if (error) throw error;
+      
+      // Parse sub-metric names and group by parent
+      const subMetricMap = new Map<string, Set<string>>();
+      
+      data?.forEach(entry => {
+        const parts = entry.metric_name.split(':');
+        if (parts.length >= 4) {
+          // Format: sub:parent_key:order:name
+          const parentKey = parts[1];
+          const name = parts.slice(3).join(':'); // Handle names with colons
+          
+          if (!subMetricMap.has(parentKey)) {
+            subMetricMap.set(parentKey, new Set());
+          }
+          subMetricMap.get(parentKey)!.add(name);
+        }
+      });
+      
+      return subMetricMap;
+    },
+    enabled: departmentIds.length > 0 && (metricType === "financial" || metricType === "monthly_combined"),
+  });
+
+  // Get available metrics based on metric type (including sub-metrics for financial)
   const availableMetrics = useMemo(() => {
     if (metricType === "financial") {
       const firstStore = filteredStores[0];
       const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
-      const metrics = getMetricsForBrand(brand);
-      return metrics;
+      const baseMetrics = getMetricsForBrand(brand);
+      
+      // Include sub-metrics if available
+      const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
+      const result: any[] = [];
+      
+      baseMetrics.forEach((metric: any) => {
+        result.push(metric);
+        
+        // Check if this metric has sub-metrics
+        if (subMetricData.has(metric.key)) {
+          const subNames = Array.from(subMetricData.get(metric.key)!).sort();
+          subNames.forEach(subName => {
+            result.push({
+              name: `↳ ${subName}`,
+              key: `sub:${metric.key}:${subName}`,
+              type: metric.type,
+              isSubMetric: true,
+              parentKey: metric.key,
+              parentName: metric.name,
+            });
+          });
+        }
+      });
+      
+      return result;
     }
     if (metricType === "dept_info" && questionnaireQuestions) {
       // Return questions as metrics
@@ -476,7 +537,7 @@ export default function Enterprise() {
       }));
     }
     return [];
-  }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions]);
+  }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions, subMetrics]);
 
   // Get available KPI metrics for combined view
   const availableKpiMetricsForCombined = useMemo(() => {
@@ -488,13 +549,38 @@ export default function Enterprise() {
     }));
   }, [metricType, kpiDefinitions]);
 
-  // Get available financial metrics for combined view
+  // Get available financial metrics for combined view (including sub-metrics)
   const availableFinancialMetricsForCombined = useMemo(() => {
     if (metricType !== "monthly_combined") return [];
     const firstStore = filteredStores[0];
     const brand = firstStore?.brand || (firstStore?.brands as any)?.name || null;
-    return getMetricsForBrand(brand);
-  }, [metricType, filteredStores]);
+    const baseMetrics = getMetricsForBrand(brand);
+    
+    // Build list with sub-metrics inserted after their parents
+    const result: any[] = [];
+    const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
+    
+    baseMetrics.forEach((metric: any) => {
+      result.push(metric);
+      
+      // Check if this metric has sub-metrics
+      if (subMetricData.has(metric.key)) {
+        const subNames = Array.from(subMetricData.get(metric.key)!).sort();
+        subNames.forEach(subName => {
+          result.push({
+            name: `↳ ${subName}`,
+            key: `sub:${metric.key}:${subName}`,
+            type: metric.type,
+            isSubMetric: true,
+            parentKey: metric.key,
+            parentName: metric.name,
+          });
+        });
+      }
+    });
+    
+    return result;
+  }, [metricType, filteredStores, subMetrics]);
 
   // Reset filter mode to "brand" if non-super-admin has "group" selected
   useEffect(() => {
