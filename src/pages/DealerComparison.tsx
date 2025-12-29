@@ -111,6 +111,7 @@ export default function DealerComparison() {
     return new Map<string, string>();
   }, [metricType, comparisonData]);
 
+
   // Fetch ALL financial entries for these departments (not filtered by month initially to get full context)
   const { data: financialEntries, refetch: refetchFinancial } = useQuery({
     queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
@@ -162,6 +163,28 @@ export default function DealerComparison() {
     enabled: departmentIds.length > 0 && metricType === "financial",
     refetchInterval: 60000,
   });
+
+  // Sub-metric formatting helper (↳ rows)
+  const subMetricTypeByName = useMemo(() => {
+    const result = new Map<string, "percentage" | "dollar">();
+    const allDefs = getMetricsForBrand(null);
+
+    (financialEntries || []).forEach((entry: any) => {
+      const rawKey = entry.metric_name as string;
+      if (!rawKey?.startsWith("sub:")) return;
+      const parts = rawKey.split(":");
+      if (parts.length < 4) return;
+
+      const parentKey = parts[1];
+      const subName = parts.slice(3).join(":");
+      const displayName = `↳ ${subName}`;
+      const parentDef = allDefs.find((d: any) => d.key === parentKey);
+
+      result.set(displayName, parentDef?.type === "percentage" ? "percentage" : "dollar");
+    });
+
+    return result;
+  }, [financialEntries]);
 
   // Fetch financial targets
   const { data: financialTargets } = useQuery({
@@ -362,7 +385,10 @@ export default function DealerComparison() {
       // Create metric maps - we need name/key mappings and brand-specific definitions
       const nameToKey = new Map<string, string>();
       const keyToName = new Map<string, string>();
-      
+
+      // Track sub-metric metadata: display name -> parentKey
+      const subMetricParentKeyByName = new Map<string, string>();
+
       // Build brand-specific metric definition maps
       const brandMetricDefs = new Map<string, Map<string, any>>();
       const brands = ['GMC', 'Ford', 'Nissan', 'Mazda'];
@@ -377,10 +403,27 @@ export default function DealerComparison() {
         });
         brandMetricDefs.set(brandName, brandMap);
       });
-      
+
+      // Add dynamic sub-metric mappings from the actual data
+      // Stored as: sub:<parentKey>:<order>:<subName>
+      (financialEntries || []).forEach((entry: any) => {
+        const rawKey = entry.metric_name as string;
+        if (!rawKey?.startsWith('sub:')) return;
+        const parts = rawKey.split(':');
+        if (parts.length < 4) return;
+
+        const parentKey = parts[1];
+        const subName = parts.slice(3).join(':');
+        const displayName = `↳ ${subName}`;
+
+        nameToKey.set(displayName, rawKey);
+        keyToName.set(rawKey, displayName);
+        subMetricParentKeyByName.set(displayName, parentKey);
+      });
+
       // Build a default keyToDef for non-brand-specific operations (use GMC as default)
       const keyToDef = brandMetricDefs.get('GMC') || new Map<string, any>();
-      
+
       // Helper to get brand-specific metric definition
       const getMetricDef = (metricKey: string, storeBrand: string | null): any => {
         const normalizedBrand = storeBrand?.toLowerCase() || '';
@@ -389,13 +432,13 @@ export default function DealerComparison() {
         else if (normalizedBrand.includes('nissan')) brandKey = 'Nissan';
         else if (normalizedBrand.includes('mazda')) brandKey = 'Mazda';
         else if (normalizedBrand.includes('gmc') || normalizedBrand.includes('chevrolet')) brandKey = 'GMC';
-        
+
         return brandMetricDefs.get(brandKey)?.get(metricKey) || keyToDef.get(metricKey);
       };
-      
-      // Use all metrics from all brands for the combined list
+
+      // Use all metrics from the default map for the combined list
       const metrics = Array.from(keyToDef.values());
-      
+
       console.log("DealerComparison - Using brand-specific metrics for calculations");
       
       // Build comparison baseline map (targets, averages, or previous year)
@@ -1194,16 +1237,30 @@ export default function DealerComparison() {
 
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null) return "N/A";
-    
+
+    // Sub-metrics (↳ ...) format based on the parent metric type
+    if (metricName.startsWith("↳ ")) {
+      const subType = subMetricTypeByName.get(metricName);
+      if (subType === "percentage") {
+        return `${value.toFixed(1)}%`;
+      }
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+
     // Get metric definition to check type
     const metrics = getMetricsForBrand(null);
     const metricDef = metrics.find((m: any) => m.name === metricName);
-    
+
     // Check if it's a percentage metric by type or name
     if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
       return `${value.toFixed(1)}%`;
     }
-    
+
     // Format as currency for dollar metrics
     return new Intl.NumberFormat("en-US", {
       style: "currency",
