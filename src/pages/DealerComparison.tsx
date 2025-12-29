@@ -117,48 +117,60 @@ export default function DealerComparison() {
     queryKey: ["dealer_comparison_financial", departmentIds, selectedMonth, datePeriodType, selectedYear, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      
+
       console.log("Fetching financial data for dealer comparison:", {
         datePeriodType,
         selectedMonth,
         selectedYear,
         startMonth,
         endMonth,
-        departmentIds
+        departmentIds,
       });
-      
-      let query = supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id, stores(name, brand, brand_id, brands(name)))")
-        .in("department_id", departmentIds);
-      
-      // Apply date filtering based on period type
-      if (datePeriodType === "month") {
-        const monthString = selectedMonth || format(new Date(), "yyyy-MM");
-        query = query.eq("month", monthString);
-        console.log("Filtering by single month:", monthString);
-      } else if (datePeriodType === "full_year") {
-        const year = selectedYear || new Date().getFullYear();
-        query = query
-          .gte("month", `${year}-01`)
-          .lte("month", `${year}-12`);
-        console.log("Filtering by full year:", year);
-      } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
-        query = query
-          .gte("month", startMonth)
-          .lte("month", endMonth);
-        console.log("Filtering by custom range:", startMonth, "to", endMonth);
+
+      const buildBaseQuery = () => {
+        let q = supabase
+          .from("financial_entries")
+          .select("*, departments(id, name, store_id, stores(name, brand, brand_id, brands(name)))")
+          .in("department_id", departmentIds);
+
+        // Apply date filtering based on period type
+        if (datePeriodType === "month") {
+          const monthString = selectedMonth || format(new Date(), "yyyy-MM");
+          q = q.eq("month", monthString);
+          console.log("Filtering by single month:", monthString);
+        } else if (datePeriodType === "full_year") {
+          const year = selectedYear || new Date().getFullYear();
+          q = q.gte("month", `${year}-01`).lte("month", `${year}-12`);
+          console.log("Filtering by full year:", year);
+        } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+          q = q.gte("month", startMonth).lte("month", endMonth);
+          console.log("Filtering by custom range:", startMonth, "to", endMonth);
+        }
+
+        return q;
+      };
+
+      // Pagination: backend defaults to 1000 rows per request
+      const pageSize = 1000;
+      let from = 0;
+      const all: any[] = [];
+
+      while (true) {
+        const { data, error } = await buildBaseQuery().range(from, from + pageSize - 1);
+        if (error) {
+          console.error("Error fetching financial entries:", error);
+          throw error;
+        }
+
+        const rows = data || [];
+        all.push(...rows);
+
+        if (rows.length < pageSize) break;
+        from += pageSize;
       }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error("Error fetching financial entries:", error);
-        throw error;
-      }
-      
-      console.log("Fetched financial entries:", data?.length || 0, "records");
-      return data || [];
+
+      console.log("Fetched financial entries:", all.length, "records");
+      return all;
     },
     enabled: departmentIds.length > 0 && metricType === "financial",
     refetchInterval: 60000,
@@ -563,20 +575,46 @@ export default function DealerComparison() {
         console.log("Aggregating data for multi-month period");
         
         // Group entries by store+dept and collect raw values
-        const aggregatedByStoreDept = new Map<string, Map<string, number>>();
-        
+        // NOTE: sub-metrics that are percentage-based should be averaged (not summed) across months.
+        const allMetricDefs = getMetricsForBrand(null);
+        type AvgAgg = { sum: number; count: number };
+        const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
+
         financialEntries.forEach(entry => {
           const storeId = (entry as any)?.departments?.store_id || "";
           const deptId = (entry as any)?.departments?.id;
           const key = `${storeId}-${deptId}`;
-          
+
           if (!aggregatedByStoreDept.has(key)) {
             aggregatedByStoreDept.set(key, new Map());
           }
-          
+
           const storeMetrics = aggregatedByStoreDept.get(key)!;
-          const currentValue = storeMetrics.get(entry.metric_name) || 0;
-          storeMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
+          const metricKey = entry.metric_name as string;
+          const numericValue = entry.value ? Number(entry.value) : 0;
+
+          // For sub-metrics that roll up to a percentage parent, average the percentage values.
+          if (metricKey?.startsWith("sub:")) {
+            const parts = metricKey.split(":");
+            const parentKey = parts.length >= 2 ? parts[1] : "";
+            const parentDef = allMetricDefs.find((d: any) => d.key === parentKey);
+
+            if (parentDef?.type === "percentage") {
+              const existing = storeMetrics.get(metricKey);
+              if (existing && typeof existing === "object") {
+                existing.sum += numericValue;
+                existing.count += 1;
+              } else {
+                storeMetrics.set(metricKey, { sum: numericValue, count: 1 });
+              }
+              return;
+            }
+          }
+
+          // Default: sum dollars and non-sub percentages (base percentages will be recalculated below)
+          const currentValue = storeMetrics.get(metricKey);
+          const currentNum = typeof currentValue === "number" ? currentValue : 0;
+          storeMetrics.set(metricKey, currentNum + numericValue);
         });
         
         // Now create entries with recalculated percentages
@@ -594,28 +632,36 @@ export default function DealerComparison() {
           const deptName = (sampleEntry as any)?.departments?.name;
           const storeBrand = storeBrands.get(storeId) || null;
           
+          // Helper: read aggregated values (numbers or AvgAgg)
+          const getAggValue = (k: string): number => {
+            const v = storeMetrics.get(k);
+            if (v === undefined || v === null) return 0;
+            if (typeof v === "number") return v;
+            return v.count > 0 ? v.sum / v.count : 0;
+          };
+
           // Process each metric
-          storeMetrics.forEach((aggregatedValue, metricKey) => {
+          storeMetrics.forEach((_aggregatedValue, metricKey) => {
             const metricDef = getMetricDef(metricKey, storeBrand);
-            let finalValue = aggregatedValue;
-            
-            // Recalculate percentages from aggregated dollar values
-            if (metricDef?.type === 'percentage' && metricDef?.calculation) {
+            let finalValue: number = getAggValue(metricKey);
+
+            // Recalculate percentages from aggregated dollar values (base metrics)
+            if (metricDef?.type === "percentage" && metricDef?.calculation) {
               const calc = metricDef.calculation;
-              if ('numerator' in calc && 'denominator' in calc) {
-                const num = storeMetrics.get(calc.numerator) || 0;
-                const denom = storeMetrics.get(calc.denominator) || 0;
+              if ("numerator" in calc && "denominator" in calc) {
+                const num = getAggValue(calc.numerator);
+                const denom = getAggValue(calc.denominator);
                 finalValue = denom !== 0 ? (num / denom) * 100 : 0;
               }
             }
-            
+
             const metricName = keyToName.get(metricKey) || metricKey;
             const entryKey = `${storeId}-${deptId}-${metricKey}`;
-            
+
             // Get comparison baseline for this metric
             const comparisonKey = `${deptId}-${metricKey}`;
             const comparisonInfo = comparisonMap.get(comparisonKey);
-            
+
             dataMap[entryKey] = {
               storeId,
               storeName,
@@ -626,80 +672,55 @@ export default function DealerComparison() {
               target: comparisonInfo?.value || null,
               variance: null,
             };
-            
+
             // Calculate variance
-            if (finalValue !== null && comparisonInfo?.value) {
+            if (comparisonInfo?.value !== undefined && comparisonInfo?.value !== null) {
               const baseline = comparisonInfo.value;
               if (baseline !== 0) {
                 const variance = ((finalValue - baseline) / Math.abs(baseline)) * 100;
-                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === 'below';
+                const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === "below";
                 dataMap[entryKey].variance = shouldReverse ? -variance : variance;
               }
             }
           });
-          
+
           // Calculate derived dollar metrics using brand-specific formulas
-          const storeBrandMetrics = brandMetricDefs.get(
-            storeBrand?.toLowerCase()?.includes('ford') ? 'Ford' :
-            storeBrand?.toLowerCase()?.includes('nissan') ? 'Nissan' :
-            storeBrand?.toLowerCase()?.includes('mazda') ? 'Mazda' : 'GMC'
-          ) || keyToDef;
-          
+          const storeBrandMetrics =
+            brandMetricDefs.get(
+              storeBrand?.toLowerCase()?.includes("ford")
+                ? "Ford"
+                : storeBrand?.toLowerCase()?.includes("nissan")
+                  ? "Nissan"
+                  : storeBrand?.toLowerCase()?.includes("mazda")
+                    ? "Mazda"
+                    : "GMC",
+            ) || keyToDef;
+
           storeBrandMetrics.forEach((metricDef: any) => {
-            if (metricDef.type === 'dollar' && metricDef.calculation) {
+            if (metricDef.type === "dollar" && metricDef.calculation) {
               const calc = metricDef.calculation;
               let calculatedValue: number | null = null;
-              
-              if (calc.type === 'subtract') {
-                const base = storeMetrics.get(calc.base);
-                if (base !== undefined) {
-                  calculatedValue = base;
-                  (calc.deductions || []).forEach((d: string) => {
-                    const val = storeMetrics.get(d);
-                    if (val !== undefined) calculatedValue! -= val;
-                  });
-                }
-              } else if (calc.type === 'complex') {
-                const base = storeMetrics.get(calc.base);
-                if (base !== undefined) {
-                  calculatedValue = base;
-                  (calc.deductions || []).forEach((d: string) => {
-                    const val = storeMetrics.get(d);
-                    if (val !== undefined) calculatedValue! -= val;
-                  });
-                  (calc.additions || []).forEach((a: string) => {
-                    const val = storeMetrics.get(a);
-                    if (val !== undefined) calculatedValue! += val;
-                  });
-                }
+
+              if (calc.type === "subtract") {
+                const base = getAggValue(calc.base);
+                calculatedValue = base;
+                (calc.deductions || []).forEach((d: string) => {
+                  calculatedValue! -= getAggValue(d);
+                });
+              } else if (calc.type === "complex") {
+                const base = getAggValue(calc.base);
+                calculatedValue = base;
+                (calc.deductions || []).forEach((d: string) => {
+                  calculatedValue! -= getAggValue(d);
+                });
+                (calc.additions || []).forEach((a: string) => {
+                  calculatedValue! += getAggValue(a);
+                });
               }
-              
+
               if (calculatedValue !== null) {
                 // Store calculated value for use in percentage calculations
                 storeMetrics.set(metricDef.key, calculatedValue);
-                
-                const metricName = metricDef.name;
-                const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
-                const comparisonKey = `${deptId}-${metricDef.key}`;
-                const comparisonInfo = comparisonMap.get(comparisonKey);
-                
-                dataMap[entryKey] = {
-                  storeId,
-                  storeName,
-                  departmentId: deptId,
-                  departmentName: deptName,
-                  metricName,
-                  value: calculatedValue,
-                  target: comparisonInfo?.value || null,
-                  variance: null,
-                };
-                
-                // Calculate variance
-                if (comparisonInfo?.value && comparisonInfo.value !== 0) {
-                  const variance = ((calculatedValue - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
-                  const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
-                  dataMap[entryKey].variance = shouldReverse ? -variance : variance;
-                }
               }
             }
           });
@@ -709,10 +730,10 @@ export default function DealerComparison() {
             if (metricDef.type === 'percentage' && metricDef.calculation) {
               const calc = metricDef.calculation;
               if ('numerator' in calc && 'denominator' in calc) {
-                const num = storeMetrics.get(calc.numerator);
-                const denom = storeMetrics.get(calc.denominator);
+                const num = getAggValue(calc.numerator);
+                const denom = getAggValue(calc.denominator);
                 
-                if (num !== undefined && denom !== undefined && denom !== 0) {
+                if (denom !== 0) {
                   const finalValue = (num / denom) * 100;
                   const metricName = metricDef.name;
                   const entryKey = `${storeId}-${deptId}-${metricDef.key}`;
