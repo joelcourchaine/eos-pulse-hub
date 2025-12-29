@@ -57,6 +57,10 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
           store_groups (
             id,
             name
+          ),
+          brands (
+            id,
+            name
           )
         `)
         .order('name');
@@ -235,7 +239,7 @@ export function StoreManagementDialog({ open, onOpenChange }: StoreManagementDia
                   <div>
                     <div className="font-medium">{store.name}</div>
                     {store.location && <div className="text-sm text-muted-foreground">{store.location}</div>}
-                    {store.brand && <div className="text-sm text-muted-foreground">Brand: {store.brand}</div>}
+                    {(store.brands?.name || store.brand) && <div className="text-sm text-muted-foreground">Brand: {store.brands?.name || store.brand}</div>}
                     {store.store_groups && <div className="text-sm text-muted-foreground">Group: {store.store_groups.name}</div>}
                   </div>
                   <div className="flex gap-2">
