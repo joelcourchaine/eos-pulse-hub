@@ -542,20 +542,19 @@ export const MonthDropZone = ({
   
   // Determine the icon color based on the CURRENT department's status
   const getIconBackgroundColor = () => {
+    // If this specific department has a mismatch, show orange
     if (currentDeptHasMismatch) {
-      return 'bg-amber-500 hover:bg-amber-600';
+      return 'bg-orange-500 hover:bg-orange-600';
     }
+    // If this department was validated and matches, show green
     if (currentDeptValidation?.status === 'match' || currentDeptValidation?.status === 'imported') {
       return 'bg-green-500 hover:bg-green-600';
     }
-    // If we have an overall mismatch but this dept is fine, show green
+    // If overall status is match/imported but this dept wasn't specifically checked, show green
     if (validationStatus === 'match' || validationStatus === 'imported') {
       return 'bg-green-500 hover:bg-green-600';
     }
-    // If overall mismatch but this dept wasn't checked, show amber
-    if (validationStatus === 'mismatch') {
-      return 'bg-amber-500 hover:bg-amber-600';
-    }
+    // Default: no validation done yet, use primary color
     return 'bg-primary hover:bg-primary/80';
   };
 
