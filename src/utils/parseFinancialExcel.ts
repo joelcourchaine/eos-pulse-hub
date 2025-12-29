@@ -445,26 +445,23 @@ export const importFinancialData = async (
   }
   
   // Import sub-metrics with their dynamic names
-  // IMPORTANT: before inserting, delete any existing sub-metrics for the same parent+month.
-  // Otherwise, if the orderIndex changes between imports, the metric_name changes and old rows linger,
-  // causing duplicate sub-metric rows in the UI.
+  // IMPORTANT: before inserting, delete any existing sub-metrics for that department+month.
+  // This prevents legacy/wrong-parent leftovers (e.g., older mappings saved under a different parent key)
+  // from sticking around and showing duplicate rows.
   for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) continue;
 
-    // Delete existing sub-metrics for each parent metric key for this month
-    const parentKeys = Array.from(new Set(subMetrics.map((sm) => sm.parentMetricKey).filter(Boolean)));
-    for (const parentKey of parentKeys) {
-      const { error: deleteError } = await supabase
-        .from('financial_entries')
-        .delete()
-        .eq('department_id', departmentId)
-        .eq('month', monthIdentifier)
-        .like('metric_name', `sub:${parentKey}:%`);
+    // Delete ALL existing sub-metrics for this department/month (regardless of parent)
+    const { error: deleteAllError } = await supabase
+      .from('financial_entries')
+      .delete()
+      .eq('department_id', departmentId)
+      .eq('month', monthIdentifier)
+      .like('metric_name', 'sub:%');
 
-      if (deleteError) {
-        console.error('Error deleting existing sub-metric entries:', deleteError);
-      }
+    if (deleteAllError) {
+      console.error('Error deleting existing sub-metric entries:', deleteAllError);
     }
 
     // Insert the new sub-metrics (use upsert so repeated names in the same import are still stable)
