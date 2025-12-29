@@ -176,27 +176,45 @@ export default function DealerComparison() {
     refetchInterval: 60000,
   });
 
-  // Sub-metric formatting helper (↳ rows)
-  const subMetricTypeByName = useMemo(() => {
+  // Sub-metric type map by full selection ID (e.g., "sub:sales_expense_percent:Comp Managers")
+  const subMetricTypeBySelectionId = useMemo(() => {
     const result = new Map<string, "percentage" | "dollar">();
     const allDefs = getMetricsForBrand(null);
 
-    (financialEntries || []).forEach((entry: any) => {
-      const rawKey = entry.metric_name as string;
-      if (!rawKey?.startsWith("sub:")) return;
-      const parts = rawKey.split(":");
-      if (parts.length < 4) return;
+    // Map full selection IDs (sub:parent_key:subName) to their parent type
+    selectedMetrics.forEach(selectionId => {
+      if (!selectionId.startsWith("sub:")) return;
+      const parts = selectionId.split(":");
+      if (parts.length < 3) return;
 
       const parentKey = parts[1];
-      const subName = parts.slice(3).join(":");
-      const displayName = `↳ ${subName}`;
       const parentDef = allDefs.find((d: any) => d.key === parentKey);
-
-      result.set(displayName, parentDef?.type === "percentage" ? "percentage" : "dollar");
+      result.set(selectionId, parentDef?.type === "percentage" ? "percentage" : "dollar");
     });
 
     return result;
-  }, [financialEntries]);
+  }, [selectedMetrics]);
+
+  // Convert full selection ID to display name
+  const selectionIdToDisplayName = (selectionId: string): string => {
+    if (selectionId.startsWith("sub:")) {
+      const parts = selectionId.split(":");
+      if (parts.length >= 3) {
+        return `↳ ${parts.slice(2).join(":")}`;
+      }
+    }
+    return selectionId;
+  };
+
+  // Build map from display name to full selection ID for lookup
+  const displayNameToSelectionId = useMemo(() => {
+    const result = new Map<string, string>();
+    selectedMetrics.forEach(selectionId => {
+      const displayName = selectionIdToDisplayName(selectionId);
+      result.set(displayName, selectionId);
+    });
+    return result;
+  }, [selectedMetrics]);
 
   // Fetch financial targets
   const { data: financialTargets } = useQuery({
@@ -1166,9 +1184,11 @@ export default function DealerComparison() {
   let stores = Object.entries(storeData);
   
   if (sortByMetric) {
+    // Convert sortByMetric (full selection ID) to display name for data lookup
+    const sortDisplayName = selectionIdToDisplayName(sortByMetric);
     stores = stores.sort(([, aData], [, bData]) => {
-      const aValue = aData.metrics[sortByMetric]?.value ?? -Infinity;
-      const bValue = bData.metrics[sortByMetric]?.value ?? -Infinity;
+      const aValue = aData.metrics[sortDisplayName]?.value ?? -Infinity;
+      const bValue = bData.metrics[sortDisplayName]?.value ?? -Infinity;
       // Sort descending (highest/best first on the left)
       return bValue - aValue;
     });
@@ -1259,11 +1279,15 @@ export default function DealerComparison() {
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null) return "N/A";
 
-    // Sub-metrics (↳ ...) format based on the parent metric type
+    // Sub-metrics (↳ ...) format based on the parent metric type using full selection ID lookup
     if (metricName.startsWith("↳ ")) {
-      const subType = subMetricTypeByName.get(metricName);
-      if (subType === "percentage") {
-        return `${value.toFixed(1)}%`;
+      // Look up the full selection ID to get the correct parent type
+      const selectionId = displayNameToSelectionId.get(metricName);
+      if (selectionId) {
+        const subType = subMetricTypeBySelectionId.get(selectionId);
+        if (subType === "percentage") {
+          return `${value.toFixed(1)}%`;
+        }
       }
       return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -1432,25 +1456,28 @@ export default function DealerComparison() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedMetrics.map((metric) => {
-                      const isSortedRow = sortByMetric && metric === sortByMetric;
+                    {selectedMetrics.map((selectionId) => {
+                      // Convert full selection ID to display name for rendering and data lookup
+                      const displayName = selectionIdToDisplayName(selectionId);
+                      const isSortedRow = sortByMetric && selectionId === sortByMetric;
                       return (
-                      <TableRow key={metric} className={isSortedRow ? "bg-primary/10" : ""}>
+                      <TableRow key={selectionId} className={isSortedRow ? "bg-primary/10" : ""}>
                         <TableCell className={`font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-background"}`}>
-                          {metric}
+                          {displayName}
                         </TableCell>
                         {stores.map(([storeId, store]) => {
-                          const metricData = store.metrics[metric];
+                          // Lookup data by display name (how it's stored in comparisonData)
+                          const metricData = store.metrics[displayName];
                           return (
                             <TableCell key={storeId} className="text-center">
                               {metricData ? (
                                 <div className="space-y-2">
                                   <div className="text-lg font-semibold">
-                                    {formatValue(metricData.value, metric)}
+                                    {formatValue(metricData.value, displayName)}
                                   </div>
                                   {metricData.target !== null && (
                                     <div className="text-xs text-muted-foreground">
-                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, metric)}
+                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, displayName)}
                                     </div>
                                   )}
                                   {metricData.variance !== null && (

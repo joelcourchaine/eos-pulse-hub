@@ -1612,32 +1612,18 @@ export default function Enterprise() {
                             : selectedBrandNames.join(", ");
                         }
                         
-                        // Convert selection IDs to display names for DealerComparison
-                        // Sub-metric selection IDs are like "sub:parent_key:SubName" but display names are "↳ SubName"
-                        const convertToDisplayName = (selectionId: string) => {
-                          if (selectionId.startsWith('sub:')) {
-                            const parts = selectionId.split(':');
-                            if (parts.length >= 3) {
-                              const subName = parts.slice(2).join(':');
-                              return `↳ ${subName}`;
-                            }
-                          }
-                          return selectionId; // Parent metrics use name as selectionId
-                        };
-                        
-                        const displayMetrics = selectedMetrics.map(convertToDisplayName);
-                        const displaySortByMetric = sortByMetric ? convertToDisplayName(sortByMetric) : "";
-                        
+                        // Pass full selection IDs including parent key for sub-metrics
+                        // DealerComparison will handle the display name conversion and type detection
                         navigate("/dealer-comparison", {
                           state: {
                             metricType,
-                            selectedMetrics: displayMetrics,
+                            selectedMetrics, // Keep full IDs like "sub:sales_expense_percent:Comp Managers"
                             ...dateParams,
                             comparisonMode,
                             departmentIds,
                             isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
                             selectedDepartmentNames,
-                            sortByMetric: displaySortByMetric,
+                            sortByMetric, // Keep full ID
                             storeIds: filteredStores.map(s => s.id),
                             brandDisplayName,
                             filterName: loadedFilterName,
