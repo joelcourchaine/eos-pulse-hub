@@ -153,9 +153,22 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           >
             <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
               {(() => {
-                const hasTarget = getSubMetricTarget && quarter && currentYear
-                  ? getSubMetricTarget(subMetric.name, quarter, currentYear) !== null
-                  : false;
+                const targetValue = getSubMetricTarget && quarter && currentYear
+                  ? getSubMetricTarget(subMetric.name, quarter, currentYear)
+                  : null;
+                const hasTarget = targetValue !== null;
+                
+                // Debug logging
+                if (getSubMetricTarget && quarter && currentYear) {
+                  console.log('[SubMetricsRow] Checking target for:', {
+                    subMetricName: subMetric.name,
+                    quarter,
+                    year: currentYear,
+                    targetValue,
+                    hasTarget
+                  });
+                }
+                
                 return (
                   <div className="flex items-center gap-1.5">
                     <svg 
@@ -179,7 +192,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                             <Target className="h-3 w-3 text-primary flex-shrink-0" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Target set for Q{quarter}</p>
+                            <p>Target set for Q{quarter}: {targetValue}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
