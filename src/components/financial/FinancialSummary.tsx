@@ -1004,16 +1004,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             // Create a month object for compatibility
             const monthObj = { month: m, year: processYear };
             
-            // Helper to get value from either raw data or already calculated values
+            // Helper to get value from raw data, sub-metric sum, or already calculated values
             const getValueForMetric = (mData: any[], mKey: string, mObj: any): number | undefined => {
               // First check if already calculated
               const calculatedKey = `${mKey}-M${mObj.month + 1}-${mObj.year}`;
               if (averages[calculatedKey] !== undefined) {
                 return averages[calculatedKey];
               }
-              // Otherwise check raw data
+              // Check raw data entry
               const entry = mData?.find(e => e.metric_name === mKey);
-              return entry?.value;
+              if (entry?.value !== null && entry?.value !== undefined) {
+                return entry.value;
+              }
+              // Try to sum sub-metrics (e.g., sub:sales_expense:027:... + sub:sales_expense:028:... etc.)
+              const subMetricPrefix = `sub:${mKey}:`;
+              const subMetrics = mData?.filter(e => 
+                e.metric_name.startsWith(subMetricPrefix) && 
+                !e.metric_name.includes('_percent:')
+              );
+              if (subMetrics && subMetrics.length > 0) {
+                const sum = subMetrics.reduce((acc: number, e: any) => acc + (e.value || 0), 0);
+                return sum;
+              }
+              return undefined;
             };
             
             FINANCIAL_METRICS.forEach(metric => {
@@ -1104,8 +1117,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           
           // Helper functions to calculate month-aware metric values (Honda legacy logic included)
           const getDirectValueForMonth = (metricKey: string, monthId: string): number | undefined => {
+            // Check raw data entry first
             const entry = data?.find(e => e.month === monthId && e.metric_name === metricKey);
-            return entry?.value === null || entry?.value === undefined ? undefined : Number(entry.value);
+            if (entry?.value !== null && entry?.value !== undefined) {
+              return Number(entry.value);
+            }
+            // Try to sum sub-metrics (e.g., sub:sales_expense:027:... + sub:sales_expense:028:... etc.)
+            const subMetricPrefix = `sub:${metricKey}:`;
+            const subMetrics = data?.filter(e => 
+              e.month === monthId && 
+              e.metric_name.startsWith(subMetricPrefix) && 
+              !e.metric_name.includes('_percent:')
+            );
+            if (subMetrics && subMetrics.length > 0) {
+              const sum = subMetrics.reduce((acc: number, e: any) => acc + (e.value || 0), 0);
+              return sum;
+            }
+            return undefined;
           };
 
           const getMonthValue = (metricKey: string, monthId: string): number | undefined => {
