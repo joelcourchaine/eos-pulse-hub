@@ -1210,10 +1210,22 @@ export default function Enterprise() {
               {metricType === "monthly_combined" ? (
                 <>
                   <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      KPI Metrics ({selectedKpiMetrics.length} selected)
-                      {isTotalHoursRequired && <span className="text-destructive ml-1">*</span>}
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">
+                        KPI Metrics ({selectedKpiMetrics.length} selected)
+                        {isTotalHoursRequired && <span className="text-destructive ml-1">*</span>}
+                      </label>
+                      {selectedKpiMetrics.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => setSelectedKpiMetrics(isTotalHoursRequired ? ['Total Hours'] : [])}
+                        >
+                          Clear All
+                        </Button>
+                      )}
+                    </div>
                     <ScrollArea className="h-[150px] pr-4 border rounded-md p-2">
                       <div className="space-y-2">
                         {availableKpiMetricsForCombined.map((metric: any) => {
@@ -1237,9 +1249,21 @@ export default function Enterprise() {
                     </ScrollArea>
                   </div>
                   <div>
-                    <label className="text-sm font-medium mb-2 block">
-                      Financial Metrics ({selectedFinancialMetrics.length} selected)
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium">
+                        Financial Metrics ({selectedFinancialMetrics.length} selected)
+                      </label>
+                      {selectedFinancialMetrics.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => setSelectedFinancialMetrics([])}
+                        >
+                          Clear All
+                        </Button>
+                      )}
+                    </div>
                     <ScrollArea className="h-[150px] pr-4 border rounded-md p-2">
                       <div className="space-y-1">
                         {availableFinancialMetricsForCombined
@@ -1326,9 +1350,21 @@ export default function Enterprise() {
                 </>
               ) : (
                 <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Metrics ({selectedMetrics.length} selected)
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-medium">
+                      Metrics ({selectedMetrics.length} selected)
+                    </label>
+                    {selectedMetrics.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        onClick={() => setSelectedMetrics([])}
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
                   <ScrollArea className="h-[300px] pr-4">
                     <div className="space-y-1">
                       {availableMetrics
