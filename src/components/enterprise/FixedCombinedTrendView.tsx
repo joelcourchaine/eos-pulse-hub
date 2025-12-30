@@ -514,8 +514,8 @@ export function FixedCombinedTrendView({
                               : null;
                             
                             return (
-                              <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/30' : ''}`}>
-                                <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted/30 pl-6 text-muted-foreground' : 'bg-background'}`}>
+                            <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}>
+                                <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
                                   {metricName}
                                 </TableCell>
                                 {months.map(month => (
