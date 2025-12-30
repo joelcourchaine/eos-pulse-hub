@@ -676,7 +676,15 @@ export default function DealerComparison() {
               }
             }
 
-            const metricName = keyToName.get(metricKey) || metricKey;
+            const metricName = (() => {
+              if (metricKey?.startsWith("sub:")) {
+                const parts = metricKey.split(":");
+                const parentKey = parts.length >= 2 ? parts[1] : "";
+                const subName = parts.length >= 4 ? parts.slice(3).join(":") : metricKey;
+                return `sub:${parentKey}:${subName}`;
+              }
+              return keyToName.get(metricKey) || metricKey;
+            })();
             const entryKey = `${storeId}-${deptId}-${metricKey}`;
 
             // Get comparison baseline for this metric
@@ -786,7 +794,16 @@ export default function DealerComparison() {
       } else {
         // Single month - process entries directly
         financialEntries.forEach(entry => {
-          const metricName = keyToName.get(entry.metric_name) || entry.metric_name;
+          const metricName = (() => {
+            const k = entry.metric_name as string;
+            if (k?.startsWith("sub:")) {
+              const parts = k.split(":");
+              const parentKey = parts.length >= 2 ? parts[1] : "";
+              const subName = parts.length >= 4 ? parts.slice(3).join(":") : k;
+              return `sub:${parentKey}:${subName}`;
+            }
+            return keyToName.get(k) || k;
+          })();
           if (entry.metric_name === 'total_direct_expenses') {
             console.log("Found total_direct_expenses entry:", {
               metric_name: entry.metric_name,
@@ -1114,7 +1131,7 @@ export default function DealerComparison() {
       
       // Filter to only selected metrics
       const result = Object.values(dataMap).filter(item => 
-        selectedMetricNames.includes(item.metricName)
+        selectedMetrics.includes(item.metricName)
       );
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
@@ -1282,16 +1299,17 @@ export default function DealerComparison() {
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null) return "N/A";
 
-    // Sub-metrics (↳ ...) format based on the parent metric type using full selection ID lookup
-    if (metricName.startsWith("↳ ")) {
-      // Look up the full selection ID to get the correct parent type
-      const selectionId = displayNameToSelectionId.get(metricName);
-      if (selectionId) {
-        const subType = subMetricTypeBySelectionId.get(selectionId);
-        if (subType === "percentage") {
-          return `${value.toFixed(1)}%`;
-        }
+    // Sub-metrics are stored/processed using a selectionId form: "sub:<parentKey>:<subName>"
+    if (metricName.startsWith("sub:")) {
+      const parts = metricName.split(":");
+      const parentKey = parts.length >= 2 ? parts[1] : "";
+      const allDefs = getMetricsForBrand(null);
+      const parentDef = allDefs.find((d: any) => d.key === parentKey);
+
+      if (parentDef?.type === "percentage") {
+        return `${value.toFixed(1)}%`;
       }
+
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
@@ -1460,7 +1478,7 @@ export default function DealerComparison() {
                   </TableHeader>
                   <TableBody>
                     {selectedMetrics.map((selectionId) => {
-                      // Convert full selection ID to display name for rendering and data lookup
+                      // Convert selection ID to display name for rendering
                       const displayName = selectionIdToDisplayName(selectionId);
                       const isSortedRow = sortByMetric && selectionId === sortByMetric;
                       return (
@@ -1469,18 +1487,18 @@ export default function DealerComparison() {
                           {displayName}
                         </TableCell>
                         {stores.map(([storeId, store]) => {
-                          // Lookup data by display name (how it's stored in comparisonData)
-                          const metricData = store.metrics[displayName];
+                          // Lookup data by selectionId (how it's stored in comparisonData)
+                          const metricData = store.metrics[selectionId];
                           return (
                             <TableCell key={storeId} className="text-center">
                               {metricData ? (
                                 <div className="space-y-2">
                                   <div className="text-lg font-semibold">
-                                    {formatValue(metricData.value, displayName)}
+                                    {formatValue(metricData.value, selectionId)}
                                   </div>
                                   {metricData.target !== null && (
                                     <div className="text-xs text-muted-foreground">
-                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, displayName)}
+                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, selectionId)}
                                     </div>
                                   )}
                                   {metricData.variance !== null && (
