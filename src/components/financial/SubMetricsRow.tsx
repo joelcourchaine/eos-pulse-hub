@@ -40,8 +40,15 @@ interface SubMetricsRowProps {
   onSaveSubMetricValue?: (subMetricName: string, orderIndex: number, monthId: string, value: number | null) => Promise<boolean>;
   // Whether editing is allowed
   canEdit?: boolean;
-  // Whether the parent metric is a percentage type (to skip totals)
+  // Whether the parent metric is a percentage type
   isPercentageMetric?: boolean;
+  // For percentage metrics: the calculation config (numerator/denominator keys)
+  percentageCalculation?: {
+    numerator: string;  // e.g., "gp_net"
+    denominator: string; // e.g., "total_sales"
+  };
+  // Function to get sub-metric value from a different parent metric
+  getSubMetricValueForParent?: (parentKey: string, subMetricName: string, monthId: string) => number | null;
 }
 
 // Helper to calculate average from values
@@ -91,6 +98,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   onSaveSubMetricValue,
   canEdit = false,
   isPercentageMetric = false,
+  percentageCalculation,
+  getSubMetricValueForParent,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -121,11 +130,6 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   const getSummaryValue = (subMetricName: string, periodType: MonthlyPeriod['type'], year?: number): number | null => {
     if (!periods) return null;
     
-    // For percentage metrics, don't show total (summing percentages is meaningless)
-    if (periodType === 'year-total' && isPercentageMetric) {
-      return null;
-    }
-    
     // Get all month periods for the relevant year
     const monthPeriods = periods.filter(p => {
       if (p.type !== 'month') return false;
@@ -137,6 +141,30 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
       return true;
     });
     
+    // For percentage metrics with calculation config, compute from numerator/denominator sub-metrics
+    if (isPercentageMetric && percentageCalculation && getSubMetricValueForParent) {
+      const { numerator, denominator } = percentageCalculation;
+      
+      // Sum up all numerator values (e.g., gp_net sub-metric values for this sub-metric name)
+      const numeratorValues = monthPeriods.map(p => 
+        getSubMetricValueForParent(numerator, subMetricName, p.identifier)
+      );
+      const totalNumerator = calculateTotal(numeratorValues);
+      
+      // Sum up all denominator values (e.g., total_sales sub-metric values for this sub-metric name)
+      const denominatorValues = monthPeriods.map(p => 
+        getSubMetricValueForParent(denominator, subMetricName, p.identifier)
+      );
+      const totalDenominator = calculateTotal(denominatorValues);
+      
+      // Calculate percentage: (sum of numerator / sum of denominator) * 100
+      if (totalNumerator !== null && totalDenominator !== null && totalDenominator !== 0) {
+        return (totalNumerator / totalDenominator) * 100;
+      }
+      return null;
+    }
+    
+    // Non-percentage metrics: use existing logic
     const values = monthPeriods.map(p => getSubMetricValue(subMetricName, p.identifier));
     
     if (periodType === 'year-avg' || periodType === 'quarter-avg') {
