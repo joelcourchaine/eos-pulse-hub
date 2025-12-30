@@ -1437,15 +1437,15 @@ export default function DealerComparison() {
                         const completeness = storeDataCompleteness[storeId];
                         return (
                           <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
-                            <div className="text-base font-bold flex items-center justify-center gap-1">
-                              {store.storeName}
-                              {completeness && metricType === "financial" && !completeness.isComplete && (
+                            <div className="text-base font-bold">{store.storeName}</div>
+                            {completeness && metricType === "financial" && !completeness.isComplete && (
+                              <div className="flex justify-center mt-1">
                                 <DataCoverageBadge 
                                   monthsWithData={completeness.monthsWithData.size} 
                                   totalMonths={completeness.expectedMonths.length} 
                                 />
-                              )}
-                            </div>
+                              </div>
+                            )}
                             {completeness && metricType === "financial" && datePeriodType !== "month" && (
                               <TooltipProvider>
                                 <Tooltip>
