@@ -2903,7 +2903,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                          className="px-1 py-0.5 min-w-[100px] max-w-[100px] bg-background sticky left-[200px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                        >
                          <Sparkline 
-                           data={monthlyTrendPeriods.filter(p => p.type === 'month').map(month => {
+                           data={monthlyTrendPeriods.filter(p => p.type === 'month' && p.year === year).map(month => {
                              const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
                              return precedingQuartersData[mKey];
                            })}
