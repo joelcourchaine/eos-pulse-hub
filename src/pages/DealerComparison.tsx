@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { EmailComparisonDialog } from "@/components/enterprise/EmailComparisonDialog";
 import { QuestionnaireComparisonTable } from "@/components/enterprise/QuestionnaireComparisonTable";
+import { DataCoverageBadge } from "@/components/enterprise/DataCoverageBadge";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1436,7 +1437,15 @@ export default function DealerComparison() {
                         const completeness = storeDataCompleteness[storeId];
                         return (
                           <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
-                            <div className="text-base font-bold">{store.storeName}</div>
+                            <div className="text-base font-bold flex items-center justify-center gap-1">
+                              {store.storeName}
+                              {completeness && metricType === "financial" && !completeness.isComplete && (
+                                <DataCoverageBadge 
+                                  monthsWithData={completeness.monthsWithData.size} 
+                                  totalMonths={completeness.expectedMonths.length} 
+                                />
+                              )}
+                            </div>
                             {completeness && metricType === "financial" && datePeriodType !== "month" && (
                               <TooltipProvider>
                                 <Tooltip>
