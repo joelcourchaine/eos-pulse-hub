@@ -17,6 +17,12 @@ interface MonthlyPeriod {
   year?: number;
 }
 
+interface QuarterTrendPeriod {
+  quarter: number;
+  year: number;
+  label: string;
+}
+
 interface SubMetricsRowProps {
   subMetrics: SubMetricEntry[];
   isExpanded: boolean;
@@ -51,6 +57,10 @@ interface SubMetricsRowProps {
   getSubMetricValueForParent?: (parentKey: string, subMetricName: string, monthId: string) => number | null;
   // Function to get the total YTD value for a parent-level metric (e.g., GP Net Total YTD)
   getParentMetricTotal?: (metricKey: string, monthIds: string[]) => number | null;
+  // Quarter trend mode support
+  quarterTrendPeriods?: QuarterTrendPeriod[];
+  // Function to get all month identifiers for a quarter (for aggregation)
+  getQuarterMonths?: (quarter: number, year: number) => string[];
 }
 
 // Helper to calculate average from values
@@ -103,6 +113,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   percentageCalculation,
   getSubMetricValueForParent,
   getParentMetricTotal,
+  quarterTrendPeriods,
+  getQuarterMonths,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -113,7 +125,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   
   // Calculate total column count for colSpan
   const extraColumns = (hasSparklineColumn ? 1 : 0) + (periods ? periods.filter(p => p.type !== 'month').length : 0);
-  const totalDataColumns = monthIdentifiers.length + extraColumns;
+  const quarterTrendColumns = quarterTrendPeriods?.length ?? 0;
+  const totalDataColumns = monthIdentifiers.length + extraColumns + quarterTrendColumns;
   
   // Show placeholder when expanded but no sub-metrics data yet
   if (subMetrics.length === 0) {
@@ -406,6 +419,95 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   )}
                 >
                   {summaryValue !== null ? formatValue(summaryValue) : "-"}
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))}
+      </>
+    );
+  }
+
+  // Quarter trend mode: aggregate sub-metric values by quarter
+  if (quarterTrendPeriods && quarterTrendPeriods.length > 0 && getQuarterMonths) {
+    // Helper to get quarter aggregate value for a sub-metric
+    const getQuarterSubMetricValue = (subMetricName: string, qtr: { quarter: number; year: number }): number | null => {
+      const quarterMonthIds = getQuarterMonths(qtr.quarter, qtr.year);
+      
+      // For percentage metrics with calculation config
+      if (isPercentageMetric && percentageCalculation && getSubMetricValueForParent) {
+        const { numerator, denominator } = percentageCalculation;
+        
+        // Sum up numerator sub-metric values across the quarter
+        const numeratorValues = quarterMonthIds.map(monthId => 
+          getSubMetricValueForParent(numerator, subMetricName, monthId)
+        );
+        const totalNumerator = calculateTotal(numeratorValues);
+        
+        // Check if denominator has matching sub-metrics
+        const denominatorValues = quarterMonthIds.map(monthId => 
+          getSubMetricValueForParent(denominator, subMetricName, monthId)
+        );
+        const totalDenominator = calculateTotal(denominatorValues);
+        
+        // If denominator has matching sub-metrics (like GP%), use sub-metric to sub-metric calculation
+        if (totalDenominator !== null && totalDenominator !== 0) {
+          if (totalNumerator !== null) {
+            return (totalNumerator / totalDenominator) * 100;
+          }
+          return null;
+        }
+        
+        // Otherwise (like Sales Expense %), use parent denominator total
+        if (getParentMetricTotal) {
+          const parentDenominatorTotal = getParentMetricTotal(denominator, quarterMonthIds);
+          if (totalNumerator !== null && parentDenominatorTotal !== null && parentDenominatorTotal !== 0) {
+            return (totalNumerator / parentDenominatorTotal) * 100;
+          }
+        }
+        return null;
+      }
+      
+      // Non-percentage metrics: average the values across the quarter
+      const values = quarterMonthIds.map(monthId => getSubMetricValue(subMetricName, monthId));
+      return calculateAverage(values);
+    };
+
+    return (
+      <>
+        {subMetrics.map((subMetric, idx) => (
+          <TableRow 
+            key={`sub-${subMetric.name}-${idx}`}
+            className="bg-muted/20 hover:bg-muted/30"
+          >
+            <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+              <div className="flex items-center gap-1.5">
+                <svg 
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 12 12" 
+                  className="text-muted-foreground/60 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                  {subMetric.name}
+                </p>
+              </div>
+            </TableCell>
+            {/* Render a cell for each quarter */}
+            {quarterTrendPeriods.map((qtr) => {
+              const quarterValue = getQuarterSubMetricValue(subMetric.name, qtr);
+              
+              return (
+                <TableCell 
+                  key={qtr.label} 
+                  className="text-center py-1 text-xs min-w-[125px] max-w-[125px] text-muted-foreground"
+                >
+                  {quarterValue !== null ? formatValue(quarterValue) : "-"}
                 </TableCell>
               );
             })}
