@@ -3956,6 +3956,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           return success;
                         }}
+                        isPercentageMetric={metric.type === 'percentage'}
                       />
                       </React.Fragment>
                     );

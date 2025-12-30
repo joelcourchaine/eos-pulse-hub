@@ -40,6 +40,8 @@ interface SubMetricsRowProps {
   onSaveSubMetricValue?: (subMetricName: string, orderIndex: number, monthId: string, value: number | null) => Promise<boolean>;
   // Whether editing is allowed
   canEdit?: boolean;
+  // Whether the parent metric is a percentage type (to skip totals)
+  isPercentageMetric?: boolean;
 }
 
 // Helper to calculate average from values
@@ -88,6 +90,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   onSaveSubMetricTarget,
   onSaveSubMetricValue,
   canEdit = false,
+  isPercentageMetric = false,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -117,6 +120,11 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   // Helper to get summary value for a sub-metric
   const getSummaryValue = (subMetricName: string, periodType: MonthlyPeriod['type'], year?: number): number | null => {
     if (!periods) return null;
+    
+    // For percentage metrics, don't show total (summing percentages is meaningless)
+    if (periodType === 'year-total' && isPercentageMetric) {
+      return null;
+    }
     
     // Get all month periods for the relevant year
     const monthPeriods = periods.filter(p => {
