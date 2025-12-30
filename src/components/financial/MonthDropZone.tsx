@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -16,6 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
+} from "@/components/ui/context-menu";
+import {
   fetchCellMappings,
   parseFinancialExcel,
   validateAgainstDatabase,
@@ -30,6 +40,12 @@ interface Attachment {
   file_type: string;
 }
 
+export interface CopySourceOption {
+  identifier: string;
+  label: string;
+  isAverage?: boolean;
+}
+
 interface MonthDropZoneProps {
   children: React.ReactNode;
   monthIdentifier: string;
@@ -39,6 +55,12 @@ interface MonthDropZoneProps {
   attachment?: Attachment | null;
   onAttachmentChange: () => void;
   className?: string;
+  /** Available sources to copy from (other months and YTD average) */
+  copySourceOptions?: CopySourceOption[];
+  /** Callback when user selects a source to copy from */
+  onCopyFromSource?: (sourceIdentifier: string) => Promise<void>;
+  /** Whether a copy operation is in progress */
+  isCopying?: boolean;
 }
 
 const ACCEPTED_TYPES = {
@@ -57,6 +79,9 @@ export const MonthDropZone = ({
   attachment,
   onAttachmentChange,
   className,
+  copySourceOptions = [],
+  onCopyFromSource,
+  isCopying = false,
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -558,105 +583,176 @@ export const MonthDropZone = ({
     return 'bg-primary hover:bg-primary/80';
   };
 
+  const hasCopyOptions = copySourceOptions.length > 0 && onCopyFromSource;
+  
+  // Separate average and month options
+  const averageOptions = copySourceOptions.filter(opt => opt.isAverage);
+  const monthOptions = copySourceOptions.filter(opt => !opt.isAverage);
+
+  const handleCopyFrom = async (sourceIdentifier: string) => {
+    if (!onCopyFromSource) return;
+    await onCopyFromSource(sourceIdentifier);
+  };
+
   return (
-    <div
-      className={cn(
-        "relative",
-        className
-      )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <div
-        className={cn(
-          "transition-all duration-200",
-          isDragOver && "ring-2 ring-primary ring-inset bg-primary/10 rounded"
-        )}
-      >
-        {children}
-      </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild disabled={!hasCopyOptions}>
+        <div
+          className={cn(
+            "relative",
+            className
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div
+            className={cn(
+              "transition-all duration-200",
+              isDragOver && "ring-2 ring-primary ring-inset bg-primary/10 rounded",
+              isCopying && "opacity-50 pointer-events-none"
+            )}
+          >
+            {children}
+            {isCopying && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded z-10">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
 
-      {/* Attachment indicator with validation status color */}
-      {(attachment || isUploading) && (
-        <div className="absolute -top-1 -right-1 z-20">
-          {isUploading ? (
-            <div className="bg-primary text-primary-foreground rounded-full p-0.5">
-              <Loader2 className="h-3 w-3 animate-spin" />
-            </div>
-          ) : attachment ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button className={cn(
-                        "text-white rounded-full p-0.5 transition-colors",
-                        getIconBackgroundColor()
-                      )}>
-                        {getFileIcon(attachment.file_type)}
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleViewAttachment}>
-                        View / Download
-                      </DropdownMenuItem>
-                      {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
-                        <DropdownMenuItem onClick={handleReimport}>
-                          <RefreshCw className="h-3 w-3 mr-2" />
-                          Re-import Data
-                        </DropdownMenuItem>
+          {/* Attachment indicator with validation status color */}
+          {(attachment || isUploading) && (
+            <div className="absolute -top-1 -right-1 z-20">
+              {isUploading ? (
+                <div className="bg-primary text-primary-foreground rounded-full p-0.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                </div>
+              ) : attachment ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className={cn(
+                            "text-white rounded-full p-0.5 transition-colors",
+                            getIconBackgroundColor()
+                          )}>
+                            {getFileIcon(attachment.file_type)}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={handleViewAttachment}>
+                            View / Download
+                          </DropdownMenuItem>
+                          {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
+                            <DropdownMenuItem onClick={handleReimport}>
+                              <RefreshCw className="h-3 w-3 mr-2" />
+                              Re-import Data
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem 
+                            onClick={handleRemoveAttachment}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Remove
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[350px]">
+                      <p className="text-xs font-medium">{attachment.file_name}</p>
+                      {currentDeptHasMismatch && (
+                        <>
+                          <p className="text-xs font-semibold mt-2 text-amber-500">
+                            Data Discrepancies ({getCurrentDeptMismatchCount()} items)
+                          </p>
+                          <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                            {getMismatchTooltipContent()}
+                          </p>
+                        </>
                       )}
-                      <DropdownMenuItem 
-                        onClick={handleRemoveAttachment}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[350px]">
-                  <p className="text-xs font-medium">{attachment.file_name}</p>
-                  {currentDeptHasMismatch && (
-                    <>
-                      <p className="text-xs font-semibold mt-2 text-amber-500">
-                        Data Discrepancies ({getCurrentDeptMismatchCount()} items)
-                      </p>
-                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
-                        {getMismatchTooltipContent()}
-                      </p>
-                    </>
-                  )}
-                  {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
-                    <>
-                      <p className="text-xs font-semibold mt-2 text-amber-500">
-                        Other departments have discrepancies
-                      </p>
-                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
-                        {getMismatchTooltipContent()}
-                      </p>
-                    </>
-                  )}
-                  {currentDeptValidation?.status === 'match' && (
-                    <p className="text-xs mt-1 text-green-500">All data matches</p>
-                  )}
-                  {currentDeptValidation?.status === 'imported' && (
-                    <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null}
-        </div>
-      )}
+                      {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
+                        <>
+                          <p className="text-xs font-semibold mt-2 text-amber-500">
+                            Other departments have discrepancies
+                          </p>
+                          <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                            {getMismatchTooltipContent()}
+                          </p>
+                        </>
+                      )}
+                      {currentDeptValidation?.status === 'match' && (
+                        <p className="text-xs mt-1 text-green-500">All data matches</p>
+                      )}
+                      {currentDeptValidation?.status === 'imported' && (
+                        <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : null}
+            </div>
+          )}
 
-      {/* Drop overlay */}
-      {isDragOver && (
-        <div className="absolute inset-0 flex items-center justify-center bg-primary/20 rounded pointer-events-none z-10">
-          <Paperclip className="h-4 w-4 text-primary" />
+          {/* Drop overlay */}
+          {isDragOver && (
+            <div className="absolute inset-0 flex items-center justify-center bg-primary/20 rounded pointer-events-none z-10">
+              <Paperclip className="h-4 w-4 text-primary" />
+            </div>
+          )}
         </div>
+      </ContextMenuTrigger>
+      
+      {hasCopyOptions && (
+        <ContextMenuContent className="w-56">
+          {/* Average option (YTD) first */}
+          {averageOptions.map((option) => (
+            <ContextMenuItem 
+              key={option.identifier}
+              onClick={() => handleCopyFrom(option.identifier)}
+              className="font-medium"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy from {option.label}
+            </ContextMenuItem>
+          ))}
+          
+          {averageOptions.length > 0 && monthOptions.length > 0 && (
+            <ContextMenuSeparator />
+          )}
+          
+          {/* Month options in a submenu if there are many */}
+          {monthOptions.length > 6 ? (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy from month...
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48 max-h-[300px] overflow-y-auto">
+                {monthOptions.map((option) => (
+                  <ContextMenuItem 
+                    key={option.identifier}
+                    onClick={() => handleCopyFrom(option.identifier)}
+                  >
+                    {option.label}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          ) : (
+            monthOptions.map((option) => (
+              <ContextMenuItem 
+                key={option.identifier}
+                onClick={() => handleCopyFrom(option.identifier)}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy from {option.label}
+              </ContextMenuItem>
+            ))
+          )}
+        </ContextMenuContent>
       )}
-    </div>
+    </ContextMenu>
   );
 };
