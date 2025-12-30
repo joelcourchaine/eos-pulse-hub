@@ -49,6 +49,8 @@ interface SubMetricsRowProps {
   };
   // Function to get sub-metric value from a different parent metric
   getSubMetricValueForParent?: (parentKey: string, subMetricName: string, monthId: string) => number | null;
+  // Function to get the total YTD value for a parent-level metric (e.g., GP Net Total YTD)
+  getParentMetricTotal?: (metricKey: string, monthIds: string[]) => number | null;
 }
 
 // Helper to calculate average from values
@@ -100,6 +102,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   isPercentageMetric = false,
   percentageCalculation,
   getSubMetricValueForParent,
+  getParentMetricTotal,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -141,25 +144,29 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
       return true;
     });
     
-    // For percentage metrics with calculation config, compute from numerator/denominator sub-metrics
-    if (isPercentageMetric && percentageCalculation && getSubMetricValueForParent) {
+    const monthIds = monthPeriods.map(p => p.identifier);
+    
+    // For percentage metrics with calculation config, use sum of numerator sub-metric / parent denominator total
+    // This applies to metrics like "Sales Expense %" where:
+    // - numerator is "sales_expense" (sum of this sub-metric's values across months)
+    // - denominator is "gp_net" (the parent metric's YTD total, NOT sub-metrics)
+    if (isPercentageMetric && percentageCalculation && getParentMetricTotal) {
       const { numerator, denominator } = percentageCalculation;
       
-      // Sum up all numerator values (e.g., gp_net sub-metric values for this sub-metric name)
-      const numeratorValues = monthPeriods.map(p => 
-        getSubMetricValueForParent(numerator, subMetricName, p.identifier)
+      // Sum up this sub-metric's values under the numerator parent (e.g., sum of "Advertising" values under sales_expense)
+      const subMetricValues = monthPeriods.map(p => 
+        getSubMetricValueForParent 
+          ? getSubMetricValueForParent(numerator, subMetricName, p.identifier)
+          : getSubMetricValue(subMetricName, p.identifier)
       );
-      const totalNumerator = calculateTotal(numeratorValues);
+      const totalSubMetric = calculateTotal(subMetricValues);
       
-      // Sum up all denominator values (e.g., total_sales sub-metric values for this sub-metric name)
-      const denominatorValues = monthPeriods.map(p => 
-        getSubMetricValueForParent(denominator, subMetricName, p.identifier)
-      );
-      const totalDenominator = calculateTotal(denominatorValues);
+      // Get the parent denominator metric's YTD total (e.g., GP Net Total YTD)
+      const denominatorTotal = getParentMetricTotal(denominator, monthIds);
       
-      // Calculate percentage: (sum of numerator / sum of denominator) * 100
-      if (totalNumerator !== null && totalDenominator !== null && totalDenominator !== 0) {
-        return (totalNumerator / totalDenominator) * 100;
+      // Calculate percentage: (sum of sub-metric values / parent denominator total) * 100
+      if (totalSubMetric !== null && denominatorTotal !== null && denominatorTotal !== 0) {
+        return (totalSubMetric / denominatorTotal) * 100;
       }
       return null;
     }
