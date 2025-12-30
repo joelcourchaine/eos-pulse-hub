@@ -328,8 +328,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         }
       });
     }
+    // Add quarter trend periods if applicable
+    if (isQuarterTrendMode) {
+      quarterTrendPeriods.forEach(qtr => {
+        const quarterMonths = getQuarterMonthsForCalculation(qtr.quarter, qtr.year);
+        quarterMonths.forEach(m => identifiers.push(m.identifier));
+      });
+    }
     return [...new Set(identifiers)]; // Remove duplicates
-  }, [months, previousYearMonths, isMonthlyTrendMode, monthlyTrendPeriods]);
+  }, [months, previousYearMonths, isMonthlyTrendMode, monthlyTrendPeriods, isQuarterTrendMode, quarterTrendPeriods]);
   
   // Fetch sub-metrics for the department
   const { 
@@ -3973,6 +3980,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const validValues = values.filter((v): v is number => v !== null);
                           if (validValues.length === 0) return null;
                           return validValues.reduce((sum, v) => sum + v, 0);
+                        }}
+                        quarterTrendPeriods={isQuarterTrendMode ? quarterTrendPeriods : undefined}
+                        getQuarterMonths={(q, y) => {
+                          const quarterMonths = getQuarterMonthsForCalculation(q, y);
+                          return quarterMonths.map(m => m.identifier);
                         }}
                       />
                       </React.Fragment>
