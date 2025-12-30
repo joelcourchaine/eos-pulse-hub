@@ -3965,6 +3965,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         getSubMetricValueForParent={(parentKey, subMetricName, monthId) => 
                           getSubMetricValue(parentKey, subMetricName, monthId)
                         }
+                        getParentMetricTotal={(metricKey, monthIds) => {
+                          // Sum up the parent metric's values across the given month IDs
+                          const values = monthIds.map(monthId => 
+                            getValueWithSubMetricFallback(metricKey, monthId) ?? null
+                          );
+                          const validValues = values.filter((v): v is number => v !== null);
+                          if (validValues.length === 0) return null;
+                          return validValues.reduce((sum, v) => sum + v, 0);
+                        }}
                       />
                       </React.Fragment>
                     );
