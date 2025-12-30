@@ -248,6 +248,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
+  const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -2124,6 +2125,246 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     });
   };
 
+  // Generate copy source options for a target month
+  const getCopySourceOptions = useCallback((targetMonthIdentifier: string): import("./MonthDropZone").CopySourceOption[] => {
+    // Parse target month
+    const [targetYearStr, targetMonthStr] = targetMonthIdentifier.split('-');
+    const targetYear = parseInt(targetYearStr);
+    const targetMonth = parseInt(targetMonthStr);
+    
+    if (isNaN(targetYear) || isNaN(targetMonth)) return [];
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const options: import("./MonthDropZone").CopySourceOption[] = [];
+    
+    // Add YTD average option for the same year
+    options.push({
+      identifier: `avg-${targetYear}`,
+      label: `Avg ${targetYear} YTD`,
+      isAverage: true,
+    });
+    
+    // Add all months from the same year that are before the target month
+    for (let m = 1; m <= 12; m++) {
+      const monthId = `${targetYear}-${String(m).padStart(2, '0')}`;
+      // Don't include the target month itself
+      if (monthId === targetMonthIdentifier) continue;
+      
+      options.push({
+        identifier: monthId,
+        label: `${monthNames[m - 1]} ${targetYear}`,
+        isAverage: false,
+      });
+    }
+    
+    return options;
+  }, []);
+
+  // Handle copying financial data from one source to a target month
+  const handleCopyFromSource = useCallback(async (targetMonthIdentifier: string, sourceIdentifier: string) => {
+    if (!departmentId) return;
+    
+    setCopyingMonth(targetMonthIdentifier);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "Not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      const isSourceAverage = sourceIdentifier.startsWith('avg-');
+      const sourceYear = isSourceAverage ? parseInt(sourceIdentifier.split('-')[1]) : null;
+      
+      // Identify which metrics to copy (only those WITHOUT a calculation property)
+      const metricsToСopy = FINANCIAL_METRICS.filter(m => !m.calculation);
+      
+      // Build the entries to insert
+      const entriesToInsert: Array<{
+        department_id: string;
+        month: string;
+        metric_name: string;
+        value: number;
+        created_by: string;
+      }> = [];
+      
+      if (isSourceAverage && sourceYear) {
+        // Calculate averages from all months of the source year
+        const currentMonth = new Date().getMonth() + 1; // 1-12
+        const monthCount = sourceYear === currentYear ? currentMonth : 12;
+        
+        for (const metric of metricsToСopy) {
+          let sum = 0;
+          let count = 0;
+          
+          for (let m = 1; m <= monthCount; m++) {
+            const mKey = `${metric.key}-M${m}-${sourceYear}`;
+            const val = precedingQuartersData[mKey];
+            if (val !== null && val !== undefined) {
+              sum += val;
+              count++;
+            }
+          }
+          
+          if (count > 0) {
+            const average = Math.round(sum / count);
+            entriesToInsert.push({
+              department_id: departmentId,
+              month: targetMonthIdentifier,
+              metric_name: metric.key,
+              value: average,
+              created_by: user.id,
+            });
+          }
+        }
+        
+        // Handle sub-metrics: calculate average for each sub-metric
+        const subMetricsByParent = new Map<string, Map<string, { sum: number; count: number }>>();
+        
+        for (const subMetric of allSubMetrics) {
+          if (!subMetric.monthIdentifier.startsWith(`${sourceYear}-`)) continue;
+          const monthNum = parseInt(subMetric.monthIdentifier.split('-')[1]);
+          if (monthNum > monthCount) continue;
+          
+          if (!subMetricsByParent.has(subMetric.parentMetricKey)) {
+            subMetricsByParent.set(subMetric.parentMetricKey, new Map());
+          }
+          const parentMap = subMetricsByParent.get(subMetric.parentMetricKey)!;
+          
+          const key = subMetric.name;
+          if (!parentMap.has(key)) {
+            parentMap.set(key, { sum: 0, count: 0 });
+          }
+          const entry = parentMap.get(key)!;
+          if (subMetric.value !== null) {
+            entry.sum += subMetric.value;
+            entry.count++;
+          }
+        }
+        
+        // Create average entries for sub-metrics
+        subMetricsByParent.forEach((subMetricsMap, parentKey) => {
+          subMetricsMap.forEach((data, subMetricName) => {
+            if (data.count > 0) {
+              const average = Math.round(data.sum / data.count);
+              // Find order index from existing sub-metrics
+              const existingSub = allSubMetrics.find(
+                sm => sm.parentMetricKey === parentKey && sm.name === subMetricName
+              );
+              const orderIndex = existingSub?.orderIndex ?? 999;
+              
+              const metricName = `sub:${parentKey}:${String(orderIndex).padStart(3, '0')}:${subMetricName}`;
+              entriesToInsert.push({
+                department_id: departmentId,
+                month: targetMonthIdentifier,
+                metric_name: metricName,
+                value: average,
+                created_by: user.id,
+              });
+            }
+          });
+        });
+        
+      } else {
+        // Copy from a specific month
+        const [srcYear, srcMonth] = sourceIdentifier.split('-').map(Number);
+        
+        for (const metric of metricsToСopy) {
+          const mKey = `${metric.key}-M${srcMonth}-${srcYear}`;
+          const val = precedingQuartersData[mKey];
+          if (val !== null && val !== undefined) {
+            entriesToInsert.push({
+              department_id: departmentId,
+              month: targetMonthIdentifier,
+              metric_name: metric.key,
+              value: Math.round(val),
+              created_by: user.id,
+            });
+          }
+        }
+        
+        // Copy sub-metrics from the source month
+        const sourceSubMetrics = allSubMetrics.filter(
+          sm => sm.monthIdentifier === sourceIdentifier
+        );
+        
+        for (const subMetric of sourceSubMetrics) {
+          if (subMetric.value === null) continue;
+          
+          const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
+          entriesToInsert.push({
+            department_id: departmentId,
+            month: targetMonthIdentifier,
+            metric_name: metricName,
+            value: Math.round(subMetric.value),
+            created_by: user.id,
+          });
+        }
+      }
+      
+      if (entriesToInsert.length === 0) {
+        toast({
+          title: "No data to copy",
+          description: "The source has no data to copy",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Upsert all entries
+      const { error } = await supabase
+        .from("financial_entries")
+        .upsert(entriesToInsert, {
+          onConflict: "department_id,month,metric_name"
+        });
+      
+      if (error) {
+        console.error('Error copying financial data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to copy financial data",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Reload data
+      await loadFinancialData();
+      await loadPrecedingQuartersData();
+      await refetchSubMetrics();
+      
+      const sourceLabel = isSourceAverage 
+        ? `Avg ${sourceYear} YTD` 
+        : sourceIdentifier;
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const [tYear, tMonth] = targetMonthIdentifier.split('-').map(Number);
+      const targetLabel = `${monthNames[tMonth - 1]} ${tYear}`;
+      
+      // Count main metrics vs sub-metrics
+      const mainMetricCount = entriesToInsert.filter(e => !e.metric_name.startsWith('sub:')).length;
+      const subMetricCount = entriesToInsert.filter(e => e.metric_name.startsWith('sub:')).length;
+      
+      toast({
+        title: "Data copied",
+        description: `Copied ${mainMetricCount} metrics${subMetricCount > 0 ? ` and ${subMetricCount} sub-metrics` : ''} from ${sourceLabel} to ${targetLabel}`,
+      });
+      
+    } catch (err) {
+      console.error('Error in handleCopyFromSource:', err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingMonth(null);
+    }
+  }, [departmentId, FINANCIAL_METRICS, precedingQuartersData, allSubMetrics, toast, loadFinancialData, loadPrecedingQuartersData, refetchSubMetrics, currentYear]);
+
   if (loading) {
     return (
       <Card>
@@ -2361,6 +2602,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     loadFinancialData();
                                     refetchSubMetrics();
                                   }}
+                                  copySourceOptions={getCopySourceOptions(period.identifier)}
+                                  onCopyFromSource={(sourceId) => handleCopyFromSource(period.identifier, sourceId)}
+                                  isCopying={copyingMonth === period.identifier}
                                 >
                                   <div className="flex flex-col items-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -2413,6 +2657,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 loadFinancialData();
                                 refetchSubMetrics();
                               }}
+                              copySourceOptions={getCopySourceOptions(month.identifier)}
+                              onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
+                              isCopying={copyingMonth === month.identifier}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -2444,6 +2691,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 loadFinancialData();
                                 refetchSubMetrics();
                               }}
+                              copySourceOptions={getCopySourceOptions(month.identifier)}
+                              onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
+                              isCopying={copyingMonth === month.identifier}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
