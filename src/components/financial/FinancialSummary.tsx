@@ -704,6 +704,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // First check user_roles table for actual roles
+    const { data: roleData, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    if (!roleError && roleData && roleData.length > 0) {
+      // Prioritize roles: super_admin > store_gm > department_manager
+      if (roleData.some(r => r.role === 'super_admin')) {
+        setUserRole('super_admin');
+        return;
+      }
+      if (roleData.some(r => r.role === 'store_gm')) {
+        setUserRole('store_gm');
+        return;
+      }
+      if (roleData.some(r => r.role === 'department_manager')) {
+        setUserRole('department_manager');
+        return;
+      }
+    }
+
+    // Fallback to profile role if no user_roles found
     const { data, error } = await supabase
       .from("profiles")
       .select("role")
