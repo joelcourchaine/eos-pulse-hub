@@ -466,6 +466,7 @@ interface ExpandableMetricNameProps {
   isExpanded: boolean;
   onToggle: () => void;
   isDepartmentProfit?: boolean;
+  isNetSellingGross?: boolean;
 }
 
 export const ExpandableMetricName: React.FC<ExpandableMetricNameProps> = ({
@@ -474,13 +475,17 @@ export const ExpandableMetricName: React.FC<ExpandableMetricNameProps> = ({
   isExpanded,
   onToggle,
   isDepartmentProfit = false,
+  isNetSellingGross = false,
 }) => {
+  const getTextStyle = () => {
+    if (isDepartmentProfit) return "font-bold text-base";
+    if (isNetSellingGross) return "font-semibold";
+    return "font-medium";
+  };
+
   if (!hasSubMetrics) {
     return (
-      <p className={cn(
-        "text-sm truncate",
-        isDepartmentProfit ? "font-bold text-base" : "font-medium"
-      )}>
+      <p className={cn("text-sm truncate", getTextStyle())}>
         {metricName}
       </p>
     );
@@ -499,10 +504,7 @@ export const ExpandableMetricName: React.FC<ExpandableMetricNameProps> = ({
       ) : (
         <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
       )}
-      <p className={cn(
-        "text-sm truncate",
-        isDepartmentProfit ? "font-bold text-base" : "font-medium"
-      )}>
+      <p className={cn("text-sm truncate", getTextStyle())}>
         {metricName}
       </p>
     </button>
