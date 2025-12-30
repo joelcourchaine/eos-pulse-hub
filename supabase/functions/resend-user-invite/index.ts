@@ -174,25 +174,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if caller has super_admin role
-    const { data: callerRoles, error: roleError } = await userClient
+    // Check if caller has super_admin or store_gm role
+    const { data: callerRoles, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
-      .eq('role', 'super_admin');
+      .in('role', ['super_admin', 'store_gm']);
 
-    if (roleError || !callerRoles || callerRoles.length === 0) {
+    const isSuperAdmin = callerRoles?.some(r => r.role === 'super_admin');
+    const isStoreGM = callerRoles?.some(r => r.role === 'store_gm');
+
+    if (roleError || (!isSuperAdmin && !isStoreGM)) {
       console.error('Role check failed:', roleError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Forbidden: Only super admins can resend invites' 
+          error: 'Forbidden: Only super admins and store GMs can resend invites' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
 
-    console.log('Authorization successful for user:', user.id);
+    console.log('Authorization successful for user:', user.id, 'isSuperAdmin:', isSuperAdmin, 'isStoreGM:', isStoreGM);
 
     const requestBody: ResendInviteRequest = await req.json();
     const { user_id } = requestBody;
@@ -205,6 +208,36 @@ Deno.serve(async (req) => {
     }
 
     console.log('Processing invite/reset for user:', user_id);
+
+    // If store_gm (not super_admin), verify the target user is in the same store group
+    if (isStoreGM && !isSuperAdmin) {
+      // Get caller's store group
+      const { data: callerProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('store_group_id')
+        .eq('id', user.id)
+        .single();
+
+      // Get target user's store group
+      const { data: targetProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('store_group_id')
+        .eq('id', user_id)
+        .single();
+
+      if (!callerProfile?.store_group_id || 
+          callerProfile.store_group_id !== targetProfile?.store_group_id) {
+        console.error('Store group mismatch - caller:', callerProfile?.store_group_id, 'target:', targetProfile?.store_group_id);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Forbidden: You can only resend invites for users in your store group' 
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        );
+      }
+      console.log('Store group verification passed');
+    }
 
     // Get user data from auth
     const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(user_id);
