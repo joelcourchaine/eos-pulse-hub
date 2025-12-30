@@ -3957,6 +3957,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           return success;
                         }}
                         isPercentageMetric={metric.type === 'percentage'}
+                        percentageCalculation={
+                          metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation
+                            ? { numerator: metric.calculation.numerator, denominator: metric.calculation.denominator }
+                            : undefined
+                        }
+                        getSubMetricValueForParent={(parentKey, subMetricName, monthId) => 
+                          getSubMetricValue(parentKey, subMetricName, monthId)
+                        }
                       />
                       </React.Fragment>
                     );
