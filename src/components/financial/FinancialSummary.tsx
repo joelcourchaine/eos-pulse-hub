@@ -1698,7 +1698,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const formatTarget = (value: number | undefined, type: string) => {
     if (value === null || value === undefined) return "-";
     if (type === "dollar") return `$${Math.round(value).toLocaleString()}`;
-    if (type === "percentage") return `${Math.round(value)}%`;
+    if (type === "percentage") return `${value.toFixed(1)}%`;
     return value.toString();
   };
 
