@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { DepartmentAccessDialog } from "./DepartmentAccessDialog";
+import { ManagedDepartmentsSelect } from "./ManagedDepartmentsSelect";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
@@ -559,22 +560,14 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       )}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={departments.find(d => d.manager_id === profile.id)?.id || "none"}
-                        onValueChange={(value) => handleUpdateManagedDepartment(profile.id, value === "none" ? null : value)}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue placeholder="None" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {departments.map(d => (
-                            <SelectItem key={d.id} value={d.id}>
-                              {d.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <ManagedDepartmentsSelect
+                        userId={profile.id}
+                        departments={departments}
+                        onUpdate={() => {
+                          loadProfiles();
+                          loadDepartments();
+                        }}
+                      />
                     </TableCell>
                     <TableCell>
                       <select
