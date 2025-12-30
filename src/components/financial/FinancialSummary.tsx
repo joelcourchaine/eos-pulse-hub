@@ -2756,6 +2756,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const target = targets[metric.key];
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     const isDepartmentProfit = metric.key === 'department_profit';
+                    const isNetSellingGross = metric.key === 'net_selling_gross';
                     const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(metric.key);
                     const isMetricExpanded = expandedMetrics.has(metric.key);
                     const subMetricNames = metricHasSubMetrics ? getSubMetricNames(metric.key) : [];
@@ -2772,12 +2773,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       <TableRow 
                         className={cn(
                           "hover:bg-muted/30",
-                          isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5"
+                          isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5",
+                          isNetSellingGross && "border-y border-muted-foreground/20 bg-muted/30"
                         )}
                       >
                         <TableCell className={cn(
                           "sticky left-0 z-30 py-[7.2px] w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]",
-                          isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background"
+                          isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background",
+                          isNetSellingGross && "bg-muted/30 border-y border-muted-foreground/20"
                         )}>
                           <TooltipProvider>
                             <Tooltip>
@@ -2788,6 +2791,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   isExpanded={expandedMetrics.has(metric.key)}
                                   onToggle={() => toggleMetricExpansion(metric.key)}
                                   isDepartmentProfit={isDepartmentProfit}
+                                  isNetSellingGross={isNetSellingGross}
                                 />
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-[350px] max-h-[500px] overflow-y-auto">
@@ -2865,7 +2869,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                            <>
                              <TableCell className={cn(
                                "px-1 py-0.5 min-w-[100px] max-w-[100px]",
-                               isDepartmentProfit && "bg-primary/5"
+                               isDepartmentProfit && "bg-primary/5",
+                               isNetSellingGross && "bg-muted/30"
                              )}>
                                <Sparkline 
                                  data={monthlyTrendPeriods.filter(p => p.type === 'month').map(period => {
@@ -2979,7 +2984,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           status === "success" && "bg-success/10",
                                           status === "warning" && "bg-warning/10",
                                           status === "destructive" && "bg-destructive/10",
-                                          isDepartmentProfit && "bg-primary/5"
+                                          isDepartmentProfit && "bg-primary/5",
+                                          isNetSellingGross && !status && "bg-muted/30"
                                         )}
                                       >
                                         <span className={cn(
@@ -3032,7 +3038,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             status === "success" && "bg-success/10",
                                             status === "warning" && "bg-warning/10",
                                             status === "destructive" && "bg-destructive/10",
-                                            isDepartmentProfit && "bg-primary/5"
+                                            isDepartmentProfit && "bg-primary/5",
+                                            isNetSellingGross && !status && "bg-muted/30"
                                           )}
                                         >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
@@ -3222,7 +3229,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                      "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium",
                                      period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
                                      period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
-                                     isDepartmentProfit && "bg-primary/15"
+                                     isDepartmentProfit && "bg-primary/15",
+                                     isNetSellingGross && "bg-muted/40"
                                    )}
                                  >
                                    {displayValue !== null && displayValue !== undefined ? formatTarget(displayValue, metric.type) : "-"}
@@ -3264,7 +3272,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   status === "warning" && "bg-warning/10",
                                   status === "destructive" && "bg-destructive/10",
                                   !status && "text-muted-foreground",
-                                  isDepartmentProfit && "bg-primary/5"
+                                  isDepartmentProfit && "bg-primary/5",
+                                  isNetSellingGross && !status && "bg-muted/30"
                                 )}
                               >
                                 <span className={cn(
