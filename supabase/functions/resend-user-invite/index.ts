@@ -288,33 +288,56 @@ Deno.serve(async (req) => {
 
       console.log('Password reset email sent successfully to:', realEmail);
     } else {
-      // User hasn't confirmed yet, generate invitation link
-      console.log('User not confirmed, generating invitation link for:', realEmail);
+      // User hasn't confirmed yet, try to generate invitation link
+      console.log('User not confirmed, attempting to generate invitation link for:', realEmail);
       
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      let actionLink: string;
+      let linkType = 'invite';
+      
+      // Try invite first, fall back to recovery if user already exists
+      const { data: inviteLinkData, error: inviteLinkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'invite',
-        email: realEmail, // Use real email from profiles
+        email: realEmail,
         options: {
           redirectTo: `${appUrl}/set-password`
         }
       });
 
-      if (linkError || !linkData) {
-        console.error('Error generating invite link:', linkError);
-        throw new Error(linkError?.message || 'Failed to generate invite link');
-      }
+      if (inviteLinkError) {
+        console.log('Invite link failed (user may already exist), trying recovery link:', inviteLinkError.message);
+        
+        // Fall back to recovery/password reset link
+        const { data: recoveryLinkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: realEmail,
+          options: {
+            redirectTo: `${appUrl}/set-password`
+          }
+        });
 
-      console.log('Invite link generated successfully');
+        if (recoveryLinkError || !recoveryLinkData) {
+          console.error('Error generating recovery link:', recoveryLinkError);
+          throw new Error(recoveryLinkError?.message || 'Failed to generate any auth link');
+        }
+
+        actionLink = recoveryLinkData.properties.action_link;
+        linkType = 'recovery';
+        console.log('Recovery link generated successfully as fallback');
+      } else if (!inviteLinkData) {
+        throw new Error('Failed to generate invite link - no data returned');
+      } else {
+        actionLink = inviteLinkData.properties.action_link;
+        console.log('Invite link generated successfully');
+      }
       
       // Send invitation email directly via Resend
-      const actionLink = linkData.properties.action_link;
       await sendEmailViaResend(
         realEmail,
         'Welcome to Dealer Growth Solutions - Set Your Password',
         getInviteEmailHtml(actionLink)
       );
 
-      console.log('Invitation email sent successfully to:', realEmail);
+      console.log(`${linkType} email sent successfully to:`, realEmail);
     }
 
     return new Response(
