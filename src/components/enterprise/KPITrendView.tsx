@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { DataCoverageBadge } from "./DataCoverageBadge";
 
 interface KPITrendViewProps {
   storeIds: string[];
@@ -402,11 +403,20 @@ export function KPITrendView({
               const store = stores?.find(s => s.id === storeId);
               if (!store) return null;
               
+              // Calculate months with data for this store
+              const monthsWithData = months.filter(month => {
+                return selectedMetrics.some(metricName => {
+                  const metricData = storeData[metricName] as Record<string, number | null> | undefined;
+                  return metricData?.[month] !== null && metricData?.[month] !== undefined;
+                });
+              }).length;
+              
               return (
                 <Card key={storeId} className="print:shadow-none print:border print:break-inside-avoid">
                   <CardHeader className="print:py-2">
-                    <CardTitle className="text-xl print:text-lg">
-                      {store.name} {selectedDepartmentNames.length > 0 && `- ${selectedDepartmentNames.join(", ")}`}
+                    <CardTitle className="text-xl print:text-lg flex items-center">
+                      <span>{store.name} {selectedDepartmentNames.length > 0 && `- ${selectedDepartmentNames.join(", ")}`}</span>
+                      <DataCoverageBadge monthsWithData={monthsWithData} totalMonths={months.length} />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="print:p-2">

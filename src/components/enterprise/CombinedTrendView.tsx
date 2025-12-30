@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataCoverageBadge } from "./DataCoverageBadge";
 
 type TrendViewMode = "monthly" | "quarterly";
 
@@ -730,11 +731,29 @@ export function CombinedTrendView({
               </CardContent>
             </Card>
           ) : (
-            storeEntries.map(store => (
+            storeEntries.map(store => {
+              // Calculate months with data for this store (check both KPI and financial data)
+              const monthsWithData = months.filter(month => {
+                const hasKpiData = selectedKpiMetrics.some(metricName => {
+                  const value = kpiData[store.id]?.[month]?.get(metricName);
+                  return value !== null && value !== undefined;
+                });
+                const hasFinancialData = selectedFinancialMetrics.some(metricName => {
+                  const { nameToKey } = financialMetricDefs;
+                  const monthData = financialData[store.id]?.[month];
+                  if (!monthData) return false;
+                  const metricKey = getMetricLookupKey(metricName, monthData);
+                  return metricKey && monthData.get(metricKey) !== undefined;
+                });
+                return hasKpiData || hasFinancialData;
+              }).length;
+              
+              return (
               <Card key={store.id} className="print:shadow-none print:border print:break-inside-avoid">
                 <CardHeader className="print:py-2">
-                  <CardTitle className="text-xl print:text-lg">
-                    {store.name} {selectedDepartmentNames.length > 0 && `- ${selectedDepartmentNames.join(", ")}`}
+                  <CardTitle className="text-xl print:text-lg flex items-center">
+                    <span>{store.name} {selectedDepartmentNames.length > 0 && `- ${selectedDepartmentNames.join(", ")}`}</span>
+                    <DataCoverageBadge monthsWithData={monthsWithData} totalMonths={months.length} />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="print:p-2 space-y-6">
@@ -873,7 +892,7 @@ export function CombinedTrendView({
                   )}
                 </CardContent>
               </Card>
-            ))
+            )})
           )}
         </div>
       </div>
