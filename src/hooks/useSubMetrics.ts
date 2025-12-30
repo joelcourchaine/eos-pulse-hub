@@ -264,6 +264,96 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     [getSubMetricValue]
   );
 
+  /**
+   * Save a sub-metric value to the database.
+   * Creates or updates the entry using upsert.
+   * When a statement is uploaded, it will override these manual entries.
+   */
+  const saveSubMetricValue = useCallback(
+    async (
+      parentMetricKey: string,
+      subMetricName: string,
+      monthId: string,
+      value: number | null,
+      orderIndex: number = 999
+    ): Promise<boolean> => {
+      if (!departmentId) return false;
+
+      const metricName = `sub:${parentMetricKey}:${String(orderIndex).padStart(3, '0')}:${subMetricName}`;
+
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session.session?.user?.id;
+
+        if (value === null) {
+          // Delete the entry if value is null
+          const { error } = await supabase
+            .from('financial_entries')
+            .delete()
+            .eq('department_id', departmentId)
+            .eq('month', monthId)
+            .eq('metric_name', metricName);
+
+          if (error) {
+            console.error('Error deleting sub-metric:', error);
+            return false;
+          }
+        } else {
+          // Upsert the entry
+          const { error } = await supabase
+            .from('financial_entries')
+            .upsert(
+              {
+                department_id: departmentId,
+                month: monthId,
+                metric_name: metricName,
+                value: value,
+                created_by: userId,
+              },
+              {
+                onConflict: 'department_id,month,metric_name',
+              }
+            );
+
+          if (error) {
+            console.error('Error saving sub-metric:', error);
+            return false;
+          }
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error in saveSubMetricValue:', err);
+        return false;
+      }
+    },
+    [departmentId]
+  );
+
+  /**
+   * Create a new sub-metric entry (for when user adds a new sub-metric manually).
+   */
+  const addSubMetric = useCallback(
+    async (
+      parentMetricKey: string,
+      subMetricName: string,
+      monthId: string,
+      value: number | null
+    ): Promise<boolean> => {
+      if (!departmentId) return false;
+
+      // Find the next order index for this parent metric
+      const existingForParent = subMetrics.filter(sm => sm.parentMetricKey === parentMetricKey);
+      const maxOrderIndex = existingForParent.length > 0 
+        ? Math.max(...existingForParent.map(sm => sm.orderIndex))
+        : -1;
+      const newOrderIndex = maxOrderIndex + 1;
+
+      return saveSubMetricValue(parentMetricKey, subMetricName, monthId, value, newOrderIndex);
+    },
+    [departmentId, subMetrics, saveSubMetricValue]
+  );
+
   return {
     subMetrics,
     loading,
@@ -272,6 +362,8 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     hasSubMetrics,
     getSubMetricSum,
     getCalculatedSubMetricValue,
+    saveSubMetricValue,
+    addSubMetric,
     refetch: fetchSubMetrics,
   };
 };

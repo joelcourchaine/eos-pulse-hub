@@ -36,6 +36,10 @@ interface SubMetricsRowProps {
   // Target management callbacks
   getSubMetricTarget?: (subMetricName: string, quarter: number, year: number) => number | null;
   onSaveSubMetricTarget?: (subMetricName: string, orderIndex: number, quarter: number, year: number, value: number) => Promise<boolean>;
+  // Value editing callbacks
+  onSaveSubMetricValue?: (subMetricName: string, orderIndex: number, monthId: string, value: number | null) => Promise<boolean>;
+  // Whether editing is allowed
+  canEdit?: boolean;
 }
 
 // Helper to calculate average from values
@@ -82,9 +86,13 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   currentYear,
   getSubMetricTarget,
   onSaveSubMetricTarget,
+  onSaveSubMetricValue,
+  canEdit = false,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [editingValue, setEditingValue] = useState<string | null>(null);
+  const [valueEditValue, setValueEditValue] = useState<string>("");
 
   if (!isExpanded) return null;
   
@@ -159,6 +167,39 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     }
   };
 
+  // Value editing handlers
+  const handleValueClick = (subMetricName: string, monthId: string, currentValue: number | null) => {
+    if (!canEdit || !onSaveSubMetricValue) return;
+    const key = `${subMetricName}-${monthId}`;
+    setEditingValue(key);
+    setValueEditValue(currentValue !== null ? currentValue.toString() : "");
+  };
+
+  const handleValueSave = async (subMetricName: string, orderIndex: number, monthId: string) => {
+    if (!onSaveSubMetricValue) {
+      setEditingValue(null);
+      return;
+    }
+
+    const cleaned = valueEditValue.replace(/[$,%\s]/g, "").replace(/,/g, "");
+    let numValue = cleaned === "" ? null : parseFloat(cleaned);
+    if (numValue !== null && !isNaN(numValue)) {
+      numValue = Math.round(numValue);
+      await onSaveSubMetricValue(subMetricName, orderIndex, monthId, numValue);
+    } else if (cleaned === "") {
+      await onSaveSubMetricValue(subMetricName, orderIndex, monthId, null);
+    }
+    setEditingValue(null);
+  };
+
+  const handleValueKeyDown = (e: React.KeyboardEvent, subMetricName: string, orderIndex: number, monthId: string) => {
+    if (e.key === 'Enter') {
+      handleValueSave(subMetricName, orderIndex, monthId);
+    } else if (e.key === 'Escape') {
+      setEditingValue(null);
+    }
+  };
+
   // If we have periods, render columns matching the parent row structure
   if (periods && periods.length > 0) {
     return (
@@ -222,6 +263,10 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   ? getVarianceStatus(value, targetValue, 'above') 
                   : null;
                 
+                const valueKey = `${subMetric.name}-${period.identifier}`;
+                const isEditingThisValue = editingValue === valueKey;
+                const orderIndex = subMetric.orderIndex ?? idx;
+                
                 return (
                   <TableCell 
                     key={period.identifier} 
@@ -230,16 +275,31 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                       status === 'success' && "bg-success/10",
                       status === 'warning' && "bg-warning/10",
                       status === 'destructive' && "bg-destructive/10",
-                      !status && "text-muted-foreground"
+                      !status && "text-muted-foreground",
+                      canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
                     )}
+                    onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, period.identifier, value)}
                   >
-                    <span className={cn(
-                      status === 'success' && "text-success font-medium",
-                      status === 'warning' && "text-warning font-medium",
-                      status === 'destructive' && "text-destructive font-medium"
-                    )}>
-                      {value !== null ? formatValue(value) : "-"}
-                    </span>
+                    {isEditingThisValue ? (
+                      <Input
+                        type="text"
+                        value={valueEditValue}
+                        onChange={(e) => setValueEditValue(e.target.value)}
+                        onBlur={() => handleValueSave(subMetric.name, orderIndex, period.identifier)}
+                        onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, period.identifier)}
+                        className="h-6 text-xs text-center w-full"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className={cn(
+                        status === 'success' && "text-success font-medium",
+                        status === 'warning' && "text-warning font-medium",
+                        status === 'destructive' && "text-destructive font-medium"
+                      )}>
+                        {value !== null ? formatValue(value) : "-"}
+                      </span>
+                    )}
                   </TableCell>
                 );
               }
@@ -353,6 +413,10 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               ? getVarianceStatus(value, targetValue, 'above') 
               : null;
             
+            const valueKey = `${subMetric.name}-${monthId}`;
+            const isEditingThisValue = editingValue === valueKey;
+            const orderIndex = subMetric.orderIndex ?? idx;
+            
             return (
               <TableCell 
                 key={monthId} 
@@ -361,16 +425,31 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   status === 'success' && "bg-success/10",
                   status === 'warning' && "bg-warning/10",
                   status === 'destructive' && "bg-destructive/10",
-                  !status && "text-muted-foreground"
+                  !status && "text-muted-foreground",
+                  canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
                 )}
+                onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, monthId, value)}
               >
-                <span className={cn(
-                  status === 'success' && "text-success font-medium",
-                  status === 'warning' && "text-warning font-medium",
-                  status === 'destructive' && "text-destructive font-medium"
-                )}>
-                  {value !== null ? formatValue(value) : "-"}
-                </span>
+                {isEditingThisValue ? (
+                  <Input
+                    type="text"
+                    value={valueEditValue}
+                    onChange={(e) => setValueEditValue(e.target.value)}
+                    onBlur={() => handleValueSave(subMetric.name, orderIndex, monthId)}
+                    onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, monthId)}
+                    className="h-6 text-xs text-center w-full"
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className={cn(
+                    status === 'success' && "text-success font-medium",
+                    status === 'warning' && "text-warning font-medium",
+                    status === 'destructive' && "text-destructive font-medium"
+                  )}>
+                    {value !== null ? formatValue(value) : "-"}
+                  </span>
+                )}
               </TableCell>
             );
           })}

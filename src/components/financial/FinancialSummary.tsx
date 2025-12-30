@@ -339,6 +339,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     refetch: refetchSubMetrics,
     getSubMetricSum,
     getCalculatedSubMetricValue,
+    saveSubMetricValue,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
   
   // Fetch sub-metric targets
@@ -3649,6 +3650,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             toast({
                               title: "Error",
                               description: "Failed to save sub-metric target",
+                              variant: "destructive",
+                            });
+                          }
+                          return success;
+                        }}
+                        canEdit={canEditTargets()}
+                        onSaveSubMetricValue={async (subMetricName, orderIndex, monthId, value) => {
+                          const success = await saveSubMetricValue(
+                            metric.key, subMetricName, monthId, value, orderIndex
+                          );
+                          if (success) {
+                            // Refetch sub-metrics to update display
+                            refetchSubMetrics();
+                            // Reload preceding quarters data to update calculations
+                            loadPrecedingQuartersData();
+                          } else {
+                            toast({
+                              title: "Error",
+                              description: "Failed to save sub-metric value",
                               variant: "destructive",
                             });
                           }
