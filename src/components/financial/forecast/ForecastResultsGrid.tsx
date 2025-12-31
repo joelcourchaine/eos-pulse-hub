@@ -281,6 +281,23 @@ export function ForecastResultsGrid({
           {annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'}
         </td>
         <td className={cn(
+          "text-right py-2 px-2 font-medium bg-primary/10",
+          isSubMetric && "text-xs font-normal"
+        )}>
+          {annualValue !== undefined && annualBaseline !== undefined ? (
+            <span className={cn(
+              metric.type === 'percent' 
+                ? (annualValue - annualBaseline) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                : (annualValue - annualBaseline) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+            )}>
+              {metric.type === 'percent' 
+                ? `${(annualValue - annualBaseline) >= 0 ? '+' : ''}${(annualValue - annualBaseline).toFixed(1)}%`
+                : `${(annualValue - annualBaseline) >= 0 ? '+' : ''}${formatCurrency(annualValue - annualBaseline)}`
+              }
+            </span>
+          ) : '-'}
+        </td>
+        <td className={cn(
           "text-right py-2 pl-2 font-medium bg-muted/30",
           isSubMetric && "text-xs font-normal text-muted-foreground"
         )}>
@@ -331,6 +348,7 @@ export function ForecastResultsGrid({
                 </th>
               ))}
               <th className="text-right py-2 px-2 font-medium bg-muted/50 w-[90px]">{forecastYear}</th>
+              <th className="text-right py-2 px-2 font-medium bg-primary/10 w-[90px]">Var</th>
               <th className="text-right py-2 pl-2 font-medium bg-muted/30 w-[90px]">{priorYear}</th>
             </tr>
           </thead>
