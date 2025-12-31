@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
@@ -11,6 +11,7 @@ import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
 import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ForecastDrawerProps {
   open: boolean;
@@ -25,18 +26,35 @@ const formatCurrency = (value: number) => {
   return `$${value.toFixed(0)}`;
 };
 
+// Sub-metrics that roll up to parent metrics
+const SUB_METRIC_PARENTS: Record<string, string> = {
+  'new_vehicle_sales': 'total_sales',
+  'used_vehicle_sales': 'total_sales',
+  'parts_sales': 'total_sales',
+  'service_sales': 'total_sales',
+  'other_sales': 'total_sales',
+  'salesperson_expense': 'sales_expense',
+  'sales_management_expense': 'sales_expense',
+  'other_sales_expense': 'sales_expense',
+};
+
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const forecastYear = currentYear + 1;
   const priorYear = currentYear - 1;
 
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
+  const [visibleMonthStart, setVisibleMonthStart] = useState(0);
   
   // Driver states
   const [salesGrowth, setSalesGrowth] = useState(0);
   const [gpPercent, setGpPercent] = useState(28);
   const [salesExpPercent, setSalesExpPercent] = useState(42);
   const [fixedExpense, setFixedExpense] = useState(0);
+  
+  // Track if drivers have changed for auto-save
+  const driversInitialized = useRef(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Hooks
   const { 
@@ -48,6 +66,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     updateWeight,
     resetWeights,
     updateEntry,
+    bulkUpdateEntries,
   } = useForecast(departmentId, forecastYear);
 
   // Use prior year (forecastYear - 1) for weight distribution
@@ -78,6 +97,28 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     enabled: !!departmentId,
   });
 
+  // Fetch sub-metrics data
+  const { data: subMetricsData } = useQuery({
+    queryKey: ['sub-metrics-financial', departmentId, priorYear],
+    queryFn: async () => {
+      if (!departmentId) return [];
+      
+      // Get all financial entries that could be sub-metrics
+      const subMetricKeys = Object.keys(SUB_METRIC_PARENTS);
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('month, metric_name, value')
+        .eq('department_id', departmentId)
+        .in('metric_name', subMetricKeys)
+        .gte('month', `${priorYear}-01`)
+        .lte('month', `${priorYear}-12`);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!departmentId,
+  });
+
   // Convert prior year data to baseline map
   const baselineData = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
@@ -91,6 +132,55 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     
     return map;
   }, [priorYearData]);
+
+  // Convert sub-metrics to the format needed by the grid
+  const subMetrics = useMemo(() => {
+    const result = new Map<string, { key: string; label: string; values: Map<string, number>; annualValue: number }[]>();
+    
+    if (!subMetricsData) return result;
+    
+    // Group by parent metric
+    const grouped = new Map<string, Map<string, Map<string, number>>>();
+    
+    subMetricsData.forEach(entry => {
+      const parentKey = SUB_METRIC_PARENTS[entry.metric_name];
+      if (!parentKey) return;
+      
+      if (!grouped.has(parentKey)) {
+        grouped.set(parentKey, new Map());
+      }
+      
+      const parentGroup = grouped.get(parentKey)!;
+      if (!parentGroup.has(entry.metric_name)) {
+        parentGroup.set(entry.metric_name, new Map());
+      }
+      
+      parentGroup.get(entry.metric_name)!.set(entry.month, entry.value || 0);
+    });
+    
+    // Convert to final format
+    grouped.forEach((metrics, parentKey) => {
+      const children: { key: string; label: string; values: Map<string, number>; annualValue: number }[] = [];
+      
+      metrics.forEach((monthValues, metricKey) => {
+        let annualValue = 0;
+        monthValues.forEach(v => annualValue += v);
+        
+        children.push({
+          key: metricKey,
+          label: metricKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          values: monthValues,
+          annualValue,
+        });
+      });
+      
+      if (children.length > 0) {
+        result.set(parentKey, children);
+      }
+    });
+    
+    return result;
+  }, [subMetricsData]);
 
   // Use the calculations hook
   const {
@@ -122,6 +212,73 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   }, [open, forecast, isLoading, calculatedWeights, createForecast.isPending]);
 
+  // Initialize driver values from baseline data
+  useEffect(() => {
+    if (priorYearData && priorYearData.length > 0 && !driversInitialized.current) {
+      // Calculate prior year totals to set initial driver values
+      const totals: Record<string, number> = {};
+      priorYearData.forEach(entry => {
+        totals[entry.metric_name] = (totals[entry.metric_name] || 0) + (entry.value || 0);
+      });
+      
+      if (totals.gp_net && totals.total_sales) {
+        setGpPercent(Math.round((totals.gp_net / totals.total_sales) * 1000) / 10);
+      }
+      if (totals.sales_expense && totals.gp_net) {
+        setSalesExpPercent(Math.round((totals.sales_expense / totals.gp_net) * 1000) / 10);
+      }
+      if (totals.total_fixed_expense) {
+        setFixedExpense(totals.total_fixed_expense);
+      }
+      
+      driversInitialized.current = true;
+    }
+  }, [priorYearData]);
+
+  // Auto-save forecast entries when drivers change
+  useEffect(() => {
+    if (!forecast || !driversInitialized.current) return;
+    
+    // Debounce auto-save
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    autoSaveTimerRef.current = setTimeout(() => {
+      // Build updates from calculated values
+      const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
+      
+      monthlyValues.forEach((metrics, month) => {
+        metrics.forEach((result, metricKey) => {
+          // Only save if not locked
+          const entry = entries.find(e => e.month === month && e.metric_name === metricKey);
+          if (!entry?.is_locked) {
+            updates.push({
+              month,
+              metricName: metricKey,
+              forecastValue: result.value,
+              baselineValue: result.baseline_value,
+            });
+          }
+        });
+      });
+      
+      if (updates.length > 0) {
+        bulkUpdateEntries.mutate(updates, {
+          onSuccess: () => {
+            // Silent save, no toast
+          },
+        });
+      }
+    }, 1500); // 1.5 second debounce
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [salesGrowth, gpPercent, salesExpPercent, fixedExpense, monthlyValues, forecast, entries]);
+
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
     if (view === 'quarter') {
@@ -140,6 +297,15 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const entry = entries.find(e => e.month === month && e.metric_name === metricName);
     const currentLocked = entry?.is_locked ?? false;
     updateEntry.mutate({ month, metricName, isLocked: !currentLocked });
+  };
+
+  // Handle month navigation
+  const handleMonthNavigate = (direction: 'prev' | 'next') => {
+    if (direction === 'prev' && visibleMonthStart > 0) {
+      setVisibleMonthStart(visibleMonthStart - 1);
+    } else if (direction === 'next' && visibleMonthStart < 6) {
+      setVisibleMonthStart(visibleMonthStart + 1);
+    }
   };
 
   // Get department profit for comparison
@@ -216,8 +382,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               annualValues={annualValues}
               metricDefinitions={metricDefinitions}
               months={months}
+              subMetrics={subMetrics}
+              visibleMonthStart={visibleMonthStart}
               onCellEdit={handleCellEdit}
               onToggleLock={handleToggleLock}
+              onMonthNavigate={handleMonthNavigate}
             />
 
             {/* Baseline Comparison */}
