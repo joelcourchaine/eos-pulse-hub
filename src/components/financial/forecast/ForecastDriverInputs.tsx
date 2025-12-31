@@ -60,16 +60,16 @@ export function ForecastDriverInputs({
             <span className="font-medium">{gpPercent.toFixed(1)}%</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-8">20%</span>
+            <span className="text-xs text-muted-foreground w-8">15%</span>
             <Slider
               value={[gpPercent]}
               onValueChange={([v]) => onGpPercentChange(v)}
-              min={20}
-              max={40}
+              min={15}
+              max={60}
               step={0.5}
               className="flex-1"
             />
-            <span className="text-xs text-muted-foreground w-8">40%</span>
+            <span className="text-xs text-muted-foreground w-8">60%</span>
           </div>
         </div>
 
@@ -80,16 +80,16 @@ export function ForecastDriverInputs({
             <span className="font-medium">{salesExpPercent.toFixed(1)}%</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-8">30%</span>
+            <span className="text-xs text-muted-foreground w-8">20%</span>
             <Slider
               value={[salesExpPercent]}
               onValueChange={([v]) => onSalesExpPercentChange(v)}
-              min={30}
-              max={55}
+              min={20}
+              max={80}
               step={0.5}
               className="flex-1"
             />
-            <span className="text-xs text-muted-foreground w-8">55%</span>
+            <span className="text-xs text-muted-foreground w-8">80%</span>
           </div>
         </div>
 
