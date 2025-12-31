@@ -52,6 +52,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const [salesExpPercent, setSalesExpPercent] = useState(42);
   const [fixedExpense, setFixedExpense] = useState(0);
   
+  // Baseline values for centering sliders
+  const [baselineGpPercent, setBaselineGpPercent] = useState<number | undefined>();
+  const [baselineSalesExpPercent, setBaselineSalesExpPercent] = useState<number | undefined>();
+  const [baselineFixedExpense, setBaselineFixedExpense] = useState<number | undefined>();
+  
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -222,13 +227,18 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       });
       
       if (totals.gp_net && totals.total_sales) {
-        setGpPercent(Math.round((totals.gp_net / totals.total_sales) * 1000) / 10);
+        const gp = Math.round((totals.gp_net / totals.total_sales) * 1000) / 10;
+        setGpPercent(gp);
+        setBaselineGpPercent(gp);
       }
       if (totals.sales_expense && totals.gp_net) {
-        setSalesExpPercent(Math.round((totals.sales_expense / totals.gp_net) * 1000) / 10);
+        const salesExp = Math.round((totals.sales_expense / totals.gp_net) * 1000) / 10;
+        setSalesExpPercent(salesExp);
+        setBaselineSalesExpPercent(salesExp);
       }
       if (totals.total_fixed_expense) {
         setFixedExpense(totals.total_fixed_expense);
+        setBaselineFixedExpense(totals.total_fixed_expense);
       }
       
       driversInitialized.current = true;
@@ -368,6 +378,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               gpPercent={gpPercent}
               salesExpPercent={salesExpPercent}
               fixedExpense={fixedExpense}
+              baselineGpPercent={baselineGpPercent}
+              baselineSalesExpPercent={baselineSalesExpPercent}
+              baselineFixedExpense={baselineFixedExpense}
               onSalesGrowthChange={setSalesGrowth}
               onGpPercentChange={setGpPercent}
               onSalesExpPercentChange={setSalesExpPercent}
