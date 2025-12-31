@@ -30,6 +30,7 @@ interface SubMetricData {
   quarterlyValues: Map<string, number>; // Q1, Q2, Q3, Q4 -> aggregated value
   annualValue: number;
   baselineAnnualValue: number;
+  isOverridden?: boolean; // true if user has manually edited this sub-metric
 }
 
 interface ForecastResultsGridProps {
@@ -46,6 +47,7 @@ interface ForecastResultsGridProps {
   onCellEdit?: (month: string, metricName: string, value: number) => void;
   onToggleLock?: (month: string, metricName: string) => void;
   onMonthNavigate?: (direction: 'prev' | 'next') => void;
+  onSubMetricEdit?: (subMetricKey: string, parentKey: string, newAnnualValue: number) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -76,8 +78,10 @@ export function ForecastResultsGrid({
   onCellEdit,
   onToggleLock,
   onMonthNavigate,
+  onSubMetricEdit,
 }: ForecastResultsGridProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [editingAnnualSubMetric, setEditingAnnualSubMetric] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
 
@@ -161,6 +165,30 @@ export function ForecastResultsGrid({
   const handleLockClick = (e: React.MouseEvent, columnKey: string, metricKey: string) => {
     e.stopPropagation();
     onToggleLock?.(columnKey, metricKey);
+  };
+
+  const handleSubMetricAnnualClick = (subMetricKey: string, currentValue: number) => {
+    setEditingAnnualSubMetric(subMetricKey);
+    setEditValue(currentValue.toString());
+  };
+
+  const handleSubMetricAnnualBlur = (subMetricKey: string, parentKey: string) => {
+    if (editingAnnualSubMetric === subMetricKey) {
+      const newValue = parseFloat(editValue);
+      if (!isNaN(newValue) && onSubMetricEdit) {
+        onSubMetricEdit(subMetricKey, parentKey, newValue);
+      }
+      setEditingAnnualSubMetric(null);
+    }
+  };
+
+  const handleSubMetricAnnualKeyDown = (e: React.KeyboardEvent, subMetricKey: string, parentKey: string) => {
+    if (e.key === 'Enter') {
+      handleSubMetricAnnualBlur(subMetricKey, parentKey);
+    }
+    if (e.key === 'Escape') {
+      setEditingAnnualSubMetric(null);
+    }
   };
 
   const renderMetricRow = (metric: MetricDefinition, isSubMetric = false, subMetricData?: SubMetricData) => {
@@ -281,9 +309,33 @@ export function ForecastResultsGrid({
         
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-muted/50",
-          isSubMetric && "text-xs font-normal"
+          isSubMetric && "text-xs font-normal",
+          isSubMetric && subMetricData?.isOverridden && "bg-blue-50 dark:bg-blue-950/30"
         )}>
-          {annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'}
+          {isSubMetric && subMetricData && editingAnnualSubMetric === subMetricData.key ? (
+            <Input
+              type="number"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={() => handleSubMetricAnnualBlur(subMetricData.key, subMetricData.parentKey)}
+              onKeyDown={(e) => handleSubMetricAnnualKeyDown(e, subMetricData.key, subMetricData.parentKey)}
+              className="h-6 w-20 text-right text-xs ml-auto"
+              autoFocus
+            />
+          ) : isSubMetric && subMetricData && annualValue !== undefined ? (
+            <span 
+              className={cn(
+                "cursor-pointer hover:underline",
+                subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+              )}
+              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue)}
+              title="Click to edit this sub-metric's annual target"
+            >
+              {formatValue(annualValue, metric.type)}
+            </span>
+          ) : (
+            annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'
+          )}
         </td>
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-primary/10",
@@ -385,7 +437,7 @@ export function ForecastResultsGrid({
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Click values to edit • Click lock icon to freeze cells during recalculation
+        Click values to edit • Click sub-metric annual values to set individual targets • Click lock icon to freeze cells
       </p>
     </div>
   );
