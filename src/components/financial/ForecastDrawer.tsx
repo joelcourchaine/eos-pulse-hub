@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
 import { useForecastCalculations } from '@/hooks/forecast/useForecastCalculations';
+import { useSubMetrics } from '@/hooks/useSubMetrics';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
 import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
@@ -26,18 +27,6 @@ const formatCurrency = (value: number) => {
   return `$${value.toFixed(0)}`;
 };
 
-// Sub-metrics that roll up to parent metrics
-const SUB_METRIC_PARENTS: Record<string, string> = {
-  'new_vehicle_sales': 'total_sales',
-  'used_vehicle_sales': 'total_sales',
-  'parts_sales': 'total_sales',
-  'service_sales': 'total_sales',
-  'other_sales': 'total_sales',
-  'salesperson_expense': 'sales_expense',
-  'sales_management_expense': 'sales_expense',
-  'other_sales_expense': 'sales_expense',
-};
-
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const forecastYear = currentYear + 1;
@@ -45,28 +34,28 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
-  
+
   // Driver states
   const [salesGrowth, setSalesGrowth] = useState(0);
   const [gpPercent, setGpPercent] = useState(28);
   const [salesExpPercent, setSalesExpPercent] = useState(42);
   const [fixedExpense, setFixedExpense] = useState(0);
-  
+
   // Baseline values for centering sliders
   const [baselineGpPercent, setBaselineGpPercent] = useState<number | undefined>();
   const [baselineSalesExpPercent, setBaselineSalesExpPercent] = useState<number | undefined>();
   const [baselineFixedExpense, setBaselineFixedExpense] = useState<number | undefined>();
-  
+
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Hooks
-  const { 
-    forecast, 
-    entries, 
-    weights, 
-    isLoading, 
+  const {
+    forecast,
+    entries,
+    weights,
+    isLoading,
     createForecast,
     updateWeight,
     resetWeights,
@@ -76,9 +65,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Use prior year (forecastYear - 1) for weight distribution
   const baselineYear = forecastYear - 1; // 2025 when forecasting 2026
-  
-  const { 
-    calculatedWeights, 
+
+  const {
+    calculatedWeights,
     isLoading: weightsLoading,
     baselineYearTotal,
   } = useWeightedBaseline(departmentId, baselineYear);
@@ -88,104 +77,98 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     queryKey: ['prior-year-financial', departmentId, priorYear],
     queryFn: async () => {
       if (!departmentId) return [];
-      
+
       const { data, error } = await supabase
         .from('financial_entries')
         .select('month, metric_name, value')
         .eq('department_id', departmentId)
         .gte('month', `${priorYear}-01`)
         .lte('month', `${priorYear}-12`);
-      
+
       if (error) throw error;
       return data;
     },
     enabled: !!departmentId,
   });
 
-  // Fetch sub-metrics data
-  const { data: subMetricsData } = useQuery({
-    queryKey: ['sub-metrics-financial', departmentId, priorYear],
-    queryFn: async () => {
-      if (!departmentId) return [];
-      
-      // Get all financial entries that could be sub-metrics
-      const subMetricKeys = Object.keys(SUB_METRIC_PARENTS);
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('month, metric_name, value')
-        .eq('department_id', departmentId)
-        .in('metric_name', subMetricKeys)
-        .gte('month', `${priorYear}-01`)
-        .lte('month', `${priorYear}-12`);
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!departmentId,
-  });
+  const priorYearMonths = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      return `${priorYear}-${String(m).padStart(2, '0')}`;
+    });
+  }, [priorYear]);
+
+  // Fetch sub-metrics using the existing sub-metric naming convention (sub:{parent}:{order}:{name})
+  const { subMetrics: subMetricEntries } = useSubMetrics(departmentId, priorYearMonths);
 
   // Convert prior year data to baseline map
   const baselineData = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
-    
-    priorYearData?.forEach(entry => {
+
+    priorYearData?.forEach((entry) => {
       if (!map.has(entry.month)) {
         map.set(entry.month, new Map());
       }
       map.get(entry.month)!.set(entry.metric_name, entry.value || 0);
     });
-    
+
     return map;
   }, [priorYearData]);
 
   // Convert sub-metrics to the format needed by the grid
   const subMetrics = useMemo(() => {
     const result = new Map<string, { key: string; label: string; values: Map<string, number>; annualValue: number }[]>();
-    
-    if (!subMetricsData) return result;
-    
-    // Group by parent metric
-    const grouped = new Map<string, Map<string, Map<string, number>>>();
-    
-    subMetricsData.forEach(entry => {
-      const parentKey = SUB_METRIC_PARENTS[entry.metric_name];
-      if (!parentKey) return;
-      
-      if (!grouped.has(parentKey)) {
-        grouped.set(parentKey, new Map());
+
+    if (!subMetricEntries || subMetricEntries.length === 0) return result;
+
+    // parent -> (name -> { orderIndex, values })
+    const grouped = new Map<
+      string,
+      Map<string, { orderIndex: number; values: Map<string, number> }>
+    >();
+
+    for (const entry of subMetricEntries) {
+      if (!grouped.has(entry.parentMetricKey)) {
+        grouped.set(entry.parentMetricKey, new Map());
       }
-      
-      const parentGroup = grouped.get(parentKey)!;
-      if (!parentGroup.has(entry.metric_name)) {
-        parentGroup.set(entry.metric_name, new Map());
-      }
-      
-      parentGroup.get(entry.metric_name)!.set(entry.month, entry.value || 0);
-    });
-    
-    // Convert to final format
-    grouped.forEach((metrics, parentKey) => {
-      const children: { key: string; label: string; values: Map<string, number>; annualValue: number }[] = [];
-      
-      metrics.forEach((monthValues, metricKey) => {
-        let annualValue = 0;
-        monthValues.forEach(v => annualValue += v);
-        
-        children.push({
-          key: metricKey,
-          label: metricKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-          values: monthValues,
-          annualValue,
+
+      const parentGroup = grouped.get(entry.parentMetricKey)!;
+      if (!parentGroup.has(entry.name)) {
+        parentGroup.set(entry.name, {
+          orderIndex: entry.orderIndex,
+          values: new Map(),
         });
-      });
-      
+      }
+
+      const rec = parentGroup.get(entry.name)!;
+      // keep earliest orderIndex if mixed
+      rec.orderIndex = Math.min(rec.orderIndex, entry.orderIndex);
+      rec.values.set(entry.monthIdentifier, entry.value ?? 0);
+    }
+
+    grouped.forEach((metricsByName, parentKey) => {
+      const children = Array.from(metricsByName.entries())
+        .sort((a, b) => a[1].orderIndex - b[1].orderIndex)
+        .map(([name, rec]) => {
+          let annualValue = 0;
+          rec.values.forEach((v) => (annualValue += v));
+
+          return {
+            key: `sub:${parentKey}:${String(rec.orderIndex).padStart(3, '0')}:${name}`,
+            label: name,
+            values: rec.values,
+            annualValue,
+          };
+        });
+
       if (children.length > 0) {
         result.set(parentKey, children);
       }
     });
-    
+
     return result;
-  }, [subMetricsData]);
+  }, [subMetricEntries]);
+
 
   // Use the calculations hook
   const {
