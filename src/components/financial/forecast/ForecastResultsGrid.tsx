@@ -18,6 +18,15 @@ interface MetricDefinition {
   type: 'currency' | 'percent' | 'number';
   isDriver: boolean;
   isDerived: boolean;
+  hasSubMetrics?: boolean;
+  parentKey?: string;
+}
+
+interface SubMetricData {
+  key: string;
+  label: string;
+  values: Map<string, number>; // month -> value
+  annualValue: number;
 }
 
 interface ForecastResultsGridProps {
@@ -27,6 +36,7 @@ interface ForecastResultsGridProps {
   annualValues: Map<string, CalculationResult>;
   metricDefinitions: MetricDefinition[];
   months: string[];
+  subMetrics?: Map<string, SubMetricData[]>; // parent metric key -> sub-metrics
   onCellEdit?: (month: string, metricName: string, value: number) => void;
   onToggleLock?: (month: string, metricName: string) => void;
 }
@@ -52,11 +62,13 @@ export function ForecastResultsGrid({
   annualValues,
   metricDefinitions,
   months,
+  subMetrics,
   onCellEdit,
   onToggleLock,
 }: ForecastResultsGridProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
 
   // Get columns based on view
   const getColumns = () => {
@@ -90,7 +102,8 @@ export function ForecastResultsGrid({
     return undefined;
   };
 
-  const handleCellClick = (columnKey: string, metricKey: string, currentValue: number) => {
+  const handleCellClick = (columnKey: string, metricKey: string, currentValue: number, isLocked: boolean) => {
+    if (isLocked) return; // Don't edit locked cells
     const cellKey = `${columnKey}:${metricKey}`;
     setEditingCell(cellKey);
     setEditValue(currentValue.toString());
@@ -115,6 +128,137 @@ export function ForecastResultsGrid({
     }
   };
 
+  const toggleExpanded = (metricKey: string) => {
+    setExpandedMetrics(prev => {
+      const next = new Set(prev);
+      if (next.has(metricKey)) {
+        next.delete(metricKey);
+      } else {
+        next.add(metricKey);
+      }
+      return next;
+    });
+  };
+
+  const handleLockClick = (e: React.MouseEvent, columnKey: string, metricKey: string) => {
+    e.stopPropagation();
+    onToggleLock?.(columnKey, metricKey);
+  };
+
+  const renderMetricRow = (metric: MetricDefinition, isSubMetric = false) => {
+    const annualData = annualValues.get(metric.key);
+    const variance = annualData 
+      ? annualData.value - annualData.baseline_value 
+      : 0;
+    const isPositiveVariance = variance >= 0;
+    const hasChildren = subMetrics?.has(metric.key) && (subMetrics.get(metric.key)?.length ?? 0) > 0;
+    const isExpanded = expandedMetrics.has(metric.key);
+    
+    return (
+      <tr 
+        key={metric.key} 
+        className={cn(
+          "border-b border-border/50 hover:bg-muted/30",
+          metric.isDriver && "bg-primary/5",
+          isSubMetric && "bg-muted/20"
+        )}
+      >
+        <td className="py-2 pr-4">
+          <div className={cn("flex items-center gap-2", isSubMetric && "pl-6")}>
+            {hasChildren && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0"
+                onClick={() => toggleExpanded(metric.key)}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+              </Button>
+            )}
+            {!hasChildren && !isSubMetric && <span className="w-5" />}
+            <span className={cn(
+              metric.isDriver && "font-medium text-primary",
+              isSubMetric && "text-muted-foreground text-xs"
+            )}>
+              {metric.label}
+            </span>
+            {metric.isDriver && !isSubMetric && (
+              <span className="text-xs text-muted-foreground">(driver)</span>
+            )}
+          </div>
+        </td>
+        
+        {columns.map((col) => {
+          const data = getValue(col.key, metric.key);
+          const cellKey = `${col.key}:${metric.key}`;
+          const isEditing = editingCell === cellKey;
+          const isLocked = data?.is_locked ?? false;
+          
+          return (
+            <td 
+              key={col.key} 
+              className={cn(
+                "text-right py-1 px-2",
+                isLocked && "bg-amber-50 dark:bg-amber-950/20",
+                isSubMetric && "text-xs"
+              )}
+            >
+              <div className="flex items-center justify-end gap-1">
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => handleCellBlur(col.key, metric.key)}
+                    onKeyDown={(e) => handleKeyDown(e, col.key, metric.key)}
+                    className="h-6 w-20 text-right text-sm"
+                    autoFocus
+                  />
+                ) : (
+                  <>
+                    <span 
+                      className={cn(
+                        "cursor-pointer hover:underline",
+                        isLocked && "cursor-not-allowed opacity-70"
+                      )}
+                      onClick={() => data && handleCellClick(col.key, metric.key, data.value, isLocked)}
+                    >
+                      {data ? formatValue(data.value, metric.type) : '-'}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                      onClick={(e) => handleLockClick(e, col.key, metric.key)}
+                    >
+                      {isLocked ? (
+                        <Lock className="h-3 w-3 text-amber-500" />
+                      ) : (
+                        <Unlock className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </td>
+          );
+        })}
+        
+        <td className={cn(
+          "text-right py-2 pl-2 font-medium bg-muted/50",
+          isPositiveVariance ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
+          isSubMetric && "text-xs font-normal"
+        )}>
+          {annualData ? formatValue(annualData.value, metric.type) : '-'}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="space-y-2">
       <h3 className="font-semibold">Forecast Results</h3>
@@ -122,7 +266,7 @@ export function ForecastResultsGrid({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b">
-              <th className="text-left py-2 pr-4 font-medium min-w-[140px]">Metric</th>
+              <th className="text-left py-2 pr-4 font-medium min-w-[160px]">Metric</th>
               {columns.map((col) => (
                 <th key={col.key} className="text-right py-2 px-2 font-medium min-w-[80px]">
                   {col.label}
@@ -131,87 +275,35 @@ export function ForecastResultsGrid({
               <th className="text-right py-2 pl-2 font-medium bg-muted/50 min-w-[90px]">Year</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&_tr]:group">
             {metricDefinitions.map((metric) => {
-              const annualData = annualValues.get(metric.key);
-              const variance = annualData 
-                ? annualData.value - annualData.baseline_value 
-                : 0;
-              const isPositiveVariance = variance >= 0;
+              const rows = [renderMetricRow(metric)];
               
-              return (
-                <tr 
-                  key={metric.key} 
-                  className={cn(
-                    "border-b border-border/50 hover:bg-muted/30",
-                    metric.isDriver && "bg-primary/5"
-                  )}
-                >
-                  <td className="py-2 pr-4">
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        metric.isDriver && "font-medium text-primary"
-                      )}>
-                        {metric.label}
-                      </span>
-                      {metric.isDriver && (
-                        <span className="text-xs text-muted-foreground">(driver)</span>
-                      )}
-                    </div>
-                  </td>
-                  
-                  {columns.map((col) => {
-                    const data = getValue(col.key, metric.key);
-                    const cellKey = `${col.key}:${metric.key}`;
-                    const isEditing = editingCell === cellKey;
-                    
-                    return (
-                      <td 
-                        key={col.key} 
-                        className={cn(
-                          "text-right py-1 px-2",
-                          data?.is_locked && "bg-amber-50 dark:bg-amber-950/20"
-                        )}
-                      >
-                        <div className="flex items-center justify-end gap-1">
-                          {isEditing ? (
-                            <Input
-                              type="number"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onBlur={() => handleCellBlur(col.key, metric.key)}
-                              onKeyDown={(e) => handleKeyDown(e, col.key, metric.key)}
-                              className="h-6 w-20 text-right text-sm"
-                              autoFocus
-                            />
-                          ) : (
-                            <span 
-                              className="cursor-pointer hover:underline"
-                              onClick={() => data && handleCellClick(col.key, metric.key, data.value)}
-                            >
-                              {data ? formatValue(data.value, metric.type) : '-'}
-                            </span>
-                          )}
-                          {data?.is_locked && (
-                            <Lock className="h-3 w-3 text-amber-500 flex-shrink-0" />
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                  
-                  <td className={cn(
-                    "text-right py-2 pl-2 font-medium bg-muted/50",
-                    isPositiveVariance ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                  )}>
-                    {annualData ? formatValue(annualData.value, metric.type) : '-'}
-                  </td>
-                </tr>
-              );
+              // Render sub-metrics if expanded
+              if (expandedMetrics.has(metric.key) && subMetrics?.has(metric.key)) {
+                const children = subMetrics.get(metric.key) || [];
+                children.forEach(sub => {
+                  rows.push(
+                    renderMetricRow({
+                      key: sub.key,
+                      label: sub.label,
+                      type: 'currency',
+                      isDriver: false,
+                      isDerived: false,
+                      parentKey: metric.key,
+                    }, true)
+                  );
+                });
+              }
+              
+              return rows;
             })}
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Click values to edit • Click lock icon to freeze cells during recalculation
+      </p>
     </div>
   );
 }

@@ -19,22 +19,40 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-export function useWeightedBaseline(departmentId: string | undefined, priorYear: number) {
-  // Fetch prior year's monthly total_sales
-  const { data: priorYearSales, isLoading } = useQuery({
-    queryKey: ['prior-year-sales', departmentId, priorYear],
+export function useWeightedBaseline(departmentId: string | undefined, baselineYear: number) {
+  // Fetch baseline year's monthly total_sales
+  // Try the specified year first, then fall back to current year if no data
+  const { data: baselineYearSales, isLoading } = useQuery({
+    queryKey: ['baseline-year-sales', departmentId, baselineYear],
     queryFn: async () => {
       if (!departmentId) return [];
       
-      const { data, error } = await supabase
+      // First try the baseline year
+      let { data, error } = await supabase
         .from('financial_entries')
         .select('month, value')
         .eq('department_id', departmentId)
         .eq('metric_name', 'total_sales')
-        .gte('month', `${priorYear}-01`)
-        .lte('month', `${priorYear}-12`);
+        .gte('month', `${baselineYear}-01`)
+        .lte('month', `${baselineYear}-12`);
       
       if (error) throw error;
+      
+      // If no data for baseline year, try current year
+      if (!data || data.length === 0) {
+        const currentYear = new Date().getFullYear();
+        const result = await supabase
+          .from('financial_entries')
+          .select('month, value')
+          .eq('department_id', departmentId)
+          .eq('metric_name', 'total_sales')
+          .gte('month', `${currentYear}-01`)
+          .lte('month', `${currentYear}-12`);
+        
+        if (result.error) throw result.error;
+        data = result.data;
+      }
+      
       return data as MonthlyData[];
     },
     enabled: !!departmentId,
@@ -42,40 +60,53 @@ export function useWeightedBaseline(departmentId: string | undefined, priorYear:
 
   // Calculate weights based on sales distribution
   const calculatedWeights = useMemo((): WeightResult[] => {
-    if (!priorYearSales || priorYearSales.length === 0) {
-      // Return equal distribution if no prior year data
+    if (!baselineYearSales || baselineYearSales.length === 0) {
+      // Return equal distribution if no baseline data
       return MONTH_NAMES.map((name, index) => ({
         month_number: index + 1,
         month_name: name,
         sales_value: 0,
-        weight: 100 / 12, // Equal distribution ~8.33%
+        weight: Math.round((100 / 12) * 100) / 100, // Equal distribution ~8.33%
       }));
     }
 
     // Sum all sales
-    const totalSales = priorYearSales.reduce((sum, entry) => sum + (entry.value || 0), 0);
+    const totalSales = baselineYearSales.reduce((sum, entry) => sum + (entry.value || 0), 0);
     
     if (totalSales === 0) {
       return MONTH_NAMES.map((name, index) => ({
         month_number: index + 1,
         month_name: name,
         sales_value: 0,
-        weight: 100 / 12,
+        weight: Math.round((100 / 12) * 100) / 100,
       }));
     }
 
     // Create a map of month to value
     const salesByMonth = new Map<number, number>();
-    priorYearSales.forEach(entry => {
+    baselineYearSales.forEach(entry => {
       const monthNum = parseInt(entry.month.split('-')[1], 10);
-      salesByMonth.set(monthNum, entry.value || 0);
+      const currentValue = salesByMonth.get(monthNum) || 0;
+      salesByMonth.set(monthNum, currentValue + (entry.value || 0));
     });
 
-    // Calculate weight for each month
+    // Calculate weight for each month (only months with data)
+    const monthsWithData = Array.from(salesByMonth.keys());
+    
     return MONTH_NAMES.map((name, index) => {
       const monthNum = index + 1;
       const salesValue = salesByMonth.get(monthNum) || 0;
-      const weight = (salesValue / totalSales) * 100;
+      
+      // If this month has no data but others do, distribute equally among missing months
+      let weight: number;
+      if (salesValue > 0) {
+        weight = (salesValue / totalSales) * 100;
+      } else if (monthsWithData.length < 12 && monthsWithData.length > 0) {
+        // For months without data, we'll assign 0 weight and normalize later
+        weight = 0;
+      } else {
+        weight = 100 / 12;
+      }
       
       return {
         month_number: monthNum,
@@ -84,12 +115,11 @@ export function useWeightedBaseline(departmentId: string | undefined, priorYear:
         weight: Math.round(weight * 100) / 100, // Round to 2 decimals
       };
     });
-  }, [priorYearSales]);
+  }, [baselineYearSales]);
 
   // Calculate weighted baseline for a given annual target
-  const calculateMonthlyBaseline = (annualValue: number): Map<string, number> => {
+  const calculateMonthlyBaseline = (annualValue: number, forecastYear: number): Map<string, number> => {
     const result = new Map<string, number>();
-    const forecastYear = priorYear + 1;
     
     calculatedWeights.forEach(w => {
       const monthStr = `${forecastYear}-${String(w.month_number).padStart(2, '0')}`;
@@ -156,6 +186,6 @@ export function useWeightedBaseline(departmentId: string | undefined, priorYear:
     calculateMonthlyBaseline,
     getYTDAverage,
     redistributeWeights,
-    priorYearTotal: priorYearSales?.reduce((sum, d) => sum + (d.value || 0), 0) ?? 0,
+    baselineYearTotal: baselineYearSales?.reduce((sum, d) => sum + (d.value || 0), 0) ?? 0,
   };
 }
