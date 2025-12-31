@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, ChevronUp, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
@@ -191,6 +191,15 @@ export function ForecastResultsGrid({
     }
   };
 
+  // Handle percentage sub-metric increment/decrement by 0.1
+  const handlePercentageStep = (subMetricKey: string, parentKey: string, currentValue: number, direction: 'up' | 'down') => {
+    const step = 0.1;
+    const newValue = direction === 'up' 
+      ? Math.round((currentValue + step) * 10) / 10
+      : Math.round((currentValue - step) * 10) / 10;
+    onSubMetricEdit?.(subMetricKey, parentKey, newValue);
+  };
+
   const renderMetricRow = (metric: MetricDefinition, isSubMetric = false, subMetricData?: SubMetricData) => {
     const annualData = annualValues.get(metric.key);
     const hasChildren = subMetrics?.has(metric.key) && (subMetrics.get(metric.key)?.length ?? 0) > 0;
@@ -312,27 +321,59 @@ export function ForecastResultsGrid({
           isSubMetric && "text-xs font-normal",
           isSubMetric && subMetricData?.isOverridden && "bg-blue-50 dark:bg-blue-950/30"
         )}>
-          {isSubMetric && subMetricData && editingAnnualSubMetric === subMetricData.key ? (
-            <Input
-              type="number"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={() => handleSubMetricAnnualBlur(subMetricData.key, subMetricData.parentKey)}
-              onKeyDown={(e) => handleSubMetricAnnualKeyDown(e, subMetricData.key, subMetricData.parentKey)}
-              className="h-6 w-20 text-right text-xs ml-auto"
-              autoFocus
-            />
-          ) : isSubMetric && subMetricData && annualValue !== undefined ? (
-            <span 
-              className={cn(
-                "cursor-pointer hover:underline",
-                subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
-              )}
-              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue)}
-              title="Click to edit this sub-metric's annual target"
-            >
-              {formatValue(annualValue, metric.type)}
-            </span>
+          {isSubMetric && subMetricData && annualValue !== undefined ? (
+            metric.type === 'percent' ? (
+              // Percentage sub-metrics: show up/down arrows
+              <div className="flex items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => handlePercentageStep(subMetricData.key, subMetricData.parentKey, annualValue, 'down')}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+                <span 
+                  className={cn(
+                    "min-w-[40px] text-center",
+                    subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+                  )}
+                >
+                  {formatValue(annualValue, metric.type)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0"
+                  onClick={() => handlePercentageStep(subMetricData.key, subMetricData.parentKey, annualValue, 'up')}
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : editingAnnualSubMetric === subMetricData.key ? (
+              // Currency sub-metrics: show input when editing
+              <Input
+                type="number"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => handleSubMetricAnnualBlur(subMetricData.key, subMetricData.parentKey)}
+                onKeyDown={(e) => handleSubMetricAnnualKeyDown(e, subMetricData.key, subMetricData.parentKey)}
+                className="h-6 w-20 text-right text-xs ml-auto"
+                autoFocus
+              />
+            ) : (
+              // Currency sub-metrics: show clickable value
+              <span 
+                className={cn(
+                  "cursor-pointer hover:underline",
+                  subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+                )}
+                onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue)}
+                title="Click to edit this sub-metric's annual target"
+              >
+                {formatValue(annualValue, metric.type)}
+              </span>
+            )
           ) : (
             annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'
           )}
