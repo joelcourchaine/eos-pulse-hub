@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
@@ -293,6 +293,23 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     });
   };
 
+  // Reset entire forecast to baseline values
+  const handleResetForecast = () => {
+    // Reset drivers to baseline
+    if (baselineGpPercent !== undefined) setGpPercent(baselineGpPercent);
+    if (baselineSalesExpPercent !== undefined) setSalesExpPercent(baselineSalesExpPercent);
+    if (baselineFixedExpense !== undefined) setFixedExpense(baselineFixedExpense);
+    setSalesGrowth(0);
+    
+    // Clear all sub-metric overrides
+    setSubMetricOverrides([]);
+    
+    // Reset weights to original
+    resetWeights.mutate();
+    
+    toast.success('Forecast reset to baseline');
+  };
+
   // Get department profit for comparison
   const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
@@ -309,9 +326,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             <SheetTitle className="text-xl font-bold">
               Forecast {forecastYear} — {departmentName}
             </SheetTitle>
-            <Button size="sm" className="mr-8" disabled={!forecast}>
-              Save Forecast
-            </Button>
+            <div className="flex items-center gap-2 mr-8">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleResetForecast}
+                disabled={!forecast}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset
+              </Button>
+              <Button size="sm" disabled={!forecast}>
+                Save Forecast
+              </Button>
+            </div>
           </div>
         </SheetHeader>
 
