@@ -203,9 +203,6 @@ export function ForecastResultsGrid({
             )}>
               {metric.label}
             </span>
-            {metric.isDriver && !isSubMetric && (
-              <span className="text-xs text-muted-foreground">(driver)</span>
-            )}
           </div>
         </td>
         
