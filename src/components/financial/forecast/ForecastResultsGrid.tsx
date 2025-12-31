@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, Lock, Unlock } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
@@ -37,8 +37,10 @@ interface ForecastResultsGridProps {
   metricDefinitions: MetricDefinition[];
   months: string[];
   subMetrics?: Map<string, SubMetricData[]>; // parent metric key -> sub-metrics
+  visibleMonthStart?: number;
   onCellEdit?: (month: string, metricName: string, value: number) => void;
   onToggleLock?: (month: string, metricName: string) => void;
+  onMonthNavigate?: (direction: 'prev' | 'next') => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -63,20 +65,26 @@ export function ForecastResultsGrid({
   metricDefinitions,
   months,
   subMetrics,
+  visibleMonthStart = 0,
   onCellEdit,
   onToggleLock,
+  onMonthNavigate,
 }: ForecastResultsGridProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
 
+  // Number of months to show at once
+  const VISIBLE_MONTH_COUNT = 6;
+  
   // Get columns based on view
   const getColumns = () => {
     if (view === 'monthly') {
-      // Show first 6 months for now (can scroll for more)
-      return months.slice(0, 6).map((m, i) => ({
+      // Show 6 months at a time with navigation
+      const endIndex = Math.min(visibleMonthStart + VISIBLE_MONTH_COUNT, 12);
+      return months.slice(visibleMonthStart, endIndex).map((m, i) => ({
         key: m,
-        label: MONTH_ABBREV[i],
+        label: MONTH_ABBREV[visibleMonthStart + i],
       }));
     }
     if (view === 'quarter') {
@@ -91,6 +99,9 @@ export function ForecastResultsGrid({
   };
 
   const columns = getColumns();
+  
+  const canNavigatePrev = view === 'monthly' && visibleMonthStart > 0;
+  const canNavigateNext = view === 'monthly' && visibleMonthStart < (12 - VISIBLE_MONTH_COUNT);
 
   const getValue = (column: string, metricKey: string): CalculationResult | undefined => {
     if (view === 'monthly') {
@@ -261,7 +272,34 @@ export function ForecastResultsGrid({
 
   return (
     <div className="space-y-2">
-      <h3 className="font-semibold">Forecast Results</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold">Forecast Results</h3>
+        {view === 'monthly' && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onMonthNavigate?.('prev')}
+              disabled={!canNavigatePrev}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {MONTH_ABBREV[visibleMonthStart]} - {MONTH_ABBREV[Math.min(visibleMonthStart + VISIBLE_MONTH_COUNT - 1, 11)]}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onMonthNavigate?.('next')}
+              disabled={!canNavigateNext}
+              className="h-7 w-7 p-0"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
