@@ -376,6 +376,11 @@ export function useForecastCalculations({
       return result;
     }
     
+    // Identify which parent metrics are percentages
+    const percentageParents = new Set(
+      METRIC_DEFINITIONS.filter(m => m.type === 'percent').map(m => m.key)
+    );
+    
     // Group sub-metrics by parent
     const byParent = new Map<string, SubMetricBaseline[]>();
     subMetricBaselines.forEach(sub => {
@@ -387,6 +392,7 @@ export function useForecastCalculations({
     
     byParent.forEach((subs, parentKey) => {
       const forecasts: SubMetricForecast[] = [];
+      const isPercentageParent = percentageParents.has(parentKey);
       
       subs.forEach((sub, index) => {
         const forecastMonthlyValues = new Map<string, number>();
@@ -401,21 +407,35 @@ export function useForecastCalculations({
           const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
           baselineAnnualValue += subBaseline;
           
-          const parentBaselineData = baselineData.get(priorMonth);
-          const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
+          let forecastValue: number;
           
-          // Get forecast value for parent
-          const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
-          
-          // Calculate ratio: what fraction of parent was this sub-metric?
-          const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
-          
-          // Apply same ratio to forecast parent value
-          const forecastValue = parentForecast * ratio;
+          if (isPercentageParent) {
+            // For percentage parents, sub-metrics stay the same (they're component percentages)
+            forecastValue = subBaseline;
+          } else {
+            // For currency parents, scale sub-metrics proportionally
+            const parentBaselineData = baselineData.get(priorMonth);
+            const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
+            
+            // Get forecast value for parent
+            const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
+            
+            // Calculate ratio: what fraction of parent was this sub-metric?
+            const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
+            
+            // Apply same ratio to forecast parent value
+            forecastValue = parentForecast * ratio;
+          }
           
           forecastMonthlyValues.set(forecastMonth, forecastValue);
           annualValue += forecastValue;
         });
+        
+        // For percentage parents, annual value should be averaged not summed
+        if (isPercentageParent) {
+          annualValue = annualValue / 12;
+          baselineAnnualValue = baselineAnnualValue / 12;
+        }
         
         forecasts.push({
           key: `sub:${parentKey}:${String(index).padStart(3, '0')}:${sub.name}`,
