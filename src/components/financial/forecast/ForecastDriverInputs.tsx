@@ -65,11 +65,11 @@ export function ForecastDriverInputs({
               value={[gpPercent]}
               onValueChange={([v]) => onGpPercentChange(v)}
               min={15}
-              max={60}
+              max={80}
               step={0.5}
               className="flex-1"
             />
-            <span className="text-xs text-muted-foreground w-8">60%</span>
+            <span className="text-xs text-muted-foreground w-8">80%</span>
           </div>
         </div>
 
@@ -100,11 +100,13 @@ export function ForecastDriverInputs({
             <span className="font-medium">{formatCurrency(fixedExpense)}</span>
           </div>
           <Input
-            type="number"
-            value={fixedExpense}
-            onChange={(e) => onFixedExpenseChange(parseFloat(e.target.value) || 0)}
+            type="text"
+            value={`$${Math.round(fixedExpense).toLocaleString()}`}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9.-]/g, '');
+              onFixedExpenseChange(parseFloat(raw) || 0);
+            }}
             className="w-full"
-            step={1000}
           />
         </div>
       </div>
