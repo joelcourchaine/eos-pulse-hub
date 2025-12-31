@@ -53,8 +53,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const { 
     calculatedWeights, 
     isLoading: weightsLoading,
-    priorYearTotal,
-  } = useWeightedBaseline(departmentId, priorYear);
+    baselineYearTotal,
+  } = useWeightedBaseline(departmentId, currentYear);
 
   // Fetch baseline data (prior year financial entries)
   const { data: priorYearData } = useQuery({
@@ -132,6 +132,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   };
 
+  // Handle lock toggle
+  const handleToggleLock = (month: string, metricName: string) => {
+    const entry = entries.find(e => e.month === month && e.metric_name === metricName);
+    const currentLocked = entry?.is_locked ?? false;
+    updateEntry.mutate({ month, metricName, isLocked: !currentLocked });
+  };
+
   // Get department profit for comparison
   const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
@@ -207,6 +214,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               metricDefinitions={metricDefinitions}
               months={months}
               onCellEdit={handleCellEdit}
+              onToggleLock={handleToggleLock}
             />
 
             {/* Baseline Comparison */}
