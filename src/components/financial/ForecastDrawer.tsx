@@ -384,6 +384,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               months={months}
               subMetrics={subMetrics}
               visibleMonthStart={visibleMonthStart}
+              forecastYear={forecastYear}
+              priorYear={priorYear}
               onCellEdit={handleCellEdit}
               onToggleLock={handleToggleLock}
               onMonthNavigate={handleMonthNavigate}
