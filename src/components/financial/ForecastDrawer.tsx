@@ -50,11 +50,14 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     updateEntry,
   } = useForecast(departmentId, forecastYear);
 
+  // Use prior year (forecastYear - 1) for weight distribution
+  const baselineYear = forecastYear - 1; // 2025 when forecasting 2026
+  
   const { 
     calculatedWeights, 
     isLoading: weightsLoading,
     baselineYearTotal,
-  } = useWeightedBaseline(departmentId, currentYear);
+  } = useWeightedBaseline(departmentId, baselineYear);
 
   // Fetch baseline data (prior year financial entries)
   const { data: priorYearData } = useQuery({
