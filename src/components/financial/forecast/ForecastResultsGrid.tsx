@@ -27,6 +27,7 @@ interface SubMetricData {
   label: string;
   parentKey: string;
   monthlyValues: Map<string, number>; // forecast month -> calculated value
+  quarterlyValues: Map<string, number>; // Q1, Q2, Q3, Q4 -> aggregated value
   annualValue: number;
   baselineAnnualValue: number;
 }
@@ -212,8 +213,12 @@ export function ForecastResultsGrid({
           let isLocked = false;
           
           if (isSubMetric && subMetricData) {
-            // Sub-metrics now show calculated forecast values (scaled from parent)
-            cellValue = subMetricData.monthlyValues.get(col.key);
+            // Sub-metrics: use quarterly values in quarter view, monthly otherwise
+            if (view === 'quarter') {
+              cellValue = subMetricData.quarterlyValues?.get(col.key);
+            } else {
+              cellValue = subMetricData.monthlyValues.get(col.key);
+            }
           } else {
             const data = getValue(col.key, metric.key);
             cellValue = data?.value;
