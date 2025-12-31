@@ -11,7 +11,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, ChevronRight, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download, TrendingUp } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,8 @@ import { MonthDropZone } from "./MonthDropZone";
 import { useSubMetrics } from "@/hooks/useSubMetrics";
 import { useSubMetricTargets } from "@/hooks/useSubMetricTargets";
 import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
+import { ForecastDrawer } from "./ForecastDrawer";
+
 interface FinancialSummaryProps {
   departmentId: string;
   year: number;
@@ -249,6 +251,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
+  const [forecastDrawerOpen, setForecastDrawerOpen] = useState(false);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -2468,6 +2471,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     Export
                   </Button>
                 )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setForecastDrawerOpen(true);
+                  }}
+                >
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Forecast
+                </Button>
                 <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
@@ -4203,6 +4217,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         sourceType="financial"
         sourceMetricName={issueContext?.sourceMetricName}
         sourcePeriod={issueContext?.sourcePeriod}
+      />
+      
+      <ForecastDrawer
+        open={forecastDrawerOpen}
+        onOpenChange={setForecastDrawerOpen}
+        departmentId={departmentId}
+        departmentName={departmentName || 'Department'}
       />
     </Card>
   );
