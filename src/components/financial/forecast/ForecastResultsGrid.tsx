@@ -167,9 +167,14 @@ export function ForecastResultsGrid({
     onToggleLock?.(columnKey, metricKey);
   };
 
-  const handleSubMetricAnnualClick = (subMetricKey: string, currentValue: number) => {
+  const handleSubMetricAnnualClick = (subMetricKey: string, currentValue: number, metricType: 'currency' | 'percent' | 'number') => {
     setEditingAnnualSubMetric(subMetricKey);
-    setEditValue(currentValue.toString());
+    // Round to 1 decimal for percentages, whole number for currency
+    if (metricType === 'percent') {
+      setEditValue(currentValue.toFixed(1));
+    } else {
+      setEditValue(Math.round(currentValue).toString());
+    }
   };
 
   const handleSubMetricAnnualBlur = (subMetricKey: string, parentKey: string) => {
@@ -328,7 +333,7 @@ export function ForecastResultsGrid({
                 "cursor-pointer hover:underline",
                 subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
               )}
-              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue)}
+              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
               title="Click to edit this sub-metric's annual target"
             >
               {formatValue(annualValue, metric.type)}
