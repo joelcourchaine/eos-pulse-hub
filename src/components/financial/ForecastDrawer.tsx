@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Input } from '@/components/ui/input';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight, Lock, Unlock, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
+import { useForecastCalculations } from '@/hooks/forecast/useForecastCalculations';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
+import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ForecastDrawerProps {
   open: boolean;
@@ -19,14 +20,9 @@ interface ForecastDrawerProps {
 }
 
 const formatCurrency = (value: number) => {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+  if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(0)}K`;
   return `$${value.toFixed(0)}`;
-};
-
-const formatValue = (value: number, isPercent?: boolean) => {
-  if (isPercent) return `${value.toFixed(1)}%`;
-  return formatCurrency(value);
 };
 
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
@@ -51,6 +47,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     createForecast,
     updateWeight,
     resetWeights,
+    updateEntry,
   } = useForecast(departmentId, forecastYear);
 
   const { 
@@ -59,37 +56,87 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     priorYearTotal,
   } = useWeightedBaseline(departmentId, priorYear);
 
+  // Fetch baseline data (prior year financial entries)
+  const { data: priorYearData } = useQuery({
+    queryKey: ['prior-year-financial', departmentId, priorYear],
+    queryFn: async () => {
+      if (!departmentId) return [];
+      
+      const { data, error } = await supabase
+        .from('financial_entries')
+        .select('month, metric_name, value')
+        .eq('department_id', departmentId)
+        .gte('month', `${priorYear}-01`)
+        .lte('month', `${priorYear}-12`);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!departmentId,
+  });
+
+  // Convert prior year data to baseline map
+  const baselineData = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    
+    priorYearData?.forEach(entry => {
+      if (!map.has(entry.month)) {
+        map.set(entry.month, new Map());
+      }
+      map.get(entry.month)!.set(entry.metric_name, entry.value || 0);
+    });
+    
+    return map;
+  }, [priorYearData]);
+
+  // Use the calculations hook
+  const {
+    monthlyValues,
+    quarterlyValues,
+    annualValues,
+    months,
+    metricDefinitions,
+    distributeQuarterToMonths,
+  } = useForecastCalculations({
+    entries,
+    weights,
+    baselineData,
+    forecastYear,
+    salesGrowth,
+    gpPercent,
+    salesExpPercent,
+    fixedExpense,
+  });
+
   // Create forecast if it doesn't exist when drawer opens
   useEffect(() => {
-    if (open && !forecast && !isLoading && calculatedWeights.length > 0) {
+    if (open && !forecast && !isLoading && calculatedWeights.length > 0 && !createForecast.isPending) {
       const initialWeights = calculatedWeights.map(w => ({
         month_number: w.month_number,
         weight: w.weight,
       }));
       createForecast.mutate(initialWeights);
     }
-  }, [open, forecast, isLoading, calculatedWeights]);
+  }, [open, forecast, isLoading, calculatedWeights, createForecast.isPending]);
 
-  // Calculate baseline from prior year
-  const baselineAnnualSales = priorYearTotal;
-  const forecastAnnualSales = baselineAnnualSales * (1 + salesGrowth / 100);
-  const forecastGpNet = forecastAnnualSales * (gpPercent / 100);
-  const forecastSalesExp = forecastGpNet * (salesExpPercent / 100);
-  const forecastDeptProfit = forecastGpNet - forecastSalesExp - fixedExpense;
+  // Handle cell edits
+  const handleCellEdit = (month: string, metricName: string, value: number) => {
+    if (view === 'quarter') {
+      // Distribute to months
+      const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
+      distributions.forEach(d => {
+        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
+      });
+    } else {
+      updateEntry.mutate({ month, metricName, forecastValue: value });
+    }
+  };
 
-  // Mock metrics using calculated values
-  const mockMetrics = [
-    { name: 'Total Sales', value: forecastAnnualSales, hasSubMetrics: true, isPercent: false },
-    { name: 'GP Net', value: forecastGpNet, hasSubMetrics: false, isPercent: false },
-    { name: 'GP %', value: gpPercent, hasSubMetrics: false, isPercent: true },
-    { name: 'Sales Expense', value: forecastSalesExp, hasSubMetrics: true, isPercent: false },
-    { name: 'Fixed Expense', value: fixedExpense, hasSubMetrics: false, isPercent: false },
-    { name: 'Dept Profit', value: forecastDeptProfit, hasSubMetrics: false, isPercent: false },
-  ];
-
-  const baselineProfit = baselineAnnualSales * 0.28 * 0.15; // Rough baseline profit estimate
-  const profitVariance = forecastDeptProfit - baselineProfit;
-  const profitVariancePercent = baselineProfit !== 0 ? (profitVariance / baselineProfit) * 100 : 0;
+  // Get department profit for comparison
+  const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
+  const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
+  const profitVariance = forecastDeptProfit - baselineDeptProfit;
+  const profitVariancePercent = baselineDeptProfit !== 0 ? (profitVariance / Math.abs(baselineDeptProfit)) * 100 : 0;
 
   if (!open) return null;
 
@@ -152,90 +199,25 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             />
 
             {/* Forecast Results Grid */}
-            <div className="space-y-2">
-              <h3 className="font-semibold">Forecast Results</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 pr-4 font-medium">Metric</th>
-                      {view === 'monthly' && (
-                        <>
-                          {weights.slice(0, 3).map((w) => (
-                            <th key={w.month_number} className="text-right py-2 px-2 font-medium">
-                              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][w.month_number - 1]}
-                            </th>
-                          ))}
-                        </>
-                      )}
-                      {view === 'quarter' && (
-                        <>
-                          <th className="text-right py-2 px-2 font-medium">Q1</th>
-                          <th className="text-right py-2 px-2 font-medium">Q2</th>
-                          <th className="text-right py-2 px-2 font-medium">Q3</th>
-                          <th className="text-right py-2 px-2 font-medium">Q4</th>
-                        </>
-                      )}
-                      <th className="text-right py-2 pl-2 font-medium bg-muted/50">Year</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockMetrics.map((metric) => {
-                      // Calculate monthly values using weights
-                      const monthlyValues = weights.slice(0, 3).map(w => 
-                        metric.isPercent ? metric.value : metric.value * (w.adjusted_weight / 100)
-                      );
-                      const quarterlyValue = metric.isPercent ? metric.value : monthlyValues.reduce((a, b) => a + b, 0);
-                      
-                      return (
-                        <tr key={metric.name} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-2 pr-4">
-                            <div className="flex items-center gap-2">
-                              {metric.hasSubMetrics && (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                              )}
-                              <span className={metric.hasSubMetrics ? 'font-medium' : ''}>
-                                {metric.name}
-                              </span>
-                            </div>
-                          </td>
-                          {view === 'monthly' && (
-                            <>
-                              {monthlyValues.map((val, i) => (
-                                <td key={i} className="text-right py-2 px-2">
-                                  {formatValue(val, metric.isPercent)}
-                                </td>
-                              ))}
-                            </>
-                          )}
-                          {view === 'quarter' && (
-                            <>
-                              <td className="text-right py-2 px-2">{formatValue(quarterlyValue, metric.isPercent)}</td>
-                              <td className="text-right py-2 px-2">{formatValue(quarterlyValue * 1.05, metric.isPercent)}</td>
-                              <td className="text-right py-2 px-2">{formatValue(quarterlyValue * 1.08, metric.isPercent)}</td>
-                              <td className="text-right py-2 px-2">{formatValue(quarterlyValue * 0.95, metric.isPercent)}</td>
-                            </>
-                          )}
-                          <td className="text-right py-2 pl-2 font-medium bg-muted/50">
-                            {formatValue(metric.value, metric.isPercent)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ForecastResultsGrid
+              view={view}
+              monthlyValues={monthlyValues}
+              quarterlyValues={quarterlyValues}
+              annualValues={annualValues}
+              metricDefinitions={metricDefinitions}
+              months={months}
+              onCellEdit={handleCellEdit}
+            />
 
             {/* Baseline Comparison */}
             <div className="p-4 bg-muted/30 rounded-lg">
               <h3 className="font-semibold mb-3">vs Baseline</h3>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <span className="text-muted-foreground">Dept Profit:</span>
                   <span className="ml-2 font-medium">{formatCurrency(forecastDeptProfit)}</span>
                   <span className="text-muted-foreground mx-1">vs</span>
-                  <span className="text-muted-foreground">{formatCurrency(baselineProfit)} baseline</span>
+                  <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} baseline</span>
                 </div>
                 <div className={cn(
                   "flex items-center gap-2",
