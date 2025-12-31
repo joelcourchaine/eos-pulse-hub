@@ -86,9 +86,9 @@ export function ForecastResultsGrid({
     if (view === 'monthly') {
       // Show 6 months at a time with navigation
       const endIndex = Math.min(visibleMonthStart + VISIBLE_MONTH_COUNT, 12);
-      return months.slice(visibleMonthStart, endIndex).map((m, i) => ({
+      return months.slice(visibleMonthStart, endIndex).map((m) => ({
         key: m,
-        label: MONTH_ABBREV[visibleMonthStart + i],
+        label: MONTH_ABBREV[Number(m.slice(5, 7)) - 1] ?? m,
       }));
     }
     if (view === 'quarter') {
@@ -162,10 +162,6 @@ export function ForecastResultsGrid({
 
   const renderMetricRow = (metric: MetricDefinition, isSubMetric = false) => {
     const annualData = annualValues.get(metric.key);
-    const variance = annualData 
-      ? annualData.value - annualData.baseline_value 
-      : 0;
-    const isPositiveVariance = variance >= 0;
     const hasChildren = subMetrics?.has(metric.key) && (subMetrics.get(metric.key)?.length ?? 0) > 0;
     const isExpanded = expandedMetrics.has(metric.key);
     
@@ -265,7 +261,6 @@ export function ForecastResultsGrid({
         
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-muted/50",
-          isPositiveVariance ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
           isSubMetric && "text-xs font-normal"
         )}>
           {annualData ? formatValue(annualData.value, metric.type) : '-'}

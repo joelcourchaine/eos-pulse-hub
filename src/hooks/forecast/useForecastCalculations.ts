@@ -152,13 +152,45 @@ export function useForecastCalculations({
         
         // Check if this entry is locked
         const isLocked = existingEntry?.is_locked ?? false;
-        
-        // Get baseline value for this month/metric from PRIOR YEAR
+
         const baselineMonthData = baselineData.get(priorYearMonth);
-        const baselineValue = baselineMonthData?.get(metric.key) || 0;
-        
+        const baselineInputs = {
+          total_sales: baselineMonthData?.get('total_sales') ?? 0,
+          gp_net: baselineMonthData?.get('gp_net') ?? 0,
+          sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+          semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
+          total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+          parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+        };
+
+        const baselineMonthlyValues: Record<string, number> = {
+          total_sales: baselineInputs.total_sales,
+          gp_net: baselineInputs.gp_net,
+          gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
+          sales_expense: baselineInputs.sales_expense,
+          sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+          semi_fixed_expense: baselineInputs.semi_fixed_expense,
+          total_fixed_expense: baselineInputs.total_fixed_expense,
+          net_selling_gross: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense,
+          department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense,
+          parts_transfer: baselineInputs.parts_transfer,
+          net_operating_profit:
+            (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) +
+            (baselineInputs.parts_transfer || 0),
+          return_on_gross:
+            baselineInputs.gp_net > 0
+              ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
+              : 0,
+        };
+
+        // Prefer exact stored baseline metric when it exists (e.g., total_fixed_expense), otherwise use computed baseline
+        const baselineValue =
+          baselineMonthData?.get(metric.key) ??
+          baselineMonthlyValues[metric.key] ??
+          0;
+
         let value: number;
-        
+
         if (isLocked && existingEntry?.forecast_value !== null) {
           // Use locked value
           value = existingEntry.forecast_value;
