@@ -63,6 +63,14 @@ interface SubMetricForecast {
   quarterlyValues: Map<string, number>; // Q1, Q2, Q3, Q4 -> aggregated value
   annualValue: number;
   baselineAnnualValue: number; // prior year total
+  isOverridden?: boolean; // true if user has manually edited this sub-metric
+}
+
+// Sub-metric override: stores user-defined annual value for a sub-metric
+interface SubMetricOverride {
+  subMetricKey: string;
+  parentKey: string;
+  overriddenAnnualValue: number;
 }
 
 interface UseForecastCalculationsProps {
@@ -70,6 +78,7 @@ interface UseForecastCalculationsProps {
   weights: ForecastWeight[];
   baselineData: Map<string, Map<string, number>>; // month -> metric -> value
   subMetricBaselines?: SubMetricBaseline[]; // sub-metric baseline data
+  subMetricOverrides?: SubMetricOverride[]; // user overrides for sub-metrics
   forecastYear: number;
   salesGrowth: number;
   gpPercent: number;
@@ -82,6 +91,7 @@ export function useForecastCalculations({
   weights,
   baselineData,
   subMetricBaselines,
+  subMetricOverrides,
   forecastYear,
   salesGrowth,
   gpPercent,
@@ -377,6 +387,12 @@ export function useForecastCalculations({
       return result;
     }
     
+    // Build override lookup map
+    const overrideMap = new Map<string, number>();
+    subMetricOverrides?.forEach(o => {
+      overrideMap.set(o.subMetricKey, o.overriddenAnnualValue);
+    });
+    
     // Identify which parent metrics are percentages
     const percentageParents = new Set(
       METRIC_DEFINITIONS.filter(m => m.type === 'percent').map(m => m.key)
@@ -396,41 +412,81 @@ export function useForecastCalculations({
       const isPercentageParent = percentageParents.has(parentKey);
       
       subs.forEach((sub, index) => {
+        const subMetricKey = `sub:${parentKey}:${String(index).padStart(3, '0')}:${sub.name}`;
+        const isOverridden = overrideMap.has(subMetricKey);
+        const overriddenAnnual = overrideMap.get(subMetricKey);
+        
         const forecastMonthlyValues = new Map<string, number>();
         let annualValue = 0;
         let baselineAnnualValue = 0;
         
+        // First pass: calculate baseline annual value
         months.forEach((forecastMonth, monthIndex) => {
           const monthNumber = monthIndex + 1;
           const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-          
-          // Get baseline values for this month
           const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
           baselineAnnualValue += subBaseline;
-          
-          let forecastValue: number;
-          
-          if (isPercentageParent) {
-            // For percentage parents, sub-metrics stay the same (they're component percentages)
-            forecastValue = subBaseline;
-          } else {
-            // For currency parents, scale sub-metrics proportionally
-            const parentBaselineData = baselineData.get(priorMonth);
-            const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
-            
-            // Get forecast value for parent
-            const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
-            
-            // Calculate ratio: what fraction of parent was this sub-metric?
-            const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
-            
-            // Apply same ratio to forecast parent value
-            forecastValue = parentForecast * ratio;
-          }
-          
-          forecastMonthlyValues.set(forecastMonth, forecastValue);
-          annualValue += forecastValue;
         });
+        
+        // If overridden, distribute override annual value across months proportionally
+        if (isOverridden && overriddenAnnual !== undefined) {
+          // Calculate total baseline weight for proportional distribution
+          let totalBaselineWeight = 0;
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
+          });
+          
+          // Distribute overridden annual value
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            
+            let forecastValue: number;
+            if (totalBaselineWeight > 0) {
+              // Proportional distribution based on baseline pattern
+              forecastValue = (subBaseline / totalBaselineWeight) * overriddenAnnual;
+            } else {
+              // Equal distribution if no baseline
+              forecastValue = overriddenAnnual / 12;
+            }
+            
+            forecastMonthlyValues.set(forecastMonth, forecastValue);
+            annualValue += forecastValue;
+          });
+        } else {
+          // Standard calculation (no override)
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            
+            let forecastValue: number;
+            
+            if (isPercentageParent) {
+              // For percentage parents, sub-metrics stay the same (they're component percentages)
+              forecastValue = subBaseline;
+            } else {
+              // For currency parents, scale sub-metrics proportionally
+              const parentBaselineData = baselineData.get(priorMonth);
+              const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
+              
+              // Get forecast value for parent
+              const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
+              
+              // Calculate ratio: what fraction of parent was this sub-metric?
+              const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
+              
+              // Apply same ratio to forecast parent value
+              forecastValue = parentForecast * ratio;
+            }
+            
+            forecastMonthlyValues.set(forecastMonth, forecastValue);
+            annualValue += forecastValue;
+          });
+        }
         
         // Calculate quarterly values from monthly values
         const quarterlyValues = new Map<string, number>();
@@ -461,13 +517,14 @@ export function useForecastCalculations({
         }
         
         forecasts.push({
-          key: `sub:${parentKey}:${String(index).padStart(3, '0')}:${sub.name}`,
+          key: subMetricKey,
           label: sub.name,
           parentKey,
           monthlyValues: forecastMonthlyValues,
           quarterlyValues,
           annualValue,
           baselineAnnualValue,
+          isOverridden,
         });
       });
       
@@ -475,7 +532,7 @@ export function useForecastCalculations({
     });
     
     return result;
-  }, [subMetricBaselines, months, forecastYear, baselineData]);
+  }, [subMetricBaselines, subMetricOverrides, months, forecastYear, baselineData]);
 
   // Calculate all values
   const monthlyValues = calculateMonthlyValues();

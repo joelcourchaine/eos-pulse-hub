@@ -46,6 +46,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const [baselineSalesExpPercent, setBaselineSalesExpPercent] = useState<number | undefined>();
   const [baselineFixedExpense, setBaselineFixedExpense] = useState<number | undefined>();
 
+  // Sub-metric overrides: user-defined annual values
+  const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
+
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -156,6 +159,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     weights,
     baselineData,
     subMetricBaselines,
+    subMetricOverrides,
     forecastYear,
     salesGrowth,
     gpPercent,
@@ -275,6 +279,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   };
 
+  // Handle sub-metric annual value edit
+  const handleSubMetricEdit = (subMetricKey: string, parentKey: string, newAnnualValue: number) => {
+    setSubMetricOverrides(prev => {
+      // Update existing or add new override
+      const existingIndex = prev.findIndex(o => o.subMetricKey === subMetricKey);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue };
+        return updated;
+      }
+      return [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
+    });
+  };
+
   // Get department profit for comparison
   const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
@@ -359,6 +377,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               onCellEdit={handleCellEdit}
               onToggleLock={handleToggleLock}
               onMonthNavigate={handleMonthNavigate}
+              onSubMetricEdit={handleSubMetricEdit}
             />
 
             {/* Baseline Comparison */}
