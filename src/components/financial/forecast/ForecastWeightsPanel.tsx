@@ -33,12 +33,13 @@ export function ForecastWeightsPanel({
   const [isOpen, setIsOpen] = useState(false);
 
   // Merge calculated weights with saved weights
+  // Original always shows the CALCULATED weight from sales data, not saved original
   const mergedWeights = calculatedWeights.map(cw => {
     const savedWeight = weights.find(w => w.month_number === cw.month_number);
     return {
       month_number: cw.month_number,
       month_name: cw.month_name,
-      original_weight: savedWeight?.original_weight ?? cw.weight,
+      original_weight: cw.weight, // Always use calculated weight for "Original"
       adjusted_weight: savedWeight?.adjusted_weight ?? cw.weight,
       is_locked: savedWeight?.is_locked ?? false,
     };
