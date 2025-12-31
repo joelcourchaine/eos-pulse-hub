@@ -656,11 +656,135 @@ export function useForecastCalculations({
     return result;
   }, [subMetricBaselines, subMetricOverrides, months, forecastYear, baselineData]);
 
-  // Calculate all values
-  const monthlyValues = calculateMonthlyValues();
+  // Calculate all values - with sub-metric override flow-up
+  const baseMonthlyValues = calculateMonthlyValues();
+  const subMetricForecasts = calculateSubMetricForecasts(baseMonthlyValues);
+  
+  // Adjust parent totals based on sub-metric sums when overrides exist
+  // This allows sub-metric changes to flow up to parent metrics and department profit
+  const monthlyValues = useMemo(() => {
+    // Check if any sub-metrics have overrides
+    const hasSubMetricOverrides = subMetricOverrides && subMetricOverrides.length > 0;
+    
+    if (!hasSubMetricOverrides) {
+      return baseMonthlyValues;
+    }
+    
+    // Create a copy of the monthly values that we can adjust
+    const adjusted = new Map<string, Map<string, CalculationResult>>();
+    
+    // Calculate parent sums from sub-metrics for each month
+    const parentSumsFromSubs = new Map<string, Map<string, number>>(); // month -> parentKey -> sum
+    
+    subMetricForecasts.forEach((subs, parentKey) => {
+      subs.forEach(sub => {
+        sub.monthlyValues.forEach((value, month) => {
+          if (!parentSumsFromSubs.has(month)) {
+            parentSumsFromSubs.set(month, new Map());
+          }
+          const current = parentSumsFromSubs.get(month)!.get(parentKey) || 0;
+          parentSumsFromSubs.get(month)!.set(parentKey, current + value);
+        });
+      });
+    });
+    
+    // For each month, recalculate using sub-metric sums where they exist
+    months.forEach(month => {
+      const baseMetrics = baseMonthlyValues.get(month);
+      if (!baseMetrics) return;
+      
+      const adjustedMetrics = new Map<string, CalculationResult>();
+      const subSums = parentSumsFromSubs.get(month);
+      
+      // Copy base values first
+      baseMetrics.forEach((result, key) => {
+        adjustedMetrics.set(key, { ...result });
+      });
+      
+      // Override parent values with sub-metric sums where applicable
+      if (subSums) {
+        // Get updated values from sub-metric sums
+        const updatedSales = subSums.get('total_sales');
+        const updatedGpNet = subSums.get('gp_net');
+        
+        // Update total_sales if we have sub-metric data for it
+        if (updatedSales !== undefined) {
+          const current = adjustedMetrics.get('total_sales');
+          if (current) {
+            adjustedMetrics.set('total_sales', { ...current, value: updatedSales });
+          }
+        }
+        
+        // Update gp_net if we have sub-metric data for it
+        if (updatedGpNet !== undefined) {
+          const current = adjustedMetrics.get('gp_net');
+          if (current) {
+            adjustedMetrics.set('gp_net', { ...current, value: updatedGpNet });
+          }
+        }
+        
+        // Recalculate derived metrics based on potentially updated parent values
+        const salesValue = adjustedMetrics.get('total_sales')?.value ?? 0;
+        const gpNetValue = adjustedMetrics.get('gp_net')?.value ?? 0;
+        const salesExpense = adjustedMetrics.get('sales_expense')?.value ?? 0;
+        const semiFixed = adjustedMetrics.get('semi_fixed_expense')?.value ?? 0;
+        const fixedExp = adjustedMetrics.get('total_fixed_expense')?.value ?? 0;
+        const partsTransfer = adjustedMetrics.get('parts_transfer')?.value ?? 0;
+        
+        // Update GP %
+        const gpPercentCurrent = adjustedMetrics.get('gp_percent');
+        if (gpPercentCurrent && salesValue > 0) {
+          adjustedMetrics.set('gp_percent', { 
+            ...gpPercentCurrent, 
+            value: (gpNetValue / salesValue) * 100 
+          });
+        }
+        
+        // Update net_selling_gross
+        const nsgCurrent = adjustedMetrics.get('net_selling_gross');
+        if (nsgCurrent) {
+          adjustedMetrics.set('net_selling_gross', {
+            ...nsgCurrent,
+            value: gpNetValue - salesExpense - semiFixed,
+          });
+        }
+        
+        // Update department_profit
+        const deptProfitCurrent = adjustedMetrics.get('department_profit');
+        if (deptProfitCurrent) {
+          adjustedMetrics.set('department_profit', {
+            ...deptProfitCurrent,
+            value: gpNetValue - salesExpense - semiFixed - fixedExp,
+          });
+        }
+        
+        // Update net_operating_profit
+        const netOpCurrent = adjustedMetrics.get('net_operating_profit');
+        if (netOpCurrent) {
+          adjustedMetrics.set('net_operating_profit', {
+            ...netOpCurrent,
+            value: gpNetValue - salesExpense - semiFixed - fixedExp + partsTransfer,
+          });
+        }
+        
+        // Update return_on_gross
+        const rogCurrent = adjustedMetrics.get('return_on_gross');
+        if (rogCurrent && gpNetValue > 0) {
+          adjustedMetrics.set('return_on_gross', {
+            ...rogCurrent,
+            value: ((gpNetValue - salesExpense - semiFixed - fixedExp) / gpNetValue) * 100,
+          });
+        }
+      }
+      
+      adjusted.set(month, adjustedMetrics);
+    });
+    
+    return adjusted;
+  }, [baseMonthlyValues, subMetricForecasts, subMetricOverrides, months]);
+  
   const quarterlyValues = calculateQuarterlyValues(monthlyValues);
   const annualValues = calculateAnnualValues(monthlyValues);
-  const subMetricForecasts = calculateSubMetricForecasts(monthlyValues);
 
   return {
     monthlyValues,
