@@ -54,14 +54,6 @@ export function ForecastDriverInputs({
     };
   }, [baselineSalesExpPercent, salesExpPercent]);
 
-  const fixedExpRange = useMemo(() => {
-    const baseline = baselineFixedExpense ?? fixedExpense;
-    const halfRange = baseline * 0.5; // +/- 50% of baseline
-    return {
-      min: Math.max(0, Math.round(baseline - halfRange)),
-      max: Math.round(baseline + halfRange),
-    };
-  }, [baselineFixedExpense, fixedExpense]);
 
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
@@ -128,24 +120,21 @@ export function ForecastDriverInputs({
           </div>
         </div>
 
-        {/* Fixed Expense - centered on baseline */}
+        {/* Fixed Expense - text input */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Fixed Expense (Annual)</span>
             <span className="font-medium">{formatCurrency(fixedExpense)}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-12">{formatCurrency(fixedExpRange.min)}</span>
-            <Slider
-              value={[fixedExpense]}
-              onValueChange={([v]) => onFixedExpenseChange(v)}
-              min={fixedExpRange.min}
-              max={fixedExpRange.max}
-              step={1000}
-              className="flex-1"
-            />
-            <span className="text-xs text-muted-foreground w-12">{formatCurrency(fixedExpRange.max)}</span>
-          </div>
+          <Input
+            type="text"
+            value={`$${Math.round(fixedExpense).toLocaleString()}`}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9.-]/g, '');
+              onFixedExpenseChange(parseFloat(raw) || 0);
+            }}
+            className="w-full"
+          />
         </div>
       </div>
     </div>
