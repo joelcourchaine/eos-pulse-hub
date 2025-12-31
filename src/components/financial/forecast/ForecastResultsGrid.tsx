@@ -25,8 +25,10 @@ interface MetricDefinition {
 interface SubMetricData {
   key: string;
   label: string;
-  values: Map<string, number>; // month -> value
+  parentKey: string;
+  monthlyValues: Map<string, number>; // forecast month -> calculated value
   annualValue: number;
+  baselineAnnualValue: number;
 }
 
 interface ForecastResultsGridProps {
@@ -167,7 +169,7 @@ export function ForecastResultsGrid({
     
     // For sub-metrics, get annual value from sub-metric data
     const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
-    const annualBaseline = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.baseline_value;
+    const annualBaseline = isSubMetric && subMetricData ? subMetricData.baselineAnnualValue : annualData?.baseline_value;
     
     return (
       <tr 
@@ -208,14 +210,13 @@ export function ForecastResultsGrid({
         </td>
         
         {columns.map((col) => {
-          // For sub-metrics, get value from sub-metric data
+          // For sub-metrics, get calculated forecast value
           let cellValue: number | undefined;
           let isLocked = false;
           
           if (isSubMetric && subMetricData) {
-            // Sub-metrics show baseline values (prior year)
-            const priorMonth = col.key.replace(String(forecastYear), String(priorYear));
-            cellValue = subMetricData.values.get(priorMonth) ?? subMetricData.values.get(col.key);
+            // Sub-metrics now show calculated forecast values (scaled from parent)
+            cellValue = subMetricData.monthlyValues.get(col.key);
           } else {
             const data = getValue(col.key, metric.key);
             cellValue = data?.value;

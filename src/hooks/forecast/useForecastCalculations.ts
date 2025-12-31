@@ -49,10 +49,26 @@ const METRIC_DEFINITIONS: MetricDefinition[] = [
   },
 ];
 
+interface SubMetricBaseline {
+  parentKey: string;
+  name: string;
+  monthlyValues: Map<string, number>; // month -> value
+}
+
+interface SubMetricForecast {
+  key: string;
+  label: string;
+  parentKey: string;
+  monthlyValues: Map<string, number>; // forecast month -> calculated value
+  annualValue: number;
+  baselineAnnualValue: number; // prior year total
+}
+
 interface UseForecastCalculationsProps {
   entries: ForecastEntry[];
   weights: ForecastWeight[];
   baselineData: Map<string, Map<string, number>>; // month -> metric -> value
+  subMetricBaselines?: SubMetricBaseline[]; // sub-metric baseline data
   forecastYear: number;
   salesGrowth: number;
   gpPercent: number;
@@ -64,6 +80,7 @@ export function useForecastCalculations({
   entries,
   weights,
   baselineData,
+  subMetricBaselines,
   forecastYear,
   salesGrowth,
   gpPercent,
@@ -349,15 +366,84 @@ export function useForecastCalculations({
     }));
   }, [months, weightsMap]);
 
+  // Calculate sub-metric forecasts by scaling based on parent metric changes
+  const calculateSubMetricForecasts = useCallback((
+    monthlyVals: Map<string, Map<string, CalculationResult>>
+  ): Map<string, SubMetricForecast[]> => {
+    const result = new Map<string, SubMetricForecast[]>();
+    
+    if (!subMetricBaselines || subMetricBaselines.length === 0) {
+      return result;
+    }
+    
+    // Group sub-metrics by parent
+    const byParent = new Map<string, SubMetricBaseline[]>();
+    subMetricBaselines.forEach(sub => {
+      if (!byParent.has(sub.parentKey)) {
+        byParent.set(sub.parentKey, []);
+      }
+      byParent.get(sub.parentKey)!.push(sub);
+    });
+    
+    byParent.forEach((subs, parentKey) => {
+      const forecasts: SubMetricForecast[] = [];
+      
+      subs.forEach((sub, index) => {
+        const forecastMonthlyValues = new Map<string, number>();
+        let annualValue = 0;
+        let baselineAnnualValue = 0;
+        
+        months.forEach((forecastMonth, monthIndex) => {
+          const monthNumber = monthIndex + 1;
+          const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+          
+          // Get baseline values for this month
+          const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+          baselineAnnualValue += subBaseline;
+          
+          const parentBaselineData = baselineData.get(priorMonth);
+          const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
+          
+          // Get forecast value for parent
+          const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
+          
+          // Calculate ratio: what fraction of parent was this sub-metric?
+          const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
+          
+          // Apply same ratio to forecast parent value
+          const forecastValue = parentForecast * ratio;
+          
+          forecastMonthlyValues.set(forecastMonth, forecastValue);
+          annualValue += forecastValue;
+        });
+        
+        forecasts.push({
+          key: `sub:${parentKey}:${String(index).padStart(3, '0')}:${sub.name}`,
+          label: sub.name,
+          parentKey,
+          monthlyValues: forecastMonthlyValues,
+          annualValue,
+          baselineAnnualValue,
+        });
+      });
+      
+      result.set(parentKey, forecasts);
+    });
+    
+    return result;
+  }, [subMetricBaselines, months, forecastYear, baselineData]);
+
   // Calculate all values
   const monthlyValues = calculateMonthlyValues();
   const quarterlyValues = calculateQuarterlyValues(monthlyValues);
   const annualValues = calculateAnnualValues(monthlyValues);
+  const subMetricForecasts = calculateSubMetricForecasts(monthlyValues);
 
   return {
     monthlyValues,
     quarterlyValues,
     annualValues,
+    subMetricForecasts,
     months,
     metricDefinitions: METRIC_DEFINITIONS,
     distributeQuarterToMonths,
