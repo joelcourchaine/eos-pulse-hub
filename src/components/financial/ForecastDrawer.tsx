@@ -115,58 +115,30 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     return map;
   }, [priorYearData]);
 
-  // Convert sub-metrics to the format needed by the grid
-  const subMetrics = useMemo(() => {
-    const result = new Map<string, { key: string; label: string; values: Map<string, number>; annualValue: number }[]>();
+  // Convert sub-metrics to baseline format for calculations hook
+  const subMetricBaselines = useMemo(() => {
+    if (!subMetricEntries || subMetricEntries.length === 0) return [];
 
-    if (!subMetricEntries || subMetricEntries.length === 0) return result;
-
-    // parent -> (name -> { orderIndex, values })
-    const grouped = new Map<
-      string,
-      Map<string, { orderIndex: number; values: Map<string, number> }>
-    >();
+    // Group by parent + name to get all monthly values for each sub-metric
+    const grouped = new Map<string, { parentKey: string; name: string; values: Map<string, number> }>();
 
     for (const entry of subMetricEntries) {
-      if (!grouped.has(entry.parentMetricKey)) {
-        grouped.set(entry.parentMetricKey, new Map());
-      }
-
-      const parentGroup = grouped.get(entry.parentMetricKey)!;
-      if (!parentGroup.has(entry.name)) {
-        parentGroup.set(entry.name, {
-          orderIndex: entry.orderIndex,
+      const key = `${entry.parentMetricKey}:${entry.name}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          parentKey: entry.parentMetricKey,
+          name: entry.name,
           values: new Map(),
         });
       }
-
-      const rec = parentGroup.get(entry.name)!;
-      // keep earliest orderIndex if mixed
-      rec.orderIndex = Math.min(rec.orderIndex, entry.orderIndex);
-      rec.values.set(entry.monthIdentifier, entry.value ?? 0);
+      grouped.get(key)!.values.set(entry.monthIdentifier, entry.value ?? 0);
     }
 
-    grouped.forEach((metricsByName, parentKey) => {
-      const children = Array.from(metricsByName.entries())
-        .sort((a, b) => a[1].orderIndex - b[1].orderIndex)
-        .map(([name, rec]) => {
-          let annualValue = 0;
-          rec.values.forEach((v) => (annualValue += v));
-
-          return {
-            key: `sub:${parentKey}:${String(rec.orderIndex).padStart(3, '0')}:${name}`,
-            label: name,
-            values: rec.values,
-            annualValue,
-          };
-        });
-
-      if (children.length > 0) {
-        result.set(parentKey, children);
-      }
-    });
-
-    return result;
+    return Array.from(grouped.values()).map(g => ({
+      parentKey: g.parentKey,
+      name: g.name,
+      monthlyValues: g.values,
+    }));
   }, [subMetricEntries]);
 
 
@@ -175,6 +147,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     monthlyValues,
     quarterlyValues,
     annualValues,
+    subMetricForecasts,
     months,
     metricDefinitions,
     distributeQuarterToMonths,
@@ -182,6 +155,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     entries,
     weights,
     baselineData,
+    subMetricBaselines,
     forecastYear,
     salesGrowth,
     gpPercent,
@@ -378,7 +352,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               annualValues={annualValues}
               metricDefinitions={metricDefinitions}
               months={months}
-              subMetrics={subMetrics}
+              subMetrics={subMetricForecasts}
               visibleMonthStart={visibleMonthStart}
               forecastYear={forecastYear}
               priorYear={priorYear}
