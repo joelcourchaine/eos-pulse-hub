@@ -227,51 +227,49 @@ export function ForecastResultsGrid({
             <td 
               key={col.key} 
               className={cn(
-                "text-right py-1 px-2",
+                "text-right py-1 px-2 relative group/cell",
                 isLocked && "bg-amber-50 dark:bg-amber-950/20",
                 isSubMetric && "text-xs"
               )}
             >
-              <div className="flex items-center justify-end gap-1">
-                {isEditing && !isSubMetric ? (
-                  <Input
-                    type="number"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => handleCellBlur(col.key, metric.key)}
-                    onKeyDown={(e) => handleKeyDown(e, col.key, metric.key)}
-                    className="h-6 w-20 text-right text-sm"
-                    autoFocus
-                  />
-                ) : (
-                  <>
-                    <span 
-                      className={cn(
-                        !isSubMetric && "cursor-pointer hover:underline",
-                        isLocked && "cursor-not-allowed opacity-70",
-                        isSubMetric && "text-muted-foreground"
-                      )}
-                      onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
-                    >
-                      {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
-                    </span>
-                    {!isSubMetric && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => handleLockClick(e, col.key, metric.key)}
-                      >
-                        {isLocked ? (
-                          <Lock className="h-3 w-3 text-amber-500" />
-                        ) : (
-                          <Unlock className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                        )}
-                      </Button>
+              {isEditing && !isSubMetric ? (
+                <Input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={() => handleCellBlur(col.key, metric.key)}
+                  onKeyDown={(e) => handleKeyDown(e, col.key, metric.key)}
+                  className="h-6 w-20 text-right text-sm ml-auto"
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span 
+                    className={cn(
+                      !isSubMetric && "cursor-pointer hover:underline",
+                      isLocked && "cursor-not-allowed opacity-70",
+                      isSubMetric && "text-muted-foreground"
                     )}
-                  </>
-                )}
-              </div>
+                    onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                  >
+                    {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
+                  </span>
+                  {!isSubMetric && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/cell:opacity-100"
+                      onClick={(e) => handleLockClick(e, col.key, metric.key)}
+                    >
+                      {isLocked ? (
+                        <Lock className="h-3 w-3 text-amber-500" />
+                      ) : (
+                        <Unlock className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                      )}
+                    </Button>
+                  )}
+                </>
+              )}
             </td>
           );
         })}
