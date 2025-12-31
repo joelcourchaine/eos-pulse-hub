@@ -41,7 +41,7 @@ const SUB_METRIC_PARENTS: Record<string, string> = {
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const forecastYear = currentYear + 1;
-  const priorYear = currentYear - 1;
+  const priorYear = forecastYear - 1; // Year before the forecast year (2025 when forecasting 2026)
 
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
