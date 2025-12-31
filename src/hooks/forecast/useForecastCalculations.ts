@@ -428,34 +428,39 @@ export function useForecastCalculations({
           baselineAnnualValue += subBaseline;
         });
         
-        // If overridden, distribute override annual value across months proportionally
+        // If overridden, distribute override annual value across months
         if (isOverridden && overriddenAnnual !== undefined) {
-          // Calculate total baseline weight for proportional distribution
-          let totalBaselineWeight = 0;
-          months.forEach((forecastMonth, monthIndex) => {
-            const monthNumber = monthIndex + 1;
-            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-            totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
-          });
-          
-          // Distribute overridden annual value
-          months.forEach((forecastMonth, monthIndex) => {
-            const monthNumber = monthIndex + 1;
-            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+          if (isPercentageParent) {
+            // For percentage sub-metrics, each month gets the same percentage value
+            months.forEach((forecastMonth) => {
+              forecastMonthlyValues.set(forecastMonth, overriddenAnnual);
+              annualValue += overriddenAnnual;
+            });
+          } else {
+            // For currency sub-metrics, distribute proportionally based on baseline pattern
+            let totalBaselineWeight = 0;
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
+            });
             
-            let forecastValue: number;
-            if (totalBaselineWeight > 0) {
-              // Proportional distribution based on baseline pattern
-              forecastValue = (subBaseline / totalBaselineWeight) * overriddenAnnual;
-            } else {
-              // Equal distribution if no baseline
-              forecastValue = overriddenAnnual / 12;
-            }
-            
-            forecastMonthlyValues.set(forecastMonth, forecastValue);
-            annualValue += forecastValue;
-          });
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+              
+              let forecastValue: number;
+              if (totalBaselineWeight > 0) {
+                forecastValue = (subBaseline / totalBaselineWeight) * overriddenAnnual;
+              } else {
+                forecastValue = overriddenAnnual / 12;
+              }
+              
+              forecastMonthlyValues.set(forecastMonth, forecastValue);
+              annualValue += forecastValue;
+            });
+          }
         } else {
           // Standard calculation (no override)
           months.forEach((forecastMonth, monthIndex) => {
