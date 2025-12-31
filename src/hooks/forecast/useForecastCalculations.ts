@@ -143,6 +143,9 @@ export function useForecastCalculations({
       
       const monthResults = new Map<string, CalculationResult>();
       
+      // Map to prior year month for baseline lookup (e.g., 2026-01 -> 2025-01)
+      const priorYearMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+      
       METRIC_DEFINITIONS.forEach(metric => {
         const entryKey = `${month}:${metric.key}`;
         const existingEntry = entriesMap.get(entryKey);
@@ -150,8 +153,8 @@ export function useForecastCalculations({
         // Check if this entry is locked
         const isLocked = existingEntry?.is_locked ?? false;
         
-        // Get baseline value for this month/metric
-        const baselineMonthData = baselineData.get(month);
+        // Get baseline value for this month/metric from PRIOR YEAR
+        const baselineMonthData = baselineData.get(priorYearMonth);
         const baselineValue = baselineMonthData?.get(metric.key) || 0;
         
         let value: number;
