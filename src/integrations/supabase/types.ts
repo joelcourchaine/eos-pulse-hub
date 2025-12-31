@@ -146,6 +146,44 @@ export type Database = {
           },
         ]
       }
+      department_forecasts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string
+          forecast_year: number
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          forecast_year: number
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          forecast_year?: number
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_forecasts_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       department_questions: {
         Row: {
           answer_description: string | null
@@ -547,6 +585,91 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_entries: {
+        Row: {
+          baseline_value: number | null
+          created_at: string
+          forecast_id: string
+          forecast_value: number | null
+          id: string
+          is_locked: boolean
+          metric_name: string
+          month: string
+          updated_at: string
+        }
+        Insert: {
+          baseline_value?: number | null
+          created_at?: string
+          forecast_id: string
+          forecast_value?: number | null
+          id?: string
+          is_locked?: boolean
+          metric_name: string
+          month: string
+          updated_at?: string
+        }
+        Update: {
+          baseline_value?: number | null
+          created_at?: string
+          forecast_id?: string
+          forecast_value?: number | null
+          id?: string
+          is_locked?: boolean
+          metric_name?: string
+          month?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_entries_forecast_id_fkey"
+            columns: ["forecast_id"]
+            isOneToOne: false
+            referencedRelation: "department_forecasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_weights: {
+        Row: {
+          adjusted_weight: number
+          created_at: string
+          forecast_id: string
+          id: string
+          is_locked: boolean
+          month_number: number
+          original_weight: number
+          updated_at: string
+        }
+        Insert: {
+          adjusted_weight?: number
+          created_at?: string
+          forecast_id: string
+          id?: string
+          is_locked?: boolean
+          month_number: number
+          original_weight?: number
+          updated_at?: string
+        }
+        Update: {
+          adjusted_weight?: number
+          created_at?: string
+          forecast_id?: string
+          id?: string
+          is_locked?: boolean
+          month_number?: number
+          original_weight?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_weights_forecast_id_fkey"
+            columns: ["forecast_id"]
+            isOneToOne: false
+            referencedRelation: "department_forecasts"
             referencedColumns: ["id"]
           },
         ]
