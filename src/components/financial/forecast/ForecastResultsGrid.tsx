@@ -38,6 +38,8 @@ interface ForecastResultsGridProps {
   months: string[];
   subMetrics?: Map<string, SubMetricData[]>; // parent metric key -> sub-metrics
   visibleMonthStart?: number;
+  forecastYear: number;
+  priorYear: number;
   onCellEdit?: (month: string, metricName: string, value: number) => void;
   onToggleLock?: (month: string, metricName: string) => void;
   onMonthNavigate?: (direction: 'prev' | 'next') => void;
@@ -66,6 +68,8 @@ export function ForecastResultsGrid({
   months,
   subMetrics,
   visibleMonthStart = 0,
+  forecastYear,
+  priorYear,
   onCellEdit,
   onToggleLock,
   onMonthNavigate,
@@ -260,11 +264,17 @@ export function ForecastResultsGrid({
         })}
         
         <td className={cn(
-          "text-right py-2 pl-2 font-medium bg-muted/50",
+          "text-right py-2 px-2 font-medium bg-muted/50",
           isPositiveVariance ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
           isSubMetric && "text-xs font-normal"
         )}>
           {annualData ? formatValue(annualData.value, metric.type) : '-'}
+        </td>
+        <td className={cn(
+          "text-right py-2 pl-2 font-medium bg-muted/30",
+          isSubMetric && "text-xs font-normal text-muted-foreground"
+        )}>
+          {annualData ? formatValue(annualData.baseline_value, metric.type) : '-'}
         </td>
       </tr>
     );
@@ -310,7 +320,8 @@ export function ForecastResultsGrid({
                   {col.label}
                 </th>
               ))}
-              <th className="text-right py-2 pl-2 font-medium bg-muted/50 min-w-[90px]">Year</th>
+              <th className="text-right py-2 px-2 font-medium bg-muted/50 min-w-[90px]">{forecastYear}</th>
+              <th className="text-right py-2 pl-2 font-medium bg-muted/30 min-w-[90px]">{priorYear}</th>
             </tr>
           </thead>
           <tbody className="[&_tr]:group">
