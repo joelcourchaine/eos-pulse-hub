@@ -195,8 +195,11 @@ export function useForecastCalculations({
           // Use locked value
           value = existingEntry.forecast_value;
         } else if (metric.type === 'percent') {
-          // Percentages don't get weighted distribution
+          // For percentages, use the driver-defined values (gpPercent, salesExpPercent)
           value = annualValues[metric.key] || 0;
+        } else if (salesGrowth === 0) {
+          // No sales growth = use baseline values directly (no redistribution needed)
+          value = baselineValue;
         } else {
           // Apply weight to distribute annual value
           value = (annualValues[metric.key] || 0) * weightFactor;
