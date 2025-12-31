@@ -180,7 +180,7 @@ export function ForecastResultsGrid({
           isSubMetric && "bg-muted/20"
         )}
       >
-        <td className="py-2 pr-4">
+        <td className="py-2 pr-4 w-[160px]">
           <div className={cn("flex items-center gap-2", isSubMetric && "pl-6")}>
             {hasChildren && (
               <Button
