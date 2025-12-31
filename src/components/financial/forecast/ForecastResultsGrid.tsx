@@ -343,7 +343,7 @@ export function ForecastResultsGrid({
         )}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm table-fixed">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b">
               <th className="text-left py-2 pr-4 font-medium w-[160px]">Metric</th>
