@@ -60,6 +60,7 @@ interface SubMetricForecast {
   label: string;
   parentKey: string;
   monthlyValues: Map<string, number>; // forecast month -> calculated value
+  quarterlyValues: Map<string, number>; // Q1, Q2, Q3, Q4 -> aggregated value
   annualValue: number;
   baselineAnnualValue: number; // prior year total
 }
@@ -431,6 +432,28 @@ export function useForecastCalculations({
           annualValue += forecastValue;
         });
         
+        // Calculate quarterly values from monthly values
+        const quarterlyValues = new Map<string, number>();
+        const quarterMonthIndices = {
+          Q1: [0, 1, 2],
+          Q2: [3, 4, 5],
+          Q3: [6, 7, 8],
+          Q4: [9, 10, 11],
+        };
+        
+        Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
+          let quarterTotal = 0;
+          monthIndices.forEach(i => {
+            const forecastMonth = months[i];
+            quarterTotal += forecastMonthlyValues.get(forecastMonth) ?? 0;
+          });
+          // For percentage parents, average instead of sum
+          if (isPercentageParent) {
+            quarterTotal = quarterTotal / 3;
+          }
+          quarterlyValues.set(quarter, quarterTotal);
+        });
+        
         // For percentage parents, annual value should be averaged not summed
         if (isPercentageParent) {
           annualValue = annualValue / 12;
@@ -442,6 +465,7 @@ export function useForecastCalculations({
           label: sub.name,
           parentKey,
           monthlyValues: forecastMonthlyValues,
+          quarterlyValues,
           annualValue,
           baselineAnnualValue,
         });
