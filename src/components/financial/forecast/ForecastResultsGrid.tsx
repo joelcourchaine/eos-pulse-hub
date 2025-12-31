@@ -323,17 +323,17 @@ export function ForecastResultsGrid({
         )}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
           <thead>
             <tr className="border-b">
-              <th className="text-left py-2 pr-4 font-medium min-w-[160px]">Metric</th>
+              <th className="text-left py-2 pr-4 font-medium w-[160px]">Metric</th>
               {columns.map((col) => (
-                <th key={col.key} className="text-right py-2 px-2 font-medium min-w-[80px]">
+                <th key={col.key} className="text-right py-2 px-2 font-medium w-[80px]">
                   {col.label}
                 </th>
               ))}
-              <th className="text-right py-2 px-2 font-medium bg-muted/50 min-w-[90px]">{forecastYear}</th>
-              <th className="text-right py-2 pl-2 font-medium bg-muted/30 min-w-[90px]">{priorYear}</th>
+              <th className="text-right py-2 px-2 font-medium bg-muted/50 w-[90px]">{forecastYear}</th>
+              <th className="text-right py-2 pl-2 font-medium bg-muted/30 w-[90px]">{priorYear}</th>
             </tr>
           </thead>
           <tbody className="[&_tr]:group">
