@@ -160,10 +160,14 @@ export function ForecastResultsGrid({
     onToggleLock?.(columnKey, metricKey);
   };
 
-  const renderMetricRow = (metric: MetricDefinition, isSubMetric = false) => {
+  const renderMetricRow = (metric: MetricDefinition, isSubMetric = false, subMetricData?: SubMetricData) => {
     const annualData = annualValues.get(metric.key);
     const hasChildren = subMetrics?.has(metric.key) && (subMetrics.get(metric.key)?.length ?? 0) > 0;
     const isExpanded = expandedMetrics.has(metric.key);
+    
+    // For sub-metrics, get annual value from sub-metric data
+    const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
+    const annualBaseline = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.baseline_value;
     
     return (
       <tr 
@@ -204,10 +208,22 @@ export function ForecastResultsGrid({
         </td>
         
         {columns.map((col) => {
-          const data = getValue(col.key, metric.key);
+          // For sub-metrics, get value from sub-metric data
+          let cellValue: number | undefined;
+          let isLocked = false;
+          
+          if (isSubMetric && subMetricData) {
+            // Sub-metrics show baseline values (prior year)
+            const priorMonth = col.key.replace(String(forecastYear), String(priorYear));
+            cellValue = subMetricData.values.get(priorMonth) ?? subMetricData.values.get(col.key);
+          } else {
+            const data = getValue(col.key, metric.key);
+            cellValue = data?.value;
+            isLocked = data?.is_locked ?? false;
+          }
+          
           const cellKey = `${col.key}:${metric.key}`;
           const isEditing = editingCell === cellKey;
-          const isLocked = data?.is_locked ?? false;
           
           return (
             <td 
@@ -219,7 +235,7 @@ export function ForecastResultsGrid({
               )}
             >
               <div className="flex items-center justify-end gap-1">
-                {isEditing ? (
+                {isEditing && !isSubMetric ? (
                   <Input
                     type="number"
                     value={editValue}
@@ -233,25 +249,28 @@ export function ForecastResultsGrid({
                   <>
                     <span 
                       className={cn(
-                        "cursor-pointer hover:underline",
-                        isLocked && "cursor-not-allowed opacity-70"
+                        !isSubMetric && "cursor-pointer hover:underline",
+                        isLocked && "cursor-not-allowed opacity-70",
+                        isSubMetric && "text-muted-foreground"
                       )}
-                      onClick={() => data && handleCellClick(col.key, metric.key, data.value, isLocked)}
+                      onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
                     >
-                      {data ? formatValue(data.value, metric.type) : '-'}
+                      {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                      onClick={(e) => handleLockClick(e, col.key, metric.key)}
-                    >
-                      {isLocked ? (
-                        <Lock className="h-3 w-3 text-amber-500" />
-                      ) : (
-                        <Unlock className="h-3 w-3 text-muted-foreground hover:text-foreground" />
-                      )}
-                    </Button>
+                    {!isSubMetric && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:opacity-100"
+                        onClick={(e) => handleLockClick(e, col.key, metric.key)}
+                      >
+                        {isLocked ? (
+                          <Lock className="h-3 w-3 text-amber-500" />
+                        ) : (
+                          <Unlock className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                        )}
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -263,13 +282,13 @@ export function ForecastResultsGrid({
           "text-right py-2 px-2 font-medium bg-muted/50",
           isSubMetric && "text-xs font-normal"
         )}>
-          {annualData ? formatValue(annualData.value, metric.type) : '-'}
+          {annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'}
         </td>
         <td className={cn(
           "text-right py-2 pl-2 font-medium bg-muted/30",
           isSubMetric && "text-xs font-normal text-muted-foreground"
         )}>
-          {annualData ? formatValue(annualData.baseline_value, metric.type) : '-'}
+          {annualBaseline !== undefined ? formatValue(annualBaseline, metric.type) : '-'}
         </td>
       </tr>
     );
@@ -335,7 +354,7 @@ export function ForecastResultsGrid({
                       isDriver: false,
                       isDerived: false,
                       parentKey: metric.key,
-                    }, true)
+                    }, true, sub)
                   );
                 });
               }
