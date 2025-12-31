@@ -351,7 +351,8 @@ export function ForecastResultsGrid({
                     renderMetricRow({
                       key: sub.key,
                       label: sub.label,
-                      type: 'currency',
+                      // Inherit type from parent metric (percent vs currency)
+                      type: metric.type,
                       isDriver: false,
                       isDerived: false,
                       parentKey: metric.key,
