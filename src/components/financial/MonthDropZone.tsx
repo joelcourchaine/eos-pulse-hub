@@ -61,6 +61,8 @@ interface MonthDropZoneProps {
   onCopyFromSource?: (sourceIdentifier: string) => Promise<void>;
   /** Whether a copy operation is in progress */
   isCopying?: boolean;
+  /** If this month's data was copied from another source */
+  copiedFrom?: { sourceLabel: string; copiedAt: string } | null;
 }
 
 const ACCEPTED_TYPES = {
@@ -82,6 +84,7 @@ export const MonthDropZone = ({
   copySourceOptions = [],
   onCopyFromSource,
   isCopying = false,
+  copiedFrom,
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -618,6 +621,24 @@ export const MonthDropZone = ({
           </div>
         )}
       </div>
+
+      {/* Copied from indicator */}
+      {copiedFrom && !attachment && (
+        <div className="absolute -top-1 -left-1 z-20">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="bg-blue-500 text-white rounded-full p-0.5">
+                  <Copy className="h-3 w-3" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <p>Copied from {copiedFrom.sourceLabel}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
 
       {/* Attachment indicator with validation status color */}
       {(attachment || isUploading) && (

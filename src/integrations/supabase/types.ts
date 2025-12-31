@@ -494,6 +494,44 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_copy_metadata: {
+        Row: {
+          copied_at: string
+          copied_by: string | null
+          department_id: string
+          id: string
+          source_identifier: string
+          source_label: string | null
+          target_month: string
+        }
+        Insert: {
+          copied_at?: string
+          copied_by?: string | null
+          department_id: string
+          id?: string
+          source_identifier: string
+          source_label?: string | null
+          target_month: string
+        }
+        Update: {
+          copied_at?: string
+          copied_by?: string | null
+          department_id?: string
+          id?: string
+          source_identifier?: string
+          source_label?: string | null
+          target_month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_copy_metadata_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       financial_entries: {
         Row: {
           created_at: string

@@ -251,6 +251,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
+  const [copyMetadata, setCopyMetadata] = useState<{ [monthId: string]: { sourceLabel: string; copiedAt: string } }>({});
   const [forecastDrawerOpen, setForecastDrawerOpen] = useState(false);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -278,6 +279,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   useEffect(() => {
     fetchAttachments();
   }, [fetchAttachments]);
+
+  // Fetch copy metadata to show "copied from" indicator
+  const fetchCopyMetadata = useCallback(async () => {
+    if (!departmentId) return;
+    const { data } = await supabase
+      .from('financial_copy_metadata')
+      .select('target_month, source_label, copied_at')
+      .eq('department_id', departmentId);
+    
+    const metadataMap: typeof copyMetadata = {};
+    data?.forEach(item => {
+      metadataMap[item.target_month] = {
+        sourceLabel: item.source_label || item.target_month,
+        copiedAt: item.copied_at,
+      };
+    });
+    setCopyMetadata(metadataMap);
+  }, [departmentId]);
+
+  useEffect(() => {
+    fetchCopyMetadata();
+  }, [fetchCopyMetadata]);
 
   // Fetch cell issues to display red flags
   useEffect(() => {
@@ -2370,12 +2393,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       await loadPrecedingQuartersData();
       await refetchSubMetrics();
       
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const sourceLabel = isSourceAverage 
         ? `Avg ${sourceYear} YTD` 
-        : sourceIdentifier;
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        : (() => {
+            const [sYear, sMonth] = sourceIdentifier.split('-').map(Number);
+            return `${monthNames[sMonth - 1]} ${sYear}`;
+          })();
       const [tYear, tMonth] = targetMonthIdentifier.split('-').map(Number);
       const targetLabel = `${monthNames[tMonth - 1]} ${tYear}`;
+      
+      // Save copy metadata
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      await supabase
+        .from('financial_copy_metadata')
+        .upsert({
+          department_id: departmentId,
+          target_month: targetMonthIdentifier,
+          source_identifier: sourceIdentifier,
+          source_label: sourceLabel,
+          copied_by: currentUser?.id,
+        }, {
+          onConflict: 'department_id,target_month'
+        });
+      
+      // Refresh copy metadata
+      await fetchCopyMetadata();
       
       // Count main metrics vs sub-metrics
       const mainMetricCount = entriesToInsert.filter(e => !e.metric_name.startsWith('sub:')).length;
@@ -2396,7 +2439,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     } finally {
       setCopyingMonth(null);
     }
-  }, [departmentId, FINANCIAL_METRICS, precedingQuartersData, allSubMetrics, toast, loadFinancialData, loadPrecedingQuartersData, refetchSubMetrics, currentYear]);
+  }, [departmentId, FINANCIAL_METRICS, precedingQuartersData, allSubMetrics, toast, loadFinancialData, loadPrecedingQuartersData, refetchSubMetrics, currentYear, fetchCopyMetadata]);
 
   if (loading) {
     return (
@@ -2649,6 +2692,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   copySourceOptions={getCopySourceOptions(period.identifier)}
                                   onCopyFromSource={(sourceId) => handleCopyFromSource(period.identifier, sourceId)}
                                   isCopying={copyingMonth === period.identifier}
+                                  copiedFrom={copyMetadata[period.identifier]}
                                 >
                                   <div className="flex flex-col items-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -2704,6 +2748,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               copySourceOptions={getCopySourceOptions(month.identifier)}
                               onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
                               isCopying={copyingMonth === month.identifier}
+                              copiedFrom={copyMetadata[month.identifier]}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -2738,6 +2783,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               copySourceOptions={getCopySourceOptions(month.identifier)}
                               onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
                               isCopying={copyingMonth === month.identifier}
+                              copiedFrom={copyMetadata[month.identifier]}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
