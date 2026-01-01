@@ -671,6 +671,59 @@ export type Database = {
           },
         ]
       }
+      forecast_submetric_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_id: string
+          forecast_year: number
+          id: string
+          is_resolved: boolean
+          note: string | null
+          parent_metric_key: string
+          resolved_at: string | null
+          resolved_by: string | null
+          sub_metric_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          forecast_year: number
+          id?: string
+          is_resolved?: boolean
+          note?: string | null
+          parent_metric_key: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sub_metric_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          forecast_year?: number
+          id?: string
+          is_resolved?: boolean
+          note?: string | null
+          parent_metric_key?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sub_metric_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_submetric_notes_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forecast_weights: {
         Row: {
           adjusted_weight: number
