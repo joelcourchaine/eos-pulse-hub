@@ -681,6 +681,19 @@ export function useForecastCalculations({
               // Apply same ratio to forecast parent value
               forecastValue = parentForecast * ratio;
             }
+
+            // Debug the most common “why didn’t my sub-metric move?” scenario.
+            if (import.meta.env.DEV && parentKey === 'sales_expense' && monthIndex === 0) {
+              console.debug('[forecast] sales_expense sub-metric calc', {
+                subName: sub.name,
+                forecastMonth,
+                subBaseline,
+                parentForecast,
+                parentBaseline,
+                parentUnchanged,
+                forecastValue,
+              });
+            }
           }
           
           forecastMonthlyValues.set(forecastMonth, forecastValue);
