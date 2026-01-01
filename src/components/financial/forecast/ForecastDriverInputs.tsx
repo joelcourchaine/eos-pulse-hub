@@ -1,6 +1,6 @@
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 interface ForecastDriverInputsProps {
   salesGrowth: number;
@@ -35,6 +35,19 @@ export function ForecastDriverInputs({
   onSalesExpenseChange,
   onFixedExpenseChange,
 }: ForecastDriverInputsProps) {
+  // Local state for text inputs to prevent focus loss during typing
+  const [localSalesExpense, setLocalSalesExpense] = useState(`$${Math.round(salesExpense).toLocaleString()}`);
+  const [localFixedExpense, setLocalFixedExpense] = useState(`$${Math.round(fixedExpense).toLocaleString()}`);
+
+  // Sync local state when prop changes (but not during editing)
+  useEffect(() => {
+    setLocalSalesExpense(`$${Math.round(salesExpense).toLocaleString()}`);
+  }, [salesExpense]);
+
+  useEffect(() => {
+    setLocalFixedExpense(`$${Math.round(fixedExpense).toLocaleString()}`);
+  }, [fixedExpense]);
+
   // Calculate dynamic slider ranges centered on baseline values
   const gpRange = useMemo(() => {
     const baseline = baselineGpPercent ?? gpPercent;
@@ -45,6 +58,24 @@ export function ForecastDriverInputs({
     };
   }, [baselineGpPercent, gpPercent]);
 
+  const handleSalesExpenseBlur = () => {
+    const raw = localSalesExpense.replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(raw) || 0;
+    onSalesExpenseChange(parsed);
+  };
+
+  const handleFixedExpenseBlur = () => {
+    const raw = localFixedExpense.replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(raw) || 0;
+    onFixedExpenseChange(parsed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, onBlur: () => void) => {
+    if (e.key === 'Enter') {
+      onBlur();
+      (e.target as HTMLInputElement).blur();
+    }
+  };
 
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
@@ -99,11 +130,10 @@ export function ForecastDriverInputs({
           </div>
           <Input
             type="text"
-            value={`$${Math.round(salesExpense).toLocaleString()}`}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^0-9.-]/g, '');
-              onSalesExpenseChange(parseFloat(raw) || 0);
-            }}
+            value={localSalesExpense}
+            onChange={(e) => setLocalSalesExpense(e.target.value)}
+            onBlur={handleSalesExpenseBlur}
+            onKeyDown={(e) => handleKeyDown(e, handleSalesExpenseBlur)}
             className="w-full"
           />
           {baselineSalesExpense !== undefined && salesExpense !== baselineSalesExpense && (
@@ -121,11 +151,10 @@ export function ForecastDriverInputs({
           </div>
           <Input
             type="text"
-            value={`$${Math.round(fixedExpense).toLocaleString()}`}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^0-9.-]/g, '');
-              onFixedExpenseChange(parseFloat(raw) || 0);
-            }}
+            value={localFixedExpense}
+            onChange={(e) => setLocalFixedExpense(e.target.value)}
+            onBlur={handleFixedExpenseBlur}
+            onKeyDown={(e) => handleKeyDown(e, handleFixedExpenseBlur)}
             className="w-full"
           />
         </div>
