@@ -759,6 +759,10 @@ export function useForecastCalculations({
         baselineAnnualValue = baselineAnnualValue / 12;
       }
       
+      if (isOverridden) {
+        console.log('[forecast] Returning overridden sub-metric:', subMetricKey, 'annualValue:', annualValue, 'isOverridden:', isOverridden);
+      }
+      
       return {
         key: subMetricKey,
         label: sub.name,
