@@ -385,8 +385,40 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                 <RotateCcw className="h-4 w-4 mr-1" />
                 Reset
               </Button>
-              <Button size="sm" disabled={!forecast}>
-                Save Forecast
+              <Button 
+                size="sm" 
+                disabled={!forecast || bulkUpdateEntries.isPending}
+                onClick={() => {
+                  const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
+                  
+                  monthlyValues.forEach((metrics, month) => {
+                    metrics.forEach((result, metricKey) => {
+                      updates.push({
+                        month,
+                        metricName: metricKey,
+                        forecastValue: result.value,
+                        baselineValue: result.baseline_value,
+                      });
+                    });
+                  });
+                  
+                  if (updates.length > 0) {
+                    bulkUpdateEntries.mutate(updates, {
+                      onSuccess: () => {
+                        toast.success('Forecast saved');
+                      },
+                    });
+                  }
+                }}
+              >
+                {bulkUpdateEntries.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Forecast'
+                )}
               </Button>
             </div>
           </div>
