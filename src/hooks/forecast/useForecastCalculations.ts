@@ -1149,7 +1149,7 @@ export function useForecastCalculations({
     });
     
     return result;
-  }, [subMetricBaselines, subMetricOverrides, months, forecastYear, baselineData, subMetricCalcMode]);
+  }, [subMetricBaselines, subMetricOverrides, months, forecastYear, baselineData, subMetricCalcMode, gpPercent, salesGrowth, salesExpense, fixedExpense, weightsMap, annualBaseline, entriesMap]);
 
   // Calculate all values - with sub-metric override flow-up
   const baseMonthlyValues = calculateMonthlyValues();
