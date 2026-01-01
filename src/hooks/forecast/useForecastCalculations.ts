@@ -225,12 +225,65 @@ export function useForecastCalculations({
         } else if (metric.type === 'percent') {
           // For percentages, use the driver-defined values (gpPercent, salesExpPercent)
           value = annualValues[metric.key] || 0;
-        } else if (salesGrowth === 0) {
-          // No sales growth = use baseline values directly (no redistribution needed)
-          value = baselineValue;
         } else {
-          // Apply weight to distribute annual value
-          value = (annualValues[metric.key] || 0) * weightFactor;
+          // Apply growth proportionally to baseline values to maintain seasonal patterns
+          const growthFactor = 1 + (salesGrowth / 100);
+          
+          if (metric.key === 'total_sales') {
+            // Scale total_sales by growth factor
+            value = baselineValue * growthFactor;
+          } else if (metric.key === 'gp_net') {
+            // GP Net = scaled total_sales * gpPercent
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            value = scaledSales * (gpPercent / 100);
+          } else if (metric.key === 'sales_expense') {
+            // Sales Expense = calculated GP Net * salesExpPercent
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            const calculatedGpNet = scaledSales * (gpPercent / 100);
+            value = calculatedGpNet * (salesExpPercent / 100);
+          } else if (metric.key === 'total_fixed_expense') {
+            // Distribute fixed expense by weight
+            value = fixedExpense * weightFactor;
+          } else if (metric.key === 'semi_fixed_expense' || metric.key === 'parts_transfer') {
+            // Keep baseline pattern for these
+            value = baselineValue;
+          } else if (metric.key === 'net_selling_gross') {
+            // Derived: GP Net - Sales Expense - Semi-Fixed
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            const calcGpNet = scaledSales * (gpPercent / 100);
+            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
+            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
+            value = calcGpNet - calcSalesExp - semiFixed;
+          } else if (metric.key === 'department_profit') {
+            // Derived: GP Net - Sales Expense - Semi-Fixed - Fixed
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            const calcGpNet = scaledSales * (gpPercent / 100);
+            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
+            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
+            const fixedExp = fixedExpense * weightFactor;
+            value = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+          } else if (metric.key === 'net_operating_profit') {
+            // Derived: Dept Profit + Parts Transfer
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            const calcGpNet = scaledSales * (gpPercent / 100);
+            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
+            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
+            const fixedExp = fixedExpense * weightFactor;
+            const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+            value = deptProfit + baselineMonthlyValues.parts_transfer;
+          } else if (metric.key === 'return_on_gross') {
+            // Derived: (Dept Profit / GP Net) * 100
+            const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+            const calcGpNet = scaledSales * (gpPercent / 100);
+            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
+            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
+            const fixedExp = fixedExpense * weightFactor;
+            const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+            value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
+          } else {
+            // Default: scale by growth factor
+            value = baselineValue * growthFactor;
+          }
         }
         
         monthResults.set(metric.key, {
