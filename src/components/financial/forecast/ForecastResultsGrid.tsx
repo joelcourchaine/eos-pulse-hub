@@ -205,13 +205,16 @@ export function ForecastResultsGrid({
     const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
     const annualBaseline = isSubMetric && subMetricData ? subMetricData.baselineAnnualValue : annualData?.baseline_value;
     
+    const isDeptProfit = metric.key === 'net_operating_profit';
+    
     return (
       <tr 
         key={metric.key} 
         className={cn(
           "border-b border-border/50 hover:bg-muted/30",
           metric.isDriver && "bg-primary/5",
-          isSubMetric && "bg-muted/20"
+          isSubMetric && "bg-muted/20",
+          isDeptProfit && "bg-primary/10 border-t-2 border-t-primary/30"
         )}
       >
         <td className="py-2 pr-4 w-[160px]">
@@ -233,7 +236,8 @@ export function ForecastResultsGrid({
             {!hasChildren && !isSubMetric && <span className="w-5" />}
             <span className={cn(
               metric.isDriver && "font-medium text-primary",
-              isSubMetric && "text-muted-foreground text-xs"
+              isSubMetric && "text-muted-foreground text-xs",
+              isDeptProfit && "font-semibold text-primary"
             )}>
               {metric.label}
             </span>
