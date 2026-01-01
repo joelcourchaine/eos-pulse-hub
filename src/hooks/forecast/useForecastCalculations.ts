@@ -1039,12 +1039,14 @@ export function useForecastCalculations({
     // Calculate sales_expense_percent sub-metrics as derived: sub_sales_expense / gp_net * 100
     const salesExpensePercentSubs = byParent.get('sales_expense_percent') ?? [];
     if (salesExpensePercentSubs.length > 0) {
+      const normalizeSubName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+
       const salesExpForecasts = result.get('sales_expense') ?? [];
 
-      // Build lookup by name -> ordered list (names can repeat in statements)
+      // Build lookup by normalized name -> ordered list (names can repeat in statements)
       const salesExpByName = new Map<string, SubMetricForecast[]>();
       for (const sf of salesExpForecasts) {
-        const name = sf.label.toLowerCase();
+        const name = normalizeSubName(sf.label);
         if (!salesExpByName.has(name)) salesExpByName.set(name, []);
         salesExpByName.get(name)!.push(sf);
       }
@@ -1060,7 +1062,7 @@ export function useForecastCalculations({
       const seenByName = new Map<string, number>();
 
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
-        const subName = sub.name.toLowerCase();
+        const subName = normalizeSubName(sub.name);
         const occurrence = seenByName.get(subName) ?? 0;
         seenByName.set(subName, occurrence + 1);
 
@@ -1087,6 +1089,16 @@ export function useForecastCalculations({
             
             // Calculate percentage: sub_sales_expense / gp_net * 100
             const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
+
+            if (import.meta.env.DEV && index === 0 && monthIndex === 0) {
+              console.debug('[forecast] sales_expense_percent sub calc', {
+                subName: sub.name,
+                forecastMonth,
+                salesExpValue,
+                gpNetForMonth,
+                forecastValue,
+              });
+            }
             
             forecastMonthlyValues.set(forecastMonth, forecastValue);
             annualValue += forecastValue;
