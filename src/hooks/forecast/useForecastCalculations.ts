@@ -247,8 +247,9 @@ export function useForecastCalculations({
             const calculatedGpNet = scaledSales * (gpPercent / 100);
             value = calculatedGpNet * (salesExpPercent / 100);
           } else if (metric.key === 'total_fixed_expense') {
-            // Distribute fixed expense by weight
-            value = fixedExpense * weightFactor;
+            // Use baseline pattern for fixed expense - don't redistribute by sales weight
+            // This preserves the actual monthly fixed expense distribution from prior year
+            value = baselineValue;
           } else if (metric.key === 'semi_fixed_expense' || metric.key === 'parts_transfer') {
             // Keep baseline pattern for these
             value = baselineValue;
@@ -265,7 +266,7 @@ export function useForecastCalculations({
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
             const semiFixed = baselineMonthlyValues.semi_fixed_expense;
-            const fixedExp = fixedExpense * weightFactor;
+            const fixedExp = baselineMonthlyValues.total_fixed_expense;
             value = calcGpNet - calcSalesExp - semiFixed - fixedExp;
           } else if (metric.key === 'net_operating_profit') {
             // Derived: Dept Profit + Parts Transfer
@@ -273,7 +274,7 @@ export function useForecastCalculations({
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
             const semiFixed = baselineMonthlyValues.semi_fixed_expense;
-            const fixedExp = fixedExpense * weightFactor;
+            const fixedExp = baselineMonthlyValues.total_fixed_expense;
             const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
             value = deptProfit + baselineMonthlyValues.parts_transfer;
           } else if (metric.key === 'return_on_gross') {
@@ -282,7 +283,7 @@ export function useForecastCalculations({
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
             const semiFixed = baselineMonthlyValues.semi_fixed_expense;
-            const fixedExp = fixedExpense * weightFactor;
+            const fixedExp = baselineMonthlyValues.total_fixed_expense;
             const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
             value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
           } else {
