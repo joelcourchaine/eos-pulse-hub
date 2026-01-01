@@ -422,16 +422,21 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
 
   // Handle sub-metric annual value edit
   const handleSubMetricEdit = (subMetricKey: string, parentKey: string, newAnnualValue: number) => {
+    console.log('[ForecastDrawer] handleSubMetricEdit called', { subMetricKey, parentKey, newAnnualValue });
     setSubMetricOverrides(prev => {
       // Update existing or add new override
       const existingIndex = prev.findIndex(o => o.subMetricKey === subMetricKey);
       if (existingIndex >= 0) {
         const updated = [...prev];
         updated[existingIndex] = { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue };
+        console.log('[ForecastDrawer] Updated override at index', existingIndex, updated);
         return updated;
       }
-      return [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
+      const newOverrides = [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
+      console.log('[ForecastDrawer] Added new override', newOverrides);
+      return newOverrides;
     });
+    markDirty();
   };
 
   // Reset entire forecast to baseline values
