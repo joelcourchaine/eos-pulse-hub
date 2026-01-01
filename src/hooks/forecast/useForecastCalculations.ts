@@ -600,6 +600,14 @@ export function useForecastCalculations({
       const subMetricKey = `sub:${parentKey}:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
       const isOverridden = overrideValue !== undefined || overrideMap.has(subMetricKey);
       const overriddenAnnual = overrideValue ?? overrideMap.get(subMetricKey);
+
+      if (import.meta.env.DEV && parentKey === 'gp_percent' && sub.name.toLowerCase() === 'internal service') {
+        console.debug('[forecast] gp_percent sub override check', {
+          subMetricKey,
+          isOverridden,
+          overriddenAnnual,
+        });
+      }
       
       const forecastMonthlyValues = new Map<string, number>();
       let annualValue = 0;
