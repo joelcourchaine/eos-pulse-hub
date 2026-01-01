@@ -117,6 +117,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     bulkSaveSubMetricOverrides,
     deleteAllSubMetricOverrides,
     deleteDriverSettings,
+    resetAllEntries,
   } = useForecast(departmentId, forecastYear);
 
   // Use prior year (forecastYear - 1) for weight distribution
@@ -622,11 +623,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
     
-    // Delete saved driver settings and sub-metric overrides from database
+    // Delete saved driver settings, sub-metric overrides, and reset all entries from database
     try {
       await Promise.all([
         deleteDriverSettings.mutateAsync(),
         deleteAllSubMetricOverrides.mutateAsync(),
+        resetAllEntries.mutateAsync(),
       ]);
     } catch (e) {
       console.error('Failed to delete saved settings:', e);

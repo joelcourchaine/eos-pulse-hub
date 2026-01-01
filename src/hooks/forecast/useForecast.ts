@@ -504,6 +504,24 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
   });
 
+  // Reset all forecast entries (unlock all and clear forecast values)
+  const resetAllEntries = useMutation({
+    mutationFn: async () => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      // Update all entries to be unlocked and clear forecast_value
+      const { error } = await supabase
+        .from('forecast_entries')
+        .update({ is_locked: false, forecast_value: null })
+        .eq('forecast_id', forecast.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+    },
+  });
+
   return {
     forecast,
     entries: entries ?? [],
@@ -521,5 +539,6 @@ export function useForecast(departmentId: string | undefined, year: number) {
     bulkSaveSubMetricOverrides,
     deleteAllSubMetricOverrides,
     deleteDriverSettings,
+    resetAllEntries,
   };
 }
