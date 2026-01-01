@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
-import { useForecastCalculations, type SubMetricCalcMode } from '@/hooks/forecast/useForecastCalculations';
+import { useForecastCalculations } from '@/hooks/forecast/useForecastCalculations';
 import { useSubMetrics } from '@/hooks/useSubMetrics';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
@@ -14,15 +14,8 @@ import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
-
-export interface ForecastDrawerHandle {
-  setGpPercent: (value: number) => void;
-}
 
 interface ForecastDrawerProps {
   open: boolean;
@@ -37,10 +30,7 @@ const formatCurrency = (value: number) => {
   return `$${value.toFixed(0)}`;
 };
 
-export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerProps>(function ForecastDrawer(
-  { open, onOpenChange, departmentId, departmentName },
-  ref
-) {
+export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear, currentYear + 1];
   
@@ -65,42 +55,22 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     // Reset state when year changes
     driversInitialized.current = false;
     setSubMetricOverrides([]);
-    setSalesGrowth(0);
+    setGrowth(0);
   };
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
 
-  // Driver states
-  const [salesGrowth, setSalesGrowth] = useState(0);
-  const [gpPercent, setGpPercent] = useState(28);
+  // Driver states - simplified to single growth slider
+  const [growth, setGrowth] = useState(0);
   const [salesExpense, setSalesExpense] = useState(0); // Annual sales expense in dollars
   const [fixedExpense, setFixedExpense] = useState(0);
 
-  // If Financial Summary updates the GP% target while the drawer is closed,
-  // we still want that value to win once baseline initialization runs.
-  const pendingGpPercentRef = useRef<number | null>(null);
-
-  // Baseline values for centering sliders
-  const [baselineGpPercent, setBaselineGpPercent] = useState<number | undefined>();
-  const [baselineSalesExpense, setBaselineSalesExpense] = useState<number | undefined>(); // Baseline annual sales expense
+  // Baseline values for comparison
+  const [baselineSalesExpense, setBaselineSalesExpense] = useState<number | undefined>();
   const [baselineFixedExpense, setBaselineFixedExpense] = useState<number | undefined>();
 
   // Sub-metric overrides: user-defined annual values
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
-  
-  // Debug: track renders
-  console.log('[ForecastDrawer] RENDER, subMetricOverrides count:', subMetricOverrides.length);
-  
-  // Sub-metric calculation mode: solve-for-gp-net (default) or solve-for-sales
-  const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('gp-drives-growth');
-
-  // Expose imperative handle so parent can update gpPercent when a target is saved
-  useImperativeHandle(ref, () => ({
-    setGpPercent: (value: number) => {
-      pendingGpPercentRef.current = value;
-      setGpPercent(value);
-    },
-  }), []);
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
@@ -110,7 +80,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const markDirty = () => {
     isDirtyRef.current = true;
   };
-
 
   // Hooks
   const {
@@ -126,12 +95,11 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   } = useForecast(departmentId, forecastYear);
 
   // Use prior year (forecastYear - 1) for weight distribution
-  const baselineYear = forecastYear - 1; // 2025 when forecasting 2026
+  const baselineYear = forecastYear - 1;
 
   const {
     calculatedWeights,
     isLoading: weightsLoading,
-    baselineYearTotal,
   } = useWeightedBaseline(departmentId, baselineYear);
 
   // Fetch baseline data (prior year financial entries)
@@ -164,7 +132,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const { subMetrics: subMetricEntries } = useSubMetrics(departmentId, priorYearMonths);
 
   // Convert prior year data to baseline map
-  // Note: Some metrics like parts_transfer may have multiple entries per month that need to be summed
   const baselineData = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
 
@@ -188,8 +155,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const subMetricBaselines = useMemo(() => {
     if (!subMetricEntries || subMetricEntries.length === 0) return [];
 
-    // Group by parent + orderIndex + name to get all monthly values for each sub-metric
-    // (orderIndex is required because names can repeat in statements)
     const grouped = new Map<
       string,
       { parentKey: string; name: string; orderIndex: number; values: Map<string, number> }
@@ -216,7 +181,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     }));
   }, [subMetricEntries]);
 
-
   // Use the calculations hook
   const {
     monthlyValues,
@@ -233,15 +197,12 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     subMetricBaselines,
     subMetricOverrides,
     forecastYear,
-    salesGrowth,
-    gpPercent,
+    growth,
     salesExpense,
     fixedExpense,
-    subMetricCalcMode,
   });
 
   // Keep latest computed values in refs so the auto-save effect
-  // doesn't need to depend on large Map objects (which change identity often).
   // doesn't need to depend on large Map objects (which change identity often).
   const latestMonthlyValuesRef = useRef(monthlyValues);
   const latestEntriesRef = useRef(entries);
@@ -253,7 +214,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   useEffect(() => {
     latestEntriesRef.current = entries;
   }, [entries]);
-
 
   // Create forecast if it doesn't exist when drawer opens
   useEffect(() => {
@@ -275,20 +235,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
         totals[entry.metric_name] = (totals[entry.metric_name] || 0) + (entry.value || 0);
       });
 
-      // Baseline GP% (used for comparisons/centering). If a target GP% was pushed in,
-      // keep that as the current driver value but still record the true baseline.
-      if (totals.gp_net && totals.total_sales) {
-        const gp = Math.round((totals.gp_net / totals.total_sales) * 1000) / 10;
-        setBaselineGpPercent(gp);
-
-        if (pendingGpPercentRef.current !== null) {
-          setGpPercent(pendingGpPercentRef.current);
-          pendingGpPercentRef.current = null;
-        } else {
-          setGpPercent(gp);
-        }
-      }
-
       if (totals.sales_expense) {
         setSalesExpense(totals.sales_expense);
         setBaselineSalesExpense(totals.sales_expense);
@@ -301,7 +247,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
       driversInitialized.current = true;
     }
   }, [priorYearData]);
-
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
@@ -382,20 +327,15 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   }, [
     open,
     forecast?.id,
-    salesGrowth,
-    gpPercent,
+    growth,
     salesExpense,
     fixedExpense,
     weightsSignature,
     overridesSignature,
-    subMetricCalcMode,
   ]);
-
 
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
-    // A user edit should immediately “win” over recalculated values.
-    // We do that by locking the edited cells.
     if (view === 'quarter') {
       // Distribute to months
       const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
@@ -425,30 +365,23 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
 
   // Handle sub-metric annual value edit
   const handleSubMetricEdit = (subMetricKey: string, parentKey: string, newAnnualValue: number) => {
-    console.log('[ForecastDrawer] handleSubMetricEdit called', { subMetricKey, parentKey, newAnnualValue });
     setSubMetricOverrides(prev => {
-      // Update existing or add new override
       const existingIndex = prev.findIndex(o => o.subMetricKey === subMetricKey);
       if (existingIndex >= 0) {
         const updated = [...prev];
         updated[existingIndex] = { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue };
-        console.log('[ForecastDrawer] Updated override at index', existingIndex, updated);
         return updated;
       }
-      const newOverrides = [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
-      console.log('[ForecastDrawer] Added new override', newOverrides);
-      return newOverrides;
+      return [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
     });
     markDirty();
   };
 
   // Reset entire forecast to baseline values
   const handleResetForecast = () => {
-    // Reset drivers to baseline
-    if (baselineGpPercent !== undefined) setGpPercent(baselineGpPercent);
     if (baselineSalesExpense !== undefined) setSalesExpense(baselineSalesExpense);
     if (baselineFixedExpense !== undefined) setFixedExpense(baselineFixedExpense);
-    setSalesGrowth(0);
+    setGrowth(0);
     
     // Clear all sub-metric overrides
     setSubMetricOverrides([]);
@@ -464,8 +397,7 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
   const profitVariance = forecastDeptProfit - baselineDeptProfit;
   const profitVariancePercent = baselineDeptProfit !== 0 ? (profitVariance / Math.abs(baselineDeptProfit)) * 100 : 0;
-  // Keep the component mounted even when closed so imperative updates (e.g., GP% targets)
-  // can be received and applied before the user opens the drawer.
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl lg:max-w-4xl overflow-y-auto">
@@ -570,22 +502,16 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
               isUpdating={updateWeight.isPending}
             />
 
-            {/* Key Drivers */}
+            {/* Key Drivers - Simplified to single growth slider */}
             <ForecastDriverInputs
-              salesGrowth={salesGrowth}
-              gpPercent={gpPercent}
+              growth={growth}
               salesExpense={salesExpense}
               fixedExpense={fixedExpense}
-              baselineGpPercent={baselineGpPercent}
               baselineSalesExpense={baselineSalesExpense}
               baselineFixedExpense={baselineFixedExpense}
-              onSalesGrowthChange={(v) => {
+              onGrowthChange={(v) => {
                 markDirty();
-                setSalesGrowth(v);
-              }}
-              onGpPercentChange={(v) => {
-                markDirty();
-                setGpPercent(v);
+                setGrowth(v);
               }}
               onSalesExpenseChange={(v) => {
                 markDirty();
@@ -596,50 +522,6 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
                 setFixedExpense(v);
               }}
             />
-
-            {/* Sub-Metric Calculation Mode Toggle */}
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="calc-mode" className="text-sm font-medium">
-                  GP% drives growth
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-xs text-muted-foreground cursor-help">(?)</span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-sm">
-                        <strong>GP% Drives Growth (default):</strong> When GP% improves, Sales increases proportionally, and GP Net compounds both.<br/><br/>
-                        <strong>Independent Sales:</strong> Sales growth is set separately. GP Net = Sales × GP%
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={cn(
-                  "text-sm",
-                  subMetricCalcMode === 'gp-drives-growth' ? "font-medium" : "text-muted-foreground"
-                )}>
-                  GP% Drives Growth
-                </span>
-                <Switch
-                  id="calc-mode"
-                  checked={subMetricCalcMode === 'solve-for-gp-net'}
-                  onCheckedChange={(checked) => {
-                    markDirty();
-                    setSubMetricCalcMode(checked ? 'solve-for-gp-net' : 'gp-drives-growth');
-                  }}
-                />
-                <span className={cn(
-                  "text-sm",
-                  subMetricCalcMode === 'solve-for-gp-net' ? "font-medium" : "text-muted-foreground"
-                )}>
-                  Independent Sales
-                </span>
-              </div>
-            </div>
 
             {/* Forecast Results Grid */}
             <ForecastResultsGrid
@@ -689,4 +571,4 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
       </SheetContent>
     </Sheet>
   );
-});
+}
