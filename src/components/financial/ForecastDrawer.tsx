@@ -58,6 +58,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     localStorage.setItem(FORECAST_YEAR_KEY, year);
     // Reset state when year changes
     driversInitialized.current = false;
+    driversLoadedFromDb.current = false;
+    overridesLoadedFromDb.current = false;
     setSubMetricOverrides([]);
     setGrowth(0);
   };
@@ -85,7 +87,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
+  const driversLoadedFromDb = useRef(false);
+  const overridesLoadedFromDb = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const driverSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const overrideSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDirtyRef = useRef(false);
 
   const markDirty = () => {
@@ -99,12 +105,18 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     forecast,
     entries,
     weights,
+    driverSettings,
+    subMetricOverrides: savedOverrides,
     isLoading,
     createForecast,
     updateWeight,
     resetWeights,
     updateEntry,
     bulkUpdateEntries,
+    saveDriverSettings,
+    bulkSaveSubMetricOverrides,
+    deleteAllSubMetricOverrides,
+    deleteDriverSettings,
   } = useForecast(departmentId, forecastYear);
 
   // Use prior year (forecastYear - 1) for weight distribution
@@ -264,27 +276,122 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   }, [open, forecast, isLoading, calculatedWeights, createForecast.isPending]);
 
-  // Initialize driver values from baseline data
+  // Initialize driver values from baseline data OR from saved settings
   useEffect(() => {
-    if (priorYearData && priorYearData.length > 0 && !driversInitialized.current) {
-      // Calculate prior year totals to set initial driver values
+    // First, try to load from saved driver settings
+    if (driverSettings && !driversLoadedFromDb.current && forecast) {
+      if (driverSettings.growth_percent !== null) {
+        setGrowth(driverSettings.growth_percent);
+      }
+      if (driverSettings.sales_expense !== null) {
+        setSalesExpense(driverSettings.sales_expense);
+      }
+      if (driverSettings.fixed_expense !== null) {
+        setFixedExpense(driverSettings.fixed_expense);
+      }
+      driversLoadedFromDb.current = true;
+      driversInitialized.current = true;
+    }
+  }, [driverSettings, forecast]);
+
+  // Initialize baseline values from prior year data
+  useEffect(() => {
+    if (priorYearData && priorYearData.length > 0) {
+      // Calculate prior year totals to set baseline values
       const totals: Record<string, number> = {};
       priorYearData.forEach(entry => {
         totals[entry.metric_name] = (totals[entry.metric_name] || 0) + (entry.value || 0);
       });
 
       if (totals.sales_expense) {
-        setSalesExpense(totals.sales_expense);
         setBaselineSalesExpense(totals.sales_expense);
+        // Only set initial value if not loaded from DB
+        if (!driversLoadedFromDb.current) {
+          setSalesExpense(totals.sales_expense);
+        }
       }
       if (totals.total_fixed_expense) {
-        setFixedExpense(totals.total_fixed_expense);
         setBaselineFixedExpense(totals.total_fixed_expense);
+        // Only set initial value if not loaded from DB
+        if (!driversLoadedFromDb.current) {
+          setFixedExpense(totals.total_fixed_expense);
+        }
       }
 
       driversInitialized.current = true;
     }
   }, [priorYearData]);
+
+  // Load saved sub-metric overrides from database
+  useEffect(() => {
+    if (savedOverrides && savedOverrides.length > 0 && !overridesLoadedFromDb.current && forecast) {
+      const loadedOverrides = savedOverrides.map(o => ({
+        subMetricKey: o.sub_metric_key,
+        parentKey: o.parent_metric_key,
+        overriddenAnnualValue: o.overridden_annual_value,
+      }));
+      setSubMetricOverrides(loadedOverrides);
+      overridesLoadedFromDb.current = true;
+    }
+  }, [savedOverrides, forecast]);
+
+  // Auto-save driver settings when they change
+  useEffect(() => {
+    if (!forecast?.id) return;
+    if (!driversInitialized.current) return;
+    if (!driversLoadedFromDb.current && !driverSettings) {
+      // First time, no saved settings yet - only save if user made changes
+      return;
+    }
+
+    // Debounce driver settings save
+    if (driverSaveTimerRef.current) {
+      clearTimeout(driverSaveTimerRef.current);
+    }
+
+    driverSaveTimerRef.current = setTimeout(() => {
+      saveDriverSettings.mutate({
+        growthPercent: growth,
+        salesExpense: salesExpense,
+        fixedExpense: fixedExpense,
+      });
+    }, 800);
+
+    return () => {
+      if (driverSaveTimerRef.current) {
+        clearTimeout(driverSaveTimerRef.current);
+      }
+    };
+  }, [forecast?.id, growth, salesExpense, fixedExpense, driversInitialized.current]);
+
+  // Auto-save sub-metric overrides when they change
+  useEffect(() => {
+    if (!forecast?.id) return;
+    if (!overridesLoadedFromDb.current && savedOverrides?.length === 0 && subMetricOverrides.length === 0) {
+      return;
+    }
+
+    // Debounce override save
+    if (overrideSaveTimerRef.current) {
+      clearTimeout(overrideSaveTimerRef.current);
+    }
+
+    overrideSaveTimerRef.current = setTimeout(() => {
+      if (subMetricOverrides.length > 0) {
+        bulkSaveSubMetricOverrides.mutate(subMetricOverrides.map(o => ({
+          subMetricKey: o.subMetricKey,
+          parentMetricKey: o.parentKey,
+          overriddenAnnualValue: o.overriddenAnnualValue,
+        })));
+      }
+    }, 800);
+
+    return () => {
+      if (overrideSaveTimerRef.current) {
+        clearTimeout(overrideSaveTimerRef.current);
+      }
+    };
+  }, [forecast?.id, subMetricOverrides]);
 
 
   const overridesSignature = useMemo(() => {
@@ -439,13 +546,25 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   };
 
   // Reset entire forecast to baseline values
-  const handleResetForecast = () => {
+  const handleResetForecast = async () => {
     if (baselineSalesExpense !== undefined) setSalesExpense(baselineSalesExpense);
     if (baselineFixedExpense !== undefined) setFixedExpense(baselineFixedExpense);
     setGrowth(0);
     
-    // Clear all sub-metric overrides
+    // Clear all sub-metric overrides (local state and database)
     setSubMetricOverrides([]);
+    driversLoadedFromDb.current = false;
+    overridesLoadedFromDb.current = false;
+    
+    // Delete saved driver settings and sub-metric overrides from database
+    try {
+      await Promise.all([
+        deleteDriverSettings.mutateAsync(),
+        deleteAllSubMetricOverrides.mutateAsync(),
+      ]);
+    } catch (e) {
+      console.error('Failed to delete saved settings:', e);
+    }
     
     // Reset weights to current calculated distribution
     resetWeightsToCalculated().catch((e) => {
