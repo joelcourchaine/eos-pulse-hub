@@ -21,17 +21,13 @@ const MONTH_NAMES = [
 
 export function useWeightedBaseline(departmentId: string | undefined, baselineYear: number) {
   // Fetch baseline year's monthly total_sales
-  // Try the specified year first, then fall back to prior years if incomplete
+  // Use whatever data exists for the baseline year
   const { data: baselineYearSales, isLoading } = useQuery({
     queryKey: ['baseline-year-sales', departmentId, baselineYear],
     queryFn: async () => {
       if (!departmentId) return [];
       
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      const currentMonth = currentDate.getMonth() + 1; // 1-12
-      
-      // First try the baseline year
+      // Fetch all data for the baseline year
       let { data, error } = await supabase
         .from('financial_entries')
         .select('month, value')
@@ -42,54 +38,21 @@ export function useWeightedBaseline(departmentId: string | undefined, baselineYe
       
       if (error) throw error;
       
-      // Check if we have a complete year of data (all 12 months with reasonable values)
-      // If baseline year is current year, exclude current month as it may be incomplete
-      if (data && data.length > 0) {
-        const monthsWithData = new Set<number>();
+      // If no data for baseline year, try prior year as fallback
+      if (!data || data.length === 0) {
+        const priorYear = baselineYear - 1;
+        const priorResult = await supabase
+          .from('financial_entries')
+          .select('month, value')
+          .eq('department_id', departmentId)
+          .eq('metric_name', 'total_sales')
+          .gte('month', `${priorYear}-01`)
+          .lte('month', `${priorYear}-12`);
         
-        data.forEach(entry => {
-          const monthNum = parseInt(entry.month.split('-')[1], 10);
-          // Skip current month if baseline year is current year (incomplete data)
-          if (baselineYear === currentYear && monthNum >= currentMonth) {
-            return;
-          }
-          if (entry.value && entry.value > 0) {
-            monthsWithData.add(monthNum);
-          }
-        });
-        
-        // Filter out current/future months if baseline year is current year
-        if (baselineYear === currentYear) {
-          data = data.filter(entry => {
-            const monthNum = parseInt(entry.month.split('-')[1], 10);
-            return monthNum < currentMonth;
-          });
-        }
-        
-        // If we have at least 6 months of data, use it
-        if (monthsWithData.size >= 6) {
-          return data as MonthlyData[];
-        }
+        if (priorResult.error) throw priorResult.error;
+        data = priorResult.data;
       }
       
-      // Fall back to prior year if baseline year has insufficient data
-      const priorYear = baselineYear - 1;
-      const priorResult = await supabase
-        .from('financial_entries')
-        .select('month, value')
-        .eq('department_id', departmentId)
-        .eq('metric_name', 'total_sales')
-        .gte('month', `${priorYear}-01`)
-        .lte('month', `${priorYear}-12`);
-      
-      if (priorResult.error) throw priorResult.error;
-      
-      // If prior year has data, use it
-      if (priorResult.data && priorResult.data.length > 0) {
-        return priorResult.data as MonthlyData[];
-      }
-      
-      // Last resort: return whatever we have from baseline year
       return data as MonthlyData[];
     },
     enabled: !!departmentId,
