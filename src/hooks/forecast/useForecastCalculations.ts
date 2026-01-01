@@ -633,11 +633,19 @@ export function useForecastCalculations({
             // Get forecast value for parent
             const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
             
-            // Calculate ratio: what fraction of parent was this sub-metric?
-            const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
+            // If parent forecast equals baseline (within tolerance), use sub-metric baseline directly
+            // This prevents floating-point rounding errors from creating false variances
+            const parentUnchanged = Math.abs(parentForecast - parentBaseline) < 0.01;
             
-            // Apply same ratio to forecast parent value
-            forecastValue = parentForecast * ratio;
+            if (parentUnchanged) {
+              forecastValue = subBaseline;
+            } else {
+              // Calculate ratio: what fraction of parent was this sub-metric?
+              const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
+              
+              // Apply same ratio to forecast parent value
+              forecastValue = parentForecast * ratio;
+            }
           }
           
           forecastMonthlyValues.set(forecastMonth, forecastValue);
