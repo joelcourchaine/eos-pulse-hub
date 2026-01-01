@@ -1025,8 +1025,95 @@ export function useForecastCalculations({
     }
     
     // Calculate remaining parent metrics (not Sales, GP%, GP Net)
+    // First calculate sales_expense sub-metrics (needed for sales_expense_percent)
+    const salesExpenseSubs = byParent.get('sales_expense') ?? [];
+    if (salesExpenseSubs.length > 0) {
+      const forecasts: SubMetricForecast[] = salesExpenseSubs.map((sub, index) => 
+        calculateSingleSubMetric(sub, 'sales_expense', index, false)
+      );
+      result.set('sales_expense', forecasts);
+    }
+    
+    // Calculate sales_expense_percent sub-metrics as derived: sub_sales_expense / gp_net * 100
+    const salesExpensePercentSubs = byParent.get('sales_expense_percent') ?? [];
+    if (salesExpensePercentSubs.length > 0) {
+      const salesExpForecasts = result.get('sales_expense') ?? [];
+      // Build lookup by name
+      const salesExpByName = new Map<string, SubMetricForecast>();
+      salesExpForecasts.forEach(sf => salesExpByName.set(sf.label.toLowerCase(), sf));
+      
+      const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
+        const subName = sub.name.toLowerCase();
+        const matchingSalesExp = salesExpByName.get(subName);
+        
+        // If we have a matching sales_expense sub-metric, derive the percentage from it
+        if (matchingSalesExp) {
+          const subMetricKey = `sub:sales_expense_percent:${String(index).padStart(3, '0')}:${sub.name}`;
+          const forecastMonthlyValues = new Map<string, number>();
+          let annualValue = 0;
+          let baselineAnnualValue = 0;
+          
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            baselineAnnualValue += subBaseline;
+            
+            // Get the forecast GP Net for this month
+            const gpNetForMonth = monthlyVals.get(forecastMonth)?.get('gp_net')?.value ?? 0;
+            // Get the forecast sales expense sub-metric value
+            const salesExpValue = matchingSalesExp.monthlyValues.get(forecastMonth) ?? 0;
+            
+            // Calculate percentage: sub_sales_expense / gp_net * 100
+            const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
+            
+            forecastMonthlyValues.set(forecastMonth, forecastValue);
+            annualValue += forecastValue;
+          });
+          
+          // Calculate quarterly values (average for percentages)
+          const quarterlyValues = new Map<string, number>();
+          const quarterMonthIndices = {
+            Q1: [0, 1, 2],
+            Q2: [3, 4, 5],
+            Q3: [6, 7, 8],
+            Q4: [9, 10, 11],
+          };
+          
+          Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
+            let quarterTotal = 0;
+            monthIndices.forEach(i => {
+              const forecastMonth = months[i];
+              quarterTotal += forecastMonthlyValues.get(forecastMonth) ?? 0;
+            });
+            quarterlyValues.set(quarter, quarterTotal / 3); // Average for percentages
+          });
+          
+          // Annual is average of monthly percentages
+          annualValue = annualValue / 12;
+          baselineAnnualValue = baselineAnnualValue / 12;
+          
+          return {
+            key: subMetricKey,
+            label: sub.name,
+            parentKey: 'sales_expense_percent',
+            monthlyValues: forecastMonthlyValues,
+            quarterlyValues,
+            annualValue,
+            baselineAnnualValue,
+            isOverridden: matchingSalesExp.isOverridden,
+          };
+        } else {
+          // Fallback to standard calculation
+          return calculateSingleSubMetric(sub, 'sales_expense_percent', index, true);
+        }
+      });
+      result.set('sales_expense_percent', forecasts);
+    }
+    
     byParent.forEach((subs, parentKey) => {
-      if (parentKey === 'total_sales' || parentKey === 'gp_percent' || parentKey === 'gp_net') {
+      if (parentKey === 'total_sales' || parentKey === 'gp_percent' || parentKey === 'gp_net' || 
+          parentKey === 'sales_expense' || parentKey === 'sales_expense_percent') {
         return; // Already calculated above
       }
       
