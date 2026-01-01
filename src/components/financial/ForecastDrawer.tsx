@@ -78,7 +78,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
   
   // Sub-metric calculation mode: solve-for-gp-net (default) or solve-for-sales
-  const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('solve-for-gp-net');
+  const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('gp-drives-growth');
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
@@ -446,8 +446,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-sm">
-                        <strong>Standard:</strong> Sales growth is independent. GP Net = Sales × GP%<br/><br/>
-                        <strong>GP% Drives Growth:</strong> When GP% improves, Sales increases proportionally (e.g., 25% higher margin → 25% more sales), and GP Net compounds both increases.
+                        <strong>GP% Drives Growth (default):</strong> When GP% improves, Sales increases proportionally, and GP Net compounds both.<br/><br/>
+                        <strong>Independent Sales:</strong> Sales growth is set separately. GP Net = Sales × GP%
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -456,22 +456,22 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               <div className="flex items-center gap-2">
                 <span className={cn(
                   "text-sm",
-                  subMetricCalcMode === 'solve-for-gp-net' ? "font-medium" : "text-muted-foreground"
+                  subMetricCalcMode === 'gp-drives-growth' ? "font-medium" : "text-muted-foreground"
                 )}>
-                  Standard
+                  GP% Drives Growth
                 </span>
                 <Switch
                   id="calc-mode"
-                  checked={subMetricCalcMode === 'gp-drives-growth'}
+                  checked={subMetricCalcMode === 'solve-for-gp-net'}
                   onCheckedChange={(checked) => 
-                    setSubMetricCalcMode(checked ? 'gp-drives-growth' : 'solve-for-gp-net')
+                    setSubMetricCalcMode(checked ? 'solve-for-gp-net' : 'gp-drives-growth')
                   }
                 />
                 <span className={cn(
                   "text-sm",
-                  subMetricCalcMode === 'gp-drives-growth' ? "font-medium" : "text-muted-foreground"
+                  subMetricCalcMode === 'solve-for-gp-net' ? "font-medium" : "text-muted-foreground"
                 )}>
-                  GP% Drives Growth
+                  Independent Sales
                 </span>
               </div>
             </div>

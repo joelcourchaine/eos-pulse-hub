@@ -103,7 +103,7 @@ export function useForecastCalculations({
   gpPercent,
   salesExpPercent,
   fixedExpense,
-  subMetricCalcMode = 'solve-for-gp-net',
+  subMetricCalcMode = 'gp-drives-growth',
 }: UseForecastCalculationsProps) {
   
   // Get all months for the forecast year
