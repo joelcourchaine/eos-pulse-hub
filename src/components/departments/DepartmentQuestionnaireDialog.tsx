@@ -869,7 +869,12 @@ export const DepartmentQuestionnaireDialog = ({
     return (
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <Label htmlFor={question.id} className="flex-1">{question.question_text}</Label>
+          <Label htmlFor={question.id} className="flex-1">
+            <span className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 mr-2 text-xs font-semibold rounded bg-primary/10 text-primary">
+              Q{question.display_order}
+            </span>
+            {question.question_text}
+          </Label>
           {isSuperAdmin && (
             <div className="flex gap-1">
               <Button
