@@ -197,52 +197,91 @@ export function useForecastCalculations({
       // Map to prior year month for baseline lookup (e.g., 2026-01 -> 2025-01)
       const priorYearMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
       
+      const baselineMonthData = baselineData.get(priorYearMonth);
+      const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
+
+      const baselineInputs = {
+        total_sales: baselineMonthData?.get('total_sales') ?? 0,
+        gp_net: baselineMonthData?.get('gp_net') ?? 0,
+        sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+        total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+        adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
+        parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+      };
+
+      const baselineNetSellingGross =
+        baselineInputs.gp_net - baselineInputs.sales_expense;
+
+      const derivedPartsTransfer = hasStoredPartsTransfer
+        ? baselineInputs.parts_transfer
+        : baselineInputs.adjusted_selling_gross
+          ? baselineInputs.adjusted_selling_gross - baselineNetSellingGross
+          : 0;
+
+      const baselineMonthlyValues: Record<string, number> = {
+        total_sales: baselineInputs.total_sales,
+        gp_net: baselineInputs.gp_net,
+        gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
+        sales_expense: baselineInputs.sales_expense,
+        sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+        net_selling_gross: baselineNetSellingGross,
+        total_fixed_expense: baselineInputs.total_fixed_expense,
+        department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
+        parts_transfer: derivedPartsTransfer,
+        net_operating_profit:
+          (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) +
+          derivedPartsTransfer,
+        return_on_gross:
+          baselineInputs.gp_net > 0
+            ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
+            : 0,
+      };
+
+      // Pre-fetch locked values for this month so derived metrics can use them
+      const lockedValues: Record<string, number | null> = {};
+      METRIC_DEFINITIONS.forEach(metric => {
+        const entryKey = `${month}:${metric.key}`;
+        const existingEntry = entriesMap.get(entryKey);
+        if (existingEntry?.is_locked && existingEntry?.forecast_value !== null) {
+          lockedValues[metric.key] = existingEntry.forecast_value;
+        }
+      });
+
+      // Calculate baseline comparison values for useBaselineDirectly check
+      const baselineSalesExpenseCalc = annualBaseline['sales_expense'] || 0;
+      
+      // Use baseline directly when no changes to avoid rounding differences
+      // But NOT if any driver metrics are locked (user made manual edits)
+      const hasAnyLockedDrivers = lockedValues['gp_percent'] !== undefined || 
+        lockedValues['total_sales'] !== undefined || 
+        lockedValues['gp_net'] !== undefined;
+      const useBaselineDirectly = growth === 0 
+        && Math.abs(salesExpense - baselineSalesExpenseCalc) < 1 // Within $1
+        && !hasAnyLockedDrivers;
+
+      // Helper function to get GP Net considering locked values
+      const getCalculatedGpNet = (): number => {
+        const lockedGpNet = lockedValues['gp_net'];
+        if (lockedGpNet !== undefined && lockedGpNet !== null) {
+          return lockedGpNet;
+        }
+        
+        const lockedGpPercent = lockedValues['gp_percent'];
+        if (lockedGpPercent !== undefined && lockedGpPercent !== null) {
+          const lockedTotalSales = lockedValues['total_sales'];
+          const totalSalesForCalc = lockedTotalSales ?? (baselineMonthlyValues.total_sales * growthFactor);
+          return totalSalesForCalc * (lockedGpPercent / 100);
+        }
+        
+        return baselineMonthlyValues.gp_net * growthFactor;
+      };
+
       METRIC_DEFINITIONS.forEach(metric => {
         const entryKey = `${month}:${metric.key}`;
         const existingEntry = entriesMap.get(entryKey);
         
         // Check if this entry is locked
         const isLocked = existingEntry?.is_locked ?? false;
-
-         const baselineMonthData = baselineData.get(priorYearMonth);
-         const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
-
-         const baselineInputs = {
-           total_sales: baselineMonthData?.get('total_sales') ?? 0,
-           gp_net: baselineMonthData?.get('gp_net') ?? 0,
-           sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
-           total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
-           adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
-           parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
-         };
-
-         const baselineNetSellingGross =
-           baselineInputs.gp_net - baselineInputs.sales_expense;
-
-         const derivedPartsTransfer = hasStoredPartsTransfer
-           ? baselineInputs.parts_transfer
-           : baselineInputs.adjusted_selling_gross
-             ? baselineInputs.adjusted_selling_gross - baselineNetSellingGross
-             : 0;
-
-         const baselineMonthlyValues: Record<string, number> = {
-           total_sales: baselineInputs.total_sales,
-           gp_net: baselineInputs.gp_net,
-           gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
-           sales_expense: baselineInputs.sales_expense,
-           sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
-           net_selling_gross: baselineNetSellingGross,
-           total_fixed_expense: baselineInputs.total_fixed_expense,
-           department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
-           parts_transfer: derivedPartsTransfer,
-           net_operating_profit:
-             (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) +
-             derivedPartsTransfer,
-           return_on_gross:
-             baselineInputs.gp_net > 0
-               ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
-               : 0,
-         };
 
         // Prefer exact stored baseline metric when it exists (e.g., total_fixed_expense), otherwise use computed baseline
         const baselineValue =
@@ -251,13 +290,6 @@ export function useForecastCalculations({
           0;
 
         let value: number;
-        
-        // Calculate baseline comparison values for useBaselineDirectly check
-        const baselineSalesExpenseCalc = annualBaseline['sales_expense'] || 0;
-        
-        // Use baseline directly when no changes to avoid rounding differences
-        const useBaselineDirectly = growth === 0 
-          && Math.abs(salesExpense - baselineSalesExpenseCalc) < 1; // Within $1
 
         if (isLocked && existingEntry?.forecast_value !== null) {
           // Use locked value
@@ -268,19 +300,17 @@ export function useForecastCalculations({
         } else if (metric.key === 'gp_percent') {
           // GP% stays constant - derived from baseline ratio
           value = gpPercent;
-        } else if (metric.key === 'sales_expense_percent') {
-          // Sales Expense % stays constant - use baseline ratio
-          // Since both GP Net and Sales Expense scale by growthFactor, the % is unchanged
-          value = baselineMonthlyValues.sales_expense_percent;
         } else if (metric.key === 'total_sales') {
           // Scale total_sales by growth factor
           value = baselineValue * growthFactor;
         } else if (metric.key === 'gp_net') {
-          // GP Net scales by same growth factor (keeps GP% constant)
-          value = baselineValue * growthFactor;
+          // GP Net calculation: if GP% is locked, use locked GP% with current total_sales
+          value = getCalculatedGpNet();
+        } else if (metric.key === 'sales_expense_percent') {
+          // Sales Expense % stays constant - use baseline ratio
+          value = baselineMonthlyValues.sales_expense_percent;
         } else if (metric.key === 'sales_expense') {
           // Sales Expense scales with growth to keep Sales Exp % constant
-          // Use baseline monthly pattern scaled by growthFactor
           value = baselineMonthlyValues.sales_expense * growthFactor;
         } else if (metric.key === 'total_fixed_expense') {
           // Use baseline pattern for fixed expense
@@ -289,27 +319,26 @@ export function useForecastCalculations({
           // Keep baseline pattern for parts transfer
           value = baselineValue;
         } else if (metric.key === 'net_selling_gross') {
-          // Derived: GP Net - Sales Expense (both scaled by growthFactor)
-          const calcGpNet = baselineMonthlyValues.gp_net * growthFactor;
+          // Derived: GP Net - Sales Expense
+          const calcGpNet = getCalculatedGpNet();
           const calcSalesExp = baselineMonthlyValues.sales_expense * growthFactor;
           value = calcGpNet - calcSalesExp;
         } else if (metric.key === 'department_profit') {
           // Derived: GP Net - Sales Expense - Fixed
-          const calcGpNet = baselineMonthlyValues.gp_net * growthFactor;
+          const calcGpNet = getCalculatedGpNet();
           const calcSalesExp = baselineMonthlyValues.sales_expense * growthFactor;
           const fixedExp = baselineMonthlyValues.total_fixed_expense;
           value = calcGpNet - calcSalesExp - fixedExp;
-          value = calcGpNet - calcSalesExp - fixedExp;
         } else if (metric.key === 'net_operating_profit') {
           // Derived: Dept Profit + Parts Transfer
-          const calcGpNet = baselineMonthlyValues.gp_net * growthFactor;
+          const calcGpNet = getCalculatedGpNet();
           const calcSalesExp = baselineMonthlyValues.sales_expense * growthFactor;
           const fixedExp = baselineMonthlyValues.total_fixed_expense;
           const deptProfit = calcGpNet - calcSalesExp - fixedExp;
           value = deptProfit + baselineMonthlyValues.parts_transfer;
         } else if (metric.key === 'return_on_gross') {
           // Derived: (Dept Profit / GP Net) * 100
-          const calcGpNet = baselineMonthlyValues.gp_net * growthFactor;
+          const calcGpNet = getCalculatedGpNet();
           const calcSalesExp = baselineMonthlyValues.sales_expense * growthFactor;
           const fixedExp = baselineMonthlyValues.total_fixed_expense;
           const deptProfit = calcGpNet - calcSalesExp - fixedExp;
