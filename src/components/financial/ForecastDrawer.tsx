@@ -88,9 +88,8 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   // Sub-metric overrides: user-defined annual values
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
   
-  if (import.meta.env.DEV) {
-    console.debug('[ForecastDrawer] render, subMetricOverrides:', subMetricOverrides.length);
-  }
+  // Debug: track renders
+  console.log('[ForecastDrawer] RENDER, subMetricOverrides count:', subMetricOverrides.length);
   
   // Sub-metric calculation mode: solve-for-gp-net (default) or solve-for-sales
   const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('gp-drives-growth');
