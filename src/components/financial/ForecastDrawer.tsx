@@ -11,7 +11,7 @@ import { useSubMetrics } from '@/hooks/useSubMetrics';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
 import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -82,6 +82,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   };
 
   // Hooks
+  const queryClient = useQueryClient();
+
   const {
     forecast,
     entries,
@@ -102,7 +104,31 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     isLoading: weightsLoading,
   } = useWeightedBaseline(departmentId, baselineYear);
 
-  // Fetch baseline data (prior year financial entries)
+  const resetWeightsToCalculated = async () => {
+    if (!forecast?.id) return;
+    if (!weights || weights.length === 0) return;
+    if (!calculatedWeights || calculatedWeights.length === 0) return;
+
+    const updates = weights.map(async (w) => {
+      const cw = calculatedWeights.find((x) => x.month_number === w.month_number);
+      if (!cw) return;
+
+      const { error } = await supabase
+        .from('forecast_weights')
+        .update({
+          original_weight: cw.weight,
+          adjusted_weight: cw.weight,
+          is_locked: false,
+        })
+        .eq('id', w.id);
+
+      if (error) throw error;
+    });
+
+    await Promise.all(updates);
+    await queryClient.invalidateQueries({ queryKey: ['forecast-weights', forecast.id] });
+    toast.success('Weights reset to original');
+  };
   const { data: priorYearData } = useQuery({
     queryKey: ['prior-year-financial', departmentId, priorYear],
     queryFn: async () => {
@@ -410,8 +436,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     // Clear all sub-metric overrides
     setSubMetricOverrides([]);
     
-    // Reset weights to original
-    resetWeights.mutate();
+    // Reset weights to current calculated distribution
+    resetWeightsToCalculated().catch((e) => {
+      console.error(e);
+      toast.error('Failed to reset weights');
+    });
     
     toast.success('Forecast reset to baseline');
   };
@@ -521,7 +550,10 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               }}
               onResetWeights={() => {
                 markDirty();
-                resetWeights.mutate();
+                resetWeightsToCalculated().catch((e) => {
+                  console.error(e);
+                  toast.error('Failed to reset weights');
+                });
               }}
               isUpdating={updateWeight.isPending}
             />
