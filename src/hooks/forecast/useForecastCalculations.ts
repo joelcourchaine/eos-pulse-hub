@@ -1103,6 +1103,20 @@ export function useForecastCalculations({
         }
       }
 
+      // Calculate GP Net sum from GP Net sub-metrics (which include overrides) for each month
+      const gpNetSubForecasts = result.get('gp_net') ?? [];
+      const gpNetSumByMonth = new Map<string, number>();
+      months.forEach(month => {
+        let sum = 0;
+        gpNetSubForecasts.forEach(gpSub => {
+          sum += gpSub.monthlyValues.get(month) ?? 0;
+        });
+        gpNetSumByMonth.set(month, sum);
+      });
+      
+      // Check if we have GP Net sub-metrics - if so, use their sum; otherwise fall back to parent metric
+      const hasGpNetSubs = gpNetSubForecasts.length > 0;
+      
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
         const orderIndex = sub.orderIndex ?? index;
         const matchingSalesExp = salesExpByOrder.get(orderIndex) ?? salesExpOrdered[index];
@@ -1120,15 +1134,18 @@ export function useForecastCalculations({
             const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
             baselineAnnualValue += subBaseline;
             
-            // Get the forecast GP Net for this month
-            const gpNetForMonth = monthlyVals.get(forecastMonth)?.get('gp_net')?.value ?? 0;
+            // Use GP Net from sub-metrics if available (includes overrides), otherwise fall back to parent metric
+            const gpNetForMonth = hasGpNetSubs 
+              ? gpNetSumByMonth.get(forecastMonth) ?? 0
+              : monthlyVals.get(forecastMonth)?.get('gp_net')?.value ?? 0;
+            
             // Get the forecast sales expense sub-metric value
             const salesExpValue = matchingSalesExp.monthlyValues.get(forecastMonth) ?? 0;
             
             // Calculate percentage: sub_sales_expense / gp_net * 100
             const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
 
-            // Always log for debugging the recalculation issue
+            // Debug log
             if (monthIndex === 0) {
               console.log('[forecast] sales_expense_percent sub calc', {
                 subName: sub.name,
@@ -1136,6 +1153,7 @@ export function useForecastCalculations({
                 salesExpValue,
                 gpNetForMonth,
                 forecastValue,
+                hasGpNetSubs,
                 baselineGpNet: monthlyVals.get(forecastMonth)?.get('gp_net')?.baseline_value,
               });
             }
