@@ -627,6 +627,44 @@ export type Database = {
           },
         ]
       }
+      forecast_driver_settings: {
+        Row: {
+          created_at: string
+          fixed_expense: number | null
+          forecast_id: string
+          growth_percent: number | null
+          id: string
+          sales_expense: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fixed_expense?: number | null
+          forecast_id: string
+          growth_percent?: number | null
+          id?: string
+          sales_expense?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fixed_expense?: number | null
+          forecast_id?: string
+          growth_percent?: number | null
+          id?: string
+          sales_expense?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_driver_settings_forecast_id_fkey"
+            columns: ["forecast_id"]
+            isOneToOne: true
+            referencedRelation: "department_forecasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forecast_entries: {
         Row: {
           baseline_value: number | null
@@ -720,6 +758,44 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_submetric_overrides: {
+        Row: {
+          created_at: string
+          forecast_id: string
+          id: string
+          overridden_annual_value: number
+          parent_metric_key: string
+          sub_metric_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          forecast_id: string
+          id?: string
+          overridden_annual_value: number
+          parent_metric_key: string
+          sub_metric_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          forecast_id?: string
+          id?: string
+          overridden_annual_value?: number
+          parent_metric_key?: string
+          sub_metric_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_submetric_overrides_forecast_id_fkey"
+            columns: ["forecast_id"]
+            isOneToOne: false
+            referencedRelation: "department_forecasts"
             referencedColumns: ["id"]
           },
         ]

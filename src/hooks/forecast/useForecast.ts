@@ -31,6 +31,22 @@ export interface ForecastWeight {
   is_locked: boolean;
 }
 
+export interface ForecastDriverSettings {
+  id: string;
+  forecast_id: string;
+  growth_percent: number | null;
+  sales_expense: number | null;
+  fixed_expense: number | null;
+}
+
+export interface ForecastSubMetricOverride {
+  id: string;
+  forecast_id: string;
+  sub_metric_key: string;
+  parent_metric_key: string;
+  overridden_annual_value: number;
+}
+
 export function useForecast(departmentId: string | undefined, year: number) {
   const queryClient = useQueryClient();
 
@@ -84,6 +100,41 @@ export function useForecast(departmentId: string | undefined, year: number) {
       
       if (error) throw error;
       return data as ForecastWeight[];
+    },
+    enabled: !!forecast?.id,
+  });
+
+  // Fetch driver settings
+  const { data: driverSettings, isLoading: driverSettingsLoading } = useQuery({
+    queryKey: ['forecast-driver-settings', forecast?.id],
+    queryFn: async () => {
+      if (!forecast?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('forecast_driver_settings')
+        .select('*')
+        .eq('forecast_id', forecast.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data as ForecastDriverSettings | null;
+    },
+    enabled: !!forecast?.id,
+  });
+
+  // Fetch sub-metric overrides
+  const { data: subMetricOverrides, isLoading: subMetricOverridesLoading } = useQuery({
+    queryKey: ['forecast-submetric-overrides', forecast?.id],
+    queryFn: async () => {
+      if (!forecast?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('forecast_submetric_overrides')
+        .select('*')
+        .eq('forecast_id', forecast.id);
+      
+      if (error) throw error;
+      return data as ForecastSubMetricOverride[];
     },
     enabled: !!forecast?.id,
   });
@@ -330,15 +381,145 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
   });
 
+  // Save/update driver settings
+  const saveDriverSettings = useMutation({
+    mutationFn: async ({ 
+      growthPercent, 
+      salesExpense, 
+      fixedExpense 
+    }: { 
+      growthPercent: number; 
+      salesExpense: number; 
+      fixedExpense: number;
+    }) => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      const { error } = await supabase
+        .from('forecast_driver_settings')
+        .upsert({
+          forecast_id: forecast.id,
+          growth_percent: growthPercent,
+          sales_expense: salesExpense,
+          fixed_expense: fixedExpense,
+        }, {
+          onConflict: 'forecast_id',
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-driver-settings', forecast?.id] });
+    },
+  });
+
+  // Save/update sub-metric override
+  const saveSubMetricOverride = useMutation({
+    mutationFn: async ({ 
+      subMetricKey, 
+      parentMetricKey, 
+      overriddenAnnualValue 
+    }: { 
+      subMetricKey: string; 
+      parentMetricKey: string; 
+      overriddenAnnualValue: number;
+    }) => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      const { error } = await supabase
+        .from('forecast_submetric_overrides')
+        .upsert({
+          forecast_id: forecast.id,
+          sub_metric_key: subMetricKey,
+          parent_metric_key: parentMetricKey,
+          overridden_annual_value: overriddenAnnualValue,
+        }, {
+          onConflict: 'forecast_id,sub_metric_key',
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-submetric-overrides', forecast?.id] });
+    },
+  });
+
+  // Bulk save sub-metric overrides
+  const bulkSaveSubMetricOverrides = useMutation({
+    mutationFn: async (overrides: { subMetricKey: string; parentMetricKey: string; overriddenAnnualValue: number }[]) => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      if (overrides.length === 0) return;
+
+      const upsertData = overrides.map(o => ({
+        forecast_id: forecast.id,
+        sub_metric_key: o.subMetricKey,
+        parent_metric_key: o.parentMetricKey,
+        overridden_annual_value: o.overriddenAnnualValue,
+      }));
+
+      const { error } = await supabase
+        .from('forecast_submetric_overrides')
+        .upsert(upsertData, {
+          onConflict: 'forecast_id,sub_metric_key',
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-submetric-overrides', forecast?.id] });
+    },
+  });
+
+  // Delete all sub-metric overrides (for reset)
+  const deleteAllSubMetricOverrides = useMutation({
+    mutationFn: async () => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      const { error } = await supabase
+        .from('forecast_submetric_overrides')
+        .delete()
+        .eq('forecast_id', forecast.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-submetric-overrides', forecast?.id] });
+    },
+  });
+
+  // Delete driver settings (for reset)
+  const deleteDriverSettings = useMutation({
+    mutationFn: async () => {
+      if (!forecast?.id) throw new Error('No forecast');
+
+      const { error } = await supabase
+        .from('forecast_driver_settings')
+        .delete()
+        .eq('forecast_id', forecast.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forecast-driver-settings', forecast?.id] });
+    },
+  });
+
   return {
     forecast,
     entries: entries ?? [],
     weights: weights ?? [],
-    isLoading: forecastLoading || entriesLoading || weightsLoading,
+    driverSettings,
+    subMetricOverrides: subMetricOverrides ?? [],
+    isLoading: forecastLoading || entriesLoading || weightsLoading || driverSettingsLoading || subMetricOverridesLoading,
     createForecast,
     updateEntry,
     bulkUpdateEntries,
     updateWeight,
     resetWeights,
+    saveDriverSettings,
+    saveSubMetricOverride,
+    bulkSaveSubMetricOverrides,
+    deleteAllSubMetricOverrides,
+    deleteDriverSettings,
   };
 }
