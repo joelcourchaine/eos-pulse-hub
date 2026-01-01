@@ -574,6 +574,11 @@ export function useForecastCalculations({
       overrideMap.set(o.subMetricKey, o.overriddenAnnualValue);
     });
     
+    if (import.meta.env.DEV && subMetricOverrides && subMetricOverrides.length > 0) {
+      console.debug('[forecast] subMetricOverrides received', subMetricOverrides);
+      console.debug('[forecast] overrideMap built', Array.from(overrideMap.entries()));
+    }
+    
     // Identify which parent metrics are percentages
     const percentageParents = new Set(
       METRIC_DEFINITIONS.filter(m => m.type === 'percent').map(m => m.key)
