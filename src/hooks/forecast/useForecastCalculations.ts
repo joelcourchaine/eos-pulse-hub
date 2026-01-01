@@ -265,14 +265,16 @@ export function useForecastCalculations({
             && Math.abs(gpPercent - baselineGpPercent) < 0.1 
             && Math.abs(salesExpPercent - baselineSalesExpPercent) < 0.1;
           
-        if (metric.key === 'total_sales') {
-            // In GP-drives-growth mode, GP% improvements also scale Sales
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              const baselineGpPct = baselineMonthlyValues.total_sales > 0 
-                ? (baselineMonthlyValues.gp_net / baselineMonthlyValues.total_sales) * 100 
-                : 0;
-              const monthlyGpChangeRatio = baselineGpPct > 0 ? gpPercent / baselineGpPct : 1;
-              value = baselineValue * monthlyGpChangeRatio * growthFactor;
+          // For GP-drives-growth mode, calculate ratio against ANNUAL baseline GP%
+          // This ensures when driver GP% matches baseline, there's no change
+          const annualGpChangeRatio = baselineGpPercent > 0 ? gpPercent / baselineGpPercent : 1;
+          
+          if (metric.key === 'total_sales') {
+            if (useBaselineDirectly) {
+              value = baselineValue;
+            } else if (subMetricCalcMode === 'gp-drives-growth') {
+              // GP% drives growth: Sales scales by GP change ratio AND growth factor
+              value = baselineValue * annualGpChangeRatio * growthFactor;
             } else {
               // Standard mode: Scale total_sales by growth factor only
               value = baselineValue * growthFactor;
@@ -284,11 +286,7 @@ export function useForecastCalculations({
               // GP Net = scaled total_sales * gpPercent
               let scaledSales: number;
               if (subMetricCalcMode === 'gp-drives-growth') {
-                const baselineGpPct = baselineMonthlyValues.total_sales > 0 
-                  ? (baselineMonthlyValues.gp_net / baselineMonthlyValues.total_sales) * 100 
-                  : 0;
-                const monthlyGpChangeRatio = baselineGpPct > 0 ? gpPercent / baselineGpPct : 1;
-                scaledSales = baselineMonthlyValues.total_sales * monthlyGpChangeRatio * growthFactor;
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
               } else {
                 scaledSales = baselineMonthlyValues.total_sales * growthFactor;
               }
@@ -299,7 +297,12 @@ export function useForecastCalculations({
               value = baselineValue;
             } else {
               // Sales Expense = calculated GP Net * salesExpPercent
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               const calculatedGpNet = scaledSales * (gpPercent / 100);
               value = calculatedGpNet * (salesExpPercent / 100);
             }
@@ -314,7 +317,12 @@ export function useForecastCalculations({
               value = baselineValue;
             } else {
               // Derived: GP Net - Sales Expense - Semi-Fixed
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               const calcGpNet = scaledSales * (gpPercent / 100);
               const calcSalesExp = calcGpNet * (salesExpPercent / 100);
               const semiFixed = baselineMonthlyValues.semi_fixed_expense;
@@ -325,7 +333,12 @@ export function useForecastCalculations({
               value = baselineValue;
             } else {
               // Derived: GP Net - Sales Expense - Semi-Fixed - Fixed
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               const calcGpNet = scaledSales * (gpPercent / 100);
               const calcSalesExp = calcGpNet * (salesExpPercent / 100);
               const semiFixed = baselineMonthlyValues.semi_fixed_expense;
@@ -337,7 +350,12 @@ export function useForecastCalculations({
               value = baselineValue;
             } else {
               // Derived: Dept Profit + Parts Transfer
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               const calcGpNet = scaledSales * (gpPercent / 100);
               const calcSalesExp = calcGpNet * (salesExpPercent / 100);
               const semiFixed = baselineMonthlyValues.semi_fixed_expense;
@@ -350,7 +368,12 @@ export function useForecastCalculations({
               value = baselineValue;
             } else {
               // Derived: (Dept Profit / GP Net) * 100
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               const calcGpNet = scaledSales * (gpPercent / 100);
               const calcSalesExp = calcGpNet * (salesExpPercent / 100);
               const semiFixed = baselineMonthlyValues.semi_fixed_expense;
