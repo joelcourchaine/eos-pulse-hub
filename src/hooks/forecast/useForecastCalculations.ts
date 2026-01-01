@@ -1040,13 +1040,31 @@ export function useForecastCalculations({
     const salesExpensePercentSubs = byParent.get('sales_expense_percent') ?? [];
     if (salesExpensePercentSubs.length > 0) {
       const salesExpForecasts = result.get('sales_expense') ?? [];
-      // Build lookup by name
-      const salesExpByName = new Map<string, SubMetricForecast>();
-      salesExpForecasts.forEach(sf => salesExpByName.set(sf.label.toLowerCase(), sf));
-      
+
+      // Build lookup by name -> ordered list (names can repeat in statements)
+      const salesExpByName = new Map<string, SubMetricForecast[]>();
+      for (const sf of salesExpForecasts) {
+        const name = sf.label.toLowerCase();
+        if (!salesExpByName.has(name)) salesExpByName.set(name, []);
+        salesExpByName.get(name)!.push(sf);
+      }
+      // Sort each list by orderIndex embedded in key: sub:sales_expense:XXX:Name
+      for (const [name, list] of salesExpByName) {
+        list.sort((a, b) => {
+          const ao = parseInt(a.key.split(':')[2] ?? '0', 10) || 0;
+          const bo = parseInt(b.key.split(':')[2] ?? '0', 10) || 0;
+          return ao - bo;
+        });
+      }
+
+      const seenByName = new Map<string, number>();
+
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
         const subName = sub.name.toLowerCase();
-        const matchingSalesExp = salesExpByName.get(subName);
+        const occurrence = seenByName.get(subName) ?? 0;
+        seenByName.set(subName, occurrence + 1);
+
+        const matchingSalesExp = (salesExpByName.get(subName) ?? [])[occurrence];
         
         // If we have a matching sales_expense sub-metric, derive the percentage from it
         if (matchingSalesExp) {
