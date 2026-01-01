@@ -423,7 +423,7 @@ export function useForecastCalculations({
     });
     
     // Now calculate proper values - percentages should be calculated from totals, not averaged
-    // Exception: if a percentage metric has ALL months locked to the same value, use that value
+    // Exception: if a percentage metric has ALL months locked to the same value, use that value for the forecast
     METRIC_DEFINITIONS.forEach(metric => {
       let finalValue = totals[metric.key].value;
       let finalBaseline = totals[metric.key].baseline;
@@ -434,15 +434,20 @@ export function useForecastCalculations({
       const allSameValue = allMonthsLocked && 
         totals[metric.key].lockedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
       
-      if (isPercentMetric && allSameValue) {
-        // Use the locked value directly instead of recalculating
-        finalValue = totals[metric.key].lockedValues[0];
-      } else if (metric.key === 'gp_percent') {
+      // Always recalculate percentage baselines from currency totals
+      if (metric.key === 'gp_percent') {
         // GP% = GP Net / Total Sales * 100
         const gpNet = totals['gp_net']?.value ?? 0;
         const totalSales = totals['total_sales']?.value ?? 0;
-        finalValue = totalSales > 0 ? (gpNet / totalSales) * 100 : 0;
         
+        // For forecast value: use locked value if all months locked to same, otherwise calculate
+        if (isPercentMetric && allSameValue) {
+          finalValue = totals[metric.key].lockedValues[0];
+        } else {
+          finalValue = totalSales > 0 ? (gpNet / totalSales) * 100 : 0;
+        }
+        
+        // Baseline is always calculated from actual prior year data
         const baselineGpNet = totals['gp_net']?.baseline ?? 0;
         const baselineSales = totals['total_sales']?.baseline ?? 0;
         finalBaseline = baselineSales > 0 ? (baselineGpNet / baselineSales) * 100 : 0;
@@ -450,7 +455,12 @@ export function useForecastCalculations({
         // Sales Exp % = Sales Expense / GP Net * 100
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
-        finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+        
+        if (isPercentMetric && allSameValue) {
+          finalValue = totals[metric.key].lockedValues[0];
+        } else {
+          finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+        }
         
         const baselineSalesExp = totals['sales_expense']?.baseline ?? 0;
         const baselineGpNet = totals['gp_net']?.baseline ?? 0;
@@ -459,7 +469,12 @@ export function useForecastCalculations({
         // Return on Gross = Dept Profit / GP Net * 100
         const deptProfit = totals['department_profit']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
-        finalValue = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
+        
+        if (isPercentMetric && allSameValue) {
+          finalValue = totals[metric.key].lockedValues[0];
+        } else {
+          finalValue = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
+        }
         
         const baselineDeptProfit = totals['department_profit']?.baseline ?? 0;
         const baselineGpNet = totals['gp_net']?.baseline ?? 0;
