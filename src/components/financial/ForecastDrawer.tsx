@@ -391,14 +391,16 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
 
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
+    // A user edit should immediately “win” over recalculated values.
+    // We do that by locking the edited cells.
     if (view === 'quarter') {
       // Distribute to months
       const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
-      distributions.forEach(d => {
-        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
+      distributions.forEach((d) => {
+        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value, isLocked: true });
       });
     } else {
-      updateEntry.mutate({ month, metricName, forecastValue: value });
+      updateEntry.mutate({ month, metricName, forecastValue: value, isLocked: true });
     }
   };
 
