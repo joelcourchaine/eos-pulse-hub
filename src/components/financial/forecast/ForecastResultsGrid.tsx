@@ -625,8 +625,8 @@ export function ForecastResultsGrid({
             "text-right py-2 pl-2 font-medium bg-muted/30",
             isSubMetric && "text-xs font-normal text-muted-foreground"
           )}>
-            {annualValue !== undefined 
-              ? formatValue(metric.type === 'percent' ? annualValue : annualValue / 12, metric.type) 
+            {annualBaseline !== undefined 
+              ? formatValue(metric.type === 'percent' ? annualBaseline : annualBaseline / 12, metric.type) 
               : '-'}
           </td>
         )}
