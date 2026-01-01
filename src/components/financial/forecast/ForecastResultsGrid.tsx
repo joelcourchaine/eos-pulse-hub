@@ -205,11 +205,6 @@ export function ForecastResultsGrid({
     const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
     const annualBaseline = isSubMetric && subMetricData ? subMetricData.baselineAnnualValue : annualData?.baseline_value;
     
-    // Debug log for overridden sub-metrics
-    if (isSubMetric && subMetricData?.isOverridden) {
-      console.log('[Grid] Rendering overridden sub-metric:', subMetricData.key, 'annualValue:', annualValue, 'isOverridden:', subMetricData.isOverridden);
-    }
-    
     const isDeptProfit = metric.key === 'department_profit';
     
     return (

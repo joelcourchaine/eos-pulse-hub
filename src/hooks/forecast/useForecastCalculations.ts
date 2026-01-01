@@ -106,9 +106,6 @@ export function useForecastCalculations({
   subMetricCalcMode = 'gp-drives-growth',
 }: UseForecastCalculationsProps) {
   
-  // Debug: unconditional log
-  console.log('[useForecastCalculations] hook called, overrides:', subMetricOverrides?.length ?? 0);
-  
   // Get all months for the forecast year
   const months = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
@@ -1145,18 +1142,6 @@ export function useForecastCalculations({
             // Calculate percentage: sub_sales_expense / gp_net * 100
             const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
 
-            // Debug log
-            if (monthIndex === 0) {
-              console.log('[forecast] sales_expense_percent sub calc', {
-                subName: sub.name,
-                forecastMonth,
-                salesExpValue,
-                gpNetForMonth,
-                forecastValue,
-                hasGpNetSubs,
-                baselineGpNet: monthlyVals.get(forecastMonth)?.get('gp_net')?.baseline_value,
-              });
-            }
             
             forecastMonthlyValues.set(forecastMonth, forecastValue);
             annualValue += forecastValue;
