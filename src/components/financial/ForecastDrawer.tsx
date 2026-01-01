@@ -76,6 +76,10 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const [salesExpense, setSalesExpense] = useState(0); // Annual sales expense in dollars
   const [fixedExpense, setFixedExpense] = useState(0);
 
+  // If Financial Summary updates the GP% target while the drawer is closed,
+  // we still want that value to win once baseline initialization runs.
+  const pendingGpPercentRef = useRef<number | null>(null);
+
   // Baseline values for centering sliders
   const [baselineGpPercent, setBaselineGpPercent] = useState<number | undefined>();
   const [baselineSalesExpense, setBaselineSalesExpense] = useState<number | undefined>(); // Baseline annual sales expense
@@ -90,6 +94,7 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   // Expose imperative handle so parent can update gpPercent when a target is saved
   useImperativeHandle(ref, () => ({
     setGpPercent: (value: number) => {
+      pendingGpPercentRef.current = value;
       setGpPercent(value);
     },
   }), []);
@@ -245,12 +250,21 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
       priorYearData.forEach(entry => {
         totals[entry.metric_name] = (totals[entry.metric_name] || 0) + (entry.value || 0);
       });
-      
+
+      // Baseline GP% (used for comparisons/centering). If a target GP% was pushed in,
+      // keep that as the current driver value but still record the true baseline.
       if (totals.gp_net && totals.total_sales) {
         const gp = Math.round((totals.gp_net / totals.total_sales) * 1000) / 10;
-        setGpPercent(gp);
         setBaselineGpPercent(gp);
+
+        if (pendingGpPercentRef.current !== null) {
+          setGpPercent(pendingGpPercentRef.current);
+          pendingGpPercentRef.current = null;
+        } else {
+          setGpPercent(gp);
+        }
       }
+
       if (totals.sales_expense) {
         setSalesExpense(totals.sales_expense);
         setBaselineSalesExpense(totals.sales_expense);
@@ -259,7 +273,7 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
         setFixedExpense(totals.total_fixed_expense);
         setBaselineFixedExpense(totals.total_fixed_expense);
       }
-      
+
       driversInitialized.current = true;
     }
   }, [priorYearData]);
@@ -373,9 +387,8 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
   const profitVariance = forecastDeptProfit - baselineDeptProfit;
   const profitVariancePercent = baselineDeptProfit !== 0 ? (profitVariance / Math.abs(baselineDeptProfit)) * 100 : 0;
-
-  if (!open) return null;
-
+  // Keep the component mounted even when closed so imperative updates (e.g., GP% targets)
+  // can be received and applied before the user opens the drawer.
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl lg:max-w-4xl overflow-y-auto">
