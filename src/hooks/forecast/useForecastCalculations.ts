@@ -584,9 +584,9 @@ export function useForecastCalculations({
       overrideMap.set(o.subMetricKey, o.overriddenAnnualValue);
     });
     
-    if (import.meta.env.DEV && subMetricOverrides && subMetricOverrides.length > 0) {
-      console.debug('[forecast] subMetricOverrides received', subMetricOverrides);
-      console.debug('[forecast] overrideMap built', Array.from(overrideMap.entries()));
+    // Always log override map when overrides exist
+    if (subMetricOverrides && subMetricOverrides.length > 0) {
+      console.log('[forecast] overrideMap keys:', Array.from(overrideMap.keys()));
     }
     
     // Identify which parent metrics are percentages
@@ -615,6 +615,11 @@ export function useForecastCalculations({
       const subMetricKey = `sub:${parentKey}:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
       const isOverridden = overrideValue !== undefined || overrideMap.has(subMetricKey);
       const overriddenAnnual = overrideValue ?? overrideMap.get(subMetricKey);
+
+      // Log key matching for gp_percent sub-metrics
+      if (parentKey === 'gp_percent') {
+        console.log('[forecast] gp_percent sub check:', subMetricKey, 'override found:', isOverridden);
+      }
 
       if (import.meta.env.DEV && parentKey === 'gp_percent' && sub.name.toLowerCase() === 'internal service') {
         console.debug('[forecast] gp_percent sub override check', {
