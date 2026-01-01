@@ -186,34 +186,60 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
   });
 
-  // Bulk update entries (for cascade calculations)
+  // Bulk update entries (for cascade calculations) - optimized with parallel updates
   const bulkUpdateEntries = useMutation({
     mutationFn: async (updates: { month: string; metricName: string; forecastValue: number | null; baselineValue?: number | null }[]) => {
       if (!forecast?.id) throw new Error('No forecast');
+
+      // Separate updates and inserts
+      const updateOps: Promise<void>[] = [];
+      const insertRows: {
+        forecast_id: string;
+        month: string;
+        metric_name: string;
+        forecast_value: number | null;
+        baseline_value: number | null;
+        is_locked: boolean;
+      }[] = [];
 
       for (const update of updates) {
         const existing = entries?.find(e => e.month === update.month && e.metric_name === update.metricName);
         
         if (existing && !existing.is_locked) {
-          await supabase
-            .from('forecast_entries')
-            .update({ 
-              forecast_value: update.forecastValue,
-              ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
-            })
-            .eq('id', existing.id);
+          // Queue update operation
+          const op = (async () => {
+            const { error } = await supabase
+              .from('forecast_entries')
+              .update({ 
+                forecast_value: update.forecastValue,
+                ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
+              })
+              .eq('id', existing.id);
+            if (error) throw error;
+          })();
+          updateOps.push(op);
         } else if (!existing) {
-          await supabase
-            .from('forecast_entries')
-            .insert({
-              forecast_id: forecast.id,
-              month: update.month,
-              metric_name: update.metricName,
-              forecast_value: update.forecastValue,
-              baseline_value: update.baselineValue ?? null,
-              is_locked: false,
-            });
+          // Collect inserts for batch
+          insertRows.push({
+            forecast_id: forecast.id,
+            month: update.month,
+            metric_name: update.metricName,
+            forecast_value: update.forecastValue,
+            baseline_value: update.baselineValue ?? null,
+            is_locked: false,
+          });
         }
+      }
+
+      // Run all updates in parallel
+      await Promise.all(updateOps);
+
+      // Batch insert new entries
+      if (insertRows.length > 0) {
+        const { error } = await supabase
+          .from('forecast_entries')
+          .insert(insertRows);
+        if (error) throw error;
       }
     },
     onSuccess: () => {
