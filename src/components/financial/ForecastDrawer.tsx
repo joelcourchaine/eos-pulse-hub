@@ -102,6 +102,11 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isDirtyRef = useRef(false);
+
+  const markDirty = () => {
+    isDirtyRef.current = true;
+  };
 
 
   // Hooks
@@ -294,10 +299,24 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     }
   }, [priorYearData]);
 
+
+  const weightsSignature = useMemo(() => {
+    return (weights ?? [])
+      .map((w) => `${w.month_number}:${w.adjusted_weight}:${w.is_locked}`)
+      .join('|');
+  }, [weights]);
+
+  const overridesSignature = useMemo(() => {
+    return subMetricOverrides
+      .map((o) => `${o.subMetricKey}:${o.overriddenAnnualValue}`)
+      .join('|');
+  }, [subMetricOverrides]);
+
   // Auto-save forecast entries when inputs change (drivers/weights/overrides)
   useEffect(() => {
     if (!open) return;
     if (!forecast || !driversInitialized.current) return;
+    if (!isDirtyRef.current) return;
     if (bulkUpdateEntries.isPending) return;
 
     // Debounce auto-save
@@ -309,25 +328,46 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
       const currentMonthlyValues = latestMonthlyValuesRef.current;
       const currentEntries = latestEntriesRef.current;
 
-      // Build updates from calculated values (skip locked)
+      // Build updates from calculated values (skip locked, skip no-op writes)
       const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
+      const EPS = 0.0001;
 
       currentMonthlyValues.forEach((metrics, month) => {
         metrics.forEach((result, metricKey) => {
           const entry = currentEntries.find((e) => e.month === month && e.metric_name === metricKey);
-          if (!entry?.is_locked) {
+          if (entry?.is_locked) return;
+
+          const nextForecast = result.value;
+          const nextBaseline = result.baseline_value;
+
+          const prevForecast = entry?.forecast_value ?? null;
+          const prevBaseline = entry?.baseline_value ?? null;
+
+          const forecastChanged = prevForecast === null ? true : Math.abs(prevForecast - nextForecast) > EPS;
+          const baselineChanged =
+            nextBaseline === undefined
+              ? false
+              : prevBaseline === null
+                ? true
+                : Math.abs(prevBaseline - nextBaseline) > EPS;
+
+          if (!entry || forecastChanged || baselineChanged) {
             updates.push({
               month,
               metricName: metricKey,
-              forecastValue: result.value,
-              baselineValue: result.baseline_value,
+              forecastValue: nextForecast,
+              baselineValue: nextBaseline,
             });
           }
         });
       });
 
       if (updates.length > 0) {
-        bulkUpdateEntries.mutate(updates);
+        bulkUpdateEntries.mutate(updates, {
+          onSuccess: () => {
+            isDirtyRef.current = false;
+          },
+        });
       }
     }, 800);
 
@@ -343,11 +383,11 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     gpPercent,
     salesExpense,
     fixedExpense,
-    weights,
-    subMetricOverrides,
+    weightsSignature,
+    overridesSignature,
     subMetricCalcMode,
-    bulkUpdateEntries.isPending,
   ]);
+
 
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
@@ -510,9 +550,13 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
               weights={weights}
               calculatedWeights={calculatedWeights}
               onUpdateWeight={(monthNumber, adjustedWeight, isLocked) => {
+                markDirty();
                 updateWeight.mutate({ monthNumber, adjustedWeight, isLocked });
               }}
-              onResetWeights={() => resetWeights.mutate()}
+              onResetWeights={() => {
+                markDirty();
+                resetWeights.mutate();
+              }}
               isUpdating={updateWeight.isPending}
             />
 
@@ -525,10 +569,22 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
               baselineGpPercent={baselineGpPercent}
               baselineSalesExpense={baselineSalesExpense}
               baselineFixedExpense={baselineFixedExpense}
-              onSalesGrowthChange={setSalesGrowth}
-              onGpPercentChange={setGpPercent}
-              onSalesExpenseChange={setSalesExpense}
-              onFixedExpenseChange={setFixedExpense}
+              onSalesGrowthChange={(v) => {
+                markDirty();
+                setSalesGrowth(v);
+              }}
+              onGpPercentChange={(v) => {
+                markDirty();
+                setGpPercent(v);
+              }}
+              onSalesExpenseChange={(v) => {
+                markDirty();
+                setSalesExpense(v);
+              }}
+              onFixedExpenseChange={(v) => {
+                markDirty();
+                setFixedExpense(v);
+              }}
             />
 
             {/* Sub-Metric Calculation Mode Toggle */}
@@ -561,9 +617,10 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
                 <Switch
                   id="calc-mode"
                   checked={subMetricCalcMode === 'solve-for-gp-net'}
-                  onCheckedChange={(checked) => 
-                    setSubMetricCalcMode(checked ? 'solve-for-gp-net' : 'gp-drives-growth')
-                  }
+                  onCheckedChange={(checked) => {
+                    markDirty();
+                    setSubMetricCalcMode(checked ? 'solve-for-gp-net' : 'gp-drives-growth');
+                  }}
                 />
                 <span className={cn(
                   "text-sm",
