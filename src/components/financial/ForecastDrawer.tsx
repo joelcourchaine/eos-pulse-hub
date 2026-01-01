@@ -400,26 +400,46 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       .join('|');
   }, [subMetricOverrides]);
 
-  // Sync growth slider with implied growth when sub-metric overrides change
-  // IMPORTANT: Only sync once per overridesSignature to prevent feedback loops
+  // Sync growth slider with implied growth when sub-metric overrides or locked entries change
+  // This ensures the slider reflects the actual growth implied by edits
   const lastSyncedOverridesSignature = useRef<string | null>(null);
+  const lastSyncedImpliedGrowth = useRef<number | null>(null);
+
+  // Track locked entries to detect when main metrics are edited
+  const lockedEntriesSignature = useMemo(() => {
+    return entries
+      .filter(e => e.is_locked)
+      .map(e => `${e.month}:${e.metric_name}:${e.forecast_value}`)
+      .join('|');
+  }, [entries]);
 
   useEffect(() => {
     if (!driversInitialized.current) return;
+    if (impliedGrowth === undefined) return;
 
-    if (subMetricOverrides.length === 0) {
-      lastSyncedOverridesSignature.current = null;
-      return;
+    // For stores with sub-metric overrides, sync when overrides change
+    if (subMetricOverrides.length > 0) {
+      if (lastSyncedOverridesSignature.current === overridesSignature) return;
+      
+      if (Math.abs(impliedGrowth - growth) > 0.1) {
+        lastSyncedOverridesSignature.current = overridesSignature;
+        lastSyncedImpliedGrowth.current = impliedGrowth;
+        setGrowth(impliedGrowth);
+      }
+    } else {
+      // For stores without sub-metrics, sync when locked entries change implied growth
+      // Only sync if the implied growth is significantly different and has changed
+      if (lastSyncedImpliedGrowth.current !== null && 
+          Math.abs(impliedGrowth - lastSyncedImpliedGrowth.current) < 0.1) {
+        return;
+      }
+      
+      if (Math.abs(impliedGrowth - growth) > 0.1) {
+        lastSyncedImpliedGrowth.current = impliedGrowth;
+        setGrowth(impliedGrowth);
+      }
     }
-
-    // If we've already synced for the current override set, do nothing
-    if (lastSyncedOverridesSignature.current === overridesSignature) return;
-
-    if (impliedGrowth !== undefined && Math.abs(impliedGrowth - growth) > 0.1) {
-      lastSyncedOverridesSignature.current = overridesSignature;
-      setGrowth(impliedGrowth);
-    }
-  }, [impliedGrowth, overridesSignature, subMetricOverrides.length, growth]);
+  }, [impliedGrowth, overridesSignature, subMetricOverrides.length, growth, lockedEntriesSignature]);
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
