@@ -205,7 +205,7 @@ export function ForecastResultsGrid({
     const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
     const annualBaseline = isSubMetric && subMetricData ? subMetricData.baselineAnnualValue : annualData?.baseline_value;
     
-    const isDeptProfit = metric.key === 'net_operating_profit';
+    const isDeptProfit = metric.key === 'department_profit';
     
     return (
       <tr 
