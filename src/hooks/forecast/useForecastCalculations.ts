@@ -1039,42 +1039,27 @@ export function useForecastCalculations({
     // Calculate sales_expense_percent sub-metrics as derived: sub_sales_expense / gp_net * 100
     const salesExpensePercentSubs = byParent.get('sales_expense_percent') ?? [];
     if (salesExpensePercentSubs.length > 0) {
-      const normalizeSubName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
-
       const salesExpForecasts = result.get('sales_expense') ?? [];
 
-      // Build lookup by normalized name -> ordered list (names can repeat in statements)
-      const salesExpByName = new Map<string, SubMetricForecast[]>();
+      // Pair by statement orderIndex (NOT by name). Names can repeat and vary; order is the reliable key.
+      const salesExpByOrder = new Map<number, SubMetricForecast>();
       for (const sf of salesExpForecasts) {
-        const name = normalizeSubName(sf.label);
-        if (!salesExpByName.has(name)) salesExpByName.set(name, []);
-        salesExpByName.get(name)!.push(sf);
+        const order = parseInt(sf.key.split(':')[2] ?? '', 10);
+        if (!Number.isNaN(order)) {
+          salesExpByOrder.set(order, sf);
+        }
       }
-      // Sort each list by orderIndex embedded in key: sub:sales_expense:XXX:Name
-      for (const [name, list] of salesExpByName) {
-        list.sort((a, b) => {
-          const ao = parseInt(a.key.split(':')[2] ?? '0', 10) || 0;
-          const bo = parseInt(b.key.split(':')[2] ?? '0', 10) || 0;
-          return ao - bo;
-        });
-      }
-
-      const seenByName = new Map<string, number>();
 
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
-        const subName = normalizeSubName(sub.name);
-        const occurrence = seenByName.get(subName) ?? 0;
-        seenByName.set(subName, occurrence + 1);
-
-        const matchingSalesExp = (salesExpByName.get(subName) ?? [])[occurrence];
+        const orderIndex = sub.orderIndex ?? index;
+        const matchingSalesExp = salesExpByOrder.get(orderIndex);
         
-        // If we have a matching sales_expense sub-metric, derive the percentage from it
+        // If we have a matching sales_expense sub-metric (same orderIndex), derive the percentage from it
         if (matchingSalesExp) {
-           const orderIndex = sub.orderIndex ?? index;
-           const subMetricKey = `sub:sales_expense_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
-           const forecastMonthlyValues = new Map<string, number>();
-           let annualValue = 0;
-           let baselineAnnualValue = 0;
+          const subMetricKey = `sub:sales_expense_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+          const forecastMonthlyValues = new Map<string, number>();
+          let annualValue = 0;
+          let baselineAnnualValue = 0;
           
           months.forEach((forecastMonth, monthIndex) => {
             const monthNumber = monthIndex + 1;
