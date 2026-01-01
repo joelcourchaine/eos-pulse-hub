@@ -259,6 +259,45 @@ export function useForecastCalculations({
         && Math.abs(salesExpense - baselineSalesExpenseCalc) < 1 // Within $1
         && !hasAnyLockedDrivers;
 
+      // For stores without sub-metrics: when GP% is locked (user changed it),
+      // we need to scale BOTH Total Sales and GP Net together.
+      // The new GP% implies a different margin, so we calculate what GP Net would be
+      // if we kept Total Sales at the growth-scaled value AND applied the new GP%.
+      
+      // Check if we have sub-metrics for this department
+      const hasSubMetrics = (subMetricBaselines?.length ?? 0) > 0;
+      
+      // Calculate the "target" GP% - either locked or baseline
+      const lockedGpPercent = lockedValues['gp_percent'];
+      const targetGpPercent = lockedGpPercent ?? baselineMonthlyValues.gp_percent;
+      
+      // For stores WITHOUT sub-metrics and with locked GP%:
+      // When GP% is changed, we want to increase BOTH Total Sales and GP Net proportionally.
+      // This means the user is effectively saying "I want higher margin", which implies more profit.
+      // We achieve this by keeping the growth-driven Total Sales and scaling GP Net to match the new GP%.
+      
+      // Helper function to get Total Sales considering locked values and GP% changes
+      const getCalculatedTotalSales = (): number => {
+        const lockedTotalSales = lockedValues['total_sales'];
+        if (lockedTotalSales !== undefined && lockedTotalSales !== null) {
+          return lockedTotalSales;
+        }
+        
+        // If GP% is locked (changed) for a store without sub-metrics,
+        // AND GP% is HIGHER than baseline, scale up Total Sales proportionally
+        if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
+          const baselineGpPct = baselineMonthlyValues.gp_percent;
+          if (baselineGpPct > 0 && lockedGpPercent > baselineGpPct) {
+            // Scale Total Sales by the ratio of new GP% to baseline GP%
+            // This ensures both Total Sales and GP Net increase together
+            const gpPercentRatio = lockedGpPercent / baselineGpPct;
+            return baselineMonthlyValues.total_sales * growthFactor * gpPercentRatio;
+          }
+        }
+        
+        return baselineMonthlyValues.total_sales * growthFactor;
+      };
+      
       // Helper function to get GP Net considering locked values
       const getCalculatedGpNet = (): number => {
         const lockedGpNet = lockedValues['gp_net'];
@@ -266,14 +305,9 @@ export function useForecastCalculations({
           return lockedGpNet;
         }
         
-        const lockedGpPercent = lockedValues['gp_percent'];
-        if (lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const lockedTotalSales = lockedValues['total_sales'];
-          const totalSalesForCalc = lockedTotalSales ?? (baselineMonthlyValues.total_sales * growthFactor);
-          return totalSalesForCalc * (lockedGpPercent / 100);
-        }
-        
-        return baselineMonthlyValues.gp_net * growthFactor;
+        // Calculate GP Net from Total Sales and GP%
+        const totalSalesForCalc = getCalculatedTotalSales();
+        return totalSalesForCalc * (targetGpPercent / 100);
       };
 
       METRIC_DEFINITIONS.forEach(metric => {
@@ -298,13 +332,13 @@ export function useForecastCalculations({
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
           value = baselineValue;
         } else if (metric.key === 'gp_percent') {
-          // GP% stays constant - derived from baseline ratio
-          value = gpPercent;
+          // GP%: use locked value if set, otherwise baseline ratio
+          value = targetGpPercent;
         } else if (metric.key === 'total_sales') {
-          // Scale total_sales by growth factor
-          value = baselineValue * growthFactor;
+          // Use helper which scales up if GP% is locked higher (for stores without sub-metrics)
+          value = getCalculatedTotalSales();
         } else if (metric.key === 'gp_net') {
-          // GP Net calculation: if GP% is locked, use locked GP% with current total_sales
+          // GP Net calculation: derived from Total Sales * GP%
           value = getCalculatedGpNet();
         } else if (metric.key === 'sales_expense_percent') {
           // Sales Expense % stays constant - use baseline ratio
@@ -361,7 +395,7 @@ export function useForecastCalculations({
     });
     
     return results;
-  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, growth, salesExpense, fixedExpense]);
+  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, growth, salesExpense, fixedExpense, subMetricBaselines, forecastYear]);
 
   // Get quarterly totals
   const calculateQuarterlyValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
