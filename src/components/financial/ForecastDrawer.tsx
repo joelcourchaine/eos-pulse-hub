@@ -136,14 +136,21 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const { subMetrics: subMetricEntries } = useSubMetrics(departmentId, priorYearMonths);
 
   // Convert prior year data to baseline map
+  // Note: Some metrics like parts_transfer may have multiple entries per month that need to be summed
   const baselineData = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
 
     priorYearData?.forEach((entry) => {
+      // Skip sub-metrics (they're handled separately)
+      if (entry.metric_name.startsWith('sub:')) return;
+      
       if (!map.has(entry.month)) {
         map.set(entry.month, new Map());
       }
-      map.get(entry.month)!.set(entry.metric_name, entry.value || 0);
+      const monthMap = map.get(entry.month)!;
+      const existingValue = monthMap.get(entry.metric_name) || 0;
+      // Sum values for the same metric in the same month
+      monthMap.set(entry.metric_name, existingValue + (entry.value || 0));
     });
 
     return map;
