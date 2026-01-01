@@ -4050,6 +4050,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const quarterMonths = getQuarterMonthsForCalculation(q, y);
                           return quarterMonths.map(m => m.identifier);
                         }}
+                        departmentId={departmentId}
                       />
                       </React.Fragment>
                     );
