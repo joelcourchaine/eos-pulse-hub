@@ -346,6 +346,14 @@ export function ForecastResultsGrid({
             annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'
           )}
         </td>
+        {view === 'monthly' && (
+          <td className={cn(
+            "text-right py-2 px-2 font-medium bg-muted/30",
+            isSubMetric && "text-xs font-normal text-muted-foreground"
+          )}>
+            {annualValue !== undefined ? formatValue(annualValue / 12, metric.type) : '-'}
+          </td>
+        )}
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-primary/10",
           isSubMetric && "text-xs font-normal"
@@ -414,6 +422,9 @@ export function ForecastResultsGrid({
                 </th>
               ))}
               <th className="text-right py-2 px-2 font-medium bg-muted/50 w-[90px]">{forecastYear}</th>
+              {view === 'monthly' && (
+                <th className="text-right py-2 px-2 font-medium bg-muted/30 w-[90px]">Avg Mo</th>
+              )}
               <th className="text-right py-2 px-2 font-medium bg-primary/10 w-[90px]">Var</th>
               <th className="text-right py-2 pl-2 font-medium bg-muted/30 w-[90px]">{priorYear}</th>
             </tr>
