@@ -20,6 +20,7 @@ interface MetricDefinition {
 }
 
 // Define metrics and their calculation logic
+// Order matches Ford financial summary: Total Sales, GP Net, GP %, Sales Expense, Sales Exp %, Net Selling Gross, Fixed Expense, Dept Profit, Parts Transfer, Net Operating, Return on Gross
 const METRIC_DEFINITIONS: MetricDefinition[] = [
   { key: 'total_sales', label: 'Total Sales', type: 'currency', isDriver: true, isDerived: false },
   { key: 'gp_net', label: 'GP Net', type: 'currency', isDriver: false, isDerived: true,
@@ -32,13 +33,12 @@ const METRIC_DEFINITIONS: MetricDefinition[] = [
     reverseCalculate: (value, i) => ({ sales_expense_percent: i.gp_net > 0 ? (value / i.gp_net) * 100 : 0 })
   },
   { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent', isDriver: true, isDerived: false },
-  { key: 'semi_fixed_expense', label: 'Semi-Fixed Exp', type: 'currency', isDriver: false, isDerived: false },
-  { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency', isDriver: true, isDerived: false },
   { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.gp_net - i.sales_expense - i.semi_fixed_expense
+    calculate: (i) => i.gp_net - i.sales_expense
   },
+  { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency', isDriver: true, isDerived: false },
   { key: 'department_profit', label: 'Dept Profit', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.gp_net - i.sales_expense - i.semi_fixed_expense - i.total_fixed_expense
+    calculate: (i) => i.gp_net - i.sales_expense - i.total_fixed_expense
   },
   { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency', isDriver: false, isDerived: false },
   { key: 'net_operating_profit', label: 'Net Operating', type: 'currency', isDriver: false, isDerived: true,
@@ -181,7 +181,6 @@ export function useForecastCalculations({
     
     const annualGpNet = annualTotalSales * (gpPercent / 100);
     const annualSalesExp = annualGpNet * (salesExpPercent / 100);
-    const annualSemiFixed = annualBaseline['semi_fixed_expense'] || 0;
     const annualPartsTransfer = annualBaseline['parts_transfer'] || 0;
     
     const annualValues: Record<string, number> = {
@@ -190,13 +189,12 @@ export function useForecastCalculations({
       gp_percent: gpPercent,
       sales_expense: annualSalesExp,
       sales_expense_percent: salesExpPercent,
-      semi_fixed_expense: annualSemiFixed,
+      net_selling_gross: annualGpNet - annualSalesExp,
       total_fixed_expense: fixedExpense,
-      net_selling_gross: annualGpNet - annualSalesExp - annualSemiFixed,
-      department_profit: annualGpNet - annualSalesExp - annualSemiFixed - fixedExpense,
+      department_profit: annualGpNet - annualSalesExp - fixedExpense,
       parts_transfer: annualPartsTransfer,
-      net_operating_profit: (annualGpNet - annualSalesExp - annualSemiFixed - fixedExpense) + annualPartsTransfer,
-      return_on_gross: annualGpNet > 0 ? ((annualGpNet - annualSalesExp - annualSemiFixed - fixedExpense) / annualGpNet) * 100 : 0,
+      net_operating_profit: (annualGpNet - annualSalesExp - fixedExpense) + annualPartsTransfer,
+      return_on_gross: annualGpNet > 0 ? ((annualGpNet - annualSalesExp - fixedExpense) / annualGpNet) * 100 : 0,
     };
 
     // Distribute to months using weights
@@ -224,14 +222,13 @@ export function useForecastCalculations({
            total_sales: baselineMonthData?.get('total_sales') ?? 0,
            gp_net: baselineMonthData?.get('gp_net') ?? 0,
            sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
-           semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
            total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
            adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
            parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
          };
 
          const baselineNetSellingGross =
-           baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense;
+           baselineInputs.gp_net - baselineInputs.sales_expense;
 
          const derivedPartsTransfer = hasStoredPartsTransfer
            ? baselineInputs.parts_transfer
@@ -245,17 +242,16 @@ export function useForecastCalculations({
            gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
            sales_expense: baselineInputs.sales_expense,
            sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
-           semi_fixed_expense: baselineInputs.semi_fixed_expense,
-           total_fixed_expense: baselineInputs.total_fixed_expense,
            net_selling_gross: baselineNetSellingGross,
-           department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense,
+           total_fixed_expense: baselineInputs.total_fixed_expense,
+           department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
            parts_transfer: derivedPartsTransfer,
            net_operating_profit:
-             (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) +
+             (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) +
              derivedPartsTransfer,
            return_on_gross:
              baselineInputs.gp_net > 0
-               ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
+               ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
                : 0,
          };
 
@@ -328,11 +324,11 @@ export function useForecastCalculations({
           } else if (metric.key === 'total_fixed_expense') {
             // Use baseline pattern for fixed expense
             value = baselineValue;
-          } else if (metric.key === 'semi_fixed_expense' || metric.key === 'parts_transfer') {
-            // Keep baseline pattern for these
+          } else if (metric.key === 'parts_transfer') {
+            // Keep baseline pattern for parts transfer
             value = baselineValue;
           } else if (metric.key === 'net_selling_gross') {
-            // Derived: GP Net - Sales Expense - Semi-Fixed
+            // Derived: GP Net - Sales Expense
             let scaledSales: number;
             if (subMetricCalcMode === 'gp-drives-growth') {
               scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
@@ -341,10 +337,9 @@ export function useForecastCalculations({
             }
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
-            value = calcGpNet - calcSalesExp - semiFixed;
+            value = calcGpNet - calcSalesExp;
           } else if (metric.key === 'department_profit') {
-            // Derived: GP Net - Sales Expense - Semi-Fixed - Fixed
+            // Derived: GP Net - Sales Expense - Fixed
             let scaledSales: number;
             if (subMetricCalcMode === 'gp-drives-growth') {
               scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
@@ -353,9 +348,8 @@ export function useForecastCalculations({
             }
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
             const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            value = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+            value = calcGpNet - calcSalesExp - fixedExp;
           } else if (metric.key === 'net_operating_profit') {
             // Derived: Dept Profit + Parts Transfer
             let scaledSales: number;
@@ -366,9 +360,8 @@ export function useForecastCalculations({
             }
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
             const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+            const deptProfit = calcGpNet - calcSalesExp - fixedExp;
             value = deptProfit + baselineMonthlyValues.parts_transfer;
           } else if (metric.key === 'return_on_gross') {
             // Derived: (Dept Profit / GP Net) * 100
@@ -380,9 +373,8 @@ export function useForecastCalculations({
             }
             const calcGpNet = scaledSales * (gpPercent / 100);
             const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const semiFixed = baselineMonthlyValues.semi_fixed_expense;
             const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            const deptProfit = calcGpNet - calcSalesExp - semiFixed - fixedExp;
+            const deptProfit = calcGpNet - calcSalesExp - fixedExp;
             value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
           } else {
             // Default: scale by growth factor
