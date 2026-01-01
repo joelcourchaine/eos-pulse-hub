@@ -190,6 +190,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     months,
     metricDefinitions,
     distributeQuarterToMonths,
+    impliedGrowth,
   } = useForecastCalculations({
     entries,
     weights,
@@ -247,6 +248,18 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       driversInitialized.current = true;
     }
   }, [priorYearData]);
+
+  // Sync growth slider with implied growth when sub-metric overrides change
+  // This creates bidirectional flow: GP% sub-metric overrides → Growth slider updates
+  useEffect(() => {
+    if (!driversInitialized.current) return;
+    if (subMetricOverrides.length === 0) return;
+    
+    // Only update if implied growth differs meaningfully from current slider value
+    if (impliedGrowth !== undefined && Math.abs(impliedGrowth - growth) > 0.1) {
+      setGrowth(impliedGrowth);
+    }
+  }, [impliedGrowth, subMetricOverrides.length]);
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
