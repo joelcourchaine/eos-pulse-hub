@@ -2,7 +2,10 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TrendingUp, TrendingDown, Loader2, RotateCcw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
@@ -71,6 +74,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Sub-metric overrides: user-defined annual values
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
+
+  // Email dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
+  const [emailRecipient, setEmailRecipient] = useState<'myself' | 'gm' | 'department_managers'>('myself');
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
@@ -445,6 +454,31 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     toast.success('Forecast reset to baseline');
   };
 
+  // Send forecast email
+  const handleSendForecastEmail = async () => {
+    setSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-forecast-email', {
+        body: {
+          departmentId,
+          forecastYear,
+          view: emailView,
+          recipientType: emailRecipient,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success('Forecast email sent successfully');
+      setEmailDialogOpen(false);
+    } catch (error: any) {
+      console.error('Error sending forecast email:', error);
+      toast.error(error.message || 'Failed to send forecast email');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   // Get department profit for comparison
   const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
@@ -471,6 +505,15 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               — {departmentName}
             </SheetTitle>
             <div className="flex items-center gap-2 mr-8">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setEmailDialogOpen(true)}
+                disabled={!forecast}
+              >
+                <Mail className="h-4 w-4 mr-1" />
+                Email
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -626,6 +669,75 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           </div>
         )}
       </SheetContent>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Email Forecast Report</DialogTitle>
+            <DialogDescription>
+              Send the {forecastYear} forecast report via email
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
+              <Label>Report View</Label>
+              <RadioGroup value={emailView} onValueChange={(v) => setEmailView(v as typeof emailView)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="monthly" id="view-monthly" />
+                  <Label htmlFor="view-monthly" className="font-normal">Monthly - Shows all 12 months</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="quarter" id="view-quarter" />
+                  <Label htmlFor="view-quarter" className="font-normal">Quarterly - Shows Q1-Q4 summary</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="annual" id="view-annual" />
+                  <Label htmlFor="view-annual" className="font-normal">Annual - Shows year totals only</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Send To</Label>
+              <RadioGroup value={emailRecipient} onValueChange={(v) => setEmailRecipient(v as typeof emailRecipient)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="myself" id="recipient-myself" />
+                  <Label htmlFor="recipient-myself" className="font-normal">Myself</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="gm" id="recipient-gm" />
+                  <Label htmlFor="recipient-gm" className="font-normal">General Manager(s)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="department_managers" id="recipient-managers" />
+                  <Label htmlFor="recipient-managers" className="font-normal">Department Managers</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendForecastEmail} disabled={sendingEmail}>
+              {sendingEmail ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }
