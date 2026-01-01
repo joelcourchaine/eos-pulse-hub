@@ -627,22 +627,24 @@ export function useForecastCalculations({
             forecastValue = subBaseline;
           } else {
             // For currency parents, scale sub-metrics proportionally
+            // IMPORTANT: use the *same* baseline value used by the parent metric row to avoid false variances
+            const parentMonthly = monthlyVals.get(forecastMonth)?.get(parentKey);
             const parentBaselineData = baselineData.get(priorMonth);
-            const parentBaseline = parentBaselineData?.get(parentKey) ?? 0;
-            
+            const parentBaseline = parentMonthly?.baseline_value ?? parentBaselineData?.get(parentKey) ?? 0;
+
             // Get forecast value for parent
-            const parentForecast = monthlyVals.get(forecastMonth)?.get(parentKey)?.value ?? 0;
-            
+            const parentForecast = parentMonthly?.value ?? 0;
+
             // If parent forecast equals baseline (within tolerance), use sub-metric baseline directly
-            // This prevents floating-point rounding errors from creating false variances
+            // This prevents rounding / mapping differences from creating false variances
             const parentUnchanged = Math.abs(parentForecast - parentBaseline) < 0.01;
-            
+
             if (parentUnchanged) {
               forecastValue = subBaseline;
             } else {
               // Calculate ratio: what fraction of parent was this sub-metric?
               const ratio = parentBaseline > 0 ? subBaseline / parentBaseline : 0;
-              
+
               // Apply same ratio to forecast parent value
               forecastValue = parentForecast * ratio;
             }
@@ -754,7 +756,18 @@ export function useForecastCalculations({
             const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
             
             let forecastValue: number;
-            if (matchingGpPercent && baselineAnnualGpPercent > 0) {
+
+            // If we're truly at baseline (no sales growth and no GP% change), use baseline directly
+            if (salesGrowth === 0 && matchingGpPercent && baselineAnnualGpPercent > 0) {
+              const forecastGpPercent = matchingGpPercent.monthlyValues.get(forecastMonth) ?? baselineAnnualGpPercent;
+              const gpPctUnchanged = Math.abs(forecastGpPercent - baselineAnnualGpPercent) < 0.0001;
+              if (gpPctUnchanged && !matchingGpPercent.isOverridden) {
+                forecastValue = subBaseline;
+              } else {
+                const gpChangeRatio = forecastGpPercent / baselineAnnualGpPercent;
+                forecastValue = subBaseline * gpChangeRatio; // salesGrowth is 0
+              }
+            } else if (matchingGpPercent && baselineAnnualGpPercent > 0) {
               // Get the forecast GP% for this sub-metric
               const forecastGpPercent = matchingGpPercent.monthlyValues.get(forecastMonth) ?? baselineAnnualGpPercent;
               // Calculate the GP% change ratio (using the baseline average for the sub-metric)
@@ -833,6 +846,14 @@ export function useForecastCalculations({
               
               const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
               const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
+
+              // If baseline settings, use baseline directly to avoid tiny rounding variances
+              if (salesGrowth === 0 && !matchingGpPercent.isOverridden && !matchingSales.isOverridden) {
+                forecastMonthlyValues.set(forecastMonth, subBaseline);
+                annualValue += subBaseline;
+                return;
+              }
+
               const gpNetValue = salesValue * (gpPercentValue / 100);
               
               forecastMonthlyValues.set(forecastMonth, gpNetValue);
