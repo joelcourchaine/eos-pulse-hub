@@ -5,14 +5,14 @@ import { useMemo } from 'react';
 interface ForecastDriverInputsProps {
   salesGrowth: number;
   gpPercent: number;
-  salesExpPercent: number;
+  salesExpense: number; // Annual sales expense in dollars (fixed driver)
   fixedExpense: number;
   baselineGpPercent?: number;
-  baselineSalesExpPercent?: number;
+  baselineSalesExpense?: number; // Baseline annual sales expense
   baselineFixedExpense?: number;
   onSalesGrowthChange: (value: number) => void;
   onGpPercentChange: (value: number) => void;
-  onSalesExpPercentChange: (value: number) => void;
+  onSalesExpenseChange: (value: number) => void; // Changed from percent to dollars
   onFixedExpenseChange: (value: number) => void;
 }
 
@@ -25,14 +25,14 @@ const formatCurrency = (value: number) => {
 export function ForecastDriverInputs({
   salesGrowth,
   gpPercent,
-  salesExpPercent,
+  salesExpense,
   fixedExpense,
   baselineGpPercent,
-  baselineSalesExpPercent,
+  baselineSalesExpense,
   baselineFixedExpense,
   onSalesGrowthChange,
   onGpPercentChange,
-  onSalesExpPercentChange,
+  onSalesExpenseChange,
   onFixedExpenseChange,
 }: ForecastDriverInputsProps) {
   // Calculate dynamic slider ranges centered on baseline values
@@ -44,15 +44,6 @@ export function ForecastDriverInputs({
       max: Math.min(100, Math.round((baseline + halfRange) * 2) / 2),
     };
   }, [baselineGpPercent, gpPercent]);
-
-  const salesExpRange = useMemo(() => {
-    const baseline = baselineSalesExpPercent ?? salesExpPercent;
-    const halfRange = 25; // +/- 25 percentage points
-    return {
-      min: Math.max(0, Math.round((baseline - halfRange) * 2) / 2),
-      max: Math.min(100, Math.round((baseline + halfRange) * 2) / 2),
-    };
-  }, [baselineSalesExpPercent, salesExpPercent]);
 
 
   return (
@@ -100,24 +91,26 @@ export function ForecastDriverInputs({
           </div>
         </div>
 
-        {/* Sales Expense % - centered on baseline */}
+        {/* Sales Expense - text input (fixed dollar amount) */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Sales Expense %</span>
-            <span className="font-medium">{salesExpPercent.toFixed(1)}%</span>
+            <span>Sales Expense (Annual)</span>
+            <span className="font-medium">{formatCurrency(salesExpense)}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-8">{salesExpRange.min}%</span>
-            <Slider
-              value={[salesExpPercent]}
-              onValueChange={([v]) => onSalesExpPercentChange(v)}
-              min={salesExpRange.min}
-              max={salesExpRange.max}
-              step={0.5}
-              className="flex-1"
-            />
-            <span className="text-xs text-muted-foreground w-8">{salesExpRange.max}%</span>
-          </div>
+          <Input
+            type="text"
+            value={`$${Math.round(salesExpense).toLocaleString()}`}
+            onChange={(e) => {
+              const raw = e.target.value.replace(/[^0-9.-]/g, '');
+              onSalesExpenseChange(parseFloat(raw) || 0);
+            }}
+            className="w-full"
+          />
+          {baselineSalesExpense !== undefined && salesExpense !== baselineSalesExpense && (
+            <p className="text-xs text-muted-foreground">
+              Baseline: {formatCurrency(baselineSalesExpense)} ({salesExpense > baselineSalesExpense ? '+' : ''}{((salesExpense - baselineSalesExpense) / baselineSalesExpense * 100).toFixed(1)}%)
+            </p>
+          )}
         </div>
 
         {/* Fixed Expense - text input */}

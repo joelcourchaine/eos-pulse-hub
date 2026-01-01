@@ -66,12 +66,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Driver states
   const [salesGrowth, setSalesGrowth] = useState(0);
   const [gpPercent, setGpPercent] = useState(28);
-  const [salesExpPercent, setSalesExpPercent] = useState(42);
+  const [salesExpense, setSalesExpense] = useState(0); // Annual sales expense in dollars
   const [fixedExpense, setFixedExpense] = useState(0);
 
   // Baseline values for centering sliders
   const [baselineGpPercent, setBaselineGpPercent] = useState<number | undefined>();
-  const [baselineSalesExpPercent, setBaselineSalesExpPercent] = useState<number | undefined>();
+  const [baselineSalesExpense, setBaselineSalesExpense] = useState<number | undefined>(); // Baseline annual sales expense
   const [baselineFixedExpense, setBaselineFixedExpense] = useState<number | undefined>();
 
   // Sub-metric overrides: user-defined annual values
@@ -201,7 +201,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     forecastYear,
     salesGrowth,
     gpPercent,
-    salesExpPercent,
+    salesExpense,
     fixedExpense,
     subMetricCalcMode,
   });
@@ -231,10 +231,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         setGpPercent(gp);
         setBaselineGpPercent(gp);
       }
-      if (totals.sales_expense && totals.gp_net) {
-        const salesExp = Math.round((totals.sales_expense / totals.gp_net) * 1000) / 10;
-        setSalesExpPercent(salesExp);
-        setBaselineSalesExpPercent(salesExp);
+      if (totals.sales_expense) {
+        setSalesExpense(totals.sales_expense);
+        setBaselineSalesExpense(totals.sales_expense);
       }
       if (totals.total_fixed_expense) {
         setFixedExpense(totals.total_fixed_expense);
@@ -287,7 +286,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [salesGrowth, gpPercent, salesExpPercent, fixedExpense, monthlyValues, forecast, entries]);
+  }, [salesGrowth, gpPercent, salesExpense, fixedExpense, monthlyValues, forecast, entries]);
 
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
@@ -336,7 +335,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const handleResetForecast = () => {
     // Reset drivers to baseline
     if (baselineGpPercent !== undefined) setGpPercent(baselineGpPercent);
-    if (baselineSalesExpPercent !== undefined) setSalesExpPercent(baselineSalesExpPercent);
+    if (baselineSalesExpense !== undefined) setSalesExpense(baselineSalesExpense);
     if (baselineFixedExpense !== undefined) setFixedExpense(baselineFixedExpense);
     setSalesGrowth(0);
     
@@ -429,14 +428,14 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             <ForecastDriverInputs
               salesGrowth={salesGrowth}
               gpPercent={gpPercent}
-              salesExpPercent={salesExpPercent}
+              salesExpense={salesExpense}
               fixedExpense={fixedExpense}
               baselineGpPercent={baselineGpPercent}
-              baselineSalesExpPercent={baselineSalesExpPercent}
+              baselineSalesExpense={baselineSalesExpense}
               baselineFixedExpense={baselineFixedExpense}
               onSalesGrowthChange={setSalesGrowth}
               onGpPercentChange={setGpPercent}
-              onSalesExpPercentChange={setSalesExpPercent}
+              onSalesExpenseChange={setSalesExpense}
               onFixedExpenseChange={setFixedExpense}
             />
 
