@@ -15,6 +15,7 @@ interface ForecastSubMetricNote {
   created_by: string | null;
   resolved_at: string | null;
   resolved_by: string | null;
+  issue_id: string | null;
 }
 
 export function useForecastSubMetricNotes(departmentId: string | undefined, forecastYear: number) {
@@ -147,6 +148,51 @@ export function useForecastSubMetricNotes(departmentId: string | undefined, fore
     return !!note && !note.is_resolved && !!note.note;
   }, [notes]);
 
+  const hasLinkedIssue = useCallback((subMetricKey: string): boolean => {
+    const note = notes.get(subMetricKey);
+    return !!note && !!note.issue_id;
+  }, [notes]);
+
+  const getLinkedIssueId = useCallback((subMetricKey: string): string | null => {
+    const note = notes.get(subMetricKey);
+    return note?.issue_id || null;
+  }, [notes]);
+
+  const linkIssueToNote = useCallback(async (
+    subMetricKey: string,
+    issueId: string
+  ): Promise<boolean> => {
+    if (!departmentId) return false;
+
+    try {
+      const { error } = await supabase
+        .from('forecast_submetric_notes')
+        .update({ issue_id: issueId })
+        .eq('department_id', departmentId)
+        .eq('forecast_year', forecastYear)
+        .eq('sub_metric_key', subMetricKey);
+
+      if (error) throw error;
+
+      await fetchNotes();
+
+      toast({
+        title: 'Success',
+        description: 'Issue linked to note',
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error linking issue to note:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to link issue',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [departmentId, forecastYear, fetchNotes, toast]);
+
   return {
     notes,
     loading,
@@ -154,6 +200,9 @@ export function useForecastSubMetricNotes(departmentId: string | undefined, fore
     resolveNote,
     getNote,
     hasActiveNote,
+    hasLinkedIssue,
+    getLinkedIssueId,
+    linkIssueToNote,
     refetch: fetchNotes,
   };
 }

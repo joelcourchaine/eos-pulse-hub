@@ -28,7 +28,7 @@ interface IssueManagementDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   // Source tracking for cell-based issue creation
-  sourceType?: 'scorecard' | 'financial';
+  sourceType?: 'scorecard' | 'financial' | 'forecast';
   sourceKpiId?: string;
   sourceMetricName?: string;
   sourcePeriod?: string;

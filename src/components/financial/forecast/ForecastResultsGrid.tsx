@@ -1,15 +1,17 @@
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock, Flag, StickyNote, CheckCircle } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock, Flag, StickyNote, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { useSubMetricQuestions } from '@/hooks/useSubMetricQuestions';
 import { SubMetricQuestionTooltip } from '../SubMetricQuestionTooltip';
 import { useForecastSubMetricNotes } from '@/hooks/useForecastSubMetricNotes';
+import { IssueManagementDialog } from '@/components/issues/IssueManagementDialog';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CalculationResult {
   month: string;
@@ -99,11 +101,22 @@ export function ForecastResultsGrid({
   const [currentNoteSubMetric, setCurrentNoteSubMetric] = useState<{ key: string; parentKey: string; label: string } | null>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
   
+  // Issue creation state
+  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [issueContext, setIssueContext] = useState<{
+    subMetricKey: string;
+    parentKey: string;
+    label: string;
+    forecastValue: number;
+    baselineValue: number;
+    note: string;
+  } | null>(null);
+  
   // Get question data for sub-metric tooltips
   const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
   
   // Get forecast sub-metric notes
-  const { saveNote, resolveNote, getNote, hasActiveNote } = useForecastSubMetricNotes(departmentId, forecastYear);
+  const { saveNote, resolveNote, getNote, hasActiveNote, hasLinkedIssue, linkIssueToNote } = useForecastSubMetricNotes(departmentId, forecastYear);
 
   // Number of months to show at once
   const VISIBLE_MONTH_COUNT = 6;
@@ -242,6 +255,52 @@ export function ForecastResultsGrid({
 
   const handleResolveNote = async (subMetricKey: string) => {
     await resolveNote(subMetricKey);
+  };
+
+  // Issue creation handler
+  const handleCreateIssue = (
+    subMetricKey: string,
+    parentKey: string,
+    label: string,
+    forecastValue: number,
+    baselineValue: number
+  ) => {
+    const note = getNote(subMetricKey);
+    setIssueContext({
+      subMetricKey,
+      parentKey,
+      label,
+      forecastValue,
+      baselineValue,
+      note: note?.note || '',
+    });
+    setIssueDialogOpen(true);
+  };
+
+  const handleIssueCreated = async () => {
+    if (!issueContext || !departmentId) return;
+    
+    // Find the newly created issue (most recent for this department)
+    const { data: issues } = await supabase
+      .from('issues')
+      .select('id')
+      .eq('department_id', departmentId)
+      .eq('source_type', 'forecast')
+      .eq('source_metric_name', issueContext.subMetricKey)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (issues && issues.length > 0) {
+      // If no note exists yet, create one first
+      const existingNote = getNote(issueContext.subMetricKey);
+      if (!existingNote) {
+        await saveNote(issueContext.subMetricKey, issueContext.parentKey, issueContext.note || 'Issue created from forecast');
+      }
+      await linkIssueToNote(issueContext.subMetricKey, issues[0].id);
+    }
+    
+    setIssueDialogOpen(false);
+    setIssueContext(null);
   };
 
   const renderMetricRow = (metric: MetricDefinition, isSubMetric = false, subMetricData?: SubMetricData) => {
@@ -419,12 +478,27 @@ export function ForecastResultsGrid({
                   ) : (
                     '-'
                   )}
-                  {hasActiveNote(subMetricData.key) && (
-                    <Flag className="h-3 w-3 absolute -right-1 -top-1 text-amber-500 fill-amber-500" />
-                  )}
+                  {/* Icons for notes and linked issues */}
+                  <div className="absolute -right-1 -top-1 flex items-center gap-0.5">
+                    {hasActiveNote(subMetricData.key) && (
+                      <Flag className="h-3 w-3 text-amber-500 fill-amber-500" />
+                    )}
+                    {hasLinkedIssue(subMetricData.key) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <AlertCircle className="h-3 w-3 text-orange-500 fill-orange-100" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Issue linked to this sub-metric</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
                 </div>
               </ContextMenuTrigger>
-              <ContextMenuContent className="w-48 bg-popover z-50">
+              <ContextMenuContent className="w-52 bg-popover z-50">
                 <ContextMenuItem onClick={() => handleOpenNoteDialog(subMetricData.key, subMetricData.parentKey, metric.label)}>
                   <StickyNote className="h-4 w-4 mr-2" />
                   {hasActiveNote(subMetricData.key) ? "Edit Note" : "Add Note"}
@@ -435,6 +509,20 @@ export function ForecastResultsGrid({
                     Resolve Note
                   </ContextMenuItem>
                 )}
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => handleCreateIssue(
+                    subMetricData.key, 
+                    subMetricData.parentKey, 
+                    metric.label, 
+                    annualValue || 0, 
+                    annualBaseline || 0
+                  )}
+                  disabled={hasLinkedIssue(subMetricData.key)}
+                >
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  {hasLinkedIssue(subMetricData.key) ? "Issue Linked" : "Create Issue"}
+                </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
           </td>
@@ -556,7 +644,7 @@ export function ForecastResultsGrid({
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Click values to edit • Click sub-metric annual values to set individual targets • Right-click sub-metric annual values to add notes • Click lock icon to freeze cells
+        Click values to edit • Right-click sub-metric annual values to add notes or create issues • Click lock icon to freeze cells
       </p>
 
       {/* Note Dialog */}
@@ -590,6 +678,27 @@ export function ForecastResultsGrid({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Issue Creation Dialog */}
+      {issueContext && departmentId && (
+        <IssueManagementDialog
+          departmentId={departmentId}
+          onIssueAdded={handleIssueCreated}
+          open={issueDialogOpen}
+          onOpenChange={setIssueDialogOpen}
+          initialTitle={`${issueContext.label} - Forecast Goal`}
+          initialDescription={`Forecast Goal: ${formatCurrency(issueContext.forecastValue)} (${forecastYear})
+Prior Year: ${formatCurrency(issueContext.baselineValue)} (${priorYear})
+Variance: ${issueContext.forecastValue >= issueContext.baselineValue ? '+' : ''}${formatCurrency(issueContext.forecastValue - issueContext.baselineValue)}
+
+${issueContext.note ? `Note: ${issueContext.note}` : ''}`}
+          initialSeverity="medium"
+          sourceType="forecast"
+          sourceMetricName={issueContext.subMetricKey}
+          sourcePeriod={forecastYear.toString()}
+          trigger={<span className="hidden" />}
+        />
+      )}
     </div>
   );
 }
