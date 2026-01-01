@@ -73,11 +73,6 @@ interface SubMetricOverride {
   overriddenAnnualValue: number;
 }
 
-// Calculation mode for sub-metrics: which metric is derived
-// 'solve-for-gp-net': Sales and GP% are inputs, GP Net = Sales × GP% (default)
-// 'gp-drives-growth': GP% changes drive proportional Sales growth, GP Net = (Baseline Sales × GP% change ratio) × New GP%
-export type SubMetricCalcMode = 'solve-for-gp-net' | 'gp-drives-growth';
-
 interface UseForecastCalculationsProps {
   entries: ForecastEntry[];
   weights: ForecastWeight[];
@@ -85,11 +80,9 @@ interface UseForecastCalculationsProps {
   subMetricBaselines?: SubMetricBaseline[]; // sub-metric baseline data
   subMetricOverrides?: SubMetricOverride[]; // user overrides for sub-metrics
   forecastYear: number;
-  salesGrowth: number;
-  gpPercent: number;
+  growth: number; // Single growth % that scales both Total Sales and GP Net proportionally
   salesExpense: number; // Annual sales expense in dollars (fixed)
   fixedExpense: number;
-  subMetricCalcMode?: SubMetricCalcMode; // default: 'solve-for-gp-net'
 }
 
 export function useForecastCalculations({
@@ -99,11 +92,9 @@ export function useForecastCalculations({
   subMetricBaselines,
   subMetricOverrides,
   forecastYear,
-  salesGrowth,
-  gpPercent,
+  growth,
   salesExpense,
   fixedExpense,
-  subMetricCalcMode = 'gp-drives-growth',
 }: UseForecastCalculationsProps) {
   
   // Get all months for the forecast year
@@ -163,25 +154,18 @@ export function useForecastCalculations({
     // Calculate annual targets from drivers
     const baselineTotalSales = annualBaseline['total_sales'] || 0;
     const baselineGpNet = annualBaseline['gp_net'] || 0;
-    const baselineGpPercentAnnual = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
+    const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
     
-    // In GP-drives-growth mode, GP% improvements also increase Sales proportionally
-    // gpChangeRatio = new GP% / baseline GP% (e.g., 25% / 20% = 1.25)
-    const gpChangeRatio = baselineGpPercentAnnual > 0 ? gpPercent / baselineGpPercentAnnual : 1;
+    // Growth factor scales both Total Sales and GP Net proportionally (keeps GP% constant)
+    const growthFactor = 1 + (growth / 100);
     
-    // Calculate annual total sales based on mode
-    let annualTotalSales: number;
-    if (subMetricCalcMode === 'gp-drives-growth') {
-      // GP% drives growth: Sales = Baseline Sales × GP change ratio × (1 + sales growth)
-      annualTotalSales = baselineTotalSales * gpChangeRatio * (1 + salesGrowth / 100);
-    } else {
-      // Standard mode: Sales = Baseline Sales × (1 + sales growth)
-      annualTotalSales = baselineTotalSales * (1 + salesGrowth / 100);
-    }
+    // Annual forecasts - scale both Total Sales and GP Net by same growth factor
+    const annualTotalSales = baselineTotalSales * growthFactor;
+    const annualGpNet = baselineGpNet * growthFactor; // GP% stays constant
+    const gpPercent = baselineGpPercent; // GP% derived from baseline ratio
     
-    const annualGpNet = annualTotalSales * (gpPercent / 100);
     const annualSalesExp = salesExpense; // Fixed dollar amount from driver
-    const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0; // Calculated
+    const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0;
     const annualPartsTransfer = annualBaseline['parts_transfer'] || 0;
     
     const annualValues: Record<string, number> = {
@@ -197,6 +181,7 @@ export function useForecastCalculations({
       net_operating_profit: (annualGpNet - annualSalesExp - fixedExpense) + annualPartsTransfer,
       return_on_gross: annualGpNet > 0 ? ((annualGpNet - annualSalesExp - fixedExpense) / annualGpNet) * 100 : 0,
     };
+
 
     // Distribute to months using weights
     months.forEach((month, index) => {

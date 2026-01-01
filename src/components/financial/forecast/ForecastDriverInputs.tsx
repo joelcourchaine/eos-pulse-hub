@@ -1,18 +1,15 @@
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface ForecastDriverInputsProps {
-  salesGrowth: number;
-  gpPercent: number;
+  growth: number;
   salesExpense: number; // Annual sales expense in dollars (fixed driver)
   fixedExpense: number;
-  baselineGpPercent?: number;
   baselineSalesExpense?: number; // Baseline annual sales expense
   baselineFixedExpense?: number;
-  onSalesGrowthChange: (value: number) => void;
-  onGpPercentChange: (value: number) => void;
-  onSalesExpenseChange: (value: number) => void; // Changed from percent to dollars
+  onGrowthChange: (value: number) => void;
+  onSalesExpenseChange: (value: number) => void;
   onFixedExpenseChange: (value: number) => void;
 }
 
@@ -23,15 +20,12 @@ const formatCurrency = (value: number) => {
 };
 
 export function ForecastDriverInputs({
-  salesGrowth,
-  gpPercent,
+  growth,
   salesExpense,
   fixedExpense,
-  baselineGpPercent,
   baselineSalesExpense,
   baselineFixedExpense,
-  onSalesGrowthChange,
-  onGpPercentChange,
+  onGrowthChange,
   onSalesExpenseChange,
   onFixedExpenseChange,
 }: ForecastDriverInputsProps) {
@@ -47,16 +41,6 @@ export function ForecastDriverInputs({
   useEffect(() => {
     setLocalFixedExpense(`$${Math.round(fixedExpense).toLocaleString()}`);
   }, [fixedExpense]);
-
-  // Calculate dynamic slider ranges centered on baseline values
-  const gpRange = useMemo(() => {
-    const baseline = baselineGpPercent ?? gpPercent;
-    const halfRange = 20; // +/- 20 percentage points
-    return {
-      min: Math.max(0, Math.round((baseline - halfRange) * 2) / 2),
-      max: Math.min(100, Math.round((baseline + halfRange) * 2) / 2),
-    };
-  }, [baselineGpPercent, gpPercent]);
 
   const handleSalesExpenseBlur = () => {
     const raw = localSalesExpense.replace(/[^0-9.-]/g, '');
@@ -82,17 +66,17 @@ export function ForecastDriverInputs({
       <h3 className="font-semibold">Key Drivers</h3>
       
       <div className="space-y-4">
-        {/* Sales Growth - always centered at 0 */}
+        {/* Growth % - scales both Total Sales and GP Net proportionally */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Sales Growth</span>
-            <span className="font-medium">{salesGrowth > 0 ? '+' : ''}{salesGrowth.toFixed(1)}%</span>
+            <span>Growth %</span>
+            <span className="font-medium">{growth > 0 ? '+' : ''}{growth.toFixed(1)}%</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground w-8">-25%</span>
             <Slider
-              value={[salesGrowth]}
-              onValueChange={([v]) => onSalesGrowthChange(v)}
+              value={[growth]}
+              onValueChange={([v]) => onGrowthChange(v)}
               min={-25}
               max={25}
               step={0.5}
@@ -100,26 +84,9 @@ export function ForecastDriverInputs({
             />
             <span className="text-xs text-muted-foreground w-8">+25%</span>
           </div>
-        </div>
-
-        {/* GP % - centered on baseline */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>GP % Target</span>
-            <span className="font-medium">{gpPercent.toFixed(1)}%</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground w-8">{gpRange.min}%</span>
-            <Slider
-              value={[gpPercent]}
-              onValueChange={([v]) => onGpPercentChange(v)}
-              min={gpRange.min}
-              max={gpRange.max}
-              step={0.5}
-              className="flex-1"
-            />
-            <span className="text-xs text-muted-foreground w-8">{gpRange.max}%</span>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Scales Total Sales and GP Net proportionally (GP% stays constant)
+          </p>
         </div>
 
         {/* Sales Expense - text input (fixed dollar amount) */}
