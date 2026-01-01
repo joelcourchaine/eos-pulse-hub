@@ -564,6 +564,13 @@ export function useForecastCalculations({
   ): Map<string, SubMetricForecast[]> => {
     const result = new Map<string, SubMetricForecast[]>();
     
+    if (import.meta.env.DEV) {
+      console.debug('[forecast] calculateSubMetricForecasts called', {
+        hasSubMetricBaselines: !!subMetricBaselines && subMetricBaselines.length > 0,
+        subMetricOverridesCount: subMetricOverrides?.length ?? 0,
+      });
+    }
+    
     if (!subMetricBaselines || subMetricBaselines.length === 0) {
       return result;
     }
