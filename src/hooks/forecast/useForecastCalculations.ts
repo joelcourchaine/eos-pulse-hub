@@ -1128,13 +1128,15 @@ export function useForecastCalculations({
             // Calculate percentage: sub_sales_expense / gp_net * 100
             const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
 
-            if (import.meta.env.DEV && index === 0 && monthIndex === 0) {
-              console.debug('[forecast] sales_expense_percent sub calc', {
+            // Always log for debugging the recalculation issue
+            if (monthIndex === 0) {
+              console.log('[forecast] sales_expense_percent sub calc', {
                 subName: sub.name,
                 forecastMonth,
                 salesExpValue,
                 gpNetForMonth,
                 forecastValue,
+                baselineGpNet: monthlyVals.get(forecastMonth)?.get('gp_net')?.baseline_value,
               });
             }
             
