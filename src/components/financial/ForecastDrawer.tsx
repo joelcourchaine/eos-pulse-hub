@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TrendingUp, TrendingDown, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
@@ -13,6 +14,8 @@ import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
 interface ForecastDrawerProps {
   open: boolean;
@@ -29,9 +32,31 @@ const formatCurrency = (value: number) => {
 
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
-  const forecastYear = currentYear + 1;
-  const priorYear = forecastYear - 1; // Year before the forecast year (2025 when forecasting 2026)
+  const yearOptions = [currentYear, currentYear + 1];
+  
+  // Initialize from localStorage or default to current year
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const saved = localStorage.getItem(FORECAST_YEAR_KEY);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (yearOptions.includes(parsed)) return parsed;
+    }
+    return currentYear;
+  });
 
+  const forecastYear = selectedYear;
+  const priorYear = forecastYear - 1;
+
+  // Persist year selection
+  const handleYearChange = (year: string) => {
+    const yearNum = parseInt(year, 10);
+    setSelectedYear(yearNum);
+    localStorage.setItem(FORECAST_YEAR_KEY, year);
+    // Reset state when year changes
+    driversInitialized.current = false;
+    setSubMetricOverrides([]);
+    setSalesGrowth(0);
+  };
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
 
@@ -323,8 +348,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       <SheetContent className="w-full sm:max-w-2xl lg:max-w-4xl overflow-y-auto">
         <SheetHeader className="pb-4 border-b">
           <div className="flex items-center justify-between">
-            <SheetTitle className="text-xl font-bold">
-              Forecast {forecastYear} — {departmentName}
+            <SheetTitle className="text-xl font-bold flex items-center gap-2">
+              Forecast
+              <Select value={String(selectedYear)} onValueChange={handleYearChange}>
+                <SelectTrigger className="w-24 h-8 text-lg font-bold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map(year => (
+                    <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              — {departmentName}
             </SheetTitle>
             <div className="flex items-center gap-2 mr-8">
               <Button 
