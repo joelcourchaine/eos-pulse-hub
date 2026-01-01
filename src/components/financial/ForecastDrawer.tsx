@@ -547,20 +547,29 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Handle main metric annual value edit (for metrics without sub-metrics)
   // Distribute the annual value across months using the current weight distribution
+  // For percentage metrics, set the same value for all months
   const handleMainMetricAnnualEdit = (metricKey: string, newAnnualValue: number) => {
     if (!weights || weights.length === 0) return;
     
+    // Find the metric definition to check if it's a percentage
+    const metricDef = metricDefinitions.find(m => m.key === metricKey);
+    const isPercent = metricDef?.type === 'percent';
+    
     // Calculate total weight
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
-    if (totalWeight === 0) return;
+    if (totalWeight === 0 && !isPercent) return;
     
-    // Distribute across months proportionally to weights
+    // Distribute across months
     const updates: { month: string; metricName: string; forecastValue: number }[] = [];
     
     weights.forEach((w) => {
-      const proportion = (w.adjusted_weight || 0) / totalWeight;
-      const monthValue = newAnnualValue * proportion;
       const monthStr = `${forecastYear}-${String(w.month_number).padStart(2, '0')}`;
+      
+      // For percentages, set the same value for all months
+      // For currency, distribute proportionally to weights
+      const monthValue = isPercent 
+        ? newAnnualValue 
+        : newAnnualValue * ((w.adjusted_weight || 0) / totalWeight);
       
       updates.push({
         month: monthStr,
