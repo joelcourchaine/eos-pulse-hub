@@ -250,16 +250,26 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   }, [priorYearData]);
 
   // Sync growth slider with implied growth when sub-metric overrides change
-  // This creates bidirectional flow: GP% sub-metric overrides → Growth slider updates
+  // Use a ref to track the last synced value and prevent infinite loops
+  const lastSyncedImpliedGrowth = useRef<number | null>(null);
+  
   useEffect(() => {
     if (!driversInitialized.current) return;
-    if (subMetricOverrides.length === 0) return;
+    if (subMetricOverrides.length === 0) {
+      lastSyncedImpliedGrowth.current = null;
+      return;
+    }
     
-    // Only update if implied growth differs meaningfully from current slider value
-    if (impliedGrowth !== undefined && Math.abs(impliedGrowth - growth) > 0.1) {
+    // Only update if implied growth differs meaningfully AND we haven't already synced to this value
+    if (
+      impliedGrowth !== undefined && 
+      Math.abs(impliedGrowth - growth) > 0.1 &&
+      lastSyncedImpliedGrowth.current !== impliedGrowth
+    ) {
+      lastSyncedImpliedGrowth.current = impliedGrowth;
       setGrowth(impliedGrowth);
     }
-  }, [impliedGrowth, subMetricOverrides.length]);
+  }, [impliedGrowth, subMetricOverrides.length, growth]);
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
