@@ -877,9 +877,20 @@ export function useForecastCalculations({
       result.set('sales_expense', forecasts);
     }
     
-    // Calculate sales_expense_percent sub-metrics as derived: sub_sales_expense / gp_net * 100
+    // Calculate sales_expense_percent sub-metrics
+    // Key change: If sales_expense_percent sub-metric is overridden, we use the override value
+    // and derive the sales_expense $ from it (reverse calculation)
     const salesExpensePercentSubs = byParent.get('sales_expense_percent') ?? [];
     if (salesExpensePercentSubs.length > 0) {
+      // Build override lookup for sales_expense_percent sub-metrics
+      const salesExpPercentOverrideMap = new Map<string, number>();
+      subMetricOverrides?.forEach(o => {
+        if (o.parentKey === 'sales_expense_percent') {
+          salesExpPercentOverrideMap.set(o.subMetricKey, o.overriddenAnnualValue);
+        }
+      });
+      
+      // Get current sales_expense sub-forecasts (may be updated based on % overrides)
       const salesExpForecasts = result.get('sales_expense') ?? [];
 
       // Pair by statement orderIndex (NOT by name). Names can repeat and vary; order is the reliable key.
@@ -911,13 +922,104 @@ export function useForecastCalculations({
       // Check if we have GP Net sub-metrics - if so, use their sum; otherwise fall back to parent metric
       const hasGpNetSubs = gpNetSubForecasts.length > 0;
       
+      // Track updated sales_expense sub-metrics when % is overridden
+      const updatedSalesExpSubs = new Map<number, SubMetricForecast>();
+      
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
         const orderIndex = sub.orderIndex ?? index;
+        const subMetricKey = `sub:sales_expense_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+        
+        // Check if THIS percentage sub-metric has an override
+        const isPercentOverridden = salesExpPercentOverrideMap.has(subMetricKey);
+        const overriddenPercent = salesExpPercentOverrideMap.get(subMetricKey);
+        
         const matchingSalesExp = salesExpByOrder.get(orderIndex) ?? salesExpOrdered[index];
         
-        // If we have a matching sales_expense sub-metric (same orderIndex), derive the percentage from it
-        if (matchingSalesExp) {
-          const subMetricKey = `sub:sales_expense_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+        if (isPercentOverridden && overriddenPercent !== undefined) {
+          // OVERRIDE CASE: User has manually set the % value
+          // Use the override % for all months (percentages are constant)
+          // Derive sales_expense $ from: GP Net × (% / 100)
+          console.log('[forecast] Sales Exp % override detected:', subMetricKey, 'value:', overriddenPercent);
+          
+          const forecastMonthlyValues = new Map<string, number>();
+          const derivedSalesExpMonthlyValues = new Map<string, number>();
+          let annualValue = 0;
+          let baselineAnnualValue = 0;
+          let derivedSalesExpAnnual = 0;
+          
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            baselineAnnualValue += subBaseline;
+            
+            // Use the overridden percentage for each month
+            forecastMonthlyValues.set(forecastMonth, overriddenPercent);
+            annualValue += overriddenPercent;
+            
+            // Derive sales_expense $ from GP Net × (% / 100)
+            const gpNetForMonth = hasGpNetSubs 
+              ? gpNetSumByMonth.get(forecastMonth) ?? 0
+              : monthlyVals.get(forecastMonth)?.get('gp_net')?.value ?? 0;
+            
+            const derivedSalesExp = gpNetForMonth * (overriddenPercent / 100);
+            derivedSalesExpMonthlyValues.set(forecastMonth, derivedSalesExp);
+            derivedSalesExpAnnual += derivedSalesExp;
+          });
+          
+          // Calculate quarterly values (average for percentages)
+          const quarterlyValues = new Map<string, number>();
+          const derivedSalesExpQuarterlyValues = new Map<string, number>();
+          const quarterMonthIndices = {
+            Q1: [0, 1, 2],
+            Q2: [3, 4, 5],
+            Q3: [6, 7, 8],
+            Q4: [9, 10, 11],
+          };
+          
+          Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
+            let quarterTotal = 0;
+            let derivedQuarterTotal = 0;
+            monthIndices.forEach(i => {
+              const forecastMonth = months[i];
+              quarterTotal += forecastMonthlyValues.get(forecastMonth) ?? 0;
+              derivedQuarterTotal += derivedSalesExpMonthlyValues.get(forecastMonth) ?? 0;
+            });
+            quarterlyValues.set(quarter, quarterTotal / 3); // Average for percentages
+            derivedSalesExpQuarterlyValues.set(quarter, derivedQuarterTotal);
+          });
+          
+          // Annual is average of monthly percentages
+          annualValue = annualValue / 12;
+          baselineAnnualValue = baselineAnnualValue / 12;
+          
+          // Store the derived sales_expense sub-metric for updating the sales_expense sub-forecasts
+          if (matchingSalesExp) {
+            const salesExpSubKey = `sub:sales_expense:${String(orderIndex).padStart(3, '0')}:${matchingSalesExp.label}`;
+            updatedSalesExpSubs.set(orderIndex, {
+              key: salesExpSubKey,
+              label: matchingSalesExp.label,
+              parentKey: 'sales_expense',
+              monthlyValues: derivedSalesExpMonthlyValues,
+              quarterlyValues: derivedSalesExpQuarterlyValues,
+              annualValue: derivedSalesExpAnnual,
+              baselineAnnualValue: matchingSalesExp.baselineAnnualValue,
+              isOverridden: true, // Mark as overridden since it's derived from % override
+            });
+          }
+          
+          return {
+            key: subMetricKey,
+            label: sub.name,
+            parentKey: 'sales_expense_percent',
+            monthlyValues: forecastMonthlyValues,
+            quarterlyValues,
+            annualValue,
+            baselineAnnualValue,
+            isOverridden: true,
+          };
+        } else if (matchingSalesExp) {
+          // STANDARD CASE: Derive percentage from sales_expense sub-metric
           const forecastMonthlyValues = new Map<string, number>();
           let annualValue = 0;
           let baselineAnnualValue = 0;
@@ -938,7 +1040,6 @@ export function useForecastCalculations({
             
             // Calculate percentage: sub_sales_expense / gp_net * 100
             const forecastValue = gpNetForMonth > 0 ? (salesExpValue / gpNetForMonth) * 100 : 0;
-
             
             forecastMonthlyValues.set(forecastMonth, forecastValue);
             annualValue += forecastValue;
@@ -982,6 +1083,19 @@ export function useForecastCalculations({
         }
       });
       result.set('sales_expense_percent', forecasts);
+      
+      // Update sales_expense sub-forecasts with derived values from % overrides
+      if (updatedSalesExpSubs.size > 0) {
+        const currentSalesExpSubs = result.get('sales_expense') ?? [];
+        const updatedSalesExpSubsList = currentSalesExpSubs.map(sub => {
+          const orderIndex = parseInt(sub.key.split(':')[2] ?? '', 10);
+          if (!Number.isNaN(orderIndex) && updatedSalesExpSubs.has(orderIndex)) {
+            return updatedSalesExpSubs.get(orderIndex)!;
+          }
+          return sub;
+        });
+        result.set('sales_expense', updatedSalesExpSubsList);
+      }
     }
     
     byParent.forEach((subs, parentKey) => {
@@ -1112,17 +1226,36 @@ export function useForecastCalculations({
       const fixedExp = adjustedMetrics.get('total_fixed_expense')?.value ?? 0;
       const partsTransfer = adjustedMetrics.get('parts_transfer')?.value ?? 0;
       
-      // Scale Sales Expense with GP Net to keep Sales Exp % constant
-      // salesExpense / gpNet should stay constant
-      const baselineSalesExpPercent = baseGpNet > 0 
-        ? (adjustedMetrics.get('sales_expense')?.baseline_value ?? 0) / (baseMetrics.get('gp_net')?.baseline_value ?? baseGpNet) * 100
-        : 0;
-      const adjustedSalesExpense = hasGpPercentOverrides && gpNetValue > 0 && baselineSalesExpPercent > 0
-        ? gpNetValue * (baselineSalesExpPercent / 100)
-        : salesExpenseValue;
+      // Check if any Sales Expense % sub-metrics have overrides (derived from subMetricForecasts)
+      const salesExpPercentSubs = subMetricForecasts.get('sales_expense_percent') ?? [];
+      const hasSalesExpPercentOverrides = salesExpPercentSubs.some(sub => sub.isOverridden);
+      
+      // Check if sales_expense sub-metrics have overrides (either direct or derived from % overrides)
+      const salesExpenseSubs = subMetricForecasts.get('sales_expense') ?? [];
+      const hasSalesExpSubOverrides = salesExpenseSubs.some(sub => sub.isOverridden);
+      
+      // Calculate Sales Expense adjustment based on override source
+      let adjustedSalesExpense = salesExpenseValue;
+      
+      if (hasSalesExpPercentOverrides || hasSalesExpSubOverrides) {
+        // Use the sum from sales_expense sub-metrics (which includes values derived from % overrides)
+        const salesExpFromSubs = subSums?.get('sales_expense');
+        if (salesExpFromSubs !== undefined) {
+          adjustedSalesExpense = salesExpFromSubs;
+        }
+      } else if (hasGpPercentOverrides) {
+        // Scale Sales Expense with GP Net to keep Sales Exp % constant
+        // salesExpense / gpNet should stay constant
+        const baselineSalesExpPercent = baseGpNet > 0 
+          ? (adjustedMetrics.get('sales_expense')?.baseline_value ?? 0) / (baseMetrics.get('gp_net')?.baseline_value ?? baseGpNet) * 100
+          : 0;
+        if (gpNetValue > 0 && baselineSalesExpPercent > 0) {
+          adjustedSalesExpense = gpNetValue * (baselineSalesExpPercent / 100);
+        }
+      }
       
       // Update sales_expense if it changed
-      if (hasGpPercentOverrides && Math.abs(adjustedSalesExpense - salesExpenseValue) > 0.01) {
+      if (Math.abs(adjustedSalesExpense - salesExpenseValue) > 0.01) {
         const salesExpCurrent = adjustedMetrics.get('sales_expense');
         if (salesExpCurrent) {
           adjustedMetrics.set('sales_expense', { ...salesExpCurrent, value: adjustedSalesExpense });
