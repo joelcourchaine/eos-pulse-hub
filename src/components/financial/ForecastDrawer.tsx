@@ -545,6 +545,43 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     markDirty();
   };
 
+  // Handle main metric annual value edit (for metrics without sub-metrics)
+  // Distribute the annual value across months using the current weight distribution
+  const handleMainMetricAnnualEdit = (metricKey: string, newAnnualValue: number) => {
+    if (!weights || weights.length === 0) return;
+    
+    // Calculate total weight
+    const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
+    if (totalWeight === 0) return;
+    
+    // Distribute across months proportionally to weights
+    const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+    
+    weights.forEach((w) => {
+      const proportion = (w.adjusted_weight || 0) / totalWeight;
+      const monthValue = newAnnualValue * proportion;
+      const monthStr = `${forecastYear}-${String(w.month_number).padStart(2, '0')}`;
+      
+      updates.push({
+        month: monthStr,
+        metricName: metricKey,
+        forecastValue: monthValue,
+      });
+    });
+    
+    // Lock all months for this metric and set the values
+    updates.forEach((update) => {
+      updateEntry.mutate({ 
+        month: update.month, 
+        metricName: update.metricName, 
+        forecastValue: update.forecastValue, 
+        isLocked: true 
+      });
+    });
+    
+    markDirty();
+  };
+
   // Reset entire forecast to baseline values
   const handleResetForecast = async () => {
     if (baselineSalesExpense !== undefined) setSalesExpense(baselineSalesExpense);
@@ -760,6 +797,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               onToggleLock={handleToggleLock}
               onMonthNavigate={handleMonthNavigate}
               onSubMetricEdit={handleSubMetricEdit}
+              onMainMetricAnnualEdit={handleMainMetricAnnualEdit}
               departmentId={departmentId}
             />
 

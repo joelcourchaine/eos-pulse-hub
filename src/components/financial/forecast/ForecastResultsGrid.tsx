@@ -57,6 +57,7 @@ interface ForecastResultsGridProps {
   onToggleLock?: (month: string, metricName: string) => void;
   onMonthNavigate?: (direction: 'prev' | 'next') => void;
   onSubMetricEdit?: (subMetricKey: string, parentKey: string, newAnnualValue: number) => void;
+  onMainMetricAnnualEdit?: (metricKey: string, newAnnualValue: number) => void;
   departmentId?: string;
 }
 
@@ -89,10 +90,12 @@ export function ForecastResultsGrid({
   onToggleLock,
   onMonthNavigate,
   onSubMetricEdit,
+  onMainMetricAnnualEdit,
   departmentId,
 }: ForecastResultsGridProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editingAnnualSubMetric, setEditingAnnualSubMetric] = useState<string | null>(null);
+  const [editingAnnualMainMetric, setEditingAnnualMainMetric] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   
@@ -255,6 +258,35 @@ export function ForecastResultsGrid({
 
   const handleResolveNote = async (subMetricKey: string) => {
     await resolveNote(subMetricKey);
+  };
+
+  // Main metric annual value editing (for metrics without sub-metrics)
+  const handleMainMetricAnnualClick = (metricKey: string, currentValue: number, metricType: 'currency' | 'percent' | 'number') => {
+    setEditingAnnualMainMetric(metricKey);
+    if (metricType === 'percent') {
+      setEditValue(currentValue.toFixed(1));
+    } else {
+      setEditValue(Math.round(currentValue).toString());
+    }
+  };
+
+  const handleMainMetricAnnualBlur = (metricKey: string) => {
+    if (editingAnnualMainMetric === metricKey) {
+      const newValue = parseFloat(editValue);
+      if (!isNaN(newValue) && onMainMetricAnnualEdit) {
+        onMainMetricAnnualEdit(metricKey, newValue);
+      }
+      setEditingAnnualMainMetric(null);
+    }
+  };
+
+  const handleMainMetricAnnualKeyDown = (e: React.KeyboardEvent, metricKey: string) => {
+    if (e.key === 'Enter') {
+      handleMainMetricAnnualBlur(metricKey);
+    }
+    if (e.key === 'Escape') {
+      setEditingAnnualMainMetric(null);
+    }
   };
 
   // Issue creation handler
@@ -528,9 +560,41 @@ export function ForecastResultsGrid({
           </td>
         ) : (
           <td className={cn(
-            "text-right py-2 px-2 font-medium bg-muted/50"
+            "text-right py-2 px-2 font-medium bg-muted/50",
+            !hasChildren && !metric.isDerived && "cursor-pointer"
           )}>
-            {annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'}
+            {/* Editable annual cell for main metrics without sub-metrics (non-derived) */}
+            {editingAnnualMainMetric === metric.key ? (
+              <Input
+                type="number"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={() => handleMainMetricAnnualBlur(metric.key)}
+                onKeyDown={(e) => handleMainMetricAnnualKeyDown(e, metric.key)}
+                className="h-6 w-20 text-right text-sm ml-auto"
+                autoFocus
+              />
+            ) : annualValue !== undefined ? (
+              !hasChildren && !metric.isDerived && onMainMetricAnnualEdit ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span 
+                        className="cursor-pointer hover:underline"
+                        onClick={() => handleMainMetricAnnualClick(metric.key, annualValue, metric.type)}
+                      >
+                        {formatValue(annualValue, metric.type)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">Click to edit annual total</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                formatValue(annualValue, metric.type)
+              )
+            ) : '-'}
           </td>
         )}
         <td className={cn(
