@@ -28,11 +28,10 @@ const METRIC_DEFINITIONS: MetricDefinition[] = [
     reverseCalculate: (value, i) => ({ gp_percent: i.total_sales > 0 ? (value / i.total_sales) * 100 : 0 })
   },
   { key: 'gp_percent', label: 'GP %', type: 'percent', isDriver: true, isDerived: false },
-  { key: 'sales_expense', label: 'Sales Expense', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.gp_net * (i.sales_expense_percent / 100),
-    reverseCalculate: (value, i) => ({ sales_expense_percent: i.gp_net > 0 ? (value / i.gp_net) * 100 : 0 })
+  { key: 'sales_expense', label: 'Sales Expense', type: 'currency', isDriver: true, isDerived: false },
+  { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent', isDriver: false, isDerived: true,
+    calculate: (i) => i.gp_net > 0 ? (i.sales_expense / i.gp_net) * 100 : 0
   },
-  { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent', isDriver: true, isDerived: false },
   { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency', isDriver: false, isDerived: true,
     calculate: (i) => i.gp_net - i.sales_expense
   },
@@ -87,7 +86,7 @@ interface UseForecastCalculationsProps {
   forecastYear: number;
   salesGrowth: number;
   gpPercent: number;
-  salesExpPercent: number;
+  salesExpense: number; // Annual sales expense in dollars (fixed)
   fixedExpense: number;
   subMetricCalcMode?: SubMetricCalcMode; // default: 'solve-for-gp-net'
 }
@@ -101,7 +100,7 @@ export function useForecastCalculations({
   forecastYear,
   salesGrowth,
   gpPercent,
-  salesExpPercent,
+  salesExpense,
   fixedExpense,
   subMetricCalcMode = 'gp-drives-growth',
 }: UseForecastCalculationsProps) {
@@ -180,7 +179,8 @@ export function useForecastCalculations({
     }
     
     const annualGpNet = annualTotalSales * (gpPercent / 100);
-    const annualSalesExp = annualGpNet * (salesExpPercent / 100);
+    const annualSalesExp = salesExpense; // Fixed dollar amount from driver
+    const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0; // Calculated
     const annualPartsTransfer = annualBaseline['parts_transfer'] || 0;
     
     const annualValues: Record<string, number> = {
@@ -188,7 +188,7 @@ export function useForecastCalculations({
       gp_net: annualGpNet,
       gp_percent: gpPercent,
       sales_expense: annualSalesExp,
-      sales_expense_percent: salesExpPercent,
+      sales_expense_percent: annualSalesExpPercent,
       net_selling_gross: annualGpNet - annualSalesExp,
       total_fixed_expense: fixedExpense,
       department_profit: annualGpNet - annualSalesExp - fixedExpense,
@@ -267,14 +267,17 @@ export function useForecastCalculations({
         const baselineGpPercentCalc = annualBaseline['total_sales'] > 0 
           ? (annualBaseline['gp_net'] / annualBaseline['total_sales']) * 100 
           : 0;
-        const baselineSalesExpPercentCalc = annualBaseline['gp_net'] > 0 
-          ? (annualBaseline['sales_expense'] / annualBaseline['gp_net']) * 100 
-          : 0;
+        const baselineSalesExpense = annualBaseline['sales_expense'] || 0;
         
         // Use baseline directly when no changes to avoid rounding differences
         const useBaselineDirectly = salesGrowth === 0 
           && Math.abs(gpPercent - baselineGpPercentCalc) < 0.1 
-          && Math.abs(salesExpPercent - baselineSalesExpPercentCalc) < 0.1;
+          && Math.abs(salesExpense - baselineSalesExpense) < 1; // Within $1
+
+        // Calculate growth factors upfront (needed for multiple branches)
+        const growthFactor = 1 + (salesGrowth / 100);
+        const baselineGpPercentForRatio = baselineGpPercentCalc;
+        const annualGpChangeRatio = baselineGpPercentForRatio > 0 ? gpPercent / baselineGpPercentForRatio : 1;
 
         if (isLocked && existingEntry?.forecast_value !== null) {
           // Use locked value
@@ -282,104 +285,100 @@ export function useForecastCalculations({
         } else if (useBaselineDirectly) {
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
           value = baselineValue;
-        } else if (metric.type === 'percent') {
-          // For percentages, use the driver-defined values (gpPercent, salesExpPercent)
-          value = annualValues[metric.key] || 0;
-        } else {
-          // Apply growth proportionally to baseline values to maintain seasonal patterns
-          const growthFactor = 1 + (salesGrowth / 100);
-          
-          // For GP-drives-growth mode, calculate ratio against ANNUAL baseline GP%
-          // This ensures when driver GP% matches baseline, there's no change
-          const baselineGpPercent = baselineGpPercentCalc;
-          const annualGpChangeRatio = baselineGpPercent > 0 ? gpPercent / baselineGpPercent : 1;
-          
-          if (metric.key === 'total_sales') {
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              // GP% drives growth: Sales scales by GP change ratio AND growth factor
-              value = baselineValue * annualGpChangeRatio * growthFactor;
-            } else {
-              // Standard mode: Scale total_sales by growth factor only
-              value = baselineValue * growthFactor;
-            }
-          } else if (metric.key === 'gp_net') {
-            // GP Net = scaled total_sales * gpPercent
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            value = scaledSales * (gpPercent / 100);
-          } else if (metric.key === 'sales_expense') {
-            // Sales Expense = calculated GP Net * salesExpPercent
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            const calculatedGpNet = scaledSales * (gpPercent / 100);
-            value = calculatedGpNet * (salesExpPercent / 100);
-          } else if (metric.key === 'total_fixed_expense') {
-            // Use baseline pattern for fixed expense
-            value = baselineValue;
-          } else if (metric.key === 'parts_transfer') {
-            // Keep baseline pattern for parts transfer
-            value = baselineValue;
-          } else if (metric.key === 'net_selling_gross') {
-            // Derived: GP Net - Sales Expense
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            const calcGpNet = scaledSales * (gpPercent / 100);
-            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            value = calcGpNet - calcSalesExp;
-          } else if (metric.key === 'department_profit') {
-            // Derived: GP Net - Sales Expense - Fixed
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            const calcGpNet = scaledSales * (gpPercent / 100);
-            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            value = calcGpNet - calcSalesExp - fixedExp;
-          } else if (metric.key === 'net_operating_profit') {
-            // Derived: Dept Profit + Parts Transfer
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            const calcGpNet = scaledSales * (gpPercent / 100);
-            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            const deptProfit = calcGpNet - calcSalesExp - fixedExp;
-            value = deptProfit + baselineMonthlyValues.parts_transfer;
-          } else if (metric.key === 'return_on_gross') {
-            // Derived: (Dept Profit / GP Net) * 100
-            let scaledSales: number;
-            if (subMetricCalcMode === 'gp-drives-growth') {
-              scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
-            } else {
-              scaledSales = baselineMonthlyValues.total_sales * growthFactor;
-            }
-            const calcGpNet = scaledSales * (gpPercent / 100);
-            const calcSalesExp = calcGpNet * (salesExpPercent / 100);
-            const fixedExp = baselineMonthlyValues.total_fixed_expense;
-            const deptProfit = calcGpNet - calcSalesExp - fixedExp;
-            value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
+        } else if (metric.key === 'gp_percent') {
+          // GP% is a driver input
+          value = gpPercent;
+        } else if (metric.key === 'sales_expense_percent') {
+          // Sales Expense % is now calculated: (Sales Expense / GP Net) * 100
+          // Calculate what GP Net would be for this month
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
           } else {
-            // Default: scale by growth factor
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          const calcGpNet = scaledSales * (gpPercent / 100);
+          // Sales expense for this month is distributed by weight
+          const monthlySalesExpense = salesExpense * weightFactor;
+          value = calcGpNet > 0 ? (monthlySalesExpense / calcGpNet) * 100 : 0;
+        } else if (metric.key === 'total_sales') {
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            // GP% drives growth: Sales scales by GP change ratio AND growth factor
+            value = baselineValue * annualGpChangeRatio * growthFactor;
+          } else {
+            // Standard mode: Scale total_sales by growth factor only
             value = baselineValue * growthFactor;
           }
+        } else if (metric.key === 'gp_net') {
+          // GP Net = scaled total_sales * gpPercent
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+          } else {
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          value = scaledSales * (gpPercent / 100);
+        } else if (metric.key === 'sales_expense') {
+          // Sales Expense is now a fixed driver - distribute by weight
+          value = salesExpense * weightFactor;
+        } else if (metric.key === 'total_fixed_expense') {
+          // Use baseline pattern for fixed expense
+          value = baselineValue;
+        } else if (metric.key === 'parts_transfer') {
+          // Keep baseline pattern for parts transfer
+          value = baselineValue;
+        } else if (metric.key === 'net_selling_gross') {
+          // Derived: GP Net - Sales Expense
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+          } else {
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          const calcGpNet = scaledSales * (gpPercent / 100);
+          const calcSalesExp = salesExpense * weightFactor; // Fixed sales expense
+          value = calcGpNet - calcSalesExp;
+        } else if (metric.key === 'department_profit') {
+          // Derived: GP Net - Sales Expense - Fixed
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+          } else {
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          const calcGpNet = scaledSales * (gpPercent / 100);
+          const calcSalesExp = salesExpense * weightFactor; // Fixed sales expense
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          value = calcGpNet - calcSalesExp - fixedExp;
+        } else if (metric.key === 'net_operating_profit') {
+          // Derived: Dept Profit + Parts Transfer
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+          } else {
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          const calcGpNet = scaledSales * (gpPercent / 100);
+          const calcSalesExp = salesExpense * weightFactor; // Fixed sales expense
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          const deptProfit = calcGpNet - calcSalesExp - fixedExp;
+          value = deptProfit + baselineMonthlyValues.parts_transfer;
+        } else if (metric.key === 'return_on_gross') {
+          // Derived: (Dept Profit / GP Net) * 100
+          let scaledSales: number;
+          if (subMetricCalcMode === 'gp-drives-growth') {
+            scaledSales = baselineMonthlyValues.total_sales * annualGpChangeRatio * growthFactor;
+          } else {
+            scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+          }
+          const calcGpNet = scaledSales * (gpPercent / 100);
+          const calcSalesExp = salesExpense * weightFactor; // Fixed sales expense
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          const deptProfit = calcGpNet - calcSalesExp - fixedExp;
+          value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
+        } else {
+          // Default: scale by growth factor
+          value = baselineValue * growthFactor;
         }
         
         monthResults.set(metric.key, {
@@ -395,7 +394,7 @@ export function useForecastCalculations({
     });
     
     return results;
-  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, salesGrowth, gpPercent, salesExpPercent, fixedExpense, subMetricCalcMode]);
+  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, salesGrowth, gpPercent, salesExpense, fixedExpense, subMetricCalcMode]);
 
   // Get quarterly totals
   const calculateQuarterlyValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
