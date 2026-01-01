@@ -29,7 +29,7 @@ interface SubMetricData {
   key: string;
   label: string;
   parentKey: string;
-  annual: { value: number; baseline: number };
+  annual: { value: number; baseline: number; variance: number };
   note?: string;
 }
 
@@ -164,8 +164,19 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Sub-metric notes loaded:", subMetricNotes.length);
     }
 
+    // Fetch sub-metric overrides (forecast values) for the current year
+    let subMetricOverrides: any[] = [];
+    if (includeSubMetrics && forecast) {
+      const { data } = await supabaseClient
+        .from("forecast_submetric_overrides")
+        .select("*")
+        .eq("forecast_id", forecast.id);
+      subMetricOverrides = data || [];
+      console.log("Sub-metric overrides loaded:", subMetricOverrides.length);
+    }
+
     // Fetch sub-metric data from prior year (only if including sub-metrics)
-    let subMetricData: { parentKey: string; name: string; annualValue: number }[] = [];
+    let subMetricData: { parentKey: string; name: string; forecastValue: number; baselineValue: number; variance: number }[] = [];
     if (includeSubMetrics) {
       const { data: subMetricEntries } = await supabaseClient
         .from("financial_entries")
@@ -190,11 +201,24 @@ const handler = async (req: Request): Promise<Response> => {
             grouped.get(key)!.total += entry.value || 0;
           }
         });
-        subMetricData = Array.from(grouped.values()).map((g) => ({
-          parentKey: g.parentKey,
-          name: g.name,
-          annualValue: g.total,
-        }));
+        
+        // Build sub-metric data with forecast values from overrides
+        subMetricData = Array.from(grouped.values()).map((g) => {
+          const override = subMetricOverrides.find(
+            (o) => o.sub_metric_key === g.name && o.parent_metric_key === g.parentKey
+          );
+          const baselineValue = g.total;
+          const forecastValue = override ? override.overridden_annual_value : baselineValue;
+          const variance = forecastValue - baselineValue;
+          
+          return {
+            parentKey: g.parentKey,
+            name: g.name,
+            forecastValue,
+            baselineValue,
+            variance,
+          };
+        });
         console.log("Sub-metric data loaded:", subMetricData.length);
       }
     }
@@ -517,7 +541,7 @@ const handler = async (req: Request): Promise<Response> => {
         groupedByParent.get(sm.parentKey)!.push(sm);
       });
 
-      html += `<h2>Sub-Metric Details (${priorYear} Baseline)</h2>`;
+      html += `<h2>Sub-Metric Details</h2>`;
       
       groupedByParent.forEach((items, parentKey) => {
         const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
@@ -525,7 +549,13 @@ const handler = async (req: Request): Promise<Response> => {
           <table style="margin-bottom: 16px;">
             <thead>
               <tr>
-                <th colspan="2">${parentLabel}</th>
+                <th colspan="4" style="background-color: #f0f9ff; color: #1a1a1a;">${parentLabel}</th>
+              </tr>
+              <tr>
+                <th style="text-align: left;">Sub-Metric</th>
+                <th class="annual-col">${forecastYear}</th>
+                <th class="variance-col">Variance</th>
+                <th class="baseline-col">${priorYear}</th>
               </tr>
             </thead>
             <tbody>
@@ -536,7 +566,9 @@ const handler = async (req: Request): Promise<Response> => {
           html += `
             <tr>
               <td>${item.name}${note ? '<span class="note-flag"></span>' : ''}</td>
-              <td>${formatCurrency(item.annualValue)}</td>
+              <td class="annual-col">${formatCurrency(item.forecastValue)}</td>
+              <td class="variance-col ${item.variance >= 0 ? "positive" : "negative"}">${formatVariance(item.variance, "currency")}</td>
+              <td class="baseline-col">${formatCurrency(item.baselineValue)}</td>
             </tr>
           `;
         });
