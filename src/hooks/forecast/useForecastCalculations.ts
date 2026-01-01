@@ -760,7 +760,8 @@ export function useForecastCalculations({
             // If we're truly at baseline (no sales growth and no GP% change), use baseline directly
             if (salesGrowth === 0 && matchingGpPercent && baselineAnnualGpPercent > 0) {
               const forecastGpPercent = matchingGpPercent.monthlyValues.get(forecastMonth) ?? baselineAnnualGpPercent;
-              const gpPctUnchanged = Math.abs(forecastGpPercent - baselineAnnualGpPercent) < 0.0001;
+              // Match the main-driver tolerance (0.1 percentage points)
+              const gpPctUnchanged = Math.abs(forecastGpPercent - baselineAnnualGpPercent) < 0.1;
               if (gpPctUnchanged && !matchingGpPercent.isOverridden) {
                 forecastValue = subBaseline;
               } else {
@@ -847,8 +848,12 @@ export function useForecastCalculations({
               const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
               const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
 
-              // If baseline settings, use baseline directly to avoid tiny rounding variances
-              if (salesGrowth === 0 && !matchingGpPercent.isOverridden && !matchingSales.isOverridden) {
+              // If baseline settings, use baseline directly to avoid rounding variances
+              // (match the main-driver tolerance: GP% within 0.1pp)
+              const baselineGpPercent = matchingGpPercent.baselineAnnualValue;
+              const gpPctUnchanged = Math.abs(gpPercentValue - baselineGpPercent) < 0.1;
+
+              if (salesGrowth === 0 && gpPctUnchanged && !matchingGpPercent.isOverridden && !matchingSales.isOverridden) {
                 forecastMonthlyValues.set(forecastMonth, subBaseline);
                 annualValue += subBaseline;
                 return;
