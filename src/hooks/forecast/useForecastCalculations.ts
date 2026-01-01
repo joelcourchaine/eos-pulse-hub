@@ -1074,27 +1074,16 @@ export function useForecastCalculations({
         ? (baselineGpNetMonth / baselineSalesMonth) * 100 
         : baselineGpPercentAnnual;
       
-      // If GP Net has changed due to GP% overrides, derive Total Sales from it
+      // If GP Net has changed due to GP% overrides, update GP Net but keep Total Sales at growth-slider value
+      // This allows GP% to increase naturally when GP% sub-metrics are raised
       if (gpNetFromSubs !== undefined && hasGpPercentOverrides) {
-        const gpNetDelta = gpNetFromSubs - baseGpNet;
-        
-        // If GP Net increased (due to GP% override), derive new Total Sales
-        // Total Sales = GP Net / baseline_gp_percent
-        // This keeps the overall GP% close to baseline while showing increased Sales
-        if (Math.abs(gpNetDelta) > 0.01 && baselineGpPercentMonth > 0) {
-          const derivedTotalSales = gpNetFromSubs / (baselineGpPercentMonth / 100);
-          
-          const salesCurrent = adjustedMetrics.get('total_sales');
-          if (salesCurrent) {
-            adjustedMetrics.set('total_sales', { ...salesCurrent, value: derivedTotalSales });
-          }
-        }
-        
-        // Update GP Net with the sub-metric sum
+        // Update GP Net with the sub-metric sum (rolled up from GP% overrides)
         const gpNetCurrent = adjustedMetrics.get('gp_net');
         if (gpNetCurrent) {
           adjustedMetrics.set('gp_net', { ...gpNetCurrent, value: gpNetFromSubs });
         }
+        // Total Sales stays at growth-slider value - DO NOT derive from GP Net
+        // This allows overall GP% to increase when GP% sub-metrics are raised
       } else if (subSums) {
         // Standard sub-metric rollup (no GP% override case)
         const updatedSales = subSums.get('total_sales');
@@ -1204,6 +1193,18 @@ export function useForecastCalculations({
   const quarterlyValues = calculateQuarterlyValues(monthlyValues);
   const annualValues = calculateAnnualValues(monthlyValues);
 
+  // Calculate implied growth from adjusted annual GP Net vs baseline
+  // This allows the Growth slider to update when GP% sub-metric overrides increase GP Net
+  const impliedGrowth = useMemo(() => {
+    const adjustedGpNetAnnual = annualValues.get('gp_net')?.value || 0;
+    const baselineGpNetAnnual = annualBaseline['gp_net'] || 0;
+    
+    if (baselineGpNetAnnual > 0 && adjustedGpNetAnnual > 0) {
+      return ((adjustedGpNetAnnual / baselineGpNetAnnual) - 1) * 100;
+    }
+    return growth; // fallback to current growth slider value
+  }, [annualValues, annualBaseline, growth]);
+
   return {
     monthlyValues,
     quarterlyValues,
@@ -1212,5 +1213,6 @@ export function useForecastCalculations({
     months,
     metricDefinitions: METRIC_DEFINITIONS,
     distributeQuarterToMonths,
+    impliedGrowth,
   };
 }
