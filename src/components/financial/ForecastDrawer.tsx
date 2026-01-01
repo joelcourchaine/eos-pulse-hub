@@ -437,7 +437,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
               <div className="flex items-center gap-2">
                 <Label htmlFor="calc-mode" className="text-sm font-medium">
-                  Sub-metric calculation mode
+                  GP% drives growth
                 </Label>
                 <TooltipProvider>
                   <Tooltip>
@@ -446,8 +446,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="text-sm">
-                        <strong>Solve for GP Net:</strong> Sales and GP% are inputs, GP Net is calculated (GP Net = Sales × GP%)<br/><br/>
-                        <strong>Solve for Sales:</strong> GP Net and GP% are inputs, Sales is calculated (Sales = GP Net ÷ GP%)
+                        <strong>Standard:</strong> Sales growth is independent. GP Net = Sales × GP%<br/><br/>
+                        <strong>GP% Drives Growth:</strong> When GP% improves, Sales increases proportionally (e.g., 25% higher margin → 25% more sales), and GP Net compounds both increases.
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -458,20 +458,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                   "text-sm",
                   subMetricCalcMode === 'solve-for-gp-net' ? "font-medium" : "text-muted-foreground"
                 )}>
-                  GP Net
+                  Standard
                 </span>
                 <Switch
                   id="calc-mode"
-                  checked={subMetricCalcMode === 'solve-for-sales'}
+                  checked={subMetricCalcMode === 'gp-drives-growth'}
                   onCheckedChange={(checked) => 
-                    setSubMetricCalcMode(checked ? 'solve-for-sales' : 'solve-for-gp-net')
+                    setSubMetricCalcMode(checked ? 'gp-drives-growth' : 'solve-for-gp-net')
                   }
                 />
                 <span className={cn(
                   "text-sm",
-                  subMetricCalcMode === 'solve-for-sales' ? "font-medium" : "text-muted-foreground"
+                  subMetricCalcMode === 'gp-drives-growth' ? "font-medium" : "text-muted-foreground"
                 )}>
-                  Sales
+                  GP% Drives Growth
                 </span>
               </div>
             </div>
