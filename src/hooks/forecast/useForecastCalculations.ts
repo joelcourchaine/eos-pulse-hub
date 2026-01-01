@@ -643,12 +643,14 @@ export function useForecastCalculations({
       
       // If overridden, distribute override annual value across months
       if (isOverridden && overriddenAnnual !== undefined) {
+        console.log('[forecast] Applying override for', subMetricKey, 'value:', overriddenAnnual, 'isPercentageParent:', isPercentageParent);
         if (isPercentageParent) {
           // For percentage sub-metrics, each month gets the same percentage value
           months.forEach((forecastMonth) => {
             forecastMonthlyValues.set(forecastMonth, overriddenAnnual);
             annualValue += overriddenAnnual;
           });
+          console.log('[forecast] After override application, annualValue:', annualValue);
         } else {
           // For currency sub-metrics, distribute proportionally based on baseline pattern
           let totalBaselineWeight = 0;
