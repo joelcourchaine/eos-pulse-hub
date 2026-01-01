@@ -717,6 +717,7 @@ export type Database = {
           forecast_year: number
           id: string
           is_resolved: boolean
+          issue_id: string | null
           note: string | null
           parent_metric_key: string
           resolved_at: string | null
@@ -731,6 +732,7 @@ export type Database = {
           forecast_year: number
           id?: string
           is_resolved?: boolean
+          issue_id?: string | null
           note?: string | null
           parent_metric_key: string
           resolved_at?: string | null
@@ -745,6 +747,7 @@ export type Database = {
           forecast_year?: number
           id?: string
           is_resolved?: boolean
+          issue_id?: string | null
           note?: string | null
           parent_metric_key?: string
           resolved_at?: string | null
@@ -758,6 +761,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "forecast_submetric_notes_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
             referencedColumns: ["id"]
           },
         ]
