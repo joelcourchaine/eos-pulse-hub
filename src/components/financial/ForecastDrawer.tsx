@@ -595,6 +595,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               onToggleLock={handleToggleLock}
               onMonthNavigate={handleMonthNavigate}
               onSubMetricEdit={handleSubMetricEdit}
+              departmentId={departmentId}
             />
 
             {/* Baseline Comparison */}

@@ -3,6 +3,8 @@ import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
+import { useSubMetricQuestions } from '@/hooks/useSubMetricQuestions';
+import { SubMetricQuestionTooltip } from '../SubMetricQuestionTooltip';
 
 interface CalculationResult {
   month: string;
@@ -48,6 +50,7 @@ interface ForecastResultsGridProps {
   onToggleLock?: (month: string, metricName: string) => void;
   onMonthNavigate?: (direction: 'prev' | 'next') => void;
   onSubMetricEdit?: (subMetricKey: string, parentKey: string, newAnnualValue: number) => void;
+  departmentId?: string;
 }
 
 const formatCurrency = (value: number) => {
@@ -79,11 +82,15 @@ export function ForecastResultsGrid({
   onToggleLock,
   onMonthNavigate,
   onSubMetricEdit,
+  departmentId,
 }: ForecastResultsGridProps) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editingAnnualSubMetric, setEditingAnnualSubMetric] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
+  
+  // Get question data for sub-metric tooltips
+  const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
 
   // Number of months to show at once
   const VISIBLE_MONTH_COUNT = 6;
@@ -234,13 +241,26 @@ export function ForecastResultsGrid({
               </Button>
             )}
             {!hasChildren && !isSubMetric && <span className="w-5" />}
-            <span className={cn(
-              metric.isDriver && "font-medium text-primary",
-              isSubMetric && "text-muted-foreground text-xs",
-              isDeptProfit && "font-semibold text-primary"
-            )}>
-              {metric.label}
-            </span>
+            {isSubMetric && hasQuestionsForSubMetric(metric.label) ? (
+              <SubMetricQuestionTooltip
+                subMetricName={metric.label}
+                questions={getQuestionsForSubMetric(metric.label)}
+              >
+                <span className={cn(
+                  "text-muted-foreground text-xs"
+                )}>
+                  {metric.label}
+                </span>
+              </SubMetricQuestionTooltip>
+            ) : (
+              <span className={cn(
+                metric.isDriver && "font-medium text-primary",
+                isSubMetric && "text-muted-foreground text-xs",
+                isDeptProfit && "font-semibold text-primary"
+              )}>
+                {metric.label}
+              </span>
+            )}
           </div>
         </td>
         

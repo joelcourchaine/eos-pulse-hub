@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Target } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSubMetricQuestions } from "@/hooks/useSubMetricQuestions";
+import { SubMetricQuestionTooltip } from "./SubMetricQuestionTooltip";
 
 interface SubMetricEntry {
   name: string;
@@ -61,6 +63,8 @@ interface SubMetricsRowProps {
   quarterTrendPeriods?: QuarterTrendPeriod[];
   // Function to get all month identifiers for a quarter (for aggregation)
   getQuarterMonths?: (quarter: number, year: number) => string[];
+  // Department ID for fetching related questions
+  departmentId?: string;
 }
 
 // Helper to calculate average from values
@@ -115,11 +119,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   getParentMetricTotal,
   quarterTrendPeriods,
   getQuarterMonths,
+  departmentId,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [editingValue, setEditingValue] = useState<string | null>(null);
   const [valueEditValue, setValueEditValue] = useState<string>("");
+  
+  // Get question data for sub-metric tooltips
+  const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
 
   if (!isExpanded) return null;
   
@@ -291,9 +299,20 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 >
                   <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                  {subMetric.name}
-                </p>
+                {hasQuestionsForSubMetric(subMetric.name) ? (
+                  <SubMetricQuestionTooltip
+                    subMetricName={subMetric.name}
+                    questions={getQuestionsForSubMetric(subMetric.name)}
+                  >
+                    <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                      {subMetric.name}
+                    </p>
+                  </SubMetricQuestionTooltip>
+                ) : (
+                  <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                    {subMetric.name}
+                  </p>
+                )}
                 {/* Show target indicator if target is set */}
                 {getSubMetricTarget && quarter && currentYear && 
                   getSubMetricTarget(subMetric.name, quarter, currentYear) !== null && (
@@ -538,9 +557,20 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               >
                 <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
-                {subMetric.name}
-              </p>
+              {hasQuestionsForSubMetric(subMetric.name) ? (
+                <SubMetricQuestionTooltip
+                  subMetricName={subMetric.name}
+                  questions={getQuestionsForSubMetric(subMetric.name)}
+                >
+                  <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                    {subMetric.name}
+                  </p>
+                </SubMetricQuestionTooltip>
+              ) : (
+                <p className="text-[10px] leading-tight text-muted-foreground truncate" title={subMetric.name}>
+                  {subMetric.name}
+                </p>
+              )}
               {/* Show target indicator if target is set */}
               {getSubMetricTarget && quarter && currentYear && 
                 getSubMetricTarget(subMetric.name, quarter, currentYear) !== null && (
