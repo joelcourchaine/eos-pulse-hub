@@ -103,6 +103,7 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
   const driversInitialized = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+
   // Hooks
   const {
     forecast,
@@ -231,6 +232,21 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     subMetricCalcMode,
   });
 
+  // Keep latest computed values in refs so the auto-save effect
+  // doesn't need to depend on large Map objects (which change identity often).
+  // doesn't need to depend on large Map objects (which change identity often).
+  const latestMonthlyValuesRef = useRef(monthlyValues);
+  const latestEntriesRef = useRef(entries);
+
+  useEffect(() => {
+    latestMonthlyValuesRef.current = monthlyValues;
+  }, [monthlyValues]);
+
+  useEffect(() => {
+    latestEntriesRef.current = entries;
+  }, [entries]);
+
+
   // Create forecast if it doesn't exist when drawer opens
   useEffect(() => {
     if (open && !forecast && !isLoading && calculatedWeights.length > 0 && !createForecast.isPending) {
@@ -278,23 +294,27 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
     }
   }, [priorYearData]);
 
-  // Auto-save forecast entries when drivers change
+  // Auto-save forecast entries when inputs change (drivers/weights/overrides)
   useEffect(() => {
+    if (!open) return;
     if (!forecast || !driversInitialized.current) return;
-    
+    if (bulkUpdateEntries.isPending) return;
+
     // Debounce auto-save
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
     }
-    
+
     autoSaveTimerRef.current = setTimeout(() => {
-      // Build updates from calculated values
+      const currentMonthlyValues = latestMonthlyValuesRef.current;
+      const currentEntries = latestEntriesRef.current;
+
+      // Build updates from calculated values (skip locked)
       const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
-      
-      monthlyValues.forEach((metrics, month) => {
+
+      currentMonthlyValues.forEach((metrics, month) => {
         metrics.forEach((result, metricKey) => {
-          // Only save if not locked
-          const entry = entries.find(e => e.month === month && e.metric_name === metricKey);
+          const entry = currentEntries.find((e) => e.month === month && e.metric_name === metricKey);
           if (!entry?.is_locked) {
             updates.push({
               month,
@@ -305,22 +325,29 @@ export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerPro
           }
         });
       });
-      
+
       if (updates.length > 0) {
-        bulkUpdateEntries.mutate(updates, {
-          onSuccess: () => {
-            // Silent save, no toast
-          },
-        });
+        bulkUpdateEntries.mutate(updates);
       }
-    }, 1500); // 1.5 second debounce
-    
+    }, 800);
+
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [salesGrowth, gpPercent, salesExpense, fixedExpense, monthlyValues, forecast, entries]);
+  }, [
+    open,
+    forecast?.id,
+    salesGrowth,
+    gpPercent,
+    salesExpense,
+    fixedExpense,
+    weights,
+    subMetricOverrides,
+    subMetricCalcMode,
+    bulkUpdateEntries.isPending,
+  ]);
 
   // Handle cell edits
   const handleCellEdit = (month: string, metricName: string, value: number) => {
