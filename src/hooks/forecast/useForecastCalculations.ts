@@ -1043,6 +1043,12 @@ export function useForecastCalculations({
 
       // Pair by statement orderIndex (NOT by name). Names can repeat and vary; order is the reliable key.
       const salesExpByOrder = new Map<number, SubMetricForecast>();
+      const salesExpOrdered = [...salesExpForecasts].sort((a, b) => {
+        const ao = parseInt(a.key.split(':')[2] ?? '', 10);
+        const bo = parseInt(b.key.split(':')[2] ?? '', 10);
+        return (Number.isNaN(ao) ? 0 : ao) - (Number.isNaN(bo) ? 0 : bo);
+      });
+
       for (const sf of salesExpForecasts) {
         const order = parseInt(sf.key.split(':')[2] ?? '', 10);
         if (!Number.isNaN(order)) {
@@ -1052,7 +1058,7 @@ export function useForecastCalculations({
 
       const forecasts: SubMetricForecast[] = salesExpensePercentSubs.map((sub, index) => {
         const orderIndex = sub.orderIndex ?? index;
-        const matchingSalesExp = salesExpByOrder.get(orderIndex);
+        const matchingSalesExp = salesExpByOrder.get(orderIndex) ?? salesExpOrdered[index];
         
         // If we have a matching sales_expense sub-metric (same orderIndex), derive the percentage from it
         if (matchingSalesExp) {

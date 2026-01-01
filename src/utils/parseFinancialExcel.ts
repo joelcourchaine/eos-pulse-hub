@@ -226,12 +226,14 @@ export const parseFinancialExcel = (
             a.metric_key.localeCompare(b.metric_key, undefined, { numeric: true })
           );
           
-          let orderIndex = 0;
+          // Use Excel row number as orderIndex so $ and % lines on the same row share a stable key.
+          // This avoids any name-based pairing and makes cross-parent pairing deterministic.
+          let fallbackOrderIndex = 0;
           for (const mapping of sortedMappings) {
             // Try exact match first, then case-insensitive match, then fall back to first sheet
             let sheet = workbook.Sheets[mapping.sheet_name];
             let actualSheetName = mapping.sheet_name;
-            
+
             if (!sheet) {
               // Try case-insensitive match
               const sheetNameLower = mapping.sheet_name.toLowerCase();
@@ -249,12 +251,16 @@ export const parseFinancialExcel = (
                 console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found; using "${actualSheetName}" instead. Available sheets:`, workbook.SheetNames);
               }
             }
-            
+
             if (!sheet) {
               console.warn(`[Excel Parse Sub] No sheets found in workbook.`);
               continue;
             }
-            
+
+            // Derive statement order from the row number in cell_reference (e.g., "D70" -> 70)
+            const cellRef = parseCellReference(mapping.cell_reference);
+            const orderIndex = cellRef?.row ?? fallbackOrderIndex++;
+
             // Read the metric name from name_cell_reference OR extract from metric_key
             let metricName: string | null = null;
             if (mapping.name_cell_reference) {
@@ -262,7 +268,7 @@ export const parseFinancialExcel = (
               metricName = extractStringValue(nameCell);
               console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}" (cell exists: ${!!nameCell})`);
             }
-            
+
             // If no name_cell_reference or it returned garbage (single char), extract name from metric_key
             // metric_key format: "sub:parent_key:order:Name" e.g., "sub:total_sales:01:Repair Shop"
             // or legacy format: "sub:parent_key:Name" e.g., "sub:total_sales:Repair Shop"
@@ -278,23 +284,21 @@ export const parseFinancialExcel = (
                 console.log(`[Excel Parse Sub] ${deptName} - Using name from metric_key (legacy): "${metricName}"`);
               }
             }
-            
+
             // Read the value from cell_reference
             const valueCell = sheet[mapping.cell_reference];
             const value = extractNumericValue(valueCell, workbook);
             console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${mapping.cell_reference}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
 
-            
             // Only include if we have both a name and the parent key
             if (metricName && mapping.parent_metric_key) {
               subMetricsResult[deptName].push({
                 parentMetricKey: mapping.parent_metric_key,
                 name: metricName,
                 value: value,
-                orderIndex: orderIndex,
+                orderIndex,
               });
               console.log(`[Excel Parse Sub] Added sub-metric [${orderIndex}]: ${mapping.parent_metric_key} -> "${metricName}" = ${value}`);
-              orderIndex++;
             } else {
               console.log(`[Excel Parse Sub] Skipped: metricName="${metricName}", parent_metric_key="${mapping.parent_metric_key}"`);
             }
