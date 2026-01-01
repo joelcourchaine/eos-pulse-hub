@@ -249,27 +249,33 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   }, [priorYearData]);
 
+
+  const overridesSignature = useMemo(() => {
+    return subMetricOverrides
+      .map((o) => `${o.subMetricKey}:${o.overriddenAnnualValue}`)
+      .join('|');
+  }, [subMetricOverrides]);
+
   // Sync growth slider with implied growth when sub-metric overrides change
-  // Use a ref to track the last synced value and prevent infinite loops
-  const lastSyncedImpliedGrowth = useRef<number | null>(null);
-  
+  // IMPORTANT: Only sync once per overridesSignature to prevent feedback loops
+  const lastSyncedOverridesSignature = useRef<string | null>(null);
+
   useEffect(() => {
     if (!driversInitialized.current) return;
+
     if (subMetricOverrides.length === 0) {
-      lastSyncedImpliedGrowth.current = null;
+      lastSyncedOverridesSignature.current = null;
       return;
     }
-    
-    // Only update if implied growth differs meaningfully AND we haven't already synced to this value
-    if (
-      impliedGrowth !== undefined && 
-      Math.abs(impliedGrowth - growth) > 0.1 &&
-      lastSyncedImpliedGrowth.current !== impliedGrowth
-    ) {
-      lastSyncedImpliedGrowth.current = impliedGrowth;
+
+    // If we've already synced for the current override set, do nothing
+    if (lastSyncedOverridesSignature.current === overridesSignature) return;
+
+    if (impliedGrowth !== undefined && Math.abs(impliedGrowth - growth) > 0.1) {
+      lastSyncedOverridesSignature.current = overridesSignature;
       setGrowth(impliedGrowth);
     }
-  }, [impliedGrowth, subMetricOverrides.length, growth]);
+  }, [impliedGrowth, overridesSignature, subMetricOverrides.length, growth]);
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
@@ -277,11 +283,6 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       .join('|');
   }, [weights]);
 
-  const overridesSignature = useMemo(() => {
-    return subMetricOverrides
-      .map((o) => `${o.subMetricKey}:${o.overriddenAnnualValue}`)
-      .join('|');
-  }, [subMetricOverrides]);
 
   // Auto-save forecast entries when inputs change (drivers/weights/overrides)
   useEffect(() => {
