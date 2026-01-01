@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.send-kpi-trend-email]
 verify_jwt = true
+
+[functions.send-forecast-email]
+verify_jwt = true
