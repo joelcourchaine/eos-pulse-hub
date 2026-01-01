@@ -106,11 +106,8 @@ export function useForecastCalculations({
   subMetricCalcMode = 'gp-drives-growth',
 }: UseForecastCalculationsProps) {
   
-  if (import.meta.env.DEV) {
-    console.debug('[useForecastCalculations] hook called', {
-      subMetricOverridesLength: subMetricOverrides?.length ?? 0,
-    });
-  }
+  // Debug: unconditional log
+  console.log('[useForecastCalculations] hook called, overrides:', subMetricOverrides?.length ?? 0);
   
   // Get all months for the forecast year
   const months = useMemo(() => {
