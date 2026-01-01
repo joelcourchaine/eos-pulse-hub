@@ -460,34 +460,65 @@ export function useForecastCalculations({
   const calculateAnnualValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
     const annualResults = new Map<string, CalculationResult>();
     
+    // First, sum all currency values to calculate derived percentages correctly
+    const totals: Record<string, { value: number; baseline: number; locked: boolean }> = {};
+    
     METRIC_DEFINITIONS.forEach(metric => {
-      let totalValue = 0;
-      let totalBaseline = 0;
-      let anyLocked = false;
-      
-      months.forEach(month => {
-        const monthData = monthlyValues.get(month);
+      totals[metric.key] = { value: 0, baseline: 0, locked: false };
+    });
+    
+    months.forEach(month => {
+      const monthData = monthlyValues.get(month);
+      METRIC_DEFINITIONS.forEach(metric => {
         const metricData = monthData?.get(metric.key);
-        
         if (metricData) {
-          totalValue += metricData.value;
-          totalBaseline += metricData.baseline_value;
-          if (metricData.is_locked) anyLocked = true;
+          totals[metric.key].value += metricData.value;
+          totals[metric.key].baseline += metricData.baseline_value;
+          if (metricData.is_locked) totals[metric.key].locked = true;
         }
       });
+    });
+    
+    // Now calculate proper values - percentages should be calculated from totals, not averaged
+    METRIC_DEFINITIONS.forEach(metric => {
+      let finalValue = totals[metric.key].value;
+      let finalBaseline = totals[metric.key].baseline;
       
-      // For percentages, average instead of sum
-      if (metric.type === 'percent') {
-        totalValue = totalValue / 12;
-        totalBaseline = totalBaseline / 12;
+      if (metric.key === 'gp_percent') {
+        // GP% = GP Net / Total Sales * 100
+        const gpNet = totals['gp_net']?.value ?? 0;
+        const totalSales = totals['total_sales']?.value ?? 0;
+        finalValue = totalSales > 0 ? (gpNet / totalSales) * 100 : 0;
+        
+        const baselineGpNet = totals['gp_net']?.baseline ?? 0;
+        const baselineSales = totals['total_sales']?.baseline ?? 0;
+        finalBaseline = baselineSales > 0 ? (baselineGpNet / baselineSales) * 100 : 0;
+      } else if (metric.key === 'sales_expense_percent') {
+        // Sales Exp % = Sales Expense / GP Net * 100
+        const salesExp = totals['sales_expense']?.value ?? 0;
+        const gpNet = totals['gp_net']?.value ?? 0;
+        finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+        
+        const baselineSalesExp = totals['sales_expense']?.baseline ?? 0;
+        const baselineGpNet = totals['gp_net']?.baseline ?? 0;
+        finalBaseline = baselineGpNet > 0 ? (baselineSalesExp / baselineGpNet) * 100 : 0;
+      } else if (metric.key === 'return_on_gross') {
+        // Return on Gross = Dept Profit / GP Net * 100
+        const deptProfit = totals['department_profit']?.value ?? 0;
+        const gpNet = totals['gp_net']?.value ?? 0;
+        finalValue = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
+        
+        const baselineDeptProfit = totals['department_profit']?.baseline ?? 0;
+        const baselineGpNet = totals['gp_net']?.baseline ?? 0;
+        finalBaseline = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
       }
       
       annualResults.set(metric.key, {
         month: 'annual',
         metric_name: metric.key,
-        value: totalValue,
-        baseline_value: totalBaseline,
-        is_locked: anyLocked,
+        value: finalValue,
+        baseline_value: finalBaseline,
+        is_locked: totals[metric.key].locked,
       });
     });
     
