@@ -25,7 +25,7 @@ import { MonthDropZone } from "./MonthDropZone";
 import { useSubMetrics } from "@/hooks/useSubMetrics";
 import { useSubMetricTargets } from "@/hooks/useSubMetricTargets";
 import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
-import { ForecastDrawer, type ForecastDrawerHandle } from "./ForecastDrawer";
+import { ForecastDrawer } from "./ForecastDrawer";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -253,7 +253,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
   const [copyMetadata, setCopyMetadata] = useState<{ [monthId: string]: { sourceLabel: string; copiedAt: string } }>({});
   const [forecastDrawerOpen, setForecastDrawerOpen] = useState(false);
-  const forecastDrawerRef = useRef<ForecastDrawerHandle>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -1942,10 +1941,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     setEditingTarget(null);
     
-    // If gp_percent target was saved, also update the forecast driver so sub-metrics recalculate
-    if (metricKey === 'gp_percent') {
-      forecastDrawerRef.current?.setGpPercent(newValue);
-    }
+    // GP% targets no longer directly drive forecast calculations
+    // The single growth slider now controls forecast scaling
     
     // Reload targets and financial data to recalculate statuses immediately
     await loadTargets();
@@ -4273,7 +4270,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       />
       
       <ForecastDrawer
-        ref={forecastDrawerRef}
         open={forecastDrawerOpen}
         onOpenChange={setForecastDrawerOpen}
         departmentId={departmentId}
