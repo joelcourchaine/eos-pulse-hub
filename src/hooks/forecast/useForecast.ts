@@ -186,7 +186,9 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
   });
 
-  // Bulk update entries (for cascade calculations) - optimized with parallel updates
+  // Bulk update entries (for cascade calculations)
+  // Important: do NOT invalidate+refetch on success, otherwise the recalculation layer
+  // will often re-trigger autosaves due to identity changes in computed Maps.
   const bulkUpdateEntries = useMutation({
     mutationFn: async (updates: { month: string; metricName: string; forecastValue: number | null; baselineValue?: number | null }[]) => {
       if (!forecast?.id) throw new Error('No forecast');
@@ -202,15 +204,16 @@ export function useForecast(departmentId: string | undefined, year: number) {
         is_locked: boolean;
       }[] = [];
 
+      const existingEntries = entries ?? [];
+
       for (const update of updates) {
-        const existing = entries?.find(e => e.month === update.month && e.metric_name === update.metricName);
-        
+        const existing = existingEntries.find((e) => e.month === update.month && e.metric_name === update.metricName);
+
         if (existing && !existing.is_locked) {
-          // Queue update operation
           const op = (async () => {
             const { error } = await supabase
               .from('forecast_entries')
-              .update({ 
+              .update({
                 forecast_value: update.forecastValue,
                 ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
               })
@@ -219,7 +222,6 @@ export function useForecast(departmentId: string | undefined, year: number) {
           })();
           updateOps.push(op);
         } else if (!existing) {
-          // Collect inserts for batch
           insertRows.push({
             forecast_id: forecast.id,
             month: update.month,
@@ -231,19 +233,55 @@ export function useForecast(departmentId: string | undefined, year: number) {
         }
       }
 
-      // Run all updates in parallel
       await Promise.all(updateOps);
 
-      // Batch insert new entries
       if (insertRows.length > 0) {
-        const { error } = await supabase
-          .from('forecast_entries')
-          .insert(insertRows);
+        const { error } = await supabase.from('forecast_entries').insert(insertRows);
         if (error) throw error;
       }
+
+      return { updates, insertRows };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+    onSuccess: (payload) => {
+      // Update cache in-place to prevent refetch loops
+      const key = ['forecast-entries', forecast?.id] as const;
+      queryClient.setQueryData(key, (prev: ForecastEntry[] | undefined) => {
+        const current = prev ?? [];
+        const map = new Map<string, ForecastEntry>(
+          current.map((e) => [`${e.month}::${e.metric_name}`, e])
+        );
+
+        for (const u of payload.updates) {
+          const k = `${u.month}::${u.metricName}`;
+          const existing = map.get(k);
+          if (existing) {
+            map.set(k, {
+              ...existing,
+              forecast_value: u.forecastValue,
+              baseline_value: u.baselineValue ?? existing.baseline_value,
+            });
+          }
+        }
+
+        // We don't have IDs for inserted rows here (DB generated), but we also don't need them
+        // for calculations. Add placeholder IDs so UI stays consistent until next real fetch.
+        for (const ins of payload.insertRows) {
+          const k = `${ins.month}::${ins.metric_name}`;
+          if (!map.has(k)) {
+            map.set(k, {
+              id: `temp_${ins.month}_${ins.metric_name}`,
+              forecast_id: ins.forecast_id,
+              month: ins.month,
+              metric_name: ins.metric_name,
+              forecast_value: ins.forecast_value,
+              baseline_value: ins.baseline_value,
+              is_locked: ins.is_locked,
+            });
+          }
+        }
+
+        return Array.from(map.values());
+      });
     },
   });
 
