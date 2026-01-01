@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +20,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
+export interface ForecastDrawerHandle {
+  setGpPercent: (value: number) => void;
+}
+
 interface ForecastDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,7 +37,10 @@ const formatCurrency = (value: number) => {
   return `$${value.toFixed(0)}`;
 };
 
-export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
+export const ForecastDrawer = forwardRef<ForecastDrawerHandle, ForecastDrawerProps>(function ForecastDrawer(
+  { open, onOpenChange, departmentId, departmentName },
+  ref
+) {
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear, currentYear + 1];
   
@@ -79,6 +86,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   
   // Sub-metric calculation mode: solve-for-gp-net (default) or solve-for-sales
   const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('gp-drives-growth');
+
+  // Expose imperative handle so parent can update gpPercent when a target is saved
+  useImperativeHandle(ref, () => ({
+    setGpPercent: (value: number) => {
+      setGpPercent(value);
+    },
+  }), []);
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
@@ -568,4 +582,4 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       </SheetContent>
     </Sheet>
   );
-}
+});
