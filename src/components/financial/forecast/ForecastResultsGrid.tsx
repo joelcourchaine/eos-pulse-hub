@@ -1,10 +1,15 @@
 import { cn } from '@/lib/utils';
-import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, Lock, Unlock, Flag, StickyNote, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { useSubMetricQuestions } from '@/hooks/useSubMetricQuestions';
 import { SubMetricQuestionTooltip } from '../SubMetricQuestionTooltip';
+import { useForecastSubMetricNotes } from '@/hooks/useForecastSubMetricNotes';
 
 interface CalculationResult {
   month: string;
@@ -89,8 +94,16 @@ export function ForecastResultsGrid({
   const [editValue, setEditValue] = useState('');
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   
+  // Note dialog state
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [currentNoteSubMetric, setCurrentNoteSubMetric] = useState<{ key: string; parentKey: string; label: string } | null>(null);
+  const [currentNoteText, setCurrentNoteText] = useState('');
+  
   // Get question data for sub-metric tooltips
   const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
+  
+  // Get forecast sub-metric notes
+  const { saveNote, resolveNote, getNote, hasActiveNote } = useForecastSubMetricNotes(departmentId, forecastYear);
 
   // Number of months to show at once
   const VISIBLE_MONTH_COUNT = 6;
@@ -201,6 +214,34 @@ export function ForecastResultsGrid({
     if (e.key === 'Escape') {
       setEditingAnnualSubMetric(null);
     }
+  };
+
+  // Note handlers
+  const handleOpenNoteDialog = (subMetricKey: string, parentKey: string, label: string) => {
+    const existingNote = getNote(subMetricKey);
+    setCurrentNoteSubMetric({ key: subMetricKey, parentKey, label });
+    setCurrentNoteText(existingNote?.note || '');
+    setNoteDialogOpen(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!currentNoteSubMetric) return;
+    
+    const success = await saveNote(
+      currentNoteSubMetric.key,
+      currentNoteSubMetric.parentKey,
+      currentNoteText
+    );
+    
+    if (success) {
+      setNoteDialogOpen(false);
+      setCurrentNoteSubMetric(null);
+      setCurrentNoteText('');
+    }
+  };
+
+  const handleResolveNote = async (subMetricKey: string) => {
+    await resolveNote(subMetricKey);
   };
 
   const renderMetricRow = (metric: MetricDefinition, isSubMetric = false, subMetricData?: SubMetricData) => {
@@ -336,36 +377,74 @@ export function ForecastResultsGrid({
           );
         })}
         
-        <td className={cn(
-          "text-right py-2 px-2 font-medium bg-muted/50",
-          isSubMetric && "text-xs font-normal",
-          isSubMetric && subMetricData?.isOverridden && "bg-blue-50 dark:bg-blue-950/30"
-        )}>
-          {isSubMetric && subMetricData && editingAnnualSubMetric === subMetricData.key ? (
-            <Input
-              type="number"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onBlur={() => handleSubMetricAnnualBlur(subMetricData.key, subMetricData.parentKey)}
-              onKeyDown={(e) => handleSubMetricAnnualKeyDown(e, subMetricData.key, subMetricData.parentKey)}
-              className="h-6 w-20 text-right text-xs ml-auto"
-              autoFocus
-            />
-          ) : isSubMetric && subMetricData && annualValue !== undefined ? (
-            <span 
-              className={cn(
-                "cursor-pointer hover:underline",
-                subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
-              )}
-              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
-              title="Click to edit this sub-metric's annual target"
-            >
-              {formatValue(annualValue, metric.type)}
-            </span>
-          ) : (
-            annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'
-          )}
-        </td>
+        {isSubMetric && subMetricData ? (
+          <td className={cn(
+            "text-right py-2 px-2 font-medium bg-muted/50 text-xs font-normal relative",
+            subMetricData.isOverridden && "bg-blue-50 dark:bg-blue-950/30"
+          )}>
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div className="relative">
+                  {editingAnnualSubMetric === subMetricData.key ? (
+                    <Input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={() => handleSubMetricAnnualBlur(subMetricData.key, subMetricData.parentKey)}
+                      onKeyDown={(e) => handleSubMetricAnnualKeyDown(e, subMetricData.key, subMetricData.parentKey)}
+                      className="h-6 w-20 text-right text-xs ml-auto"
+                      autoFocus
+                    />
+                  ) : annualValue !== undefined ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span 
+                            className={cn(
+                              "cursor-pointer hover:underline inline-block",
+                              subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+                            )}
+                            onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
+                          >
+                            {formatValue(annualValue, metric.type)}
+                          </span>
+                        </TooltipTrigger>
+                        {hasActiveNote(subMetricData.key) && (
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm">{getNote(subMetricData.key)?.note}</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    '-'
+                  )}
+                  {hasActiveNote(subMetricData.key) && (
+                    <Flag className="h-3 w-3 absolute -right-1 -top-1 text-amber-500 fill-amber-500" />
+                  )}
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent className="w-48 bg-popover z-50">
+                <ContextMenuItem onClick={() => handleOpenNoteDialog(subMetricData.key, subMetricData.parentKey, metric.label)}>
+                  <StickyNote className="h-4 w-4 mr-2" />
+                  {hasActiveNote(subMetricData.key) ? "Edit Note" : "Add Note"}
+                </ContextMenuItem>
+                {hasActiveNote(subMetricData.key) && (
+                  <ContextMenuItem onClick={() => handleResolveNote(subMetricData.key)}>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Resolve Note
+                  </ContextMenuItem>
+                )}
+              </ContextMenuContent>
+            </ContextMenu>
+          </td>
+        ) : (
+          <td className={cn(
+            "text-right py-2 px-2 font-medium bg-muted/50"
+          )}>
+            {annualValue !== undefined ? formatValue(annualValue, metric.type) : '-'}
+          </td>
+        )}
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-primary/10",
           isSubMetric && "text-xs font-normal"
@@ -477,8 +556,40 @@ export function ForecastResultsGrid({
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
-        Click values to edit • Click sub-metric annual values to set individual targets • Click lock icon to freeze cells
+        Click values to edit • Click sub-metric annual values to set individual targets • Right-click sub-metric annual values to add notes • Click lock icon to freeze cells
       </p>
+
+      {/* Note Dialog */}
+      <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {currentNoteSubMetric ? (hasActiveNote(currentNoteSubMetric.key) ? 'Edit Note' : 'Add Note') : 'Note'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {currentNoteSubMetric && (
+              <p className="text-sm text-muted-foreground">
+                {currentNoteSubMetric.label} — {forecastYear} Annual
+              </p>
+            )}
+            <Textarea
+              value={currentNoteText}
+              onChange={(e) => setCurrentNoteText(e.target.value)}
+              placeholder="Enter your note..."
+              className="min-h-[100px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveNote}>
+              Save Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
