@@ -135,11 +135,24 @@ export function useForecastCalculations({
   // Calculate annual baseline from prior year data
   const annualBaseline = useMemo(() => {
     const totals: Record<string, number> = {};
+    let sawPartsTransfer = false;
+
     baselineData.forEach((metrics) => {
       metrics.forEach((value, metricName) => {
+        if (metricName === 'parts_transfer') sawPartsTransfer = true;
         totals[metricName] = (totals[metricName] || 0) + value;
       });
     });
+
+    // Some brands don't store parts_transfer directly; derive it from adjusted_selling_gross when present.
+    // Only do this when parts_transfer is truly missing (not when it's legitimately zero).
+    if (!sawPartsTransfer && totals.adjusted_selling_gross !== undefined) {
+      const derivedNetSellingGross =
+        totals.net_selling_gross ??
+        (totals.gp_net || 0) - (totals.sales_expense || 0) - (totals.semi_fixed_expense || 0);
+      totals.parts_transfer = totals.adjusted_selling_gross - derivedNetSellingGross;
+    }
+
     return totals;
   }, [baselineData]);
 
@@ -204,35 +217,47 @@ export function useForecastCalculations({
         // Check if this entry is locked
         const isLocked = existingEntry?.is_locked ?? false;
 
-        const baselineMonthData = baselineData.get(priorYearMonth);
-        const baselineInputs = {
-          total_sales: baselineMonthData?.get('total_sales') ?? 0,
-          gp_net: baselineMonthData?.get('gp_net') ?? 0,
-          sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
-          semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
-          total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
-          parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
-        };
+         const baselineMonthData = baselineData.get(priorYearMonth);
+         const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
 
-        const baselineMonthlyValues: Record<string, number> = {
-          total_sales: baselineInputs.total_sales,
-          gp_net: baselineInputs.gp_net,
-          gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
-          sales_expense: baselineInputs.sales_expense,
-          sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
-          semi_fixed_expense: baselineInputs.semi_fixed_expense,
-          total_fixed_expense: baselineInputs.total_fixed_expense,
-          net_selling_gross: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense,
-          department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense,
-          parts_transfer: baselineInputs.parts_transfer,
-          net_operating_profit:
-            (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) +
-            (baselineInputs.parts_transfer || 0),
-          return_on_gross:
-            baselineInputs.gp_net > 0
-              ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
-              : 0,
-        };
+         const baselineInputs = {
+           total_sales: baselineMonthData?.get('total_sales') ?? 0,
+           gp_net: baselineMonthData?.get('gp_net') ?? 0,
+           sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+           semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
+           total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+           adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
+           parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+         };
+
+         const baselineNetSellingGross =
+           baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense;
+
+         const derivedPartsTransfer = hasStoredPartsTransfer
+           ? baselineInputs.parts_transfer
+           : baselineInputs.adjusted_selling_gross
+             ? baselineInputs.adjusted_selling_gross - baselineNetSellingGross
+             : 0;
+
+         const baselineMonthlyValues: Record<string, number> = {
+           total_sales: baselineInputs.total_sales,
+           gp_net: baselineInputs.gp_net,
+           gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
+           sales_expense: baselineInputs.sales_expense,
+           sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+           semi_fixed_expense: baselineInputs.semi_fixed_expense,
+           total_fixed_expense: baselineInputs.total_fixed_expense,
+           net_selling_gross: baselineNetSellingGross,
+           department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense,
+           parts_transfer: derivedPartsTransfer,
+           net_operating_profit:
+             (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) +
+             derivedPartsTransfer,
+           return_on_gross:
+             baselineInputs.gp_net > 0
+               ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.semi_fixed_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
+               : 0,
+         };
 
         // Prefer exact stored baseline metric when it exists (e.g., total_fixed_expense), otherwise use computed baseline
         const baselineValue =
