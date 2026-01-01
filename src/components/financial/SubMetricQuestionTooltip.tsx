@@ -36,7 +36,7 @@ export const SubMetricQuestionTooltip: React.FC<SubMetricQuestionTooltipProps> =
         </span>
       </HoverCardTrigger>
       <HoverCardContent 
-        className="w-80 p-3" 
+        className="w-80 p-3 z-50" 
         side="right" 
         align="start"
         sideOffset={8}
