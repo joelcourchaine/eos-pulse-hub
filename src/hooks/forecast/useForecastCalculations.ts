@@ -74,7 +74,9 @@ interface SubMetricOverride {
 }
 
 // Calculation mode for sub-metrics: which metric is derived
-export type SubMetricCalcMode = 'solve-for-gp-net' | 'solve-for-sales';
+// 'solve-for-gp-net': Sales and GP% are inputs, GP Net = Sales × GP% (default)
+// 'gp-drives-growth': GP% changes drive proportional Sales growth, GP Net = (Baseline Sales × GP% change ratio) × New GP%
+export type SubMetricCalcMode = 'solve-for-gp-net' | 'gp-drives-growth';
 
 interface UseForecastCalculationsProps {
   entries: ForecastEntry[];
@@ -147,7 +149,23 @@ export function useForecastCalculations({
     
     // Calculate annual targets from drivers
     const baselineTotalSales = annualBaseline['total_sales'] || 0;
-    const annualTotalSales = baselineTotalSales * (1 + salesGrowth / 100);
+    const baselineGpNet = annualBaseline['gp_net'] || 0;
+    const baselineGpPercentAnnual = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
+    
+    // In GP-drives-growth mode, GP% improvements also increase Sales proportionally
+    // gpChangeRatio = new GP% / baseline GP% (e.g., 25% / 20% = 1.25)
+    const gpChangeRatio = baselineGpPercentAnnual > 0 ? gpPercent / baselineGpPercentAnnual : 1;
+    
+    // Calculate annual total sales based on mode
+    let annualTotalSales: number;
+    if (subMetricCalcMode === 'gp-drives-growth') {
+      // GP% drives growth: Sales = Baseline Sales × GP change ratio × (1 + sales growth)
+      annualTotalSales = baselineTotalSales * gpChangeRatio * (1 + salesGrowth / 100);
+    } else {
+      // Standard mode: Sales = Baseline Sales × (1 + sales growth)
+      annualTotalSales = baselineTotalSales * (1 + salesGrowth / 100);
+    }
+    
     const annualGpNet = annualTotalSales * (gpPercent / 100);
     const annualSalesExp = annualGpNet * (salesExpPercent / 100);
     const annualSemiFixed = annualBaseline['semi_fixed_expense'] || 0;
@@ -247,15 +265,33 @@ export function useForecastCalculations({
             && Math.abs(gpPercent - baselineGpPercent) < 0.1 
             && Math.abs(salesExpPercent - baselineSalesExpPercent) < 0.1;
           
-          if (metric.key === 'total_sales') {
-            // Scale total_sales by growth factor
-            value = baselineValue * growthFactor;
+        if (metric.key === 'total_sales') {
+            // In GP-drives-growth mode, GP% improvements also scale Sales
+            if (subMetricCalcMode === 'gp-drives-growth') {
+              const baselineGpPct = baselineMonthlyValues.total_sales > 0 
+                ? (baselineMonthlyValues.gp_net / baselineMonthlyValues.total_sales) * 100 
+                : 0;
+              const monthlyGpChangeRatio = baselineGpPct > 0 ? gpPercent / baselineGpPct : 1;
+              value = baselineValue * monthlyGpChangeRatio * growthFactor;
+            } else {
+              // Standard mode: Scale total_sales by growth factor only
+              value = baselineValue * growthFactor;
+            }
           } else if (metric.key === 'gp_net') {
             if (useBaselineDirectly) {
               value = baselineValue;
             } else {
               // GP Net = scaled total_sales * gpPercent
-              const scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              let scaledSales: number;
+              if (subMetricCalcMode === 'gp-drives-growth') {
+                const baselineGpPct = baselineMonthlyValues.total_sales > 0 
+                  ? (baselineMonthlyValues.gp_net / baselineMonthlyValues.total_sales) * 100 
+                  : 0;
+                const monthlyGpChangeRatio = baselineGpPct > 0 ? gpPercent / baselineGpPct : 1;
+                scaledSales = baselineMonthlyValues.total_sales * monthlyGpChangeRatio * growthFactor;
+              } else {
+                scaledSales = baselineMonthlyValues.total_sales * growthFactor;
+              }
               value = scaledSales * (gpPercent / 100);
             }
           } else if (metric.key === 'sales_expense') {
@@ -341,7 +377,7 @@ export function useForecastCalculations({
     });
     
     return results;
-  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, salesGrowth, gpPercent, salesExpPercent, fixedExpense]);
+  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, salesGrowth, gpPercent, salesExpPercent, fixedExpense, subMetricCalcMode]);
 
   // Get quarterly totals
   const calculateQuarterlyValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
@@ -650,61 +686,134 @@ export function useForecastCalculations({
       result.set('gp_percent', forecasts);
     }
     
-    if (subMetricCalcMode === 'solve-for-sales') {
-      // SOLVE-FOR-SALES MODE: GP Net is anchor, Sales is derived
+    if (subMetricCalcMode === 'gp-drives-growth') {
+      // GP-DRIVES-GROWTH MODE: GP% improvements also increase Sales proportionally
+      // Sales = Baseline Sales × (New GP% / Baseline GP%) × (1 + sales growth)
+      // GP Net = New Sales × New GP% (compounds both increases)
       
-      // Calculate GP Net sub-metrics first (as independent values)
-      if (gpNetSubs.length > 0) {
-        const forecasts: SubMetricForecast[] = gpNetSubs.map((sub, index) => 
-          calculateSingleSubMetric(sub, 'gp_net', index, false)
-        );
-        result.set('gp_net', forecasts);
-      }
-      
-      // Calculate Sales sub-metrics as derived: Sales = GP Net / (GP% / 100)
+      // Calculate Sales sub-metrics with GP% driving growth
       if (salesSubs.length > 0) {
-        const gpNetForecasts = result.get('gp_net') ?? [];
         const gpPercentForecasts = result.get('gp_percent') ?? [];
-        
-        // Build lookup maps by sub-metric name
-        const gpNetByName = new Map<string, SubMetricForecast>();
-        gpNetForecasts.forEach(gnf => gpNetByName.set(gnf.label.toLowerCase(), gnf));
-        
         const gpPercentByName = new Map<string, SubMetricForecast>();
         gpPercentForecasts.forEach(gpf => gpPercentByName.set(gpf.label.toLowerCase(), gpf));
         
         const forecasts: SubMetricForecast[] = salesSubs.map((sub, index) => {
           const subName = sub.name.toLowerCase();
-          const matchingGpNet = gpNetByName.get(subName);
           const matchingGpPercent = gpPercentByName.get(subName);
           
-          // If we have matching GP Net and GP%, derive Sales from them
-          if (matchingGpNet && matchingGpPercent) {
-            const subMetricKey = `sub:total_sales:${String(index).padStart(3, '0')}:${sub.name}`;
+          const subMetricKey = `sub:total_sales:${String(index).padStart(3, '0')}:${sub.name}`;
+          const forecastMonthlyValues = new Map<string, number>();
+          let annualValue = 0;
+          let baselineAnnualValue = 0;
+          
+          // Calculate baseline annual values and GP%
+          let baselineAnnualGpPercent = 0;
+          let monthCount = 0;
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            baselineAnnualValue += subBaseline;
+            
+            if (matchingGpPercent) {
+              const gpPctBaseline = matchingGpPercent.baselineAnnualValue;
+              baselineAnnualGpPercent = gpPctBaseline; // Use the average baseline GP%
+            }
+            monthCount++;
+          });
+          
+          // Calculate scaled Sales for each month
+          months.forEach((forecastMonth, monthIndex) => {
+            const monthNumber = monthIndex + 1;
+            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            
+            let forecastValue: number;
+            if (matchingGpPercent && baselineAnnualGpPercent > 0) {
+              // Get the forecast GP% for this sub-metric
+              const forecastGpPercent = matchingGpPercent.monthlyValues.get(forecastMonth) ?? baselineAnnualGpPercent;
+              // Calculate the GP% change ratio (using the baseline average for the sub-metric)
+              const gpChangeRatio = forecastGpPercent / baselineAnnualGpPercent;
+              // Apply GP% change ratio and sales growth to baseline
+              forecastValue = subBaseline * gpChangeRatio * (1 + salesGrowth / 100);
+            } else {
+              // No GP% sub-metric, just apply sales growth
+              forecastValue = subBaseline * (1 + salesGrowth / 100);
+            }
+            
+            forecastMonthlyValues.set(forecastMonth, forecastValue);
+            annualValue += forecastValue;
+          });
+          
+          // Calculate quarterly values
+          const quarterlyValues = new Map<string, number>();
+          const quarterMonthIndices = {
+            Q1: [0, 1, 2],
+            Q2: [3, 4, 5],
+            Q3: [6, 7, 8],
+            Q4: [9, 10, 11],
+          };
+          
+          Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
+            let quarterTotal = 0;
+            monthIndices.forEach(i => {
+              const forecastMonth = months[i];
+              quarterTotal += forecastMonthlyValues.get(forecastMonth) ?? 0;
+            });
+            quarterlyValues.set(quarter, quarterTotal);
+          });
+          
+          return {
+            key: subMetricKey,
+            label: sub.name,
+            parentKey: 'total_sales',
+            monthlyValues: forecastMonthlyValues,
+            quarterlyValues,
+            annualValue,
+            baselineAnnualValue,
+            isOverridden: !!matchingGpPercent?.isOverridden,
+          };
+        });
+        
+        result.set('total_sales', forecasts);
+      }
+      
+      // Calculate GP Net sub-metrics: GP Net = Sales × GP%
+      if (gpNetSubs.length > 0) {
+        const salesForecasts = result.get('total_sales') ?? [];
+        const gpPercentForecasts = result.get('gp_percent') ?? [];
+        
+        const salesByName = new Map<string, SubMetricForecast>();
+        salesForecasts.forEach(sf => salesByName.set(sf.label.toLowerCase(), sf));
+        
+        const gpPercentByName = new Map<string, SubMetricForecast>();
+        gpPercentForecasts.forEach(gpf => gpPercentByName.set(gpf.label.toLowerCase(), gpf));
+        
+        const forecasts: SubMetricForecast[] = gpNetSubs.map((sub, index) => {
+          const subName = sub.name.toLowerCase();
+          const matchingSales = salesByName.get(subName);
+          const matchingGpPercent = gpPercentByName.get(subName);
+          
+          if (matchingSales && matchingGpPercent) {
+            const subMetricKey = `sub:gp_net:${String(index).padStart(3, '0')}:${sub.name}`;
             const forecastMonthlyValues = new Map<string, number>();
             let annualValue = 0;
             let baselineAnnualValue = 0;
             
-            // Calculate baseline annual value
             months.forEach((forecastMonth, monthIndex) => {
               const monthNumber = monthIndex + 1;
               const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
               const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
               baselineAnnualValue += subBaseline;
-            });
-            
-            // Calculate derived Sales = GP Net / (GP% / 100) for each month
-            months.forEach(forecastMonth => {
-              const gpNetValue = matchingGpNet.monthlyValues.get(forecastMonth) ?? 0;
-              const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
-              // Avoid division by zero
-              const salesValue = gpPercentValue > 0 ? gpNetValue / (gpPercentValue / 100) : 0;
               
-              forecastMonthlyValues.set(forecastMonth, salesValue);
-              annualValue += salesValue;
+              const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
+              const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
+              const gpNetValue = salesValue * (gpPercentValue / 100);
+              
+              forecastMonthlyValues.set(forecastMonth, gpNetValue);
+              annualValue += gpNetValue;
             });
             
-            // Calculate quarterly values
             const quarterlyValues = new Map<string, number>();
             const quarterMonthIndices = {
               Q1: [0, 1, 2],
@@ -722,25 +831,22 @@ export function useForecastCalculations({
               quarterlyValues.set(quarter, quarterTotal);
             });
             
-            const isLinked = matchingGpNet.isOverridden || matchingGpPercent.isOverridden;
-            
             return {
               key: subMetricKey,
               label: sub.name,
-              parentKey: 'total_sales',
+              parentKey: 'gp_net',
               monthlyValues: forecastMonthlyValues,
               quarterlyValues,
               annualValue,
               baselineAnnualValue,
-              isOverridden: isLinked,
+              isOverridden: matchingSales.isOverridden || matchingGpPercent.isOverridden,
             };
           } else {
-            // No matching sub-metrics, fall back to standard calculation
-            return calculateSingleSubMetric(sub, 'total_sales', index, false);
+            return calculateSingleSubMetric(sub, 'gp_net', index, false);
           }
         });
         
-        result.set('total_sales', forecasts);
+        result.set('gp_net', forecasts);
       }
     } else {
       // SOLVE-FOR-GP-NET MODE (default): Sales is anchor, GP Net is derived
