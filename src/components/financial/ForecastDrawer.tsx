@@ -6,7 +6,7 @@ import { TrendingUp, TrendingDown, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
-import { useForecastCalculations } from '@/hooks/forecast/useForecastCalculations';
+import { useForecastCalculations, type SubMetricCalcMode } from '@/hooks/forecast/useForecastCalculations';
 import { useSubMetrics } from '@/hooks/useSubMetrics';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
@@ -14,6 +14,9 @@ import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
@@ -73,6 +76,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Sub-metric overrides: user-defined annual values
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
+  
+  // Sub-metric calculation mode: solve-for-gp-net (default) or solve-for-sales
+  const [subMetricCalcMode, setSubMetricCalcMode] = useState<SubMetricCalcMode>('solve-for-gp-net');
 
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
@@ -190,6 +196,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     gpPercent,
     salesExpPercent,
     fixedExpense,
+    subMetricCalcMode,
   });
 
   // Create forecast if it doesn't exist when drawer opens
@@ -425,6 +432,49 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               onSalesExpPercentChange={setSalesExpPercent}
               onFixedExpenseChange={setFixedExpense}
             />
+
+            {/* Sub-Metric Calculation Mode Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="calc-mode" className="text-sm font-medium">
+                  Sub-metric calculation mode
+                </Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-xs text-muted-foreground cursor-help">(?)</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-sm">
+                        <strong>Solve for GP Net:</strong> Sales and GP% are inputs, GP Net is calculated (GP Net = Sales × GP%)<br/><br/>
+                        <strong>Solve for Sales:</strong> GP Net and GP% are inputs, Sales is calculated (Sales = GP Net ÷ GP%)
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-sm",
+                  subMetricCalcMode === 'solve-for-gp-net' ? "font-medium" : "text-muted-foreground"
+                )}>
+                  GP Net
+                </span>
+                <Switch
+                  id="calc-mode"
+                  checked={subMetricCalcMode === 'solve-for-sales'}
+                  onCheckedChange={(checked) => 
+                    setSubMetricCalcMode(checked ? 'solve-for-sales' : 'solve-for-gp-net')
+                  }
+                />
+                <span className={cn(
+                  "text-sm",
+                  subMetricCalcMode === 'solve-for-sales' ? "font-medium" : "text-muted-foreground"
+                )}>
+                  Sales
+                </span>
+              </div>
+            </div>
 
             {/* Forecast Results Grid */}
             <ForecastResultsGrid
