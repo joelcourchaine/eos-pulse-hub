@@ -51,6 +51,7 @@ const METRIC_DEFINITIONS: MetricDefinition[] = [
 interface SubMetricBaseline {
   parentKey: string;
   name: string;
+  orderIndex: number; // Preserves statement order / disambiguates duplicates
   monthlyValues: Map<string, number>; // month -> value
 }
 
@@ -595,7 +596,8 @@ export function useForecastCalculations({
       isPercentageParent: boolean,
       overrideValue?: number
     ): SubMetricForecast => {
-      const subMetricKey = `sub:${parentKey}:${String(index).padStart(3, '0')}:${sub.name}`;
+      const orderIndex = sub.orderIndex ?? index;
+      const subMetricKey = `sub:${parentKey}:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
       const isOverridden = overrideValue !== undefined || overrideMap.has(subMetricKey);
       const overriddenAnnual = overrideValue ?? overrideMap.get(subMetricKey);
       
@@ -865,7 +867,7 @@ export function useForecastCalculations({
           const matchingGpPercent = gpPercentByName.get(subName);
           
           if (matchingSales && matchingGpPercent) {
-            const subMetricKey = `sub:gp_net:${String(index).padStart(3, '0')}:${sub.name}`;
+            const subMetricKey = `sub:gp_net:${String(sub.orderIndex ?? index).padStart(3, '0')}:${sub.name}`;
             const forecastMonthlyValues = new Map<string, number>();
             let annualValue = 0;
             let baselineAnnualValue = 0;
@@ -960,7 +962,7 @@ export function useForecastCalculations({
           
           // If we have matching Sales and GP% sub-metrics, calculate GP Net from them
           if (matchingSales && matchingGpPercent) {
-            const subMetricKey = `sub:gp_net:${String(index).padStart(3, '0')}:${sub.name}`;
+            const subMetricKey = `sub:gp_net:${String(sub.orderIndex ?? index).padStart(3, '0')}:${sub.name}`;
             const forecastMonthlyValues = new Map<string, number>();
             let annualValue = 0;
             let baselineAnnualValue = 0;
@@ -1048,10 +1050,11 @@ export function useForecastCalculations({
         
         // If we have a matching sales_expense sub-metric, derive the percentage from it
         if (matchingSalesExp) {
-          const subMetricKey = `sub:sales_expense_percent:${String(index).padStart(3, '0')}:${sub.name}`;
-          const forecastMonthlyValues = new Map<string, number>();
-          let annualValue = 0;
-          let baselineAnnualValue = 0;
+           const orderIndex = sub.orderIndex ?? index;
+           const subMetricKey = `sub:sales_expense_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+           const forecastMonthlyValues = new Map<string, number>();
+           let annualValue = 0;
+           let baselineAnnualValue = 0;
           
           months.forEach((forecastMonth, monthIndex) => {
             const monthNumber = monthIndex + 1;

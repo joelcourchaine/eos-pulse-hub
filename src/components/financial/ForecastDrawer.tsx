@@ -160,24 +160,30 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const subMetricBaselines = useMemo(() => {
     if (!subMetricEntries || subMetricEntries.length === 0) return [];
 
-    // Group by parent + name to get all monthly values for each sub-metric
-    const grouped = new Map<string, { parentKey: string; name: string; values: Map<string, number> }>();
+    // Group by parent + orderIndex + name to get all monthly values for each sub-metric
+    // (orderIndex is required because names can repeat in statements)
+    const grouped = new Map<
+      string,
+      { parentKey: string; name: string; orderIndex: number; values: Map<string, number> }
+    >();
 
     for (const entry of subMetricEntries) {
-      const key = `${entry.parentMetricKey}:${entry.name}`;
+      const key = `${entry.parentMetricKey}:${entry.orderIndex}:${entry.name}`;
       if (!grouped.has(key)) {
         grouped.set(key, {
           parentKey: entry.parentMetricKey,
           name: entry.name,
+          orderIndex: entry.orderIndex,
           values: new Map(),
         });
       }
       grouped.get(key)!.values.set(entry.monthIdentifier, entry.value ?? 0);
     }
 
-    return Array.from(grouped.values()).map(g => ({
+    return Array.from(grouped.values()).map((g) => ({
       parentKey: g.parentKey,
       name: g.name,
+      orderIndex: g.orderIndex,
       monthlyValues: g.values,
     }));
   }, [subMetricEntries]);
