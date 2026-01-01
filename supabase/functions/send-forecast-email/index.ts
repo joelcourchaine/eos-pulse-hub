@@ -13,6 +13,7 @@ interface EmailRequest {
   view: "monthly" | "quarter" | "annual";
   recipientType: "myself" | "gm" | "department_managers";
   customRecipients?: string[];
+  includeSubMetrics?: boolean;
 }
 
 interface MetricData {
@@ -90,8 +91,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { departmentId, forecastYear, view, recipientType, customRecipients }: EmailRequest = await req.json();
-    console.log("Forecast email request:", { departmentId, forecastYear, view, recipientType });
+    const { departmentId, forecastYear, view, recipientType, customRecipients, includeSubMetrics = true }: EmailRequest = await req.json();
+    console.log("Forecast email request:", { departmentId, forecastYear, view, recipientType, includeSubMetrics });
 
     const priorYear = forecastYear - 1;
 
@@ -150,15 +151,53 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Prior year data loaded:", priorYearData?.length || 0);
 
-    // Fetch sub-metric notes
-    const { data: subMetricNotes } = await supabaseClient
-      .from("forecast_submetric_notes")
-      .select("*")
-      .eq("department_id", departmentId)
-      .eq("forecast_year", forecastYear)
-      .eq("is_resolved", false);
+    // Fetch sub-metric notes (only if including sub-metrics)
+    let subMetricNotes: any[] = [];
+    if (includeSubMetrics) {
+      const { data } = await supabaseClient
+        .from("forecast_submetric_notes")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("forecast_year", forecastYear)
+        .eq("is_resolved", false);
+      subMetricNotes = data || [];
+      console.log("Sub-metric notes loaded:", subMetricNotes.length);
+    }
 
-    console.log("Sub-metric notes loaded:", subMetricNotes?.length || 0);
+    // Fetch sub-metric data from prior year (only if including sub-metrics)
+    let subMetricData: { parentKey: string; name: string; annualValue: number }[] = [];
+    if (includeSubMetrics) {
+      const { data: subMetricEntries } = await supabaseClient
+        .from("financial_entries")
+        .select("month, metric_name, value")
+        .eq("department_id", departmentId)
+        .gte("month", `${priorYear}-01`)
+        .lte("month", `${priorYear}-12`)
+        .like("metric_name", "sub:%");
+
+      if (subMetricEntries && subMetricEntries.length > 0) {
+        // Group sub-metrics and calculate annual totals
+        const grouped = new Map<string, { parentKey: string; name: string; total: number }>();
+        subMetricEntries.forEach((entry) => {
+          const parts = entry.metric_name.split(":");
+          if (parts.length >= 4) {
+            const parentKey = parts[1];
+            const name = parts.slice(3).join(":");
+            const key = `${parentKey}:${name}`;
+            if (!grouped.has(key)) {
+              grouped.set(key, { parentKey, name, total: 0 });
+            }
+            grouped.get(key)!.total += entry.value || 0;
+          }
+        });
+        subMetricData = Array.from(grouped.values()).map((g) => ({
+          parentKey: g.parentKey,
+          name: g.name,
+          annualValue: g.total,
+        }));
+        console.log("Sub-metric data loaded:", subMetricData.length);
+      }
+    }
 
     // Build baseline data map
     const baselineByMonth = new Map<string, Map<string, number>>();
@@ -467,8 +506,47 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     }
 
+    // Add sub-metrics section if included and there's data
+    if (includeSubMetrics && subMetricData.length > 0) {
+      // Group by parent key
+      const groupedByParent = new Map<string, typeof subMetricData>();
+      subMetricData.forEach((sm) => {
+        if (!groupedByParent.has(sm.parentKey)) {
+          groupedByParent.set(sm.parentKey, []);
+        }
+        groupedByParent.get(sm.parentKey)!.push(sm);
+      });
+
+      html += `<h2>Sub-Metric Details (${priorYear} Baseline)</h2>`;
+      
+      groupedByParent.forEach((items, parentKey) => {
+        const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
+        html += `
+          <table style="margin-bottom: 16px;">
+            <thead>
+              <tr>
+                <th colspan="2">${parentLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        items.forEach((item) => {
+          const note = subMetricNotes.find((n) => n.sub_metric_key === item.name);
+          html += `
+            <tr>
+              <td>${item.name}${note ? '<span class="note-flag"></span>' : ''}</td>
+              <td>${formatCurrency(item.annualValue)}</td>
+            </tr>
+          `;
+        });
+        
+        html += `</tbody></table>`;
+      });
+    }
+
     // Add notes section if there are any
-    if (subMetricNotes && subMetricNotes.length > 0) {
+    if (includeSubMetrics && subMetricNotes.length > 0) {
       html += `
         <div class="notes-section">
           <div class="notes-title">📋 Forecast Notes</div>
