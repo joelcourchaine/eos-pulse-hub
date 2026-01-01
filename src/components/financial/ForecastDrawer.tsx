@@ -414,6 +414,16 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       .join('|');
   }, [entries]);
 
+  // For stores without sub-metrics: only sync Growth slider when edits actually imply a growth change.
+  // Editing GP% alone should NOT drive Growth (it changes GP Net via ratio and can create a feedback loop).
+  const hasLockedGrowthDrivers = useMemo(() => {
+    return entries.some(
+      (e) =>
+        e.is_locked &&
+        (e.metric_name === 'total_sales' || e.metric_name === 'gp_net')
+    );
+  }, [entries]);
+
   useEffect(() => {
     if (!driversInitialized.current) return;
     if (impliedGrowth === undefined) return;
@@ -421,26 +431,38 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     // For stores with sub-metric overrides, sync when overrides change
     if (subMetricOverrides.length > 0) {
       if (lastSyncedOverridesSignature.current === overridesSignature) return;
-      
+
       if (Math.abs(impliedGrowth - growth) > 0.1) {
         lastSyncedOverridesSignature.current = overridesSignature;
         lastSyncedImpliedGrowth.current = impliedGrowth;
         setGrowth(impliedGrowth);
       }
-    } else {
-      // For stores without sub-metrics, sync when locked entries change implied growth
-      // Only sync if the implied growth is significantly different and has changed
-      if (lastSyncedImpliedGrowth.current !== null && 
-          Math.abs(impliedGrowth - lastSyncedImpliedGrowth.current) < 0.1) {
-        return;
-      }
-      
-      if (Math.abs(impliedGrowth - growth) > 0.1) {
-        lastSyncedImpliedGrowth.current = impliedGrowth;
-        setGrowth(impliedGrowth);
-      }
+      return;
     }
-  }, [impliedGrowth, overridesSignature, subMetricOverrides.length, growth, lockedEntriesSignature]);
+
+    // For stores WITHOUT sub-metrics: only sync when Total Sales / GP Net were directly edited.
+    if (!hasLockedGrowthDrivers) return;
+
+    // Only sync if the implied growth is significantly different and has changed
+    if (
+      lastSyncedImpliedGrowth.current !== null &&
+      Math.abs(impliedGrowth - lastSyncedImpliedGrowth.current) < 0.1
+    ) {
+      return;
+    }
+
+    if (Math.abs(impliedGrowth - growth) > 0.1) {
+      lastSyncedImpliedGrowth.current = impliedGrowth;
+      setGrowth(impliedGrowth);
+    }
+  }, [
+    impliedGrowth,
+    overridesSignature,
+    subMetricOverrides.length,
+    growth,
+    lockedEntriesSignature,
+    hasLockedGrowthDrivers,
+  ]);
 
   const weightsSignature = useMemo(() => {
     return (weights ?? [])
