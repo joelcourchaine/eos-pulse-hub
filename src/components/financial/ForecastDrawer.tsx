@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
 import { useWeightedBaseline } from '@/hooks/forecast/useWeightedBaseline';
@@ -79,6 +80,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [emailRecipient, setEmailRecipient] = useState<'myself' | 'gm' | 'department_managers'>('myself');
+  const [includeSubMetrics, setIncludeSubMetrics] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
 
   // Track if drivers have changed for auto-save
@@ -464,6 +466,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           forecastYear,
           view: emailView,
           recipientType: emailRecipient,
+          includeSubMetrics,
         },
       });
 
@@ -715,6 +718,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                   <Label htmlFor="recipient-managers" className="font-normal">Department Managers</Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="include-submetrics" 
+                checked={includeSubMetrics} 
+                onCheckedChange={(checked) => setIncludeSubMetrics(checked === true)}
+              />
+              <Label htmlFor="include-submetrics" className="font-normal cursor-pointer">
+                Include sub-metric details
+              </Label>
             </div>
           </div>
 
