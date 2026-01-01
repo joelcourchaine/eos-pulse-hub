@@ -399,10 +399,10 @@ export function useForecastCalculations({
     const annualResults = new Map<string, CalculationResult>();
     
     // First, sum all currency values to calculate derived percentages correctly
-    const totals: Record<string, { value: number; baseline: number; locked: boolean }> = {};
+    const totals: Record<string, { value: number; baseline: number; locked: boolean; allLocked: boolean; lockedValues: number[] }> = {};
     
     METRIC_DEFINITIONS.forEach(metric => {
-      totals[metric.key] = { value: 0, baseline: 0, locked: false };
+      totals[metric.key] = { value: 0, baseline: 0, locked: false, allLocked: true, lockedValues: [] };
     });
     
     months.forEach(month => {
@@ -412,17 +412,32 @@ export function useForecastCalculations({
         if (metricData) {
           totals[metric.key].value += metricData.value;
           totals[metric.key].baseline += metricData.baseline_value;
-          if (metricData.is_locked) totals[metric.key].locked = true;
+          if (metricData.is_locked) {
+            totals[metric.key].locked = true;
+            totals[metric.key].lockedValues.push(metricData.value);
+          } else {
+            totals[metric.key].allLocked = false;
+          }
         }
       });
     });
     
     // Now calculate proper values - percentages should be calculated from totals, not averaged
+    // Exception: if a percentage metric has ALL months locked to the same value, use that value
     METRIC_DEFINITIONS.forEach(metric => {
       let finalValue = totals[metric.key].value;
       let finalBaseline = totals[metric.key].baseline;
       
-      if (metric.key === 'gp_percent') {
+      // For percentage metrics, check if all months are locked to the same value
+      const isPercentMetric = metric.type === 'percent';
+      const allMonthsLocked = totals[metric.key].allLocked && totals[metric.key].lockedValues.length === 12;
+      const allSameValue = allMonthsLocked && 
+        totals[metric.key].lockedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
+      
+      if (isPercentMetric && allSameValue) {
+        // Use the locked value directly instead of recalculating
+        finalValue = totals[metric.key].lockedValues[0];
+      } else if (metric.key === 'gp_percent') {
         // GP% = GP Net / Total Sales * 100
         const gpNet = totals['gp_net']?.value ?? 0;
         const totalSales = totals['total_sales']?.value ?? 0;
