@@ -640,6 +640,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     setSubMetricOverrides([]);
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
+    driversInitialized.current = false;
     
     // Delete saved driver settings, sub-metric overrides, and reset all entries from database
     try {
@@ -651,6 +652,14 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     } catch (e) {
       console.error('Failed to delete saved settings:', e);
     }
+    
+    // Invalidate baseline queries to fetch fresh prior year data
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['prior-year-financial', departmentId, priorYear] }),
+      queryClient.invalidateQueries({ queryKey: ['baseline-year-sales', departmentId, forecastYear] }),
+      queryClient.invalidateQueries({ queryKey: ['sub-metrics', departmentId, priorYear] }),
+      queryClient.invalidateQueries({ queryKey: ['forecast', departmentId, forecastYear] }),
+    ]);
     
     // Reset weights to current calculated distribution
     resetWeightsToCalculated().catch((e) => {
