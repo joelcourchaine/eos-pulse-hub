@@ -898,7 +898,9 @@ const handler = async (req: Request): Promise<Response> => {
           html += `<h2 style="color: #1a1a1a; font-size: 18px; margin: 24px 0 12px 0;">Sub-Metric Details</h2>`;
           
           groupedByParent.forEach((items, parentKey) => {
-            const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
+            const parentMetric = METRIC_DEFINITIONS.find((m) => m.key === parentKey);
+            const parentLabel = parentMetric?.label || parentKey;
+            const parentType = parentMetric?.type || "currency";
             html += `
               <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 16px;">
                 <thead>
@@ -922,9 +924,9 @@ const handler = async (req: Request): Promise<Response> => {
               html += `
                 <tr>
                   <td style="${styles.tdFirst}">${item.name}${note ? '<span style="display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px;"></span>' : ''}</td>
-                  <td style="${styles.td} ${styles.annualCol}">${formatCurrency(item.forecastValue)}</td>
-                  <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(item.variance, "currency")}</td>
-                  <td style="${styles.td} ${styles.baselineCol}">${formatCurrency(item.baselineValue)}</td>
+                  <td style="${styles.td} ${styles.annualCol}">${formatValue(item.forecastValue, parentType)}</td>
+                  <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(item.variance, parentType)}</td>
+                  <td style="${styles.td} ${styles.baselineCol}">${formatValue(item.baselineValue, parentType)}</td>
                 </tr>
               `;
             });
