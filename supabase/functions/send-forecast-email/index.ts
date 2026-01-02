@@ -381,10 +381,17 @@ const handler = async (req: Request): Promise<Response> => {
           <p class="subtitle"><strong>${forecastYear} Forecast</strong> • ${viewLabel} • vs ${priorYear} Baseline</p>
           
           <div class="summary-box">
-            <div class="summary-title">Forecasted Department Profit</div>
-            <div class="summary-value">${formatCurrency(profitData?.annual.value || 0)}</div>
+            <div class="summary-title">Year Over Year Comparison</div>
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+              <span style="color: #666; font-size: 14px;">Dept Profit:</span>
+              <span class="summary-value" style="font-size: 20px;">${formatCurrency(profitData?.annual.value || 0)}</span>
+              <span style="color: #666; font-size: 14px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior year</span>
+            </div>
             <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
-              ${formatVariance(profitVariance, "currency")} (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%) vs baseline
+              ${formatVariance(profitVariance, "currency")} (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)
+            </div>
+            <div style="font-size: 12px; color: #666; margin-top: 8px;">
+              ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
             </div>
           </div>
     `;
