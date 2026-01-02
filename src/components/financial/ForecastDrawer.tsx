@@ -918,8 +918,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                         <TrendingDown className="h-4 w-4" />
                       )}
                       <span className="font-semibold">
-                        {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)}
-                        {(forecastNetSellingGross >= 0) === (baselineNetSellingGross >= 0) && baselineNetSellingGross !== 0 && ` (${nsgVariancePercent.toFixed(1)}%)`}
+                        {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)} ({nsgVariancePercent.toFixed(1)}%)
                       </span>
                     </div>
                   </div>
@@ -947,8 +946,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                         <TrendingDown className="h-4 w-4" />
                       )}
                       <span className="font-semibold">
-                        {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)}
-                        {(forecastDeptProfit >= 0) === (baselineDeptProfit >= 0) && baselineDeptProfit !== 0 && ` (${profitVariancePercent.toFixed(1)}%)`}
+                        {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)} ({profitVariancePercent.toFixed(1)}%)
                       </span>
                     </div>
                   </div>
