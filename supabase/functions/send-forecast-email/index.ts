@@ -470,6 +470,8 @@ const handler = async (req: Request): Promise<Response> => {
         };
 
         // Pull the forecast value directly from saved forecast_entries (same source the UI persists).
+        // Fallback: if the entry is missing/null (common before a full recalculation save),
+        // use the baseline value so email variance matches what the UI shows.
         const savedEntry = entriesMap.get(`${month}:${def.key}`);
 
         const baselineValue =
@@ -477,7 +479,7 @@ const handler = async (req: Request): Promise<Response> => {
           baselineMonthlyValues[def.key] ??
           0;
 
-        const value = savedEntry?.forecast_value ?? 0;
+        const value = savedEntry?.forecast_value ?? baselineValue;
 
         monthData[month] = { value, baseline: baselineValue };
       });
