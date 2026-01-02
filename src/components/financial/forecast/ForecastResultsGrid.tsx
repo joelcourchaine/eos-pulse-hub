@@ -601,18 +601,23 @@ export function ForecastResultsGrid({
           "text-right py-2 px-2 font-medium bg-primary/10",
           isSubMetric && "text-xs font-normal"
         )}>
-          {annualValue !== undefined && annualBaseline !== undefined ? (
-            <span className={cn(
-              metric.type === 'percent' 
-                ? (annualValue - annualBaseline) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                : (annualValue - annualBaseline) >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-            )}>
-              {metric.type === 'percent' 
-                ? `${(annualValue - annualBaseline) >= 0 ? '+' : ''}${(annualValue - annualBaseline).toFixed(1)}%`
-                : `${(annualValue - annualBaseline) >= 0 ? '+' : ''}${formatCurrency(annualValue - annualBaseline)}`
-              }
-            </span>
-          ) : '-'}
+          {annualValue !== undefined && annualBaseline !== undefined ? (() => {
+            const variance = annualValue - annualBaseline;
+            // For expense metrics, an increase is bad (red), decrease is good (green)
+            const isExpenseMetric = metric.key === 'sales_expense' || metric.key === 'sales_expense_percent';
+            const isPositiveChange = isExpenseMetric ? variance <= 0 : variance >= 0;
+            
+            return (
+              <span className={cn(
+                isPositiveChange ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+              )}>
+                {metric.type === 'percent' 
+                  ? `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`
+                  : `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`
+                }
+              </span>
+            );
+          })() : '-'}
         </td>
         <td className={cn(
           "text-right py-2 px-2 font-medium bg-muted/30",
