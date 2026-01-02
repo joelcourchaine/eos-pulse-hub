@@ -496,17 +496,29 @@ const handler = async (req: Request): Promise<Response> => {
           return_on_gross: baselineInputs.gp_net > 0 ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100 : 0,
         };
 
-        const lockedTotalSales = entriesMap.get(`${month}:total_sales`);
-        const lockedGpNet = entriesMap.get(`${month}:gp_net`);
-        const lockedGpPercent = entriesMap.get(`${month}:gp_percent`);
-        const lockedSalesExpense = entriesMap.get(`${month}:sales_expense`);
+        const entryTotalSales = entriesMap.get(`${month}:total_sales`);
+        const entryGpNet = entriesMap.get(`${month}:gp_net`);
+        const entryGpPercent = entriesMap.get(`${month}:gp_percent`);
+        const entrySalesExpense = entriesMap.get(`${month}:sales_expense`);
 
-        const targetGpPercent = (lockedGpPercent?.is_locked ? lockedGpPercent.forecast_value : null) ?? baselineMonthlyValues.gp_percent;
+        const getEntryForecastValue = (metricKey: string): number | null => {
+          const entry = entriesMap.get(`${month}:${metricKey}`);
+          if (!entry) return null;
+          // In the app, forecast_value can be present even when not locked.
+          // When it exists, treat it as source-of-truth so emails match the forecast grid.
+          const v = entry.forecast_value;
+          return Number.isFinite(v) ? v : null;
+        };
+
+        const targetGpPercent =
+          getEntryForecastValue('gp_percent') ??
+          (entryGpPercent?.is_locked ? entryGpPercent.forecast_value : null) ??
+          baselineMonthlyValues.gp_percent;
 
         const hasAnyLockedDrivers = !!(
-          (lockedGpPercent?.is_locked) ||
-          (lockedTotalSales?.is_locked) ||
-          (lockedGpNet?.is_locked)
+          (entryGpPercent?.is_locked) ||
+          (entryTotalSales?.is_locked) ||
+          (entryGpNet?.is_locked)
         );
 
         // Don't use baseline directly if there are GP% sub-metric overrides
@@ -522,7 +534,9 @@ const handler = async (req: Request): Promise<Response> => {
         };
 
         const getCalculatedTotalSales = () => {
-          if (lockedTotalSales?.is_locked) return lockedTotalSales.forecast_value;
+          const stored = getEntryForecastValue('total_sales');
+          if (stored !== null) return stored;
+          if (entryTotalSales?.is_locked) return entryTotalSales.forecast_value;
 
           // For stores with GP% sub-metric overrides, calculate from sub-metrics
           if (hasGpPercentOverrides) {
@@ -538,7 +552,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           // KTRV-like behavior (no sub-metrics): if GP% is locked higher, scale sales up proportionally
-          if (lockedGpPercent?.is_locked) {
+          if (entryGpPercent?.is_locked) {
             const basePct = getBaselineGpPctForScaling();
             if (basePct > 0 && targetGpPercent > basePct) {
               const ratio = targetGpPercent / basePct;
@@ -550,36 +564,37 @@ const handler = async (req: Request): Promise<Response> => {
         };
 
         const getCalculatedGpNet = () => {
-          if (lockedGpNet?.is_locked) return lockedGpNet.forecast_value;
-          
+          const stored = getEntryForecastValue('gp_net');
+          if (stored !== null) return stored;
+          if (entryGpNet?.is_locked) return entryGpNet.forecast_value;
+
           // For stores with GP% sub-metric overrides, calculate GP Net from sub-metrics
           if (hasGpPercentOverrides) {
             const salesSubs = subMetricBaselines.filter((s) => s.parentKey === "total_sales");
             const gpPercentSubs = subMetricBaselines.filter((s) => s.parentKey === "gp_percent");
-            
+
             if (salesSubs.length > 0 && gpPercentSubs.length > 0) {
               let monthGpNet = 0;
-              
+
               salesSubs.forEach((salesSub) => {
                 const salesSubMonthValue = salesSub.monthlyValues.get(priorYearMonth) ?? 0;
                 const forecastSales = salesSubMonthValue * growthFactor;
-                
+
                 // Find matching GP% sub-metric by name
                 const matchingGpPercentSub = gpPercentSubs.find((gp) => gp.name === salesSub.name);
-                
+
                 if (matchingGpPercentSub) {
                   // Check for override on this GP% sub-metric.
                   // Overrides are stored using the exact key format: sub:gp_percent:006:Repair Shop
                   const subMetricKey = `sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
                   const overriddenGpPercent = overrideMap.get(`gp_percent:${subMetricKey}`);
 
-                  
                   // Get baseline GP% for this month (it's a percentage, so use directly)
                   const baselineGpPercentForMonth = matchingGpPercentSub.monthlyValues.get(priorYearMonth) ?? 0;
-                  
+
                   // Use override or baseline GP%
                   const effectiveGpPercent = overriddenGpPercent ?? baselineGpPercentForMonth;
-                  
+
                   // Calculate GP Net for this sub-metric: Sales × GP% / 100
                   const subGpNet = forecastSales * (effectiveGpPercent / 100);
                   monthGpNet += subGpNet;
@@ -589,26 +604,30 @@ const handler = async (req: Request): Promise<Response> => {
                   monthGpNet += subGpNet;
                 }
               });
-              
+
               return monthGpNet;
             }
           }
-          
-          if (lockedGpPercent?.is_locked) {
+
+          if (entryGpPercent?.is_locked) {
             const totalSales = getCalculatedTotalSales();
             return totalSales * (targetGpPercent / 100);
           }
+
           return baselineMonthlyValues.gp_net * growthFactor;
         };
 
         const getCalculatedSalesExpense = () => {
-          if (lockedSalesExpense?.is_locked) return lockedSalesExpense.forecast_value;
+          const stored = getEntryForecastValue('sales_expense');
+          if (stored !== null) return stored;
+          if (entrySalesExpense?.is_locked) return entrySalesExpense.forecast_value;
           const basePct = baselineMonthlyValues.sales_expense_percent;
           const gpNet = getCalculatedGpNet();
           return gpNet > 0 ? gpNet * (basePct / 100) : 0;
         };
 
-        // Check for locked entry for this specific metric
+        // Check for stored entry for this specific metric (locked or not)
+        const storedMetricValue = getEntryForecastValue(def.key);
         const lockedEntry = entriesMap.get(`${month}:${def.key}`);
 
         const baselineValue =
@@ -618,19 +637,17 @@ const handler = async (req: Request): Promise<Response> => {
 
         let value: number;
 
-        if (lockedEntry?.is_locked) {
+        if (storedMetricValue !== null) {
+          value = storedMetricValue;
+        } else if (lockedEntry?.is_locked) {
           value = lockedEntry.forecast_value;
         } else if (useBaselineDirectly) {
           value = baselineValue;
         } else if (def.key === 'gp_percent') {
-          // For stores with GP% sub-metric overrides, derive GP% from calculated values
-          if (hasGpPercentOverrides) {
-            const totalSales = getCalculatedTotalSales();
-            const gpNet = getCalculatedGpNet();
-            value = totalSales > 0 ? (gpNet / totalSales) * 100 : baselineMonthlyValues.gp_percent;
-          } else {
-            value = targetGpPercent;
-          }
+          // Prefer deriving GP% from stored/calculated Total Sales + GP Net so it matches the grid.
+          const totalSales = getCalculatedTotalSales();
+          const gpNet = getCalculatedGpNet();
+          value = totalSales > 0 ? (gpNet / totalSales) * 100 : baselineMonthlyValues.gp_percent;
         } else if (def.key === 'total_sales') {
           value = getCalculatedTotalSales();
         } else if (def.key === 'gp_net') {
