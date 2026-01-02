@@ -850,15 +850,15 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               departmentId={departmentId}
             />
 
-            {/* Baseline Comparison */}
+            {/* Year Over Year Comparison */}
             <div className="p-4 bg-muted/30 rounded-lg">
-              <h3 className="font-semibold mb-3">vs Baseline</h3>
+              <h3 className="font-semibold mb-3">Year Over Year Comparison</h3>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <span className="text-muted-foreground">Dept Profit:</span>
                   <span className="ml-2 font-medium">{formatCurrency(forecastDeptProfit)}</span>
                   <span className="text-muted-foreground mx-1">vs</span>
-                  <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} baseline</span>
+                  <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} prior year</span>
                 </div>
                 <div className={cn(
                   "flex items-center gap-2",
@@ -873,6 +873,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                     {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)} ({profitVariancePercent.toFixed(1)}%)
                   </span>
                 </div>
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">
+                {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance / 12)} per month variance
               </div>
             </div>
           </div>
