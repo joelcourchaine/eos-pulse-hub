@@ -439,28 +439,39 @@ export function ForecastResultsGrid({
                 />
               ) : (
                 <>
-                  <TooltipProvider>
-                    <Tooltip delayDuration={150}>
-                      <TooltipTrigger asChild>
-                        <span 
-                          className={cn(
-                            !isSubMetric && "cursor-pointer hover:underline",
-                            isLocked && "cursor-not-allowed opacity-70",
-                            isSubMetric && "text-muted-foreground",
-                            metric.type === 'currency' && "cursor-help"
-                          )}
-                          onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
-                        >
-                          {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
-                        </span>
-                      </TooltipTrigger>
-                      {cellValue !== undefined && metric.type === 'currency' && formatValue(cellValue, metric.type) !== formatFullValue(cellValue, metric.type) && (
+                  {cellValue !== undefined && metric.type === 'currency' && Math.abs(cellValue) >= 1000 ? (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={150}>
+                        <TooltipTrigger asChild>
+                          <span 
+                            className={cn(
+                              "cursor-help",
+                              !isSubMetric && "hover:underline",
+                              isLocked && "cursor-not-allowed opacity-70",
+                              isSubMetric && "text-muted-foreground"
+                            )}
+                            onClick={() => !isSubMetric && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                          >
+                            {formatValue(cellValue, metric.type)}
+                          </span>
+                        </TooltipTrigger>
                         <TooltipContent side="top" className="font-mono text-sm">
                           {formatFullValue(cellValue, metric.type)}
                         </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span 
+                      className={cn(
+                        !isSubMetric && "cursor-pointer hover:underline",
+                        isLocked && "cursor-not-allowed opacity-70",
+                        isSubMetric && "text-muted-foreground"
                       )}
-                    </Tooltip>
-                  </TooltipProvider>
+                      onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                    >
+                      {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
+                    </span>
+                  )}
                   {!isSubMetric && (
                     <Button
                       variant="ghost"
@@ -501,23 +512,27 @@ export function ForecastResultsGrid({
                     />
                   ) : annualValue !== undefined ? (
                     <TooltipProvider>
-                      <Tooltip>
+                      <Tooltip delayDuration={150}>
                         <TooltipTrigger asChild>
                           <span 
                             className={cn(
                               "cursor-pointer hover:underline inline-block",
-                              subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+                              subMetricData.isOverridden && "text-blue-600 dark:text-blue-400",
+                              metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help"
                             )}
                             onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
                           >
                             {formatValue(annualValue, metric.type)}
                           </span>
                         </TooltipTrigger>
-                        {hasActiveNote(subMetricData.key) && (
-                          <TooltipContent className="max-w-xs">
+                        <TooltipContent className="max-w-xs">
+                          {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
+                            <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
+                          )}
+                          {hasActiveNote(subMetricData.key) && (
                             <p className="text-sm">{getNote(subMetricData.key)?.note}</p>
-                          </TooltipContent>
-                        )}
+                          )}
+                        </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   ) : (
@@ -590,20 +605,25 @@ export function ForecastResultsGrid({
             ) : annualValue !== undefined ? (
               !hasChildren && !metric.isDerived && onMainMetricAnnualEdit ? (
                 <TooltipProvider>
-                  <Tooltip>
+                  <Tooltip delayDuration={150}>
                     <TooltipTrigger asChild>
                       <span 
-                        className="cursor-pointer hover:underline"
+                        className={cn("cursor-pointer hover:underline", metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help")}
                         onClick={() => handleMainMetricAnnualClick(metric.key, annualValue, metric.type)}
                       >
                         {formatValue(annualValue, metric.type)}
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
+                      {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
+                        <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
+                      )}
                       <p className="text-xs">Click to edit annual total</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              ) : metric.type === 'currency' && Math.abs(annualValue) >= 1000 ? (
+                <FormattedCurrency value={annualValue} />
               ) : (
                 formatValue(annualValue, metric.type)
               )
