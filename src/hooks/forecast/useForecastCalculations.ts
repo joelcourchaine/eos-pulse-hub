@@ -931,35 +931,70 @@ export function useForecastCalculations({
         const subName = sub.name.toLowerCase();
         const matchingSales = salesByName.get(subName);
         const matchingGpPercent = gpPercentByName.get(subName);
-        
+
+        const orderIndex = sub.orderIndex ?? index;
+        const subMetricKey = `sub:gp_net:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+        const overriddenAnnual = overrideMap.get(subMetricKey);
+        const isGpNetOverridden = overriddenAnnual !== undefined;
+
+        // If we have matching Sales + GP% sub-metrics, GP Net is normally derived.
+        // BUT: if the user explicitly overrides THIS GP Net sub-metric, that override must win.
         if (matchingSales && matchingGpPercent) {
-          const subMetricKey = `sub:gp_net:${String(sub.orderIndex ?? index).padStart(3, '0')}:${sub.name}`;
           const forecastMonthlyValues = new Map<string, number>();
           let annualValue = 0;
           let baselineAnnualValue = 0;
-          
+
           months.forEach((forecastMonth, monthIndex) => {
             const monthNumber = monthIndex + 1;
             const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
             const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
             baselineAnnualValue += subBaseline;
-            
-            const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
-            const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
-
-            // If baseline settings (growth = 0 and no overrides), use baseline directly
-            if (growth === 0 && !matchingGpPercent.isOverridden && !matchingSales.isOverridden) {
-              forecastMonthlyValues.set(forecastMonth, subBaseline);
-              annualValue += subBaseline;
-              return;
-            }
-
-            const gpNetValue = salesValue * (gpPercentValue / 100);
-            
-            forecastMonthlyValues.set(forecastMonth, gpNetValue);
-            annualValue += gpNetValue;
           });
-          
+
+          if (isGpNetOverridden) {
+            // OVERRIDE CASE: distribute the overridden annual $ across months using the baseline pattern.
+            let totalBaselineWeight = 0;
+            months.forEach((_, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
+            });
+
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+
+              const gpNetValue = totalBaselineWeight > 0
+                ? (subBaseline / totalBaselineWeight) * (overriddenAnnual as number)
+                : (overriddenAnnual as number) / 12;
+
+              forecastMonthlyValues.set(forecastMonth, gpNetValue);
+              annualValue += gpNetValue;
+            });
+          } else {
+            // DERIVED CASE: GP Net = Sales × GP%
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+
+              const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
+              const gpPercentValue = matchingGpPercent.monthlyValues.get(forecastMonth) ?? 0;
+
+              // If baseline settings (growth = 0 and no overrides), use baseline directly
+              if (growth === 0 && !matchingGpPercent.isOverridden && !matchingSales.isOverridden) {
+                forecastMonthlyValues.set(forecastMonth, subBaseline);
+                annualValue += subBaseline;
+                return;
+              }
+
+              const gpNetValue = salesValue * (gpPercentValue / 100);
+              forecastMonthlyValues.set(forecastMonth, gpNetValue);
+              annualValue += gpNetValue;
+            });
+          }
+
           const quarterlyValues = new Map<string, number>();
           const quarterMonthIndices = {
             Q1: [0, 1, 2],
@@ -967,7 +1002,7 @@ export function useForecastCalculations({
             Q3: [6, 7, 8],
             Q4: [9, 10, 11],
           };
-          
+
           Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
             let quarterTotal = 0;
             monthIndices.forEach(i => {
@@ -976,7 +1011,7 @@ export function useForecastCalculations({
             });
             quarterlyValues.set(quarter, quarterTotal);
           });
-          
+
           return {
             key: subMetricKey,
             label: sub.name,
@@ -985,11 +1020,12 @@ export function useForecastCalculations({
             quarterlyValues,
             annualValue,
             baselineAnnualValue,
-            isOverridden: matchingSales.isOverridden || matchingGpPercent.isOverridden,
+            isOverridden: isGpNetOverridden || matchingSales.isOverridden || matchingGpPercent.isOverridden,
           };
-        } else {
-          return calculateSingleSubMetric(sub, 'gp_net', index, false);
         }
+
+        // Fallback: no matching Sales + GP% pair → treat as standard currency sub-metric (supports overrides).
+        return calculateSingleSubMetric(sub, 'gp_net', index, false);
       });
       
       result.set('gp_net', forecasts);
