@@ -296,8 +296,11 @@ export function useForecastCalculations({
       };
 
       // For stores without sub-metrics: when GP% is locked, increase Total Sales AND GP Net.
-      // Total Sales scales by the ratio of (new GP%) / (baseline GP%).
-      // GP Net is then calculated from the new Total Sales and the locked GP%.
+      // We treat the GP% edit as a *pricing/ELR lift* assumption (same hours, higher rate):
+      // both Total Sales and GP Net scale by the same ratio (new GP%) / (baseline GP%).
+      //
+      // Note: this intentionally does NOT force GP Net = Total Sales * GP% (otherwise GP Net would scale
+      // by the ratio twice). The goal here is to make sales + gross move up together for non-submetric stores.
       const getCalculatedTotalSales = (): number => {
         const lockedTotalSales = lockedValues['total_sales'];
         if (lockedTotalSales !== undefined && lockedTotalSales !== null) {
@@ -322,8 +325,11 @@ export function useForecastCalculations({
         }
 
         if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const totalSales = getCalculatedTotalSales();
-          return totalSales * (lockedGpPercent / 100);
+          const basePct = getBaselineGpPctForScaling();
+          if (basePct > 0) {
+            const ratio = lockedGpPercent / basePct;
+            return baselineMonthlyValues.gp_net * growthFactor * ratio;
+          }
         }
 
         // Default: keep GP Net proportional to growth
