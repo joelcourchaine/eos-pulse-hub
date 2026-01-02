@@ -464,6 +464,43 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
+    // Fix return_on_gross quarterly/annual values - must be calculated from aggregated dept_profit / gp_net
+    const deptProfitData = metricsData.find(m => m.key === 'department_profit');
+    const gpNetData = metricsData.find(m => m.key === 'gp_net');
+    const rogData = metricsData.find(m => m.key === 'return_on_gross');
+    
+    if (rogData && deptProfitData && gpNetData) {
+      // Recalculate quarterly ROG
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qDeptProfit = deptProfitData.quarters[qKey]?.value ?? 0;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qBaselineDeptProfit = deptProfitData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+        
+        rogData.quarters[qKey] = {
+          value: qGpNet > 0 ? (qDeptProfit / qGpNet) * 100 : 0,
+          baseline: qBaselineGpNet > 0 ? (qBaselineDeptProfit / qBaselineGpNet) * 100 : 0,
+        };
+      }
+      
+      // Recalculate annual ROG
+      const annualDeptProfit = deptProfitData.annual.value;
+      const annualGpNet = gpNetData.annual.value;
+      const baselineDeptProfit = deptProfitData.annual.baseline;
+      const baselineGpNet = gpNetData.annual.baseline;
+      
+      const rogValue = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
+      const rogBaseline = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
+      
+      rogData.annual = {
+        value: rogValue,
+        baseline: rogBaseline,
+        variance: rogValue - rogBaseline,
+        variancePercent: rogBaseline !== 0 ? ((rogValue - rogBaseline) / Math.abs(rogBaseline)) * 100 : 0,
+      };
+    }
+
     // Use customRecipients directly
     const recipients = customRecipients.filter(email => email && email.includes('@'));
     
