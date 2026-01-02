@@ -295,24 +295,9 @@ export function useForecastCalculations({
         return monthPct > 0 ? monthPct : baselineGpPercent;
       };
 
-      const getCalculatedGpNet = (): number => {
-        const lockedGpNet = lockedValues['gp_net'];
-        if (lockedGpNet !== undefined && lockedGpNet !== null) {
-          return lockedGpNet;
-        }
-
-        if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const basePct = getBaselineGpPctForScaling();
-          if (basePct > 0) {
-            const ratio = lockedGpPercent / basePct;
-            return baselineMonthlyValues.gp_net * growthFactor * ratio;
-          }
-        }
-
-        // Default: keep GP Net proportional to growth
-        return baselineMonthlyValues.gp_net * growthFactor;
-      };
-
+      // For stores without sub-metrics: when GP% is locked, increase Total Sales AND GP Net.
+      // Total Sales scales by the ratio of (new GP%) / (baseline GP%).
+      // GP Net is then calculated from the new Total Sales and the locked GP%.
       const getCalculatedTotalSales = (): number => {
         const lockedTotalSales = lockedValues['total_sales'];
         if (lockedTotalSales !== undefined && lockedTotalSales !== null) {
@@ -320,11 +305,29 @@ export function useForecastCalculations({
         }
 
         if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const gpNet = getCalculatedGpNet();
-          return lockedGpPercent !== 0 ? gpNet / (lockedGpPercent / 100) : baselineMonthlyValues.total_sales * growthFactor;
+          const basePct = getBaselineGpPctForScaling();
+          if (basePct > 0) {
+            const ratio = lockedGpPercent / basePct;
+            return baselineMonthlyValues.total_sales * growthFactor * ratio;
+          }
         }
 
         return baselineMonthlyValues.total_sales * growthFactor;
+      };
+
+      const getCalculatedGpNet = (): number => {
+        const lockedGpNet = lockedValues['gp_net'];
+        if (lockedGpNet !== undefined && lockedGpNet !== null) {
+          return lockedGpNet;
+        }
+
+        if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
+          const totalSales = getCalculatedTotalSales();
+          return totalSales * (lockedGpPercent / 100);
+        }
+
+        // Default: keep GP Net proportional to growth
+        return baselineMonthlyValues.gp_net * growthFactor;
       };
 
       METRIC_DEFINITIONS.forEach(metric => {
