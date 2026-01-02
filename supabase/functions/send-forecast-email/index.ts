@@ -464,13 +464,68 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
-    // Fix return_on_gross quarterly/annual values - must be calculated from aggregated dept_profit / gp_net
-    const deptProfitData = metricsData.find(m => m.key === 'department_profit');
+    // Fix ALL percentage metrics at quarterly/annual levels - must be recalculated from aggregated currency values
+    // This matches the UI logic in useForecastCalculations.ts
+    const totalSalesData = metricsData.find(m => m.key === 'total_sales');
     const gpNetData = metricsData.find(m => m.key === 'gp_net');
+    const salesExpenseData = metricsData.find(m => m.key === 'sales_expense');
+    const deptProfitData = metricsData.find(m => m.key === 'department_profit');
+    const gpPercentData = metricsData.find(m => m.key === 'gp_percent');
+    const salesExpPercentData = metricsData.find(m => m.key === 'sales_expense_percent');
     const rogData = metricsData.find(m => m.key === 'return_on_gross');
     
+    // Fix GP % quarterly/annual
+    if (gpPercentData && gpNetData && totalSalesData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qSales = totalSalesData.quarters[qKey]?.value ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineSales = totalSalesData.quarters[qKey]?.baseline ?? 0;
+        
+        gpPercentData.quarters[qKey] = {
+          value: qSales > 0 ? (qGpNet / qSales) * 100 : 0,
+          baseline: qBaselineSales > 0 ? (qBaselineGpNet / qBaselineSales) * 100 : 0,
+        };
+      }
+      
+      const gpPercentValue = totalSalesData.annual.value > 0 ? (gpNetData.annual.value / totalSalesData.annual.value) * 100 : 0;
+      const gpPercentBaseline = totalSalesData.annual.baseline > 0 ? (gpNetData.annual.baseline / totalSalesData.annual.baseline) * 100 : 0;
+      gpPercentData.annual = {
+        value: gpPercentValue,
+        baseline: gpPercentBaseline,
+        variance: gpPercentValue - gpPercentBaseline,
+        variancePercent: gpPercentBaseline !== 0 ? ((gpPercentValue - gpPercentBaseline) / Math.abs(gpPercentBaseline)) * 100 : 0,
+      };
+    }
+    
+    // Fix Sales Expense % quarterly/annual
+    if (salesExpPercentData && salesExpenseData && gpNetData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qSalesExp = salesExpenseData.quarters[qKey]?.value ?? 0;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qBaselineSalesExp = salesExpenseData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+        
+        salesExpPercentData.quarters[qKey] = {
+          value: qGpNet > 0 ? (qSalesExp / qGpNet) * 100 : 0,
+          baseline: qBaselineGpNet > 0 ? (qBaselineSalesExp / qBaselineGpNet) * 100 : 0,
+        };
+      }
+      
+      const salesExpPercentValue = gpNetData.annual.value > 0 ? (salesExpenseData.annual.value / gpNetData.annual.value) * 100 : 0;
+      const salesExpPercentBaseline = gpNetData.annual.baseline > 0 ? (salesExpenseData.annual.baseline / gpNetData.annual.baseline) * 100 : 0;
+      salesExpPercentData.annual = {
+        value: salesExpPercentValue,
+        baseline: salesExpPercentBaseline,
+        variance: salesExpPercentValue - salesExpPercentBaseline,
+        variancePercent: salesExpPercentBaseline !== 0 ? ((salesExpPercentValue - salesExpPercentBaseline) / Math.abs(salesExpPercentBaseline)) * 100 : 0,
+      };
+    }
+    
+    // Fix Return on Gross quarterly/annual
     if (rogData && deptProfitData && gpNetData) {
-      // Recalculate quarterly ROG
       for (let q = 1; q <= 4; q++) {
         const qKey = `Q${q}`;
         const qDeptProfit = deptProfitData.quarters[qKey]?.value ?? 0;
@@ -484,15 +539,8 @@ const handler = async (req: Request): Promise<Response> => {
         };
       }
       
-      // Recalculate annual ROG
-      const annualDeptProfit = deptProfitData.annual.value;
-      const annualGpNet = gpNetData.annual.value;
-      const baselineDeptProfit = deptProfitData.annual.baseline;
-      const baselineGpNet = gpNetData.annual.baseline;
-      
-      const rogValue = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
-      const rogBaseline = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
-      
+      const rogValue = gpNetData.annual.value > 0 ? (deptProfitData.annual.value / gpNetData.annual.value) * 100 : 0;
+      const rogBaseline = gpNetData.annual.baseline > 0 ? (deptProfitData.annual.baseline / gpNetData.annual.baseline) * 100 : 0;
       rogData.annual = {
         value: rogValue,
         baseline: rogBaseline,
