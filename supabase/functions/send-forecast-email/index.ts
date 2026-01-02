@@ -352,16 +352,11 @@ const handler = async (req: Request): Promise<Response> => {
         const matchingGpPercentSub = gpPercentSubs.find((gp) => gp.name === salesSub.name);
         
         if (matchingGpPercentSub) {
-          // Check for override on this GP% sub-metric
-          const overrideKey = `gp_percent:${matchingGpPercentSub.name}`;
-          // Try both full key format and simple name format
-          let overriddenGpPercent = overrideMap.get(overrideKey);
-          if (overriddenGpPercent === undefined) {
-            // Try with the sub: prefix format
-            const fullKey = `gp_percent:sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
-            overriddenGpPercent = overrideMap.get(fullKey);
-          }
-          
+          // Check for override on this GP% sub-metric.
+          // Overrides are stored using the exact key format: sub:gp_percent:006:Repair Shop
+          const subMetricKey = `sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
+          const overriddenGpPercent = overrideMap.get(`gp_percent:${subMetricKey}`);
+
           // Baseline GP% (average of monthly values)
           const baselineGpPercentValue = matchingGpPercentSub.annualTotal / 12;
           
@@ -573,13 +568,11 @@ const handler = async (req: Request): Promise<Response> => {
                 const matchingGpPercentSub = gpPercentSubs.find((gp) => gp.name === salesSub.name);
                 
                 if (matchingGpPercentSub) {
-                  // Check for override on this GP% sub-metric
-                  const overrideKey = `gp_percent:${matchingGpPercentSub.name}`;
-                  let overriddenGpPercent = overrideMap.get(overrideKey);
-                  if (overriddenGpPercent === undefined) {
-                    const fullKey = `gp_percent:sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
-                    overriddenGpPercent = overrideMap.get(fullKey);
-                  }
+                  // Check for override on this GP% sub-metric.
+                  // Overrides are stored using the exact key format: sub:gp_percent:006:Repair Shop
+                  const subMetricKey = `sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
+                  const overriddenGpPercent = overrideMap.get(`gp_percent:${subMetricKey}`);
+
                   
                   // Get baseline GP% for this month (it's a percentage, so use directly)
                   const baselineGpPercentForMonth = matchingGpPercentSub.monthlyValues.get(priorYearMonth) ?? 0;
@@ -1053,30 +1046,37 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("is_resolved", false);
 
       if (subMetricEntries && subMetricEntries.length > 0) {
-        // Group sub-metrics and calculate annual totals
-        const grouped = new Map<string, { parentKey: string; name: string; total: number }>();
+        // Group sub-metrics and calculate annual totals (preserve exact sub_metric_key format)
+        const grouped = new Map<
+          string,
+          { parentKey: string; name: string; subMetricKey: string; total: number }
+        >();
         subMetricEntries.forEach((entry) => {
           const parts = entry.metric_name.split(":");
           if (parts.length >= 4) {
             const parentKey = parts[1];
+            const orderIndex = parts[2]; // already zero-padded in storage
             const name = parts.slice(3).join(":");
-            const key = `${parentKey}:${name}`;
+            const subMetricKey = `sub:${parentKey}:${orderIndex}:${name}`;
+            const key = `${parentKey}:${subMetricKey}`;
+
             if (!grouped.has(key)) {
-              grouped.set(key, { parentKey, name, total: 0 });
+              grouped.set(key, { parentKey, name, subMetricKey, total: 0 });
             }
             grouped.get(key)!.total += entry.value || 0;
           }
         });
-        
+
         // Build sub-metric data with forecast values from overrides
         const subMetricData = Array.from(grouped.values()).map((g) => {
           const override = subMetricOverrides?.find(
-            (o) => o.sub_metric_key === g.name && o.parent_metric_key === g.parentKey
+            (o) => o.parent_metric_key === g.parentKey && o.sub_metric_key === g.subMetricKey
           );
+
           const baselineValue = g.total;
           const forecastValue = override ? override.overridden_annual_value : baselineValue * growthFactor;
           const variance = forecastValue - baselineValue;
-          
+
           return {
             parentKey: g.parentKey,
             name: g.name,
@@ -1085,6 +1085,7 @@ const handler = async (req: Request): Promise<Response> => {
             variance,
           };
         });
+
 
         if (subMetricData.length > 0) {
           // Group by parent key
