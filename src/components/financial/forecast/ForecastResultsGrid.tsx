@@ -12,6 +12,7 @@ import { SubMetricQuestionTooltip } from '../SubMetricQuestionTooltip';
 import { useForecastSubMetricNotes } from '@/hooks/useForecastSubMetricNotes';
 import { IssueManagementDialog } from '@/components/issues/IssueManagementDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { FormattedCurrency, formatCurrency, formatFullCurrency } from '@/components/ui/formatted-currency';
 
 interface CalculationResult {
   month: string;
@@ -61,15 +62,15 @@ interface ForecastResultsGridProps {
   departmentId?: string;
 }
 
-const formatCurrency = (value: number) => {
-  if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
-};
-
 const formatValue = (value: number, type: 'currency' | 'percent' | 'number') => {
   if (type === 'percent') return `${value.toFixed(1)}%`;
   if (type === 'currency') return formatCurrency(value);
+  return value.toFixed(0);
+};
+
+const formatFullValue = (value: number, type: 'currency' | 'percent' | 'number') => {
+  if (type === 'percent') return `${value.toFixed(1)}%`;
+  if (type === 'currency') return formatFullCurrency(value);
   return value.toFixed(0);
 };
 
@@ -438,16 +439,28 @@ export function ForecastResultsGrid({
                 />
               ) : (
                 <>
-                  <span 
-                    className={cn(
-                      !isSubMetric && "cursor-pointer hover:underline",
-                      isLocked && "cursor-not-allowed opacity-70",
-                      isSubMetric && "text-muted-foreground"
-                    )}
-                    onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
-                  >
-                    {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
-                  </span>
+                  <TooltipProvider>
+                    <Tooltip delayDuration={150}>
+                      <TooltipTrigger asChild>
+                        <span 
+                          className={cn(
+                            !isSubMetric && "cursor-pointer hover:underline",
+                            isLocked && "cursor-not-allowed opacity-70",
+                            isSubMetric && "text-muted-foreground",
+                            metric.type === 'currency' && "cursor-help"
+                          )}
+                          onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                        >
+                          {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
+                        </span>
+                      </TooltipTrigger>
+                      {cellValue !== undefined && metric.type === 'currency' && formatValue(cellValue, metric.type) !== formatFullValue(cellValue, metric.type) && (
+                        <TooltipContent side="top" className="font-mono text-sm">
+                          {formatFullValue(cellValue, metric.type)}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                   {!isSubMetric && (
                     <Button
                       variant="ghost"
@@ -608,14 +621,26 @@ export function ForecastResultsGrid({
             const isPositiveChange = isExpenseMetric ? variance <= 0 : variance >= 0;
             
             return (
-              <span className={cn(
-                isPositiveChange ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-              )}>
-                {metric.type === 'percent' 
-                  ? `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`
-                  : `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`
-                }
-              </span>
+              <TooltipProvider>
+                <Tooltip delayDuration={150}>
+                  <TooltipTrigger asChild>
+                    <span className={cn(
+                      isPositiveChange ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
+                      metric.type === 'currency' && "cursor-help"
+                    )}>
+                      {metric.type === 'percent' 
+                        ? `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`
+                        : `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`
+                      }
+                    </span>
+                  </TooltipTrigger>
+                  {metric.type === 'currency' && formatCurrency(variance) !== formatFullCurrency(variance) && (
+                    <TooltipContent side="top" className="font-mono text-sm">
+                      {variance >= 0 ? '+' : ''}{formatFullCurrency(variance)}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             );
           })() : '-'}
         </td>
@@ -623,7 +648,13 @@ export function ForecastResultsGrid({
           "text-right py-2 px-2 font-medium bg-muted/30",
           isSubMetric && "text-xs font-normal text-muted-foreground"
         )}>
-          {annualBaseline !== undefined ? formatValue(annualBaseline, metric.type) : '-'}
+          {annualBaseline !== undefined ? (
+            metric.type === 'currency' ? (
+              <FormattedCurrency value={annualBaseline} />
+            ) : (
+              formatValue(annualBaseline, metric.type)
+            )
+          ) : '-'}
         </td>
         {view === 'monthly' && (
           <td className={cn(
@@ -631,7 +662,10 @@ export function ForecastResultsGrid({
             isSubMetric && "text-xs font-normal text-muted-foreground"
           )}>
             {annualBaseline !== undefined 
-              ? formatValue(metric.type === 'percent' ? annualBaseline : annualBaseline / 12, metric.type) 
+              ? (metric.type === 'percent' 
+                  ? formatValue(annualBaseline, metric.type)
+                  : <FormattedCurrency value={annualBaseline / 12} />
+                )
               : '-'}
           </td>
         )}

@@ -1,6 +1,7 @@
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { useState, useEffect } from 'react';
+import { FormattedCurrency, formatCurrency } from '@/components/ui/formatted-currency';
 
 interface ForecastDriverInputsProps {
   growth: number;
@@ -12,12 +13,6 @@ interface ForecastDriverInputsProps {
   onSalesExpenseChange: (value: number) => void;
   onFixedExpenseChange: (value: number) => void;
 }
-
-const formatCurrency = (value: number) => {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
-};
 
 export function ForecastDriverInputs({
   growth,
@@ -93,7 +88,7 @@ export function ForecastDriverInputs({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Sales Expense (Annual)</span>
-            <span className="font-medium">{formatCurrency(salesExpense)}</span>
+            <FormattedCurrency value={salesExpense} className="font-medium" />
           </div>
           <Input
             type="text"
@@ -114,7 +109,7 @@ export function ForecastDriverInputs({
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Fixed Expense (Annual)</span>
-            <span className="font-medium">{formatCurrency(fixedExpense)}</span>
+            <FormattedCurrency value={fixedExpense} className="font-medium" />
           </div>
           <Input
             type="text"

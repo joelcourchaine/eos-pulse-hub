@@ -19,6 +19,7 @@ import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { FormattedCurrency, formatCurrency } from '@/components/ui/formatted-currency';
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
@@ -28,12 +29,6 @@ interface ForecastDrawerProps {
   departmentId: string;
   departmentName: string;
 }
-
-const formatCurrency = (value: number) => {
-  if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-  if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
-};
 
 export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
@@ -923,8 +918,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-muted-foreground">Net Selling Gross:</span>
-                    <span className="font-medium">{formatCurrency(forecastNetSellingGross)}</span>
-                    <span className="text-muted-foreground text-sm">vs {formatCurrency(baselineNetSellingGross)} prior</span>
+                    <FormattedCurrency value={forecastNetSellingGross} className="font-medium" />
+                    <span className="text-muted-foreground text-sm">vs <FormattedCurrency value={baselineNetSellingGross} /> prior</span>
                   </div>
                   <div className={cn(
                     "flex items-center gap-2",
@@ -935,15 +930,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                     ) : (
                       <TrendingDown className="h-4 w-4" />
                     )}
-                    <span className="font-semibold">
-                      {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)}
-                    </span>
+                    <FormattedCurrency value={nsgVariance} showSign className="font-semibold" />
                     {(forecastNetSellingGross >= 0) === (baselineNetSellingGross >= 0) && baselineNetSellingGross !== 0 && (
                       <span className="font-semibold">({nsgVariancePercent.toFixed(1)}%)</span>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance / 12)} per month variance
+                    <FormattedCurrency value={nsgVariance / 12} showSign /> per month variance
                   </div>
                 </div>
                 
@@ -951,8 +944,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-muted-foreground">Dept Profit:</span>
-                    <span className="font-medium">{formatCurrency(forecastDeptProfit)}</span>
-                    <span className="text-muted-foreground text-sm">vs {formatCurrency(baselineDeptProfit)} prior</span>
+                    <FormattedCurrency value={forecastDeptProfit} className="font-medium" />
+                    <span className="text-muted-foreground text-sm">vs <FormattedCurrency value={baselineDeptProfit} /> prior</span>
                   </div>
                   <div className={cn(
                     "flex items-center gap-2",
@@ -963,15 +956,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                     ) : (
                       <TrendingDown className="h-4 w-4" />
                     )}
-                    <span className="font-semibold">
-                      {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)}
-                    </span>
+                    <FormattedCurrency value={profitVariance} showSign className="font-semibold" />
                     {(forecastDeptProfit >= 0) === (baselineDeptProfit >= 0) && baselineDeptProfit !== 0 && (
                       <span className="font-semibold">({profitVariancePercent.toFixed(1)}%)</span>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance / 12)} per month variance
+                    <FormattedCurrency value={profitVariance / 12} showSign /> per month variance
                   </div>
                 </div>
               </div>
