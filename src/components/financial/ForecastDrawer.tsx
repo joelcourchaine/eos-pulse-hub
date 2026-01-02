@@ -900,59 +900,57 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               <h3 className="font-semibold mb-3">Year Over Year Comparison</h3>
               <div className="grid grid-cols-2 gap-6">
                 {/* Net Selling Gross - Left */}
-                <div>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <span className="text-muted-foreground">Net Selling Gross:</span>
-                      <span className="ml-2 font-medium">{formatCurrency(forecastNetSellingGross)}</span>
-                      <span className="text-muted-foreground mx-1">vs</span>
-                      <span className="text-muted-foreground">{formatCurrency(baselineNetSellingGross)} prior year</span>
-                    </div>
-                    <div className={cn(
-                      "flex items-center gap-2",
-                      nsgVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                    )}>
-                      {nsgVariance >= 0 ? (
-                        <TrendingUp className="h-4 w-4" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4" />
-                      )}
-                      <span className="font-semibold">
-                        {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)}
-                        {(forecastNetSellingGross >= 0) === (baselineNetSellingGross >= 0) && baselineNetSellingGross !== 0 && ` (${nsgVariancePercent.toFixed(1)}%)`}
-                      </span>
-                    </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-muted-foreground">Net Selling Gross:</span>
+                    <span className="font-medium">{formatCurrency(forecastNetSellingGross)}</span>
+                    <span className="text-muted-foreground text-sm">vs {formatCurrency(baselineNetSellingGross)} prior</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-2">
+                  <div className={cn(
+                    "flex items-center gap-2",
+                    nsgVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                  )}>
+                    {nsgVariance >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span className="font-semibold">
+                      {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)}
+                    </span>
+                    {(forecastNetSellingGross >= 0) === (baselineNetSellingGross >= 0) && baselineNetSellingGross !== 0 && (
+                      <span className="font-semibold">({nsgVariancePercent.toFixed(1)}%)</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
                     {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance / 12)} per month variance
                   </div>
                 </div>
                 
                 {/* Dept Profit - Right */}
-                <div>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <span className="text-muted-foreground">Dept Profit:</span>
-                      <span className="ml-2 font-medium">{formatCurrency(forecastDeptProfit)}</span>
-                      <span className="text-muted-foreground mx-1">vs</span>
-                      <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} prior year</span>
-                    </div>
-                    <div className={cn(
-                      "flex items-center gap-2",
-                      profitVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                    )}>
-                      {profitVariance >= 0 ? (
-                        <TrendingUp className="h-4 w-4" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4" />
-                      )}
-                      <span className="font-semibold">
-                        {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)}
-                        {(forecastDeptProfit >= 0) === (baselineDeptProfit >= 0) && baselineDeptProfit !== 0 && ` (${profitVariancePercent.toFixed(1)}%)`}
-                      </span>
-                    </div>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-muted-foreground">Dept Profit:</span>
+                    <span className="font-medium">{formatCurrency(forecastDeptProfit)}</span>
+                    <span className="text-muted-foreground text-sm">vs {formatCurrency(baselineDeptProfit)} prior</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-2">
+                  <div className={cn(
+                    "flex items-center gap-2",
+                    profitVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                  )}>
+                    {profitVariance >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span className="font-semibold">
+                      {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)}
+                    </span>
+                    {(forecastDeptProfit >= 0) === (baselineDeptProfit >= 0) && baselineDeptProfit !== 0 && (
+                      <span className="font-semibold">({profitVariancePercent.toFixed(1)}%)</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
                     {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance / 12)} per month variance
                   </div>
                 </div>
