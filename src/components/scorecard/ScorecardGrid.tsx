@@ -3012,7 +3012,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             let displayValue: number | undefined;
                             if (yearMonthlyValues.length > 0) {
                               const total = yearMonthlyValues.reduce((a, b) => a + b, 0);
-                              displayValue = isAvg ? total / yearMonthlyValues.length : total;
+                              const average = total / yearMonthlyValues.length;
+                              
+                              // For percentage metrics and rate-based metrics (ELR, Gross %), 
+                              // the Total should equal the Average since you don't sum these
+                              const isRateBasedMetric = 
+                                kpi.metric_type === 'percentage' ||
+                                kpi.name.includes('ELR') ||
+                                kpi.name.includes('Gross %');
+                              
+                              displayValue = isAvg || isRateBasedMetric ? average : total;
                             }
                             
                             return (
