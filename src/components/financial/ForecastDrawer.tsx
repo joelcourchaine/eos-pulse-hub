@@ -455,11 +455,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       lastSyncedImpliedGrowth.current = impliedGrowth;
       setGrowth(impliedGrowth);
     }
+  // NOTE: `growth` is intentionally excluded from deps to prevent an infinite loop.
+  // We use lastSyncedImpliedGrowth ref to track what we've already synced.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     impliedGrowth,
     overridesSignature,
     subMetricOverrides.length,
-    growth,
     lockedEntriesSignature,
     hasLockedGrowthDrivers,
   ]);
