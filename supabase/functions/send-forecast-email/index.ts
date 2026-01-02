@@ -532,13 +532,15 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="summary-box">
             <div class="summary-title">Year Over Year Comparison</div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-              <!-- Net Selling Gross - Left -->
-              <div>
-                <div class="summary-row">
-                  <span class="summary-label">Net Selling Gross:</span>
-                  <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
-                  <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior</span>
+            <table style="border: none; width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="border: none; width: 50%; vertical-align: top; padding-right: 16px;">
+                  <!-- Net Selling Gross - Left -->
+                  <div>
+                    <span class="summary-label">Net Selling Gross:</span>
+                    <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
+                    <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior</span>
+                  </div>
                   <div class="summary-variance ${(nsgData?.annual.variance || 0) >= 0 ? "positive" : "negative"}">
                     ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
                       nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
@@ -549,24 +551,23 @@ const handler = async (req: Request): Promise<Response> => {
                   <div style="font-size: 12px; color: #666;">
                     ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
                   </div>
-                </div>
-              </div>
-              
-              <!-- Department Profit - Right -->
-              <div>
-                <div class="summary-row">
-                  <span class="summary-label">Dept Profit:</span>
-                  <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
-                  <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
+                </td>
+                <td style="border: none; width: 50%; vertical-align: top; padding-left: 16px;">
+                  <!-- Department Profit - Right -->
+                  <div>
+                    <span class="summary-label">Dept Profit:</span>
+                    <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
+                    <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
+                  </div>
                   <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
                     ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
                   </div>
                   <div style="font-size: 12px; color: #666;">
                     ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
                   </div>
-                </div>
-              </div>
-            </div>
+                </td>
+              </tr>
+            </table>
           </div>
     `;
 
