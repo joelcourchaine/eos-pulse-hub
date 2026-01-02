@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -31,6 +31,9 @@ export function ForecastWeightsPanel({
   isUpdating,
 }: ForecastWeightsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  // Local state for input values to allow free typing
+  const [localValues, setLocalValues] = useState<Record<number, string>>({});
+  const [editingMonth, setEditingMonth] = useState<number | null>(null);
 
   // Merge calculated weights with saved weights
   // Original always shows the CALCULATED weight from sales data, not saved original
@@ -48,9 +51,36 @@ export function ForecastWeightsPanel({
   const totalWeight = mergedWeights.reduce((sum, w) => sum + w.adjusted_weight, 0);
   const isValid = Math.abs(totalWeight - 100) < 0.1;
 
-  const handleWeightChange = (monthNumber: number, value: string) => {
+  // Sync local values when not actively editing
+  useEffect(() => {
+    if (editingMonth === null) {
+      const newLocalValues: Record<number, string> = {};
+      mergedWeights.forEach(w => {
+        newLocalValues[w.month_number] = w.adjusted_weight.toFixed(1);
+      });
+      setLocalValues(newLocalValues);
+    }
+  }, [mergedWeights, editingMonth]);
+
+  const handleInputChange = (monthNumber: number, value: string) => {
+    setLocalValues(prev => ({ ...prev, [monthNumber]: value }));
+  };
+
+  const handleInputFocus = (monthNumber: number) => {
+    setEditingMonth(monthNumber);
+  };
+
+  const handleInputBlur = (monthNumber: number) => {
+    setEditingMonth(null);
+    const value = localValues[monthNumber];
     const newWeight = parseFloat(value) || 0;
     onUpdateWeight(monthNumber, newWeight, undefined);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, monthNumber: number) => {
+    if (e.key === 'Enter') {
+      (e.target as HTMLInputElement).blur();
+    }
   };
 
   const handleLockToggle = (monthNumber: number, currentLocked: boolean) => {
@@ -87,8 +117,11 @@ export function ForecastWeightsPanel({
               <div>
                 <Input
                   type="number"
-                  value={w.adjusted_weight.toFixed(1)}
-                  onChange={(e) => handleWeightChange(w.month_number, e.target.value)}
+                  value={localValues[w.month_number] ?? w.adjusted_weight.toFixed(1)}
+                  onChange={(e) => handleInputChange(w.month_number, e.target.value)}
+                  onFocus={() => handleInputFocus(w.month_number)}
+                  onBlur={() => handleInputBlur(w.month_number)}
+                  onKeyDown={(e) => handleKeyDown(e, w.month_number)}
                   className="h-7 w-20 text-sm"
                   step="0.1"
                   disabled={w.is_locked || isUpdating}
