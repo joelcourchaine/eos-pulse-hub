@@ -604,8 +604,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
     if (totalWeight === 0 && !isPercent) return;
     
-    // Distribute across months
-    const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+    // Build all updates at once
+    const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
     
     weights.forEach((w) => {
       const monthStr = `${forecastYear}-${String(w.month_number).padStart(2, '0')}`;
@@ -620,18 +620,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         month: monthStr,
         metricName: metricKey,
         forecastValue: monthValue,
+        isLocked: true,
       });
     });
     
-    // Lock all months for this metric and set the values
-    updates.forEach((update) => {
-      updateEntry.mutate({ 
-        month: update.month, 
-        metricName: update.metricName, 
-        forecastValue: update.forecastValue, 
-        isLocked: true 
-      });
-    });
+    // Bulk update all months at once instead of 12 separate mutations
+    bulkUpdateEntries.mutate(updates);
     
     markDirty();
   };
