@@ -624,16 +624,13 @@ export const HONDA_METRICS: FinancialMetric[] = [
   },
 ];
 
-// KTRV-specific metrics (like GMC but excludes Parts Transfer and Net Operating Profit)
+// KTRV/Other-specific metrics (like GMC but excludes Parts Transfer and Net Operating Profit)
 export const KTRV_METRICS: FinancialMetric[] = GMC_CHEVROLET_METRICS.filter(
   metric => metric.key !== 'parts_transfer' && metric.key !== 'net'
 );
 
-// You can add additional brand configurations here
-export const OTHER_METRICS: FinancialMetric[] = [
-  // Define metrics for other brands as needed
-  ...GMC_CHEVROLET_METRICS // Default to GMC/Chevrolet for now
-];
+// "Other" brand uses same metrics as KTRV (no parts transfer or net operating profit)
+export const OTHER_METRICS: FinancialMetric[] = KTRV_METRICS;
 
 export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   if (brand?.toLowerCase().includes('nissan')) {
@@ -651,7 +648,7 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   if (brand?.toLowerCase().includes('honda')) {
     return HONDA_METRICS;
   }
-  if (brand?.toLowerCase().includes('ktrv')) {
+  if (brand?.toLowerCase().includes('ktrv') || brand?.toLowerCase() === 'other') {
     return KTRV_METRICS;
   }
   return GMC_CHEVROLET_METRICS;
