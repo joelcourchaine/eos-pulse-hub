@@ -858,61 +858,16 @@ export function useForecastCalculations({
     // SIMPLIFIED MODE: Growth % scales both Total Sales and GP Net proportionally
     // GP% stays constant from baseline, so sub-metric GP% values don't change
     // unless user manually overrides them
-    
-    // Calculate Sales sub-metrics - just apply growth factor
+
+    // Calculate Total Sales sub-metrics.
+    // IMPORTANT: use calculateSingleSubMetric so:
+    // - orderIndex is preserved (matches UI ordering + saved override keys)
+    // - manual overrides are applied
+    // - baseline (no-change) path uses baseline directly to avoid rounding mismatches
     if (salesSubs.length > 0) {
-      const growthFactor = 1 + (growth / 100);
-      
-      const forecasts: SubMetricForecast[] = salesSubs.map((sub, index) => {
-        const subMetricKey = `sub:total_sales:${String(index).padStart(3, '0')}:${sub.name}`;
-        const forecastMonthlyValues = new Map<string, number>();
-        let annualValue = 0;
-        let baselineAnnualValue = 0;
-        
-        // Calculate scaled Sales for each month
-        months.forEach((forecastMonth, monthIndex) => {
-          const monthNumber = monthIndex + 1;
-          const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-          const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
-          baselineAnnualValue += subBaseline;
-          
-          // At baseline (growth = 0), use baseline directly
-          const forecastValue = growth === 0 ? subBaseline : subBaseline * growthFactor;
-          
-          forecastMonthlyValues.set(forecastMonth, forecastValue);
-          annualValue += forecastValue;
-        });
-        
-        // Calculate quarterly values
-        const quarterlyValues = new Map<string, number>();
-        const quarterMonthIndices = {
-          Q1: [0, 1, 2],
-          Q2: [3, 4, 5],
-          Q3: [6, 7, 8],
-          Q4: [9, 10, 11],
-        };
-        
-        Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
-          let quarterTotal = 0;
-          monthIndices.forEach(i => {
-            const forecastMonth = months[i];
-            quarterTotal += forecastMonthlyValues.get(forecastMonth) ?? 0;
-          });
-          quarterlyValues.set(quarter, quarterTotal);
-        });
-        
-        return {
-          key: subMetricKey,
-          label: sub.name,
-          parentKey: 'total_sales',
-          monthlyValues: forecastMonthlyValues,
-          quarterlyValues,
-          annualValue,
-          baselineAnnualValue,
-          isOverridden: false,
-        };
-      });
-      
+      const forecasts: SubMetricForecast[] = salesSubs.map((sub, index) =>
+        calculateSingleSubMetric(sub, 'total_sales', index, false)
+      );
       result.set('total_sales', forecasts);
     }
 
