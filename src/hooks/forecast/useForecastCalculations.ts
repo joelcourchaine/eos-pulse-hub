@@ -295,12 +295,10 @@ export function useForecastCalculations({
         return monthPct > 0 ? monthPct : baselineGpPercent;
       };
 
-      // For stores without sub-metrics: when GP% is locked, increase Total Sales AND GP Net.
-      // We treat the GP% edit as a *pricing/ELR lift* assumption (same hours, higher rate):
-      // both Total Sales and GP Net scale by the same ratio (new GP%) / (baseline GP%).
-      //
-      // Note: this intentionally does NOT force GP Net = Total Sales * GP% (otherwise GP Net would scale
-      // by the ratio twice). The goal here is to make sales + gross move up together for non-submetric stores.
+      // For stores without sub-metrics: when GP% is locked we interpret it as an ELR/pricing change.
+      // - If GP% is increased vs baseline: Total Sales increases proportionally (same hours, higher rate).
+      // - GP Net is then derived from Total Sales * locked GP% (so both move up).
+      // - If GP% is decreased: we do NOT force sales down; only margin (GP Net) changes.
       const getCalculatedTotalSales = (): number => {
         const lockedTotalSales = lockedValues['total_sales'];
         if (lockedTotalSales !== undefined && lockedTotalSales !== null) {
@@ -309,7 +307,8 @@ export function useForecastCalculations({
 
         if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
           const basePct = getBaselineGpPctForScaling();
-          if (basePct > 0) {
+          // Only scale sales UP when GP% increases (ELR lift assumption).
+          if (basePct > 0 && lockedGpPercent > basePct) {
             const ratio = lockedGpPercent / basePct;
             return baselineMonthlyValues.total_sales * growthFactor * ratio;
           }
@@ -325,11 +324,8 @@ export function useForecastCalculations({
         }
 
         if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const basePct = getBaselineGpPctForScaling();
-          if (basePct > 0) {
-            const ratio = lockedGpPercent / basePct;
-            return baselineMonthlyValues.gp_net * growthFactor * ratio;
-          }
+          const totalSales = getCalculatedTotalSales();
+          return totalSales * (lockedGpPercent / 100);
         }
 
         // Default: keep GP Net proportional to growth
