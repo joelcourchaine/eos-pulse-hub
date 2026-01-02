@@ -45,9 +45,12 @@ export const formatFullCurrency = (value: number, showSign = false) => {
 export function FormattedCurrency({ value, className, showSign = false }: FormattedCurrencyProps) {
   const abbreviated = formatCurrency(value, showSign);
   const full = formatFullCurrency(value, showSign);
+  const absValue = Math.abs(value);
   
-  // Only show tooltip if the values are different (i.e., abbreviation was applied)
-  if (abbreviated === full || abbreviated.replace('+', '') === full) {
+  // Only show tooltip if abbreviation was applied (value >= 1000)
+  const wasAbbreviated = absValue >= 1000;
+  
+  if (!wasAbbreviated) {
     return <span className={cn(className)}>{abbreviated}</span>;
   }
   
