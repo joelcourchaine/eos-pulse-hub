@@ -11,8 +11,7 @@ interface EmailRequest {
   departmentId: string;
   forecastYear: number;
   view: "monthly" | "quarter" | "annual";
-  recipientType: "myself" | "gm" | "department_managers";
-  customRecipients?: string[];
+  customRecipients: string[];
   includeSubMetrics?: boolean;
 }
 
@@ -91,8 +90,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { departmentId, forecastYear, view, recipientType, customRecipients, includeSubMetrics = true }: EmailRequest = await req.json();
-    console.log("Forecast email request:", { departmentId, forecastYear, view, recipientType, includeSubMetrics });
+    const { departmentId, forecastYear, view, customRecipients, includeSubMetrics = true }: EmailRequest = await req.json();
+    console.log("Forecast email request:", { departmentId, forecastYear, view, customRecipients, includeSubMetrics });
 
     const priorYear = forecastYear - 1;
 
@@ -294,39 +293,11 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
-    // Determine recipients
-    let recipients: string[] = [];
+    // Use customRecipients directly
+    const recipients = customRecipients.filter(email => email && email.includes('@'));
     
-    if (recipientType === "myself") {
-      recipients = [user.email!];
-    } else if (recipientType === "gm") {
-      // Get GM from store
-      const { data: gmProfiles } = await supabaseClient
-        .from("profiles")
-        .select("email")
-        .eq("store_id", deptData.stores.id)
-        .eq("role", "store_gm");
-      
-      recipients = gmProfiles?.map((p) => p.email).filter(Boolean) || [];
-      if (recipients.length === 0) {
-        recipients = [user.email!]; // Fallback to sender
-      }
-    } else if (recipientType === "department_managers") {
-      // Get department managers from the same store
-      const { data: managerProfiles } = await supabaseClient
-        .from("profiles")
-        .select("email")
-        .eq("store_id", deptData.stores.id)
-        .eq("role", "department_manager");
-      
-      recipients = managerProfiles?.map((p) => p.email).filter(Boolean) || [];
-      if (recipients.length === 0) {
-        recipients = [user.email!]; // Fallback to sender
-      }
-    }
-
-    if (customRecipients && customRecipients.length > 0) {
-      recipients = customRecipients;
+    if (recipients.length === 0) {
+      throw new Error("No valid recipients provided");
     }
 
     console.log("Recipients:", recipients);

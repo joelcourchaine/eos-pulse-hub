@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useForecast } from '@/hooks/forecast/useForecast';
@@ -81,7 +82,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
-  const [emailRecipient, setEmailRecipient] = useState<'myself' | 'gm' | 'department_managers'>('myself');
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [customEmail, setCustomEmail] = useState('');
+  const [customEmails, setCustomEmails] = useState<string[]>([]);
   const [includeSubMetrics, setIncludeSubMetrics] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -169,6 +172,32 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       return data;
     },
     enabled: !!departmentId,
+  });
+
+  // Fetch recipients (GMs and department managers for the store)
+  const { data: emailRecipients = [] } = useQuery({
+    queryKey: ['forecast-email-recipients', departmentId],
+    queryFn: async () => {
+      // First get the store_id for this department
+      const { data: dept, error: deptError } = await supabase
+        .from('departments')
+        .select('store_id')
+        .eq('id', departmentId)
+        .single();
+      
+      if (deptError || !dept) return [];
+
+      // Get GMs and department managers for this store
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role')
+        .eq('store_id', dept.store_id)
+        .in('role', ['store_gm', 'department_manager']);
+
+      if (error) throw error;
+      return profiles || [];
+    },
+    enabled: !!departmentId && emailDialogOpen,
   });
 
   const priorYearMonths = useMemo(() => {
@@ -670,8 +699,33 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     toast.success('Forecast reset to baseline');
   };
 
+  // Add custom email to list
+  const handleAddCustomEmail = () => {
+    const trimmed = customEmail.trim().toLowerCase();
+    if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) && !customEmails.includes(trimmed)) {
+      setCustomEmails([...customEmails, trimmed]);
+      setCustomEmail('');
+    }
+  };
+
+  const handleRemoveCustomEmail = (email: string) => {
+    setCustomEmails(customEmails.filter(e => e !== email));
+  };
+
   // Send forecast email
   const handleSendForecastEmail = async () => {
+    // Build recipient list from selected IDs and custom emails
+    const selectedProfileEmails = emailRecipients
+      .filter(r => selectedRecipientIds.includes(r.id))
+      .map(r => r.email);
+    
+    const allRecipients = [...new Set([...selectedProfileEmails, ...customEmails])];
+    
+    if (allRecipients.length === 0) {
+      toast.error('Please select at least one recipient');
+      return;
+    }
+
     setSendingEmail(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-forecast-email', {
@@ -679,7 +733,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           departmentId,
           forecastYear,
           view: emailView,
-          recipientType: emailRecipient,
+          customRecipients: allRecipients,
           includeSubMetrics,
         },
       });
@@ -688,6 +742,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
       toast.success('Forecast email sent successfully');
       setEmailDialogOpen(false);
+      setSelectedRecipientIds([]);
+      setCustomEmails([]);
     } catch (error: any) {
       console.error('Error sending forecast email:', error);
       toast.error(error.message || 'Failed to send forecast email');
@@ -921,21 +977,71 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             </div>
 
             <div className="space-y-3">
-              <Label>Send To</Label>
-              <RadioGroup value={emailRecipient} onValueChange={(v) => setEmailRecipient(v as typeof emailRecipient)}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="myself" id="recipient-myself" />
-                  <Label htmlFor="recipient-myself" className="font-normal">Myself</Label>
+              <Label>Recipients</Label>
+              {emailRecipients.length > 0 ? (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {emailRecipients.map((recipient) => (
+                    <div key={recipient.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`recipient-${recipient.id}`}
+                        checked={selectedRecipientIds.includes(recipient.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedRecipientIds([...selectedRecipientIds, recipient.id]);
+                          } else {
+                            setSelectedRecipientIds(selectedRecipientIds.filter(id => id !== recipient.id));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`recipient-${recipient.id}`} className="font-normal cursor-pointer text-sm">
+                        {recipient.full_name} 
+                        <span className="text-muted-foreground ml-1">
+                          ({recipient.role === 'store_gm' ? 'GM' : 'Dept Manager'})
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="gm" id="recipient-gm" />
-                  <Label htmlFor="recipient-gm" className="font-normal">General Manager(s)</Label>
+              ) : (
+                <p className="text-sm text-muted-foreground">No GMs or department managers found for this store</p>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <Label>Custom Email</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="Enter email address"
+                  value={customEmail}
+                  onChange={(e) => setCustomEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomEmail();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" size="sm" onClick={handleAddCustomEmail}>
+                  Add
+                </Button>
+              </div>
+              {customEmails.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {customEmails.map((email) => (
+                    <span key={email} className="inline-flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
+                      {email}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCustomEmail(email)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="department_managers" id="recipient-managers" />
-                  <Label htmlFor="recipient-managers" className="font-normal">Department Managers</Label>
-                </div>
-              </RadioGroup>
+              )}
             </div>
 
             <div className="flex items-center space-x-2">
