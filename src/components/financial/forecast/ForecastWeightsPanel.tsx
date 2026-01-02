@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -37,29 +37,41 @@ export function ForecastWeightsPanel({
 
   // Merge calculated weights with saved weights
   // Original always shows the CALCULATED weight from sales data, not saved original
-  const mergedWeights = calculatedWeights.map(cw => {
-    const savedWeight = weights.find(w => w.month_number === cw.month_number);
-    return {
-      month_number: cw.month_number,
-      month_name: cw.month_name,
-      original_weight: cw.weight, // Always use calculated weight for "Original"
-      adjusted_weight: savedWeight?.adjusted_weight ?? cw.weight,
-      is_locked: savedWeight?.is_locked ?? false,
-    };
-  });
+  const mergedWeights = useMemo(() => {
+    return calculatedWeights.map((cw) => {
+      const savedWeight = weights.find((w) => w.month_number === cw.month_number);
+      return {
+        month_number: cw.month_number,
+        month_name: cw.month_name,
+        original_weight: cw.weight, // Always use calculated weight for "Original"
+        adjusted_weight: savedWeight?.adjusted_weight ?? cw.weight,
+        is_locked: savedWeight?.is_locked ?? false,
+      };
+    });
+  }, [calculatedWeights, weights]);
 
   const totalWeight = mergedWeights.reduce((sum, w) => sum + w.adjusted_weight, 0);
   const isValid = Math.abs(totalWeight - 100) < 0.1;
 
   // Sync local values when not actively editing
   useEffect(() => {
-    if (editingMonth === null) {
-      const newLocalValues: Record<number, string> = {};
-      mergedWeights.forEach(w => {
-        newLocalValues[w.month_number] = w.adjusted_weight.toFixed(1);
-      });
-      setLocalValues(newLocalValues);
-    }
+    if (editingMonth !== null) return;
+
+    const next: Record<number, string> = {};
+    mergedWeights.forEach((w) => {
+      next[w.month_number] = w.adjusted_weight.toFixed(1);
+    });
+
+    setLocalValues((prev) => {
+      // Avoid infinite update loops by only updating state if something actually changed.
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length !== nextKeys.length) return next;
+      for (const k of nextKeys) {
+        if (prev[Number(k)] !== next[Number(k)]) return next;
+      }
+      return prev;
+    });
   }, [mergedWeights, editingMonth]);
 
   const handleInputChange = (monthNumber: number, value: string) => {
