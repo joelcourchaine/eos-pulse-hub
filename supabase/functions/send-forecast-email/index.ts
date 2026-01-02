@@ -845,21 +845,23 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (subMetricEntries && subMetricEntries.length > 0) {
         // Group sub-metrics and calculate annual totals (preserve exact sub_metric_key format)
+        // Also capture orderIndex to maintain the same sequence as the forecast UI
         const grouped = new Map<
           string,
-          { parentKey: string; name: string; subMetricKey: string; total: number }
+          { parentKey: string; name: string; subMetricKey: string; orderIndex: number; total: number }
         >();
         subMetricEntries.forEach((entry) => {
           const parts = entry.metric_name.split(":");
           if (parts.length >= 4) {
             const parentKey = parts[1];
-            const orderIndex = parts[2]; // already zero-padded in storage
+            const orderIndexStr = parts[2]; // already zero-padded in storage
+            const orderIndex = parseInt(orderIndexStr, 10) || 999;
             const name = parts.slice(3).join(":");
-            const subMetricKey = `sub:${parentKey}:${orderIndex}:${name}`;
+            const subMetricKey = `sub:${parentKey}:${orderIndexStr}:${name}`;
             const key = `${parentKey}:${subMetricKey}`;
 
             if (!grouped.has(key)) {
-              grouped.set(key, { parentKey, name, subMetricKey, total: 0 });
+              grouped.set(key, { parentKey, name, subMetricKey, orderIndex, total: 0 });
             }
             grouped.get(key)!.total += entry.value || 0;
           }
@@ -868,31 +870,35 @@ const handler = async (req: Request): Promise<Response> => {
         // Build sub-metric data with forecast values from overrides.
         // IMPORTANT: The UI's forecast totals come from saved forecast_entries, so scale sub-metrics
         // by the parent metric's actual forecast-vs-baseline ratio (unless overridden).
-        const subMetricData = Array.from(grouped.values()).map((g) => {
-          const override = subMetricOverrides?.find(
-            (o) => o.parent_metric_key === g.parentKey && o.sub_metric_key === g.subMetricKey
-          );
+        // Sort by orderIndex to match the UI sequence (Excel statement order).
+        const subMetricData = Array.from(grouped.values())
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .map((g) => {
+            const override = subMetricOverrides?.find(
+              (o) => o.parent_metric_key === g.parentKey && o.sub_metric_key === g.subMetricKey
+            );
 
-          const baselineValue = g.total;
+            const baselineValue = g.total;
 
-          const parentBaselineTotal = (annualBaseline as any)?.[g.parentKey] ?? 0;
-          const parentForecastTotal = (annualForecastValues as any)?.[g.parentKey] ?? parentBaselineTotal;
-          const parentScale = parentBaselineTotal !== 0 ? parentForecastTotal / parentBaselineTotal : 1;
+            const parentBaselineTotal = (annualBaseline as any)?.[g.parentKey] ?? 0;
+            const parentForecastTotal = (annualForecastValues as any)?.[g.parentKey] ?? parentBaselineTotal;
+            const parentScale = parentBaselineTotal !== 0 ? parentForecastTotal / parentBaselineTotal : 1;
 
-          const forecastValue = override
-            ? override.overridden_annual_value
-            : baselineValue * parentScale;
+            const forecastValue = override
+              ? override.overridden_annual_value
+              : baselineValue * parentScale;
 
-          const variance = forecastValue - baselineValue;
+            const variance = forecastValue - baselineValue;
 
-          return {
-            parentKey: g.parentKey,
-            name: g.name,
-            forecastValue,
-            baselineValue,
-            variance,
-          };
-        });
+            return {
+              parentKey: g.parentKey,
+              name: g.name,
+              orderIndex: g.orderIndex,
+              forecastValue,
+              baselineValue,
+              variance,
+            };
+          });
 
 
         if (subMetricData.length > 0) {
