@@ -726,6 +726,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   };
 
+  // Get Net Selling Gross for comparison
+  const forecastNetSellingGross = annualValues.get('net_selling_gross')?.value || 0;
+  const baselineNetSellingGross = annualValues.get('net_selling_gross')?.baseline_value || 0;
+  const nsgVariance = forecastNetSellingGross - baselineNetSellingGross;
+  const nsgVariancePercent = baselineNetSellingGross !== 0 ? (nsgVariance / Math.abs(baselineNetSellingGross)) * 100 : 0;
+
   // Get department profit for comparison
   const forecastDeptProfit = annualValues.get('department_profit')?.value || 0;
   const baselineDeptProfit = annualValues.get('department_profit')?.baseline_value || 0;
@@ -892,29 +898,62 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             {/* Year Over Year Comparison */}
             <div className="p-4 bg-muted/30 rounded-lg">
               <h3 className="font-semibold mb-3">Year Over Year Comparison</h3>
-              <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Net Selling Gross - Left */}
                 <div>
-                  <span className="text-muted-foreground">Dept Profit:</span>
-                  <span className="ml-2 font-medium">{formatCurrency(forecastDeptProfit)}</span>
-                  <span className="text-muted-foreground mx-1">vs</span>
-                  <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} prior year</span>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-muted-foreground">Net Selling Gross:</span>
+                      <span className="ml-2 font-medium">{formatCurrency(forecastNetSellingGross)}</span>
+                      <span className="text-muted-foreground mx-1">vs</span>
+                      <span className="text-muted-foreground">{formatCurrency(baselineNetSellingGross)} prior year</span>
+                    </div>
+                    <div className={cn(
+                      "flex items-center gap-2",
+                      nsgVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    )}>
+                      {nsgVariance >= 0 ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4" />
+                      )}
+                      <span className="font-semibold">
+                        {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance)} ({nsgVariancePercent.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    {nsgVariance >= 0 ? '+' : ''}{formatCurrency(nsgVariance / 12)} per month variance
+                  </div>
                 </div>
-                <div className={cn(
-                  "flex items-center gap-2",
-                  profitVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                )}>
-                  {profitVariance >= 0 ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4" />
-                  )}
-                  <span className="font-semibold">
-                    {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)} ({profitVariancePercent.toFixed(1)}%)
-                  </span>
+                
+                {/* Dept Profit - Right */}
+                <div>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-muted-foreground">Dept Profit:</span>
+                      <span className="ml-2 font-medium">{formatCurrency(forecastDeptProfit)}</span>
+                      <span className="text-muted-foreground mx-1">vs</span>
+                      <span className="text-muted-foreground">{formatCurrency(baselineDeptProfit)} prior year</span>
+                    </div>
+                    <div className={cn(
+                      "flex items-center gap-2",
+                      profitVariance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                    )}>
+                      {profitVariance >= 0 ? (
+                        <TrendingUp className="h-4 w-4" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4" />
+                      )}
+                      <span className="font-semibold">
+                        {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance)} ({profitVariancePercent.toFixed(1)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance / 12)} per month variance
+                  </div>
                 </div>
-              </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                {profitVariance >= 0 ? '+' : ''}{formatCurrency(profitVariance / 12)} per month variance
               </div>
             </div>
           </div>
