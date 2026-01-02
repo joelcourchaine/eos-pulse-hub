@@ -571,116 +571,108 @@ const handler = async (req: Request): Promise<Response> => {
     const profitCrossesZero = (forecastProfit >= 0) !== (baselineProfit >= 0);
     const showProfitPercent = !profitCrossesZero && baselineProfit !== 0;
 
-    // Build HTML email
+    // Build HTML email - FULLY INLINE STYLES (no <style> blocks or classes for forward-proof emails)
     const viewLabel = view === "monthly" ? "Monthly View" : view === "quarter" ? "Quarterly View" : "Annual View";
+    
+    // Style constants for inline use
+    const styles = {
+      positive: "color: #16a34a;",
+      negative: "color: #dc2626;",
+      annualCol: "background-color: #f0f9ff;",
+      varianceCol: "background-color: #ecfdf5;",
+      baselineCol: "background-color: #f9fafb;",
+      highlightRow: "background-color: #eff6ff; font-weight: 600;",
+      th: "border: 1px solid #e5e7eb; padding: 8px 12px; text-align: center; font-size: 12px; background-color: #f3f4f6; font-weight: 600;",
+      td: "border: 1px solid #e5e7eb; padding: 8px 12px; text-align: right; font-size: 12px;",
+      tdFirst: "border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; font-size: 12px; font-weight: 500;",
+    };
 
     let html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #ffffff; color: #333; }
-          .container { max-width: 900px; margin: 0 auto; }
-          h1 { color: #1a1a1a; font-size: 24px; margin-bottom: 8px; }
-          h2 { color: #1a1a1a; font-size: 18px; margin-top: 24px; margin-bottom: 12px; }
-          .subtitle { color: #666; font-size: 14px; margin-bottom: 20px; }
-          .summary-box { 
-            background-color: #f8f9fa; 
-            border-radius: 8px; 
-            padding: 16px 20px; 
-            margin-bottom: 24px;
-            border-left: 4px solid #2563eb;
-          }
-          .summary-title { font-size: 14px; color: #666; margin-bottom: 12px; }
-          .summary-row { margin-bottom: 12px; }
-          .summary-label { color: #666; font-size: 14px; }
-          .summary-value { font-size: 18px; font-weight: bold; color: #1a1a1a; }
-          .summary-variance { font-size: 14px; margin-top: 2px; }
-          .positive { color: #16a34a; }
-          .negative { color: #dc2626; }
-          table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
-          th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: right; font-size: 12px; }
-          th { background-color: #f3f4f6; font-weight: 600; text-align: center; }
-          td:first-child, th:first-child { text-align: left; font-weight: 500; }
-          .highlight-row { background-color: #eff6ff; font-weight: 600; }
-          .annual-col { background-color: #f0f9ff; }
-          .variance-col { background-color: #ecfdf5; }
-          .baseline-col { background-color: #f9fafb; }
-          .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; }
-        </style>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
       </head>
-      <body>
-        <div class="container">
-          <h1>${deptData.stores.name} - ${deptData.name} Forecast</h1>
-          <p class="subtitle"><strong>${forecastYear} Forecast</strong> • ${viewLabel} • vs ${priorYear} Baseline</p>
-          
-          <div class="summary-box">
-            <div class="summary-title">Year Over Year Comparison</div>
-            
-            <table style="border: none; width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="border: none; width: 50%; vertical-align: top; padding-right: 16px;">
-                  <!-- Net Selling Gross - Left -->
-                  <div>
-                    <span class="summary-label">Net Selling Gross:</span>
-                    <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
-                    <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior</span>
-                  </div>
-                  <div class="summary-variance ${(nsgData?.annual.variance || 0) >= 0 ? "positive" : "negative"}">
-                    ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
-                      nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
-                        ? ` (${nsgData.annual.variancePercent >= 0 ? "+" : ""}${nsgData.annual.variancePercent.toFixed(1)}%)` 
-                        : ""
-                    }
-                  </div>
-                  <div style="font-size: 12px; color: #666;">
-                    ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
-                  </div>
-                </td>
-                <td style="border: none; width: 50%; vertical-align: top; padding-left: 16px;">
-                  <!-- Department Profit - Right -->
-                  <div>
-                    <span class="summary-label">Dept Profit:</span>
-                    <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
-                    <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
-                  </div>
-                  <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
-                    ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
-                  </div>
-                  <div style="font-size: 12px; color: #666;">
-                    ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </div>
+      <body style="font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #ffffff; color: #333333;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 900px; margin: 0 auto;">
+          <tr>
+            <td>
+              <h1 style="color: #1a1a1a; font-size: 24px; margin: 0 0 8px 0; font-weight: bold;">${deptData.stores.name} - ${deptData.name} Forecast</h1>
+              <p style="color: #666666; font-size: 14px; margin: 0 0 20px 0;"><strong>${forecastYear} Forecast</strong> &bull; ${viewLabel} &bull; vs ${priorYear} Baseline</p>
+              
+              <!-- Summary Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid #2563eb; margin-bottom: 24px;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <p style="font-size: 14px; color: #666666; margin: 0 0 12px 0;">Year Over Year Comparison</p>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td width="50%" valign="top" style="padding-right: 16px;">
+                          <!-- Net Selling Gross -->
+                          <p style="margin: 0; font-size: 14px;">
+                            <span style="color: #666666;">Net Selling Gross:</span>
+                            <span style="font-size: 18px; font-weight: bold; color: #1a1a1a; margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
+                            <span style="color: #666666; margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior</span>
+                          </p>
+                          <p style="margin: 2px 0 0 0; font-size: 14px; ${(nsgData?.annual.variance || 0) >= 0 ? styles.positive : styles.negative}">
+                            ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
+                              nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
+                                ? ` (${nsgData.annual.variancePercent >= 0 ? "+" : ""}${nsgData.annual.variancePercent.toFixed(1)}%)` 
+                                : ""
+                            }
+                          </p>
+                          <p style="margin: 0; font-size: 12px; color: #666666;">
+                            ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
+                          </p>
+                        </td>
+                        <td width="50%" valign="top" style="padding-left: 16px;">
+                          <!-- Department Profit -->
+                          <p style="margin: 0; font-size: 14px;">
+                            <span style="color: #666666;">Dept Profit:</span>
+                            <span style="font-size: 18px; font-weight: bold; color: #1a1a1a; margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
+                            <span style="color: #666666; margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
+                          </p>
+                          <p style="margin: 2px 0 0 0; font-size: 14px; ${profitVariance >= 0 ? styles.positive : styles.negative}">
+                            ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
+                          </p>
+                          <p style="margin: 0; font-size: 12px; color: #666666;">
+                            ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
     `;
 
-    // Build the table based on view
+    // Build the table based on view - ALL INLINE STYLES
     if (view === "annual") {
       html += `
-        <table>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th class="annual-col">${forecastYear}</th>
-              <th class="variance-col">Variance</th>
-              <th class="baseline-col">${priorYear}</th>
-            </tr>
-          </thead>
-          <tbody>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr>
+                    <th style="${styles.th} text-align: left;">Metric</th>
+                    <th style="${styles.th} ${styles.annualCol}">${forecastYear}</th>
+                    <th style="${styles.th} ${styles.varianceCol}">Variance</th>
+                    <th style="${styles.th} ${styles.baselineCol}">${priorYear}</th>
+                  </tr>
+                </thead>
+                <tbody>
       `;
 
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
-        const rowClass = isProfit ? ' class="highlight-row"' : "";
+        const rowStyle = isProfit ? styles.highlightRow : "";
+        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
         
         html += `
-          <tr${rowClass}>
-            <td>${metric.label}</td>
-            <td class="annual-col">${formatValue(metric.annual.value, metric.type)}</td>
-            <td class="variance-col ${metric.annual.variance >= 0 ? "positive" : "negative"}">${formatVariance(metric.annual.variance, metric.type)}</td>
-            <td class="baseline-col">${formatValue(metric.annual.baseline, metric.type)}</td>
+          <tr style="${rowStyle}">
+            <td style="${styles.tdFirst} ${rowStyle}">${metric.label}</td>
+            <td style="${styles.td} ${styles.annualCol}">${formatValue(metric.annual.value, metric.type)}</td>
+            <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(metric.annual.variance, metric.type)}</td>
+            <td style="${styles.td} ${styles.baselineCol}">${formatValue(metric.annual.baseline, metric.type)}</td>
           </tr>
         `;
       });
@@ -688,36 +680,38 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     } else if (view === "quarter") {
       html += `
-        <table>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>Q1</th>
-              <th>Q2</th>
-              <th>Q3</th>
-              <th>Q4</th>
-              <th class="annual-col">${forecastYear}</th>
-              <th class="variance-col">Var</th>
-              <th class="baseline-col">${priorYear}</th>
-            </tr>
-          </thead>
-          <tbody>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr>
+                    <th style="${styles.th} text-align: left;">Metric</th>
+                    <th style="${styles.th}">Q1</th>
+                    <th style="${styles.th}">Q2</th>
+                    <th style="${styles.th}">Q3</th>
+                    <th style="${styles.th}">Q4</th>
+                    <th style="${styles.th} ${styles.annualCol}">${forecastYear}</th>
+                    <th style="${styles.th} ${styles.varianceCol}">Var</th>
+                    <th style="${styles.th} ${styles.baselineCol}">${priorYear}</th>
+                  </tr>
+                </thead>
+                <tbody>
       `;
 
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
-        const rowClass = isProfit ? ' class="highlight-row"' : "";
+        const rowStyle = isProfit ? styles.highlightRow : "";
+        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
         
-        html += `<tr${rowClass}><td>${metric.label}</td>`;
+        html += `<tr style="${rowStyle}"><td style="${styles.tdFirst} ${rowStyle}">${metric.label}</td>`;
         
         for (let q = 1; q <= 4; q++) {
-          html += `<td>${formatValue(metric.quarters[`Q${q}`]?.value, metric.type)}</td>`;
+          const qKey = `Q${q}`;
+          html += `<td style="${styles.td}">${formatValue(metric.quarters[qKey]?.value, metric.type)}</td>`;
         }
         
         html += `
-            <td class="annual-col">${formatValue(metric.annual.value, metric.type)}</td>
-            <td class="variance-col ${metric.annual.variance >= 0 ? "positive" : "negative"}">${formatVariance(metric.annual.variance, metric.type)}</td>
-            <td class="baseline-col">${formatValue(metric.annual.baseline, metric.type)}</td>
+            <td style="${styles.td} ${styles.annualCol}">${formatValue(metric.annual.value, metric.type)}</td>
+            <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(metric.annual.variance, metric.type)}</td>
+            <td style="${styles.td} ${styles.baselineCol}">${formatValue(metric.annual.baseline, metric.type)}</td>
           </tr>
         `;
       });
@@ -731,32 +725,32 @@ const handler = async (req: Request): Promise<Response> => {
         const monthsSlice = months.slice(startMonth, endMonth);
         
         html += `
-          <h2>${half === 0 ? "January - June" : "July - December"}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Metric</th>
+              <h2 style="color: #1a1a1a; font-size: 18px; margin: 24px 0 12px 0;">${half === 0 ? "January - June" : "July - December"}</h2>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr>
+                    <th style="${styles.th} text-align: left;">Metric</th>
         `;
         
         monthsSlice.forEach((m) => {
           const monthIndex = parseInt(m.split("-")[1]) - 1;
-          html += `<th>${MONTH_ABBREV[monthIndex]}</th>`;
+          html += `<th style="${styles.th}">${MONTH_ABBREV[monthIndex]}</th>`;
         });
         
         html += `
-              </tr>
-            </thead>
-            <tbody>
+                  </tr>
+                </thead>
+                <tbody>
         `;
 
         metricsData.forEach((metric) => {
           const isProfit = metric.key === "department_profit";
-          const rowClass = isProfit ? ' class="highlight-row"' : "";
+          const rowStyle = isProfit ? styles.highlightRow : "";
           
-          html += `<tr${rowClass}><td>${metric.label}</td>`;
+          html += `<tr style="${rowStyle}"><td style="${styles.tdFirst} ${rowStyle}">${metric.label}</td>`;
           
           monthsSlice.forEach((m) => {
-            html += `<td>${formatValue(metric.months[m]?.value, metric.type)}</td>`;
+            html += `<td style="${styles.td}">${formatValue(metric.months[m]?.value, metric.type)}</td>`;
           });
           
           html += `</tr>`;
@@ -767,29 +761,30 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Add annual summary table
       html += `
-        <h2>Annual Summary</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th class="annual-col">${forecastYear}</th>
-              <th class="variance-col">Variance</th>
-              <th class="baseline-col">${priorYear}</th>
-            </tr>
-          </thead>
-          <tbody>
+              <h2 style="color: #1a1a1a; font-size: 18px; margin: 24px 0 12px 0;">Annual Summary</h2>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 24px;">
+                <thead>
+                  <tr>
+                    <th style="${styles.th} text-align: left;">Metric</th>
+                    <th style="${styles.th} ${styles.annualCol}">${forecastYear}</th>
+                    <th style="${styles.th} ${styles.varianceCol}">Variance</th>
+                    <th style="${styles.th} ${styles.baselineCol}">${priorYear}</th>
+                  </tr>
+                </thead>
+                <tbody>
       `;
 
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
-        const rowClass = isProfit ? ' class="highlight-row"' : "";
+        const rowStyle = isProfit ? styles.highlightRow : "";
+        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
         
         html += `
-          <tr${rowClass}>
-            <td>${metric.label}</td>
-            <td class="annual-col">${formatValue(metric.annual.value, metric.type)}</td>
-            <td class="variance-col ${metric.annual.variance >= 0 ? "positive" : "negative"}">${formatVariance(metric.annual.variance, metric.type)}</td>
-            <td class="baseline-col">${formatValue(metric.annual.baseline, metric.type)}</td>
+          <tr style="${rowStyle}">
+            <td style="${styles.tdFirst} ${rowStyle}">${metric.label}</td>
+            <td style="${styles.td} ${styles.annualCol}">${formatValue(metric.annual.value, metric.type)}</td>
+            <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(metric.annual.variance, metric.type)}</td>
+            <td style="${styles.td} ${styles.baselineCol}">${formatValue(metric.annual.baseline, metric.type)}</td>
           </tr>
         `;
       });
@@ -864,21 +859,21 @@ const handler = async (req: Request): Promise<Response> => {
             groupedByParent.get(sm.parentKey)!.push(sm);
           });
 
-          html += `<h2>Sub-Metric Details</h2>`;
+          html += `<h2 style="color: #1a1a1a; font-size: 18px; margin: 24px 0 12px 0;">Sub-Metric Details</h2>`;
           
           groupedByParent.forEach((items, parentKey) => {
             const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
             html += `
-              <table style="margin-bottom: 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin-bottom: 16px;">
                 <thead>
                   <tr>
-                    <th colspan="4" style="background-color: #f0f9ff; color: #1a1a1a;">${parentLabel}</th>
+                    <th colspan="4" style="${styles.th} ${styles.annualCol} text-align: left;">${parentLabel}</th>
                   </tr>
                   <tr>
-                    <th style="text-align: left;">Sub-Metric</th>
-                    <th class="annual-col">${forecastYear}</th>
-                    <th class="variance-col">Variance</th>
-                    <th class="baseline-col">${priorYear}</th>
+                    <th style="${styles.th} text-align: left;">Sub-Metric</th>
+                    <th style="${styles.th} ${styles.annualCol}">${forecastYear}</th>
+                    <th style="${styles.th} ${styles.varianceCol}">Variance</th>
+                    <th style="${styles.th} ${styles.baselineCol}">${priorYear}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -886,12 +881,13 @@ const handler = async (req: Request): Promise<Response> => {
             
             items.forEach((item) => {
               const note = subMetricNotes?.find((n) => n.sub_metric_key === item.name);
+              const varianceColor = item.variance >= 0 ? styles.positive : styles.negative;
               html += `
                 <tr>
-                  <td>${item.name}${note ? '<span style="display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px;"></span>' : ''}</td>
-                  <td class="annual-col">${formatCurrency(item.forecastValue)}</td>
-                  <td class="variance-col ${item.variance >= 0 ? "positive" : "negative"}">${formatVariance(item.variance, "currency")}</td>
-                  <td class="baseline-col">${formatCurrency(item.baselineValue)}</td>
+                  <td style="${styles.tdFirst}">${item.name}${note ? '<span style="display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px;"></span>' : ''}</td>
+                  <td style="${styles.td} ${styles.annualCol}">${formatCurrency(item.forecastValue)}</td>
+                  <td style="${styles.td} ${styles.varianceCol} ${varianceColor}">${formatVariance(item.variance, "currency")}</td>
+                  <td style="${styles.td} ${styles.baselineCol}">${formatCurrency(item.baselineValue)}</td>
                 </tr>
               `;
             });
@@ -903,29 +899,42 @@ const handler = async (req: Request): Promise<Response> => {
         // Add notes section if there are any
         if (subMetricNotes && subMetricNotes.length > 0) {
           html += `
-            <div style="margin-top: 24px; padding: 16px; background-color: #fffbeb; border-radius: 8px; border: 1px solid #fcd34d;">
-              <div style="font-weight: 600; color: #92400e; margin-bottom: 12px;">📋 Forecast Notes</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 24px;">
+              <tr>
+                <td style="padding: 16px; background-color: #fffbeb; border-radius: 8px; border: 1px solid #fcd34d;">
+                  <p style="font-weight: 600; color: #92400e; margin: 0 0 12px 0;">📋 Forecast Notes</p>
           `;
           
           subMetricNotes.forEach((note) => {
             html += `
-              <div style="margin-bottom: 8px; font-size: 13px;">
-                <span style="font-weight: 500; color: #92400e;">${note.sub_metric_key}:</span> ${note.note || ""}
-              </div>
+                  <p style="margin: 0 0 8px 0; font-size: 13px;">
+                    <span style="font-weight: 500; color: #92400e;">${note.sub_metric_key}:</span> ${note.note || ""}
+                  </p>
             `;
           });
           
-          html += `</div>`;
+          html += `
+                </td>
+              </tr>
+            </table>
+          `;
         }
       }
     }
 
     html += `
-          <div class="footer">
-            <p>This forecast report was generated by the Growth Scorecard application.</p>
-            <p>Generated on ${new Date().toLocaleString()}</p>
-          </div>
-        </div>
+              <!-- Footer -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top: 32px; border-top: 1px solid #e5e7eb;">
+                <tr>
+                  <td style="padding-top: 16px;">
+                    <p style="font-size: 12px; color: #9ca3af; margin: 0 0 4px 0;">This forecast report was generated by the Growth Scorecard application.</p>
+                    <p style="font-size: 12px; color: #9ca3af; margin: 0;">Generated on ${new Date().toLocaleString()}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
       </body>
       </html>
     `;
