@@ -241,7 +241,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
   // Important: do NOT invalidate+refetch on success, otherwise the recalculation layer
   // will often re-trigger autosaves due to identity changes in computed Maps.
   const bulkUpdateEntries = useMutation({
-    mutationFn: async (updates: { month: string; metricName: string; forecastValue: number | null; baselineValue?: number | null }[]) => {
+    mutationFn: async (updates: { month: string; metricName: string; forecastValue: number | null; baselineValue?: number | null; isLocked?: boolean }[]) => {
       if (!forecast?.id) throw new Error('No forecast');
 
       // Separate updates and inserts
@@ -267,6 +267,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
               .update({
                 forecast_value: update.forecastValue,
                 ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
+                ...(update.isLocked !== undefined && { is_locked: update.isLocked }),
               })
               .eq('id', existing.id);
             if (error) throw error;
@@ -279,7 +280,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
             metric_name: update.metricName,
             forecast_value: update.forecastValue,
             baseline_value: update.baselineValue ?? null,
-            is_locked: false,
+            is_locked: update.isLocked ?? false,
           });
         }
       }
@@ -310,6 +311,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
               ...existing,
               forecast_value: u.forecastValue,
               baseline_value: u.baselineValue ?? existing.baseline_value,
+              is_locked: u.isLocked ?? existing.is_locked,
             });
           }
         }
