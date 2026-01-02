@@ -316,6 +316,25 @@ const handler = async (req: Request): Promise<Response> => {
       return total;
     };
 
+    // If a percent metric has ALL 12 months locked to (roughly) the same value, the UI shows that
+    // locked value for the annual row instead of recalculating from totals.
+    const getLockedAnnualPercent = (metric: string): number | null => {
+      const lockedValues: number[] = [];
+
+      for (let m = 1; m <= 12; m++) {
+        const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
+        const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+        if (!entry || !entry.locked || entry.forecast === null || entry.forecast === undefined) {
+          return null;
+        }
+        lockedValues.push(entry.forecast);
+      }
+
+      const first = lockedValues[0];
+      const allSame = lockedValues.every((v) => Math.abs(v - first) < 0.01);
+      return allSame ? first : null;
+    };
+
     const baselineTotalSales = annualBaseline['total_sales'] || 0;
     const baselineGpNet = annualBaseline['gp_net'] || 0;
     const baselineSalesExp = annualBaseline['sales_expense'] || 0;
@@ -330,7 +349,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Derived (match UI annual calculation style)
     const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
-    const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0;
+    const lockedSalesExpPercent = getLockedAnnualPercent('sales_expense_percent');
+    const annualSalesExpPercent = lockedSalesExpPercent !== null
+      ? lockedSalesExpPercent
+      : (annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0);
     const annualNetSellingGross = annualGpNet - annualSalesExp;
     const annualDeptProfit = annualGpNet - annualSalesExp - annualFixedExp;
     const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
