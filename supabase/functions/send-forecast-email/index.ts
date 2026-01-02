@@ -898,37 +898,105 @@ const handler = async (req: Request): Promise<Response> => {
         });
 
         // Build sub-metric data with forecast values from overrides.
-        // IMPORTANT: The UI's forecast totals come from saved forecast_entries, so scale sub-metrics
-        // by the parent metric's actual forecast-vs-baseline ratio (unless overridden).
-        // Sort by orderIndex to match the UI sequence (Excel statement order).
-        const subMetricData = Array.from(grouped.values())
+        // IMPORTANT: The UI derives % sub-metrics (GP %) from their underlying $ sub-metrics.
+        // So for gp_percent we compute: gp_net_sub / total_sales_sub.
+        // For $ parents, we scale prior-year (baseline) by parent forecast-vs-baseline ratio unless overridden.
+
+        const findOverride = (parentKey: string, subMetricKey: string) =>
+          subMetricOverrides?.find(
+            (o) => o.parent_metric_key === parentKey && o.sub_metric_key === subMetricKey
+          );
+
+        // First compute forecast/baseline for currency parents so % parents can derive from them.
+        const currencyParents = new Set<string>(["total_sales", "gp_net", "sales_expense", "net_selling_gross", "total_fixed_expense", "department_profit", "parts_transfer", "net_operating_profit"]);
+
+        type SubRow = {
+          parentKey: string;
+          name: string;
+          orderIndex: number;
+          subMetricKey: string;
+          forecastValue: number;
+          baselineValue: number;
+          variance: number;
+        };
+
+        const subRows: SubRow[] = [];
+
+        // Maps used for deriving gp_percent rows
+        const baselineByParentName = new Map<string, number>();
+        const forecastByParentName = new Map<string, number>();
+
+        const putMaps = (parentKey: string, name: string, orderIndex: number, baseline: number, forecast: number) => {
+          const k = `${parentKey}::${orderIndex}::${name}`;
+          baselineByParentName.set(k, baseline);
+          forecastByParentName.set(k, forecast);
+        };
+
+        const computeScaledCurrencyForecast = (parentKey: string, baselineValue: number, subMetricKey: string): number => {
+          const override = findOverride(parentKey, subMetricKey);
+          if (override) return override.overridden_annual_value;
+
+          const parentBaselineTotal = (annualBaselineValues as any)?.[parentKey] ?? 0;
+          const parentForecastTotal = (annualForecastValues as any)?.[parentKey] ?? parentBaselineTotal;
+          const parentScale = parentBaselineTotal !== 0 ? parentForecastTotal / parentBaselineTotal : 1;
+          return baselineValue * parentScale;
+        };
+
+        // Pass 1: currency parents
+        Array.from(grouped.values())
+          .filter((g) => currencyParents.has(g.parentKey))
           .sort((a, b) => a.orderIndex - b.orderIndex)
-          .map((g) => {
-            const override = subMetricOverrides?.find(
-              (o) => o.parent_metric_key === g.parentKey && o.sub_metric_key === g.subMetricKey
-            );
-
+          .forEach((g) => {
             const baselineValue = g.total;
-
-            const parentBaselineTotal = (annualBaseline as any)?.[g.parentKey] ?? 0;
-            const parentForecastTotal = (annualForecastValues as any)?.[g.parentKey] ?? parentBaselineTotal;
-            const parentScale = parentBaselineTotal !== 0 ? parentForecastTotal / parentBaselineTotal : 1;
-
-            const forecastValue = override
-              ? override.overridden_annual_value
-              : baselineValue * parentScale;
-
+            const forecastValue = computeScaledCurrencyForecast(g.parentKey, baselineValue, g.subMetricKey);
             const variance = forecastValue - baselineValue;
 
-            return {
+            putMaps(g.parentKey, g.name, g.orderIndex, baselineValue, forecastValue);
+
+            subRows.push({
               parentKey: g.parentKey,
               name: g.name,
               orderIndex: g.orderIndex,
+              subMetricKey: g.subMetricKey,
               forecastValue,
               baselineValue,
               variance,
-            };
+            });
           });
+
+        // Pass 2: GP % (derived) — matches Forecast UI behavior
+        Array.from(grouped.values())
+          .filter((g) => g.parentKey === "gp_percent")
+          .sort((a, b) => a.orderIndex - b.orderIndex)
+          .forEach((g) => {
+            const override = findOverride("gp_percent", g.subMetricKey);
+
+            // Baseline %: gp_net_baseline / total_sales_baseline
+            const baseSales = baselineByParentName.get(`total_sales::${g.orderIndex}::${g.name}`) ?? 0;
+            const baseGpNet = baselineByParentName.get(`gp_net::${g.orderIndex}::${g.name}`) ?? 0;
+            const baselineValue = baseSales !== 0 ? (baseGpNet / baseSales) * 100 : 0;
+
+            // Forecast %: gp_net_forecast / total_sales_forecast
+            const fSales = forecastByParentName.get(`total_sales::${g.orderIndex}::${g.name}`) ?? 0;
+            const fGpNet = forecastByParentName.get(`gp_net::${g.orderIndex}::${g.name}`) ?? 0;
+            const derivedForecast = fSales !== 0 ? (fGpNet / fSales) * 100 : 0;
+
+            const forecastValue = override ? override.overridden_annual_value : derivedForecast;
+            const variance = forecastValue - baselineValue;
+
+            subRows.push({
+              parentKey: "gp_percent",
+              name: g.name,
+              orderIndex: g.orderIndex,
+              subMetricKey: g.subMetricKey,
+              forecastValue,
+              baselineValue,
+              variance,
+            });
+          });
+
+        // Final array, ordered by statement order within each parent
+        const subMetricData = subRows.sort((a, b) => a.orderIndex - b.orderIndex);
 
 
         if (subMetricData.length > 0) {
