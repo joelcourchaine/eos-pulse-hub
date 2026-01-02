@@ -176,14 +176,18 @@ const handler = async (req: Request): Promise<Response> => {
       .select("*")
       .eq("forecast_id", forecast.id);
 
-    // Fetch forecast entries (locked values only)
+    // Fetch forecast entries (use ALL saved values; lock is only a UI edit marker)
     const { data: forecastEntries } = await supabaseClient
       .from("forecast_entries")
-      .select("*")
-      .eq("forecast_id", forecast.id)
-      .eq("is_locked", true);
+      .select("month, metric_name, forecast_value, baseline_value, is_locked")
+      .eq("forecast_id", forecast.id);
 
-    console.log("Forecast data loaded - weights:", forecastWeights?.length || 0, "entries:", forecastEntries?.length || 0);
+    console.log(
+      "Forecast data loaded - weights:",
+      forecastWeights?.length || 0,
+      "entries:",
+      forecastEntries?.length || 0
+    );
 
     // Fetch prior year financial data for baseline (excluding sub-metrics)
     const { data: priorYearData } = await supabaseClient
@@ -208,10 +212,15 @@ const handler = async (req: Request): Promise<Response> => {
     // Fetch sub-metric overrides for this forecast
     const { data: subMetricOverrides } = await supabaseClient
       .from("forecast_submetric_overrides")
-      .select("*")
+      .select("parent_metric_key, sub_metric_key, overridden_annual_value")
       .eq("forecast_id", forecast.id);
 
-    console.log("Sub-metric data loaded - baseline entries:", subMetricBaselineData?.length || 0, "overrides:", subMetricOverrides?.length || 0);
+    console.log(
+      "Sub-metric data loaded - baseline entries:",
+      subMetricBaselineData?.length || 0,
+      "overrides:",
+      subMetricOverrides?.length || 0
+    );
 
     // Build baseline data map
     const baselineByMonth = new Map<string, Map<string, number>>();
@@ -231,10 +240,10 @@ const handler = async (req: Request): Promise<Response> => {
       monthlyValues: Map<string, number>;
       annualTotal: number;
     }
-    
+
     const subMetricBaselines: SubMetricBaseline[] = [];
     const subMetricsByKey = new Map<string, SubMetricBaseline>();
-    
+
     subMetricBaselineData?.forEach((entry) => {
       const parts = entry.metric_name.split(":");
       if (parts.length >= 4) {
@@ -242,7 +251,7 @@ const handler = async (req: Request): Promise<Response> => {
         const orderIndex = parseInt(parts[2], 10);
         const name = parts.slice(3).join(":");
         const key = `${parentKey}:${orderIndex}:${name}`;
-        
+
         if (!subMetricsByKey.has(key)) {
           const baseline: SubMetricBaseline = {
             parentKey,
@@ -254,7 +263,7 @@ const handler = async (req: Request): Promise<Response> => {
           subMetricsByKey.set(key, baseline);
           subMetricBaselines.push(baseline);
         }
-        
+
         const baseline = subMetricsByKey.get(key)!;
         const currentMonthValue = baseline.monthlyValues.get(entry.month) || 0;
         baseline.monthlyValues.set(entry.month, currentMonthValue + (entry.value || 0));
@@ -271,7 +280,6 @@ const handler = async (req: Request): Promise<Response> => {
     // Check if this store has GP% sub-metric overrides
     const gpPercentOverrides = subMetricOverrides?.filter((o) => o.parent_metric_key === "gp_percent") || [];
     const hasGpPercentOverrides = gpPercentOverrides.length > 0;
-
     console.log("GP% overrides:", gpPercentOverrides.length, "hasGpPercentOverrides:", hasGpPercentOverrides);
 
     // Calculate annual baseline totals
@@ -282,135 +290,59 @@ const handler = async (req: Request): Promise<Response> => {
       });
     });
 
-    // Build weights map
-    const weightsMap = new Map<number, number>();
-    forecastWeights?.forEach((w) => {
-      weightsMap.set(w.month_number, w.adjusted_weight);
-    });
+    // === IMPORTANT ===
+    // Email should reflect what the Forecast UI is showing.
+    // The UI persists its computed month-by-month values into forecast_entries.forecast_value
+    // (even when not locked). So the source of truth for the email is forecast_entries.
 
-    // Build entries map for locked values
-    const entriesMap = new Map<string, { forecast_value: number; is_locked: boolean }>();
-    forecastEntries?.forEach((e) => {
-      entriesMap.set(`${e.month}:${e.metric_name}`, { 
-        forecast_value: e.forecast_value || 0, 
-        is_locked: e.is_locked 
+    const entriesByMonthMetric = new Map<string, { forecast: number | null; baseline: number | null; locked: boolean }>();
+    (forecastEntries ?? []).forEach((e) => {
+      entriesByMonthMetric.set(`${e.month}:${e.metric_name}`, {
+        forecast: e.forecast_value,
+        baseline: e.baseline_value,
+        locked: !!e.is_locked,
       });
     });
 
-    // Get driver values (or defaults from baseline)
-    const growth = driverSettings?.growth_percent ?? 0;
-    const savedSalesExpense = driverSettings?.sales_expense;
-    const savedFixedExpense = driverSettings?.fixed_expense;
-    
-    const baseSalesExpense = annualBaseline['sales_expense'] || 0;
-    const baseFixedExpense = annualBaseline['total_fixed_expense'] || 0;
-    
-    // Use saved values if available, otherwise scale baseline by growth
-    const growthFactor = 1 + (growth / 100);
-    const fixedExpense = savedFixedExpense ?? baseFixedExpense;
+    const sumForecast = (metric: string): number => {
+      let total = 0;
+      for (let m = 1; m <= 12; m++) {
+        const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
+        const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+        if (entry && entry.forecast !== null && entry.forecast !== undefined) {
+          total += entry.forecast;
+        }
+      }
+      return total;
+    };
 
-    // Calculate annual values - for stores with GP% sub-metric overrides, derive from sub-metrics
     const baselineTotalSales = annualBaseline['total_sales'] || 0;
     const baselineGpNet = annualBaseline['gp_net'] || 0;
-    const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
-    const baselineSalesExpPercent = baselineGpNet > 0 ? (baseSalesExpense / baselineGpNet) * 100 : 0;
+    const baselineSalesExp = annualBaseline['sales_expense'] || 0;
+    const baselineFixedExp = annualBaseline['total_fixed_expense'] || 0;
     const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
 
-    let annualTotalSales: number;
-    let annualGpNet: number;
-    let gpPercent: number;
-    let annualSalesExp: number;
+    const annualTotalSales = sumForecast('total_sales');
+    const annualGpNet = sumForecast('gp_net');
+    const annualSalesExp = sumForecast('sales_expense');
+    const annualFixedExp = sumForecast('total_fixed_expense');
+    const annualPartsTransfer = sumForecast('parts_transfer');
 
-    if (hasGpPercentOverrides) {
-      // For stores with GP% overrides: calculate GP Net from sub-metrics
-      // GP Net = sum of (Total Sales sub × GP% sub / 100) for each sub-metric
-      
-      // Get Total Sales sub-metrics
-      const salesSubs = subMetricBaselines.filter((s) => s.parentKey === "total_sales");
-      const gpPercentSubs = subMetricBaselines.filter((s) => s.parentKey === "gp_percent");
-      
-      console.log("Calculating from sub-metrics - salesSubs:", salesSubs.length, "gpPercentSubs:", gpPercentSubs.length);
-      
-      // Calculate Total Sales (sum of sales sub-metrics with growth)
-      annualTotalSales = 0;
-      salesSubs.forEach((sub) => {
-        const forecastValue = sub.annualTotal * growthFactor;
-        annualTotalSales += forecastValue;
-      });
-      
-      // If no sales sub-metrics, fall back to parent baseline
-      if (salesSubs.length === 0) {
-        annualTotalSales = baselineTotalSales * growthFactor;
-      }
-      
-      // Calculate GP Net by matching Total Sales subs to GP% subs
-      // Match by name (e.g., "Repair Shop" in both)
-      annualGpNet = 0;
-      salesSubs.forEach((salesSub) => {
-        const forecastSales = salesSub.annualTotal * growthFactor;
-        
-        // Find matching GP% sub-metric by name
-        const matchingGpPercentSub = gpPercentSubs.find((gp) => gp.name === salesSub.name);
-        
-        if (matchingGpPercentSub) {
-          // Check for override on this GP% sub-metric.
-          // Overrides are stored using the exact key format: sub:gp_percent:006:Repair Shop
-          const subMetricKey = `sub:gp_percent:${String(matchingGpPercentSub.orderIndex).padStart(3, '0')}:${matchingGpPercentSub.name}`;
-          const overriddenGpPercent = overrideMap.get(`gp_percent:${subMetricKey}`);
-
-          // Baseline GP% (average of monthly values)
-          const baselineGpPercentValue = matchingGpPercentSub.annualTotal / 12;
-          
-          // Use override or baseline GP%
-          const effectiveGpPercent = overriddenGpPercent ?? baselineGpPercentValue;
-          
-          // Calculate GP Net for this sub-metric
-          const subGpNet = forecastSales * (effectiveGpPercent / 100);
-          annualGpNet += subGpNet;
-          
-          console.log("Sub-metric GP calculation:", {
-            name: salesSub.name,
-            sales: forecastSales,
-            baselineGpPercent: baselineGpPercentValue,
-            overriddenGpPercent,
-            effectiveGpPercent,
-            subGpNet,
-          });
-        } else {
-          // No matching GP% sub, use baseline GP% for this sales sub
-          const subGpNet = forecastSales * (baselineGpPercent / 100);
-          annualGpNet += subGpNet;
-        }
-      });
-      
-      // If no sales sub-metrics were processed, fall back
-      if (salesSubs.length === 0) {
-        annualGpNet = baselineGpNet * growthFactor;
-      }
-      
-      // Calculate GP% from the computed values
-      gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : baselineGpPercent;
-      
-      // Calculate Sales Expense - keep same % of GP Net as baseline
-      annualSalesExp = savedSalesExpense ?? (annualGpNet * (baselineSalesExpPercent / 100));
-      
-      console.log("Sub-metric derived values:", { annualTotalSales, annualGpNet, gpPercent, annualSalesExp });
-    } else {
-      // Standard calculation for stores without GP% overrides
-      annualTotalSales = baselineTotalSales * growthFactor;
-      annualGpNet = baselineGpNet * growthFactor;
-      gpPercent = baselineGpPercent;
-      annualSalesExp = savedSalesExpense ?? (baseSalesExpense * growthFactor);
-    }
-
-    console.log("Drivers:", { growth, salesExpense: annualSalesExp, fixedExpense, growthFactor });
-
+    // Derived (match UI annual calculation style)
+    const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
     const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0;
     const annualNetSellingGross = annualGpNet - annualSalesExp;
-    const annualDeptProfit = annualGpNet - annualSalesExp - fixedExpense;
-    const annualPartsTransfer = baselinePartsTransfer;
+    const annualDeptProfit = annualGpNet - annualSalesExp - annualFixedExp;
     const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
     const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
+
+    console.log("Annual totals from forecast_entries:", {
+      annualTotalSales,
+      annualGpNet,
+      annualSalesExp,
+      annualFixedExp,
+      annualDeptProfit,
+    });
 
     // Annual forecast values
     const annualForecastValues: Record<string, number> = {
@@ -420,7 +352,7 @@ const handler = async (req: Request): Promise<Response> => {
       sales_expense: annualSalesExp,
       sales_expense_percent: annualSalesExpPercent,
       net_selling_gross: annualNetSellingGross,
-      total_fixed_expense: fixedExpense,
+      total_fixed_expense: annualFixedExp,
       department_profit: annualDeptProfit,
       parts_transfer: annualPartsTransfer,
       net_operating_profit: annualNetOperatingProfit,
@@ -428,8 +360,10 @@ const handler = async (req: Request): Promise<Response> => {
     };
 
     // Annual baseline values for comparison
-    const baselineNetSellingGross = baselineGpNet - baseSalesExpense;
-    const baselineDeptProfit = baselineGpNet - baseSalesExpense - baseFixedExpense;
+    const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
+    const baselineSalesExpPercent = baselineGpNet > 0 ? (baselineSalesExp / baselineGpNet) * 100 : 0;
+    const baselineNetSellingGross = baselineGpNet - baselineSalesExp;
+    const baselineDeptProfit = baselineGpNet - baselineSalesExp - baselineFixedExp;
     const baselineNetOperatingProfit = baselineDeptProfit + baselinePartsTransfer;
     const baselineReturnOnGross = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
 
@@ -437,10 +371,10 @@ const handler = async (req: Request): Promise<Response> => {
       total_sales: baselineTotalSales,
       gp_net: baselineGpNet,
       gp_percent: baselineGpPercent,
-      sales_expense: baseSalesExpense,
+      sales_expense: baselineSalesExp,
       sales_expense_percent: baselineSalesExpPercent,
       net_selling_gross: baselineNetSellingGross,
-      total_fixed_expense: baseFixedExpense,
+      total_fixed_expense: baselineFixedExp,
       department_profit: baselineDeptProfit,
       parts_transfer: baselinePartsTransfer,
       net_operating_profit: baselineNetOperatingProfit,
@@ -449,6 +383,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Update salesExpense variable for use in monthly calculations
     const salesExpense = annualSalesExp;
+
+    // Re-introduce variables expected by the existing monthly-calculation block below.
+    // The email's annual totals now come from saved forecast_entries, so we don't apply growth drivers here.
+    const growth = 0;
+    const growthFactor = 1;
+    const baseSalesExpense = baselineSalesExp;
+    const baseFixedExpense = baselineFixedExp;
+
+    // Map of saved forecast values (used when a cell is locked)
+    const entriesMap = new Map<string, { forecast_value: number; is_locked: boolean }>();
+    (forecastEntries ?? []).forEach((e) => {
+      entriesMap.set(`${e.month}:${e.metric_name}`, {
+        forecast_value: e.forecast_value ?? 0,
+        is_locked: !!e.is_locked,
+      });
+    });
 
     console.log("Calculated annual values:", {
       forecast: { deptProfit: annualDeptProfit, nsg: annualNetSellingGross, gpNet: annualGpNet, totalSales: annualTotalSales },
