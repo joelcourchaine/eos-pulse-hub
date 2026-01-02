@@ -933,9 +933,19 @@ const handler = async (req: Request): Promise<Response> => {
             groupedByParent.get(sm.parentKey)!.push(sm);
           });
 
+          // Ensure parent sections render in the same sequence as the Forecast UI
+          const parentOrder = new Map<string, number>(
+            METRIC_DEFINITIONS.map((m, idx) => [m.key, idx])
+          );
+          const orderedParents = Array.from(groupedByParent.entries()).sort((a, b) => {
+            const aIdx = parentOrder.get(a[0]) ?? 999;
+            const bIdx = parentOrder.get(b[0]) ?? 999;
+            return aIdx - bIdx;
+          });
+
           html += `<h2 style="color: #1a1a1a; font-size: 18px; margin: 24px 0 12px 0;">Sub-Metric Details</h2>`;
-          
-          groupedByParent.forEach((items, parentKey) => {
+
+          orderedParents.forEach(([parentKey, items]) => {
             const parentMetric = METRIC_DEFINITIONS.find((m) => m.key === parentKey);
             const parentLabel = parentMetric?.label || parentKey;
             const parentType = parentMetric?.type || "currency";
@@ -954,7 +964,7 @@ const handler = async (req: Request): Promise<Response> => {
                 </thead>
                 <tbody>
             `;
-            
+
             items.forEach((item) => {
               const note = subMetricNotes?.find((n) => n.sub_metric_key === item.name);
               // For sub-metrics under expense parents, invert the variance color logic
