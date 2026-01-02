@@ -74,6 +74,15 @@ const formatFullValue = (value: number, type: 'currency' | 'percent' | 'number')
   return value.toFixed(0);
 };
 
+// Format value with full currency in annual view
+const formatValueForView = (value: number, type: 'currency' | 'percent' | 'number', isAnnualView: boolean) => {
+  if (type === 'percent') return `${value.toFixed(1)}%`;
+  if (type === 'currency') {
+    return isAnnualView ? formatFullCurrency(value) : formatCurrency(value);
+  }
+  return value.toFixed(0);
+};
+
 const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function ForecastResultsGrid({
@@ -511,30 +520,44 @@ export function ForecastResultsGrid({
                       autoFocus
                     />
                   ) : annualValue !== undefined ? (
-                    <TooltipProvider>
-                      <Tooltip delayDuration={150}>
-                        <TooltipTrigger asChild>
-                          <span 
-                            className={cn(
-                              "cursor-pointer hover:underline inline-block",
-                              subMetricData.isOverridden && "text-blue-600 dark:text-blue-400",
-                              metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help"
+                    view === 'annual' ? (
+                      // Annual view: show full values directly
+                      <span 
+                        className={cn(
+                          "cursor-pointer hover:underline inline-block",
+                          subMetricData.isOverridden && "text-blue-600 dark:text-blue-400"
+                        )}
+                        onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
+                      >
+                        {formatValueForView(annualValue, metric.type, true)}
+                      </span>
+                    ) : (
+                      // Monthly/Quarter views: show abbreviated with tooltip
+                      <TooltipProvider>
+                        <Tooltip delayDuration={150}>
+                          <TooltipTrigger asChild>
+                            <span 
+                              className={cn(
+                                "cursor-pointer hover:underline inline-block",
+                                subMetricData.isOverridden && "text-blue-600 dark:text-blue-400",
+                                metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help"
+                              )}
+                              onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
+                            >
+                              {formatValue(annualValue, metric.type)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
+                              <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
                             )}
-                            onClick={() => handleSubMetricAnnualClick(subMetricData.key, annualValue, metric.type)}
-                          >
-                            {formatValue(annualValue, metric.type)}
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
-                            <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
-                          )}
-                          {hasActiveNote(subMetricData.key) && (
-                            <p className="text-sm">{getNote(subMetricData.key)?.note}</p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                            {hasActiveNote(subMetricData.key) && (
+                              <p className="text-sm">{getNote(subMetricData.key)?.note}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )
                   ) : (
                     '-'
                   )}
@@ -604,28 +627,42 @@ export function ForecastResultsGrid({
               />
             ) : annualValue !== undefined ? (
               !hasChildren && !metric.isDerived && onMainMetricAnnualEdit ? (
-                <TooltipProvider>
-                  <Tooltip delayDuration={150}>
-                    <TooltipTrigger asChild>
-                      <span 
-                        className={cn("cursor-pointer hover:underline", metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help")}
-                        onClick={() => handleMainMetricAnnualClick(metric.key, annualValue, metric.type)}
-                      >
-                        {formatValue(annualValue, metric.type)}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
-                        <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
-                      )}
-                      <p className="text-xs">Click to edit annual total</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : metric.type === 'currency' && Math.abs(annualValue) >= 1000 ? (
-                <FormattedCurrency value={annualValue} />
+                view === 'annual' ? (
+                  // Annual view: show full values directly
+                  <span 
+                    className="cursor-pointer hover:underline"
+                    onClick={() => handleMainMetricAnnualClick(metric.key, annualValue, metric.type)}
+                  >
+                    {formatValueForView(annualValue, metric.type, true)}
+                  </span>
+                ) : (
+                  // Monthly/Quarter views: show abbreviated with tooltip
+                  <TooltipProvider>
+                    <Tooltip delayDuration={150}>
+                      <TooltipTrigger asChild>
+                        <span 
+                          className={cn("cursor-pointer hover:underline", metric.type === 'currency' && Math.abs(annualValue) >= 1000 && "cursor-help")}
+                          onClick={() => handleMainMetricAnnualClick(metric.key, annualValue, metric.type)}
+                        >
+                          {formatValue(annualValue, metric.type)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
+                          <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
+                        )}
+                        <p className="text-xs">Click to edit annual total</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )
               ) : (
-                formatValue(annualValue, metric.type)
+                // Non-editable: show full values in annual view
+                view === 'annual' 
+                  ? formatValueForView(annualValue, metric.type, true)
+                  : metric.type === 'currency' && Math.abs(annualValue) >= 1000 
+                    ? <FormattedCurrency value={annualValue} />
+                    : formatValue(annualValue, metric.type)
               )
             ) : '-'}
           </td>
@@ -640,6 +677,24 @@ export function ForecastResultsGrid({
             const isExpenseMetric = metric.key === 'sales_expense' || metric.key === 'sales_expense_percent';
             const isPositiveChange = isExpenseMetric ? variance <= 0 : variance >= 0;
             
+            const formattedVariance = metric.type === 'percent' 
+              ? `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`
+              : view === 'annual'
+                ? `${variance >= 0 ? '+' : ''}${formatFullCurrency(variance)}`
+                : `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`;
+            
+            // In annual view, show full values directly without tooltip
+            if (view === 'annual') {
+              return (
+                <span className={cn(
+                  isPositiveChange ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                )}>
+                  {formattedVariance}
+                </span>
+              );
+            }
+            
+            // In other views, show abbreviated with tooltip
             return (
               <TooltipProvider>
                 <Tooltip delayDuration={150}>
@@ -648,10 +703,7 @@ export function ForecastResultsGrid({
                       isPositiveChange ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400",
                       metric.type === 'currency' && "cursor-help"
                     )}>
-                      {metric.type === 'percent' 
-                        ? `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`
-                        : `${variance >= 0 ? '+' : ''}${formatCurrency(variance)}`
-                      }
+                      {formattedVariance}
                     </span>
                   </TooltipTrigger>
                   {metric.type === 'currency' && formatCurrency(variance) !== formatFullCurrency(variance) && (
@@ -669,11 +721,11 @@ export function ForecastResultsGrid({
           isSubMetric && "text-xs font-normal text-muted-foreground"
         )}>
           {annualBaseline !== undefined ? (
-            metric.type === 'currency' ? (
-              <FormattedCurrency value={annualBaseline} />
-            ) : (
-              formatValue(annualBaseline, metric.type)
-            )
+            view === 'annual'
+              ? formatValueForView(annualBaseline, metric.type, true)
+              : metric.type === 'currency' 
+                ? <FormattedCurrency value={annualBaseline} />
+                : formatValue(annualBaseline, metric.type)
           ) : '-'}
         </td>
         {view === 'monthly' && (
