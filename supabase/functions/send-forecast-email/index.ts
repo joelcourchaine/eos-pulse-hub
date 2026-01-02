@@ -935,6 +935,11 @@ const handler = async (req: Request): Promise<Response> => {
             groupedByParent.get(sm.parentKey)!.push(sm);
           });
 
+          // Ensure sub-metrics within each parent are sorted by orderIndex (match UI sequence)
+          groupedByParent.forEach((items, key) => {
+            items.sort((a, b) => a.orderIndex - b.orderIndex);
+          });
+
           // Ensure parent sections render in the same sequence as the Forecast UI
           const parentOrder = new Map<string, number>(
             METRIC_DEFINITIONS.map((m, idx) => [m.key, idx])
