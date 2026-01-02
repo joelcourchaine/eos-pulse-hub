@@ -865,14 +865,24 @@ const handler = async (req: Request): Promise<Response> => {
           }
         });
 
-        // Build sub-metric data with forecast values from overrides
+        // Build sub-metric data with forecast values from overrides.
+        // IMPORTANT: The UI's forecast totals come from saved forecast_entries, so scale sub-metrics
+        // by the parent metric's actual forecast-vs-baseline ratio (unless overridden).
         const subMetricData = Array.from(grouped.values()).map((g) => {
           const override = subMetricOverrides?.find(
             (o) => o.parent_metric_key === g.parentKey && o.sub_metric_key === g.subMetricKey
           );
 
           const baselineValue = g.total;
-          const forecastValue = override ? override.overridden_annual_value : baselineValue * growthFactor;
+
+          const parentBaselineTotal = (annualBaseline as any)?.[g.parentKey] ?? 0;
+          const parentForecastTotal = (annualForecastValues as any)?.[g.parentKey] ?? parentBaselineTotal;
+          const parentScale = parentBaselineTotal !== 0 ? parentForecastTotal / parentBaselineTotal : 1;
+
+          const forecastValue = override
+            ? override.overridden_annual_value
+            : baselineValue * parentScale;
+
           const variance = forecastValue - baselineValue;
 
           return {
