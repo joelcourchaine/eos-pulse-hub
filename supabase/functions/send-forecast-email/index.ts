@@ -875,20 +875,26 @@ const handler = async (req: Request): Promise<Response> => {
           { parentKey: string; name: string; subMetricKey: string; orderIndex: number; total: number }
         >();
         subMetricEntries.forEach((entry) => {
+          // New format: sub:{parent_key}:{order_index}:{name}
+          // Legacy format: sub:{parent_key}:{name}
           const parts = entry.metric_name.split(":");
-          if (parts.length >= 4) {
-            const parentKey = parts[1];
-            const orderIndexStr = parts[2]; // already zero-padded in storage
-            const orderIndex = parseInt(orderIndexStr, 10) || 999;
-            const name = parts.slice(3).join(":");
-            const subMetricKey = `sub:${parentKey}:${orderIndexStr}:${name}`;
-            const key = `${parentKey}:${subMetricKey}`;
+          if (parts.length < 3) return;
 
-            if (!grouped.has(key)) {
-              grouped.set(key, { parentKey, name, subMetricKey, orderIndex, total: 0 });
-            }
-            grouped.get(key)!.total += entry.value || 0;
+          const parentKey = parts[1];
+
+          // Match the Forecast UI key format: orderIndex is numeric, and key uses 3-digit zero padding.
+          const hasOrder = parts.length >= 4;
+          const orderIndex = hasOrder ? (parseInt(parts[2], 10) || 0) : 999;
+          const orderIndexStr = String(orderIndex).padStart(3, "0");
+          const name = hasOrder ? parts.slice(3).join(":") : parts.slice(2).join(":");
+
+          const subMetricKey = `sub:${parentKey}:${orderIndexStr}:${name}`;
+          const key = `${parentKey}:${subMetricKey}`;
+
+          if (!grouped.has(key)) {
+            grouped.set(key, { parentKey, name, subMetricKey, orderIndex, total: 0 });
           }
+          grouped.get(key)!.total += entry.value || 0;
         });
 
         // Build sub-metric data with forecast values from overrides.
