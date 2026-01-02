@@ -41,7 +41,7 @@ function getMetricsForBrand(brand: string | null): MetricDefinition[] {
   const brandLower = brand?.toLowerCase() || '';
   
   // Brands that exclude parts_transfer and net_operating_profit
-  const excludePartsTransfer = ['ktrv', 'nissan', 'mazda', 'honda', 'hyundai'].some(b => brandLower.includes(b));
+  const excludePartsTransfer = ['ktrv', 'other', 'nissan', 'mazda', 'honda', 'hyundai'].some(b => brandLower.includes(b) || brandLower === b);
   
   if (excludePartsTransfer) {
     return ALL_METRIC_DEFINITIONS.filter(m => 
@@ -241,8 +241,8 @@ const handler = async (req: Request): Promise<Response> => {
     const annualTotalSales = baselineTotalSales * growthFactor;
     const annualGpNet = baselineGpNet * growthFactor;
     const gpPercent = baselineGpPercent;
-    const annualSalesExp = baseSalesExpense * growthFactor;
-    const annualSalesExpPercent = baselineSalesExpPercent;
+    const annualSalesExp = salesExpense; // Use driver value directly, not scaled
+    const annualSalesExpPercent = annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0;
     const annualNetSellingGross = annualGpNet - annualSalesExp;
     const annualDeptProfit = annualGpNet - annualSalesExp - fixedExpense;
     const annualPartsTransfer = baselinePartsTransfer;
@@ -289,58 +289,147 @@ const handler = async (req: Request): Promise<Response> => {
       baseline: { deptProfit: baselineDeptProfit, nsg: baselineNetSellingGross }
     });
 
-    // Calculate monthly values using weights
+    // Calculate monthly values using the same logic as the UI (baseline month pattern + growth + locked cells)
     const months = Array.from({ length: 12 }, (_, i) => `${forecastYear}-${String(i + 1).padStart(2, "0")}`);
-    
+
     const metricsData: MetricData[] = METRIC_DEFINITIONS.map((def) => {
       const monthData: Record<string, { value: number; baseline: number }> = {};
 
       months.forEach((month, index) => {
         const monthNumber = index + 1;
-        const weight = weightsMap.get(monthNumber) || (100 / 12);
-        const weightFactor = weight / 100;
-
         const priorYearMonth = `${priorYear}-${String(monthNumber).padStart(2, "0")}`;
         const baselineMonthData = baselineByMonth.get(priorYearMonth);
 
-        // Check for locked entry first
-        const entryKey = `${month}:${def.key}`;
-        const lockedEntry = entriesMap.get(entryKey);
-        
-        let value: number;
-        if (lockedEntry?.is_locked && lockedEntry.forecast_value !== null) {
-          value = lockedEntry.forecast_value;
-        } else if (def.type === "percent") {
-          // Percentages don't get distributed by weight
-          value = annualForecastValues[def.key] || 0;
-        } else {
-          // Distribute annual value by weight
-          value = (annualForecastValues[def.key] || 0) * weightFactor;
-        }
+        const baselineInputs = {
+          total_sales: baselineMonthData?.get('total_sales') ?? 0,
+          gp_net: baselineMonthData?.get('gp_net') ?? 0,
+          sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+          total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+          adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
+          parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+        };
 
-        // Get baseline for this month
-        let baseline: number;
-        if (def.type === "percent") {
-          // Calculate percentage from baseline month data
-          const monthGpNet = baselineMonthData?.get('gp_net') || 0;
-          const monthTotalSales = baselineMonthData?.get('total_sales') || 0;
-          const monthSalesExpense = baselineMonthData?.get('sales_expense') || 0;
-          
-          if (def.key === 'gp_percent') {
-            baseline = monthTotalSales > 0 ? (monthGpNet / monthTotalSales) * 100 : 0;
-          } else if (def.key === 'sales_expense_percent') {
-            baseline = monthGpNet > 0 ? (monthSalesExpense / monthGpNet) * 100 : 0;
-          } else if (def.key === 'return_on_gross') {
-            const monthDeptProfit = monthGpNet - monthSalesExpense - (baselineMonthData?.get('total_fixed_expense') || 0);
-            baseline = monthGpNet > 0 ? (monthDeptProfit / monthGpNet) * 100 : 0;
-          } else {
-            baseline = 0;
+        const baselineNetSellingGross = baselineInputs.gp_net - baselineInputs.sales_expense;
+        const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
+        const derivedPartsTransfer = hasStoredPartsTransfer
+          ? baselineInputs.parts_transfer
+          : baselineInputs.adjusted_selling_gross
+            ? baselineInputs.adjusted_selling_gross - baselineNetSellingGross
+            : 0;
+
+        const baselineMonthlyValues: Record<string, number> = {
+          total_sales: baselineInputs.total_sales,
+          gp_net: baselineInputs.gp_net,
+          gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
+          sales_expense: baselineInputs.sales_expense,
+          sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+          net_selling_gross: baselineNetSellingGross,
+          total_fixed_expense: baselineInputs.total_fixed_expense,
+          department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
+          parts_transfer: derivedPartsTransfer,
+          net_operating_profit: (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) + derivedPartsTransfer,
+          return_on_gross: baselineInputs.gp_net > 0 ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100 : 0,
+        };
+
+        const lockedTotalSales = entriesMap.get(`${month}:total_sales`);
+        const lockedGpNet = entriesMap.get(`${month}:gp_net`);
+        const lockedGpPercent = entriesMap.get(`${month}:gp_percent`);
+        const lockedSalesExpense = entriesMap.get(`${month}:sales_expense`);
+
+        const targetGpPercent = (lockedGpPercent?.is_locked ? lockedGpPercent.forecast_value : null) ?? baselineMonthlyValues.gp_percent;
+
+        const hasAnyLockedDrivers = !!(
+          (lockedGpPercent?.is_locked) ||
+          (lockedTotalSales?.is_locked) ||
+          (lockedGpNet?.is_locked)
+        );
+
+        const useBaselineDirectly =
+          growth === 0 &&
+          Math.abs(salesExpense - baseSalesExpense) < 1 &&
+          !hasAnyLockedDrivers;
+
+        const getBaselineGpPctForScaling = () => {
+          const monthPct = baselineMonthlyValues.gp_percent;
+          return monthPct > 0 ? monthPct : baselineGpPercent;
+        };
+
+        const getCalculatedTotalSales = () => {
+          if (lockedTotalSales?.is_locked) return lockedTotalSales.forecast_value;
+
+          // KTRV-like behavior (no sub-metrics): if GP% is locked higher, scale sales up proportionally
+          if (lockedGpPercent?.is_locked) {
+            const basePct = getBaselineGpPctForScaling();
+            if (basePct > 0 && targetGpPercent > basePct) {
+              const ratio = targetGpPercent / basePct;
+              return baselineMonthlyValues.total_sales * growthFactor * ratio;
+            }
           }
+
+          return baselineMonthlyValues.total_sales * growthFactor;
+        };
+
+        const getCalculatedGpNet = () => {
+          if (lockedGpNet?.is_locked) return lockedGpNet.forecast_value;
+          if (lockedGpPercent?.is_locked) {
+            const totalSales = getCalculatedTotalSales();
+            return totalSales * (targetGpPercent / 100);
+          }
+          return baselineMonthlyValues.gp_net * growthFactor;
+        };
+
+        const getCalculatedSalesExpense = () => {
+          if (lockedSalesExpense?.is_locked) return lockedSalesExpense.forecast_value;
+          const basePct = baselineMonthlyValues.sales_expense_percent;
+          const gpNet = getCalculatedGpNet();
+          return gpNet > 0 ? gpNet * (basePct / 100) : 0;
+        };
+
+        // Check for locked entry for this specific metric
+        const lockedEntry = entriesMap.get(`${month}:${def.key}`);
+
+        const baselineValue =
+          baselineMonthData?.get(def.key) ??
+          baselineMonthlyValues[def.key] ??
+          0;
+
+        let value: number;
+
+        if (lockedEntry?.is_locked) {
+          value = lockedEntry.forecast_value;
+        } else if (useBaselineDirectly) {
+          value = baselineValue;
+        } else if (def.key === 'gp_percent') {
+          value = targetGpPercent;
+        } else if (def.key === 'total_sales') {
+          value = getCalculatedTotalSales();
+        } else if (def.key === 'gp_net') {
+          value = getCalculatedGpNet();
+        } else if (def.key === 'sales_expense_percent') {
+          value = baselineMonthlyValues.sales_expense_percent;
+        } else if (def.key === 'sales_expense') {
+          value = getCalculatedSalesExpense();
+        } else if (def.key === 'net_selling_gross') {
+          value = getCalculatedGpNet() - getCalculatedSalesExpense();
+        } else if (def.key === 'department_profit') {
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          value = getCalculatedGpNet() - getCalculatedSalesExpense() - fixedExp;
+        } else if (def.key === 'parts_transfer') {
+          value = baselineMonthlyValues.parts_transfer;
+        } else if (def.key === 'net_operating_profit') {
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          const deptProfit = getCalculatedGpNet() - getCalculatedSalesExpense() - fixedExp;
+          value = deptProfit + baselineMonthlyValues.parts_transfer;
+        } else if (def.key === 'return_on_gross') {
+          const fixedExp = baselineMonthlyValues.total_fixed_expense;
+          const deptProfit = getCalculatedGpNet() - getCalculatedSalesExpense() - fixedExp;
+          const gpNet = getCalculatedGpNet();
+          value = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
         } else {
-          baseline = baselineMonthData?.get(def.key) || 0;
+          value = baselineValue * growthFactor;
         }
 
-        monthData[month] = { value, baseline };
+        monthData[month] = { value, baseline: baselineValue };
       });
 
       // Calculate quarters
@@ -350,15 +439,18 @@ const handler = async (req: Request): Promise<Response> => {
         const quarterMonths = months.slice(startMonth, startMonth + 3);
         const qValue = quarterMonths.reduce((sum, m) => sum + (monthData[m]?.value || 0), 0);
         const qBaseline = quarterMonths.reduce((sum, m) => sum + (monthData[m]?.baseline || 0), 0);
-        quarterData[`Q${q}`] = { 
-          value: def.type === "percent" ? qValue / 3 : qValue, 
-          baseline: def.type === "percent" ? qBaseline / 3 : qBaseline 
+        quarterData[`Q${q}`] = {
+          value: def.type === "percent" ? qValue / 3 : qValue,
+          baseline: def.type === "percent" ? qBaseline / 3 : qBaseline,
         };
       }
 
-      // Annual values
-      const annualValue = annualForecastValues[def.key] || 0;
-      const annualBaselineValue = annualBaselineValues[def.key] || 0;
+      // Annual values (sum currency, average percent)
+      const annualValueRaw = months.reduce((sum, m) => sum + (monthData[m]?.value || 0), 0);
+      const annualBaselineRaw = months.reduce((sum, m) => sum + (monthData[m]?.baseline || 0), 0);
+      const annualValue = def.type === 'percent' ? annualValueRaw / 12 : annualValueRaw;
+      const annualBaselineValue = def.type === 'percent' ? annualBaselineRaw / 12 : annualBaselineRaw;
+
       const variance = annualValue - annualBaselineValue;
       const variancePercent = annualBaselineValue !== 0 ? (variance / Math.abs(annualBaselineValue)) * 100 : 0;
 
@@ -440,33 +532,39 @@ const handler = async (req: Request): Promise<Response> => {
           <div class="summary-box">
             <div class="summary-title">Year Over Year Comparison</div>
             
-            <!-- Net Selling Gross -->
-            <div class="summary-row">
-              <span class="summary-label">Net Selling Gross:</span>
-              <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
-              <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior year</span>
-              <div class="summary-variance ${(nsgData?.annual.variance || 0) >= 0 ? "positive" : "negative"}">
-                ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
-                  nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
-                    ? ` (${nsgData.annual.variancePercent >= 0 ? "+" : ""}${nsgData.annual.variancePercent.toFixed(1)}%)` 
-                    : ""
-                }
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+              <!-- Net Selling Gross - Left -->
+              <div>
+                <div class="summary-row">
+                  <span class="summary-label">Net Selling Gross:</span>
+                  <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
+                  <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior</span>
+                  <div class="summary-variance ${(nsgData?.annual.variance || 0) >= 0 ? "positive" : "negative"}">
+                    ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
+                      nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
+                        ? ` (${nsgData.annual.variancePercent >= 0 ? "+" : ""}${nsgData.annual.variancePercent.toFixed(1)}%)` 
+                        : ""
+                    }
+                  </div>
+                  <div style="font-size: 12px; color: #666;">
+                    ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
+                  </div>
+                </div>
               </div>
-              <div style="font-size: 12px; color: #666;">
-                ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
-              </div>
-            </div>
-            
-            <!-- Department Profit -->
-            <div class="summary-row" style="margin-top: 16px;">
-              <span class="summary-label">Dept Profit:</span>
-              <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
-              <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior year</span>
-              <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
-                ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
-              </div>
-              <div style="font-size: 12px; color: #666;">
-                ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
+              
+              <!-- Department Profit - Right -->
+              <div>
+                <div class="summary-row">
+                  <span class="summary-label">Dept Profit:</span>
+                  <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
+                  <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
+                  <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
+                    ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
+                  </div>
+                  <div style="font-size: 12px; color: #666;">
+                    ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
+                  </div>
+                </div>
               </div>
             </div>
           </div>
