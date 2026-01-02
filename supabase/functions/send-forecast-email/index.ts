@@ -63,6 +63,19 @@ interface MetricData {
 
 const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Expense metrics where an increase is bad (should show red) and decrease is good (should show green)
+function isExpenseMetric(key: string): boolean {
+  return key === 'sales_expense' || key === 'sales_expense_percent';
+}
+
+// Get variance color based on metric type - for expense metrics, invert the logic
+function getVarianceColor(variance: number, metricKey: string, positiveStyle: string, negativeStyle: string): string {
+  const isExpense = isExpenseMetric(metricKey);
+  // For expense metrics: decrease (negative variance) is good, increase (positive variance) is bad
+  const isPositiveChange = isExpense ? variance <= 0 : variance >= 0;
+  return isPositiveChange ? positiveStyle : negativeStyle;
+}
+
 function formatCurrency(value: number): string {
   if (value === null || value === undefined) return "-";
   if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
@@ -665,7 +678,7 @@ const handler = async (req: Request): Promise<Response> => {
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
         const rowStyle = isProfit ? styles.highlightRow : "";
-        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
+        const varianceColor = getVarianceColor(metric.annual.variance, metric.key, styles.positive, styles.negative);
         
         html += `
           <tr style="${rowStyle}">
@@ -699,7 +712,7 @@ const handler = async (req: Request): Promise<Response> => {
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
         const rowStyle = isProfit ? styles.highlightRow : "";
-        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
+        const varianceColor = getVarianceColor(metric.annual.variance, metric.key, styles.positive, styles.negative);
         
         html += `<tr style="${rowStyle}"><td style="${styles.tdFirst} ${rowStyle}">${metric.label}</td>`;
         
@@ -777,7 +790,7 @@ const handler = async (req: Request): Promise<Response> => {
       metricsData.forEach((metric) => {
         const isProfit = metric.key === "department_profit";
         const rowStyle = isProfit ? styles.highlightRow : "";
-        const varianceColor = metric.annual.variance >= 0 ? styles.positive : styles.negative;
+        const varianceColor = getVarianceColor(metric.annual.variance, metric.key, styles.positive, styles.negative);
         
         html += `
           <tr style="${rowStyle}">
@@ -881,7 +894,8 @@ const handler = async (req: Request): Promise<Response> => {
             
             items.forEach((item) => {
               const note = subMetricNotes?.find((n) => n.sub_metric_key === item.name);
-              const varianceColor = item.variance >= 0 ? styles.positive : styles.negative;
+              // For sub-metrics under expense parents, invert the variance color logic
+              const varianceColor = getVarianceColor(item.variance, item.parentKey, styles.positive, styles.negative);
               html += `
                 <tr>
                   <td style="${styles.tdFirst}">${item.name}${note ? '<span style="display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px;"></span>' : ''}</td>
