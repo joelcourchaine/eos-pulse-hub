@@ -15,6 +15,43 @@ interface EmailRequest {
   includeSubMetrics?: boolean;
 }
 
+interface MetricDefinition {
+  key: string;
+  label: string;
+  type: "currency" | "percent";
+}
+
+// Full metric definitions - will be filtered based on brand
+const ALL_METRIC_DEFINITIONS: MetricDefinition[] = [
+  { key: 'total_sales', label: 'Total Sales', type: 'currency' },
+  { key: 'gp_net', label: 'GP Net', type: 'currency' },
+  { key: 'gp_percent', label: 'GP %', type: 'percent' },
+  { key: 'sales_expense', label: 'Sales Expense', type: 'currency' },
+  { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent' },
+  { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+  { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+  { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+  { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' },
+  { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' },
+  { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+];
+
+// Get metrics for brand - filter out parts_transfer and net_operating_profit for certain brands
+function getMetricsForBrand(brand: string | null): MetricDefinition[] {
+  const brandLower = brand?.toLowerCase() || '';
+  
+  // Brands that exclude parts_transfer and net_operating_profit
+  const excludePartsTransfer = ['ktrv', 'nissan', 'mazda', 'honda', 'hyundai'].some(b => brandLower.includes(b));
+  
+  if (excludePartsTransfer) {
+    return ALL_METRIC_DEFINITIONS.filter(m => 
+      m.key !== 'parts_transfer' && m.key !== 'net_operating_profit'
+    );
+  }
+  
+  return ALL_METRIC_DEFINITIONS;
+}
+
 interface MetricData {
   key: string;
   label: string;
@@ -23,28 +60,6 @@ interface MetricData {
   quarters: Record<string, { value: number; baseline: number }>;
   annual: { value: number; baseline: number; variance: number; variancePercent: number };
 }
-
-interface SubMetricData {
-  key: string;
-  label: string;
-  parentKey: string;
-  annual: { value: number; baseline: number; variance: number };
-  note?: string;
-}
-
-const METRIC_DEFINITIONS = [
-  { key: 'total_sales', label: 'Total Sales', type: 'currency' as const },
-  { key: 'gp_net', label: 'GP Net', type: 'currency' as const },
-  { key: 'gp_percent', label: 'GP %', type: 'percent' as const },
-  { key: 'sales_expense', label: 'Sales Expense', type: 'currency' as const },
-  { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent' as const },
-  { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' as const },
-  { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' as const },
-  { key: 'department_profit', label: 'Dept Profit', type: 'currency' as const },
-  { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' as const },
-  { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' as const },
-  { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' as const },
-];
 
 const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -95,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const priorYear = forecastYear - 1;
 
-    // Fetch department info
+    // Fetch department info with store brand
     const { data: department, error: deptError } = await supabaseClient
       .from("departments")
       .select(`
@@ -117,7 +132,11 @@ const handler = async (req: Request): Promise<Response> => {
       stores: { id: string; name: string; brand: string | null; group_id: string | null };
     };
 
-    console.log("Department loaded:", { name: deptData.name, store: deptData.stores?.name });
+    console.log("Department loaded:", { name: deptData.name, store: deptData.stores?.name, brand: deptData.stores?.brand });
+
+    // Get metrics for this brand
+    const METRIC_DEFINITIONS = getMetricsForBrand(deptData.stores?.brand);
+    console.log("Using metrics for brand:", deptData.stores?.brand, "Count:", METRIC_DEFINITIONS.length);
 
     // Fetch forecast data
     const { data: forecast } = await supabaseClient
@@ -131,13 +150,26 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("No forecast found for this department and year");
     }
 
-    // Fetch forecast entries
+    // Fetch driver settings for this forecast
+    const { data: driverSettings } = await supabaseClient
+      .from("forecast_driver_settings")
+      .select("*")
+      .eq("forecast_id", forecast.id)
+      .single();
+
+    // Fetch forecast weights
+    const { data: forecastWeights } = await supabaseClient
+      .from("forecast_weights")
+      .select("*")
+      .eq("forecast_id", forecast.id);
+
+    // Fetch forecast entries (for locked values)
     const { data: forecastEntries } = await supabaseClient
       .from("forecast_entries")
       .select("*")
       .eq("forecast_id", forecast.id);
 
-    console.log("Forecast entries loaded:", forecastEntries?.length || 0);
+    console.log("Forecast data loaded - weights:", forecastWeights?.length || 0, "entries:", forecastEntries?.length || 0);
 
     // Fetch prior year financial data for baseline
     const { data: priorYearData } = await supabaseClient
@@ -150,78 +182,6 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Prior year data loaded:", priorYearData?.length || 0);
 
-    // Fetch sub-metric notes (only if including sub-metrics)
-    let subMetricNotes: any[] = [];
-    if (includeSubMetrics) {
-      const { data } = await supabaseClient
-        .from("forecast_submetric_notes")
-        .select("*")
-        .eq("department_id", departmentId)
-        .eq("forecast_year", forecastYear)
-        .eq("is_resolved", false);
-      subMetricNotes = data || [];
-      console.log("Sub-metric notes loaded:", subMetricNotes.length);
-    }
-
-    // Fetch sub-metric overrides (forecast values) for the current year
-    let subMetricOverrides: any[] = [];
-    if (includeSubMetrics && forecast) {
-      const { data } = await supabaseClient
-        .from("forecast_submetric_overrides")
-        .select("*")
-        .eq("forecast_id", forecast.id);
-      subMetricOverrides = data || [];
-      console.log("Sub-metric overrides loaded:", subMetricOverrides.length);
-    }
-
-    // Fetch sub-metric data from prior year (only if including sub-metrics)
-    let subMetricData: { parentKey: string; name: string; forecastValue: number; baselineValue: number; variance: number }[] = [];
-    if (includeSubMetrics) {
-      const { data: subMetricEntries } = await supabaseClient
-        .from("financial_entries")
-        .select("month, metric_name, value")
-        .eq("department_id", departmentId)
-        .gte("month", `${priorYear}-01`)
-        .lte("month", `${priorYear}-12`)
-        .like("metric_name", "sub:%");
-
-      if (subMetricEntries && subMetricEntries.length > 0) {
-        // Group sub-metrics and calculate annual totals
-        const grouped = new Map<string, { parentKey: string; name: string; total: number }>();
-        subMetricEntries.forEach((entry) => {
-          const parts = entry.metric_name.split(":");
-          if (parts.length >= 4) {
-            const parentKey = parts[1];
-            const name = parts.slice(3).join(":");
-            const key = `${parentKey}:${name}`;
-            if (!grouped.has(key)) {
-              grouped.set(key, { parentKey, name, total: 0 });
-            }
-            grouped.get(key)!.total += entry.value || 0;
-          }
-        });
-        
-        // Build sub-metric data with forecast values from overrides
-        subMetricData = Array.from(grouped.values()).map((g) => {
-          const override = subMetricOverrides.find(
-            (o) => o.sub_metric_key === g.name && o.parent_metric_key === g.parentKey
-          );
-          const baselineValue = g.total;
-          const forecastValue = override ? override.overridden_annual_value : baselineValue;
-          const variance = forecastValue - baselineValue;
-          
-          return {
-            parentKey: g.parentKey,
-            name: g.name,
-            forecastValue,
-            baselineValue,
-            variance,
-          };
-        });
-        console.log("Sub-metric data loaded:", subMetricData.length);
-      }
-    }
-
     // Build baseline data map
     const baselineByMonth = new Map<string, Map<string, number>>();
     priorYearData?.forEach((entry) => {
@@ -232,33 +192,155 @@ const handler = async (req: Request): Promise<Response> => {
       monthMap.set(entry.metric_name, (monthMap.get(entry.metric_name) || 0) + (entry.value || 0));
     });
 
-    // Build forecast data map
-    const forecastByMonth = new Map<string, Map<string, { forecast_value: number; baseline_value: number }>>();
-    forecastEntries?.forEach((entry) => {
-      if (!forecastByMonth.has(entry.month)) {
-        forecastByMonth.set(entry.month, new Map());
-      }
-      forecastByMonth.get(entry.month)!.set(entry.metric_name, {
-        forecast_value: entry.forecast_value || 0,
-        baseline_value: entry.baseline_value || 0,
+    // Calculate annual baseline totals
+    const annualBaseline: Record<string, number> = {};
+    baselineByMonth.forEach((metrics) => {
+      metrics.forEach((value, metricName) => {
+        annualBaseline[metricName] = (annualBaseline[metricName] || 0) + value;
       });
     });
 
-    // Calculate metrics for each period
+    // Build weights map
+    const weightsMap = new Map<number, number>();
+    forecastWeights?.forEach((w) => {
+      weightsMap.set(w.month_number, w.adjusted_weight);
+    });
+
+    // Build entries map for locked values
+    const entriesMap = new Map<string, { forecast_value: number; is_locked: boolean }>();
+    forecastEntries?.forEach((e) => {
+      entriesMap.set(`${e.month}:${e.metric_name}`, { 
+        forecast_value: e.forecast_value || 0, 
+        is_locked: e.is_locked 
+      });
+    });
+
+    // Get driver values (or defaults from baseline)
+    const growth = driverSettings?.growth_percent ?? 0;
+    const savedSalesExpense = driverSettings?.sales_expense;
+    const savedFixedExpense = driverSettings?.fixed_expense;
+    
+    const baseSalesExpense = annualBaseline['sales_expense'] || 0;
+    const baseFixedExpense = annualBaseline['total_fixed_expense'] || 0;
+    
+    // Use saved values if available, otherwise scale baseline by growth
+    const growthFactor = 1 + (growth / 100);
+    const salesExpense = savedSalesExpense ?? (baseSalesExpense * growthFactor);
+    const fixedExpense = savedFixedExpense ?? baseFixedExpense;
+
+    console.log("Drivers:", { growth, salesExpense, fixedExpense, growthFactor });
+
+    // Calculate annual forecast values using the same logic as the UI
+    const baselineTotalSales = annualBaseline['total_sales'] || 0;
+    const baselineGpNet = annualBaseline['gp_net'] || 0;
+    const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
+    const baselineSalesExpPercent = baselineGpNet > 0 ? (baseSalesExpense / baselineGpNet) * 100 : 0;
+    const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
+
+    // Apply growth factor
+    const annualTotalSales = baselineTotalSales * growthFactor;
+    const annualGpNet = baselineGpNet * growthFactor;
+    const gpPercent = baselineGpPercent;
+    const annualSalesExp = baseSalesExpense * growthFactor;
+    const annualSalesExpPercent = baselineSalesExpPercent;
+    const annualNetSellingGross = annualGpNet - annualSalesExp;
+    const annualDeptProfit = annualGpNet - annualSalesExp - fixedExpense;
+    const annualPartsTransfer = baselinePartsTransfer;
+    const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
+    const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
+
+    // Annual forecast values
+    const annualForecastValues: Record<string, number> = {
+      total_sales: annualTotalSales,
+      gp_net: annualGpNet,
+      gp_percent: gpPercent,
+      sales_expense: annualSalesExp,
+      sales_expense_percent: annualSalesExpPercent,
+      net_selling_gross: annualNetSellingGross,
+      total_fixed_expense: fixedExpense,
+      department_profit: annualDeptProfit,
+      parts_transfer: annualPartsTransfer,
+      net_operating_profit: annualNetOperatingProfit,
+      return_on_gross: annualReturnOnGross,
+    };
+
+    // Annual baseline values for comparison
+    const baselineNetSellingGross = baselineGpNet - baseSalesExpense;
+    const baselineDeptProfit = baselineGpNet - baseSalesExpense - baseFixedExpense;
+    const baselineNetOperatingProfit = baselineDeptProfit + baselinePartsTransfer;
+    const baselineReturnOnGross = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
+
+    const annualBaselineValues: Record<string, number> = {
+      total_sales: baselineTotalSales,
+      gp_net: baselineGpNet,
+      gp_percent: baselineGpPercent,
+      sales_expense: baseSalesExpense,
+      sales_expense_percent: baselineSalesExpPercent,
+      net_selling_gross: baselineNetSellingGross,
+      total_fixed_expense: baseFixedExpense,
+      department_profit: baselineDeptProfit,
+      parts_transfer: baselinePartsTransfer,
+      net_operating_profit: baselineNetOperatingProfit,
+      return_on_gross: baselineReturnOnGross,
+    };
+
+    console.log("Calculated annual values:", {
+      forecast: { deptProfit: annualDeptProfit, nsg: annualNetSellingGross },
+      baseline: { deptProfit: baselineDeptProfit, nsg: baselineNetSellingGross }
+    });
+
+    // Calculate monthly values using weights
     const months = Array.from({ length: 12 }, (_, i) => `${forecastYear}-${String(i + 1).padStart(2, "0")}`);
     
     const metricsData: MetricData[] = METRIC_DEFINITIONS.map((def) => {
       const monthData: Record<string, { value: number; baseline: number }> = {};
-      let annualValue = 0;
-      let annualBaseline = 0;
 
-      months.forEach((month) => {
-        const forecastData = forecastByMonth.get(month)?.get(def.key);
-        const value = forecastData?.forecast_value || 0;
-        const baseline = forecastData?.baseline_value || 0;
+      months.forEach((month, index) => {
+        const monthNumber = index + 1;
+        const weight = weightsMap.get(monthNumber) || (100 / 12);
+        const weightFactor = weight / 100;
+
+        const priorYearMonth = `${priorYear}-${String(monthNumber).padStart(2, "0")}`;
+        const baselineMonthData = baselineByMonth.get(priorYearMonth);
+
+        // Check for locked entry first
+        const entryKey = `${month}:${def.key}`;
+        const lockedEntry = entriesMap.get(entryKey);
+        
+        let value: number;
+        if (lockedEntry?.is_locked && lockedEntry.forecast_value !== null) {
+          value = lockedEntry.forecast_value;
+        } else if (def.type === "percent") {
+          // Percentages don't get distributed by weight
+          value = annualForecastValues[def.key] || 0;
+        } else {
+          // Distribute annual value by weight
+          value = (annualForecastValues[def.key] || 0) * weightFactor;
+        }
+
+        // Get baseline for this month
+        let baseline: number;
+        if (def.type === "percent") {
+          // Calculate percentage from baseline month data
+          const monthGpNet = baselineMonthData?.get('gp_net') || 0;
+          const monthTotalSales = baselineMonthData?.get('total_sales') || 0;
+          const monthSalesExpense = baselineMonthData?.get('sales_expense') || 0;
+          
+          if (def.key === 'gp_percent') {
+            baseline = monthTotalSales > 0 ? (monthGpNet / monthTotalSales) * 100 : 0;
+          } else if (def.key === 'sales_expense_percent') {
+            baseline = monthGpNet > 0 ? (monthSalesExpense / monthGpNet) * 100 : 0;
+          } else if (def.key === 'return_on_gross') {
+            const monthDeptProfit = monthGpNet - monthSalesExpense - (baselineMonthData?.get('total_fixed_expense') || 0);
+            baseline = monthGpNet > 0 ? (monthDeptProfit / monthGpNet) * 100 : 0;
+          } else {
+            baseline = 0;
+          }
+        } else {
+          baseline = baselineMonthData?.get(def.key) || 0;
+        }
+
         monthData[month] = { value, baseline };
-        annualValue += value;
-        annualBaseline += baseline;
       });
 
       // Calculate quarters
@@ -274,14 +356,11 @@ const handler = async (req: Request): Promise<Response> => {
         };
       }
 
-      // For percentages, annual is average not sum
-      if (def.type === "percent") {
-        annualValue = annualValue / 12;
-        annualBaseline = annualBaseline / 12;
-      }
-
-      const variance = annualValue - annualBaseline;
-      const variancePercent = annualBaseline !== 0 ? (variance / Math.abs(annualBaseline)) * 100 : 0;
+      // Annual values
+      const annualValue = annualForecastValues[def.key] || 0;
+      const annualBaselineValue = annualBaselineValues[def.key] || 0;
+      const variance = annualValue - annualBaselineValue;
+      const variancePercent = annualBaselineValue !== 0 ? (variance / Math.abs(annualBaselineValue)) * 100 : 0;
 
       return {
         key: def.key,
@@ -289,7 +368,7 @@ const handler = async (req: Request): Promise<Response> => {
         type: def.type,
         months: monthData,
         quarters: quarterData,
-        annual: { value: annualValue, baseline: annualBaseline, variance, variancePercent },
+        annual: { value: annualValue, baseline: annualBaselineValue, variance, variancePercent },
       };
     });
 
@@ -302,11 +381,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Recipients:", recipients);
 
-    // Build HTML email
-    const viewLabel = view === "monthly" ? "Monthly View" : view === "quarter" ? "Quarterly View" : "Annual View";
+    // Get recap values - same as UI
     const profitData = metricsData.find((m) => m.key === "department_profit");
+    const nsgData = metricsData.find((m) => m.key === "net_selling_gross");
+    
     const profitVariance = profitData?.annual.variance || 0;
     const profitVariancePercent = profitData?.annual.variancePercent || 0;
+    
+    // Check if crossing zero for percentage display
+    const forecastProfit = profitData?.annual.value || 0;
+    const baselineProfit = profitData?.annual.baseline || 0;
+    const profitCrossesZero = (forecastProfit >= 0) !== (baselineProfit >= 0);
+    const showProfitPercent = !profitCrossesZero && baselineProfit !== 0;
+
+    // Build HTML email
+    const viewLabel = view === "monthly" ? "Monthly View" : view === "quarter" ? "Quarterly View" : "Annual View";
 
     let html = `
       <!DOCTYPE html>
@@ -325,9 +414,11 @@ const handler = async (req: Request): Promise<Response> => {
             margin-bottom: 24px;
             border-left: 4px solid #2563eb;
           }
-          .summary-title { font-size: 14px; color: #666; margin-bottom: 4px; }
-          .summary-value { font-size: 24px; font-weight: bold; color: #1a1a1a; }
-          .summary-variance { font-size: 14px; margin-top: 4px; }
+          .summary-title { font-size: 14px; color: #666; margin-bottom: 12px; }
+          .summary-row { margin-bottom: 12px; }
+          .summary-label { color: #666; font-size: 14px; }
+          .summary-value { font-size: 18px; font-weight: bold; color: #1a1a1a; }
+          .summary-variance { font-size: 14px; margin-top: 2px; }
           .positive { color: #16a34a; }
           .negative { color: #dc2626; }
           table { border-collapse: collapse; width: 100%; margin-bottom: 24px; }
@@ -338,11 +429,6 @@ const handler = async (req: Request): Promise<Response> => {
           .annual-col { background-color: #f0f9ff; }
           .variance-col { background-color: #ecfdf5; }
           .baseline-col { background-color: #f9fafb; }
-          .note-flag { display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px; }
-          .notes-section { margin-top: 24px; padding: 16px; background-color: #fffbeb; border-radius: 8px; border: 1px solid #fcd34d; }
-          .notes-title { font-weight: 600; color: #92400e; margin-bottom: 12px; }
-          .note-item { margin-bottom: 8px; font-size: 13px; }
-          .note-metric { font-weight: 500; color: #92400e; }
           .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; }
         </style>
       </head>
@@ -353,16 +439,35 @@ const handler = async (req: Request): Promise<Response> => {
           
           <div class="summary-box">
             <div class="summary-title">Year Over Year Comparison</div>
-            <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
-              <span style="color: #666; font-size: 14px;">Dept Profit:</span>
-              <span class="summary-value" style="font-size: 20px;">${formatCurrency(profitData?.annual.value || 0)}</span>
-              <span style="color: #666; font-size: 14px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior year</span>
+            
+            <!-- Net Selling Gross -->
+            <div class="summary-row">
+              <span class="summary-label">Net Selling Gross:</span>
+              <span class="summary-value" style="margin-left: 8px;">${formatCurrency(nsgData?.annual.value || 0)}</span>
+              <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(nsgData?.annual.baseline || 0)} prior year</span>
+              <div class="summary-variance ${(nsgData?.annual.variance || 0) >= 0 ? "positive" : "negative"}">
+                ${formatVariance(nsgData?.annual.variance || 0, "currency")}${
+                  nsgData && (nsgData.annual.value >= 0) === (nsgData.annual.baseline >= 0) && nsgData.annual.baseline !== 0 
+                    ? ` (${nsgData.annual.variancePercent >= 0 ? "+" : ""}${nsgData.annual.variancePercent.toFixed(1)}%)` 
+                    : ""
+                }
+              </div>
+              <div style="font-size: 12px; color: #666;">
+                ${(nsgData?.annual.variance || 0) >= 0 ? "+" : ""}${formatCurrency((nsgData?.annual.variance || 0) / 12)} per month variance
+              </div>
             </div>
-            <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
-              ${formatVariance(profitVariance, "currency")} (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)
-            </div>
-            <div style="font-size: 12px; color: #666; margin-top: 8px;">
-              ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
+            
+            <!-- Department Profit -->
+            <div class="summary-row" style="margin-top: 16px;">
+              <span class="summary-label">Dept Profit:</span>
+              <span class="summary-value" style="margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
+              <span class="summary-label" style="margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior year</span>
+              <div class="summary-variance ${profitVariance >= 0 ? "positive" : "negative"}">
+                ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
+              </div>
+              <div style="font-size: 12px; color: #666;">
+                ${profitVariance >= 0 ? "+" : ""}${formatCurrency(profitVariance / 12)} per month variance
+              </div>
             </div>
           </div>
     `;
@@ -508,69 +613,127 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     }
 
-    // Add sub-metrics section if included and there's data
-    if (includeSubMetrics && subMetricData.length > 0) {
-      // Group by parent key
-      const groupedByParent = new Map<string, typeof subMetricData>();
-      subMetricData.forEach((sm) => {
-        if (!groupedByParent.has(sm.parentKey)) {
-          groupedByParent.set(sm.parentKey, []);
-        }
-        groupedByParent.get(sm.parentKey)!.push(sm);
-      });
+    // Add sub-metrics section if included
+    if (includeSubMetrics) {
+      // Fetch sub-metric data and overrides
+      const { data: subMetricOverrides } = await supabaseClient
+        .from("forecast_submetric_overrides")
+        .select("*")
+        .eq("forecast_id", forecast.id);
 
-      html += `<h2>Sub-Metric Details</h2>`;
-      
-      groupedByParent.forEach((items, parentKey) => {
-        const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
-        html += `
-          <table style="margin-bottom: 16px;">
-            <thead>
-              <tr>
-                <th colspan="4" style="background-color: #f0f9ff; color: #1a1a1a;">${parentLabel}</th>
-              </tr>
-              <tr>
-                <th style="text-align: left;">Sub-Metric</th>
-                <th class="annual-col">${forecastYear}</th>
-                <th class="variance-col">Variance</th>
-                <th class="baseline-col">${priorYear}</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-        
-        items.forEach((item) => {
-          const note = subMetricNotes.find((n) => n.sub_metric_key === item.name);
-          html += `
-            <tr>
-              <td>${item.name}${note ? '<span class="note-flag"></span>' : ''}</td>
-              <td class="annual-col">${formatCurrency(item.forecastValue)}</td>
-              <td class="variance-col ${item.variance >= 0 ? "positive" : "negative"}">${formatVariance(item.variance, "currency")}</td>
-              <td class="baseline-col">${formatCurrency(item.baselineValue)}</td>
-            </tr>
-          `;
+      const { data: subMetricEntries } = await supabaseClient
+        .from("financial_entries")
+        .select("month, metric_name, value")
+        .eq("department_id", departmentId)
+        .gte("month", `${priorYear}-01`)
+        .lte("month", `${priorYear}-12`)
+        .like("metric_name", "sub:%");
+
+      const { data: subMetricNotes } = await supabaseClient
+        .from("forecast_submetric_notes")
+        .select("*")
+        .eq("department_id", departmentId)
+        .eq("forecast_year", forecastYear)
+        .eq("is_resolved", false);
+
+      if (subMetricEntries && subMetricEntries.length > 0) {
+        // Group sub-metrics and calculate annual totals
+        const grouped = new Map<string, { parentKey: string; name: string; total: number }>();
+        subMetricEntries.forEach((entry) => {
+          const parts = entry.metric_name.split(":");
+          if (parts.length >= 4) {
+            const parentKey = parts[1];
+            const name = parts.slice(3).join(":");
+            const key = `${parentKey}:${name}`;
+            if (!grouped.has(key)) {
+              grouped.set(key, { parentKey, name, total: 0 });
+            }
+            grouped.get(key)!.total += entry.value || 0;
+          }
         });
         
-        html += `</tbody></table>`;
-      });
-    }
+        // Build sub-metric data with forecast values from overrides
+        const subMetricData = Array.from(grouped.values()).map((g) => {
+          const override = subMetricOverrides?.find(
+            (o) => o.sub_metric_key === g.name && o.parent_metric_key === g.parentKey
+          );
+          const baselineValue = g.total;
+          const forecastValue = override ? override.overridden_annual_value : baselineValue * growthFactor;
+          const variance = forecastValue - baselineValue;
+          
+          return {
+            parentKey: g.parentKey,
+            name: g.name,
+            forecastValue,
+            baselineValue,
+            variance,
+          };
+        });
 
-    // Add notes section if there are any
-    if (includeSubMetrics && subMetricNotes.length > 0) {
-      html += `
-        <div class="notes-section">
-          <div class="notes-title">📋 Forecast Notes</div>
-      `;
-      
-      subMetricNotes.forEach((note) => {
-        html += `
-          <div class="note-item">
-            <span class="note-metric">${note.sub_metric_key}:</span> ${note.note || ""}
-          </div>
-        `;
-      });
-      
-      html += `</div>`;
+        if (subMetricData.length > 0) {
+          // Group by parent key
+          const groupedByParent = new Map<string, typeof subMetricData>();
+          subMetricData.forEach((sm) => {
+            if (!groupedByParent.has(sm.parentKey)) {
+              groupedByParent.set(sm.parentKey, []);
+            }
+            groupedByParent.get(sm.parentKey)!.push(sm);
+          });
+
+          html += `<h2>Sub-Metric Details</h2>`;
+          
+          groupedByParent.forEach((items, parentKey) => {
+            const parentLabel = METRIC_DEFINITIONS.find((m) => m.key === parentKey)?.label || parentKey;
+            html += `
+              <table style="margin-bottom: 16px;">
+                <thead>
+                  <tr>
+                    <th colspan="4" style="background-color: #f0f9ff; color: #1a1a1a;">${parentLabel}</th>
+                  </tr>
+                  <tr>
+                    <th style="text-align: left;">Sub-Metric</th>
+                    <th class="annual-col">${forecastYear}</th>
+                    <th class="variance-col">Variance</th>
+                    <th class="baseline-col">${priorYear}</th>
+                  </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            items.forEach((item) => {
+              const note = subMetricNotes?.find((n) => n.sub_metric_key === item.name);
+              html += `
+                <tr>
+                  <td>${item.name}${note ? '<span style="display: inline-block; width: 8px; height: 8px; background-color: #f59e0b; border-radius: 2px; margin-left: 4px;"></span>' : ''}</td>
+                  <td class="annual-col">${formatCurrency(item.forecastValue)}</td>
+                  <td class="variance-col ${item.variance >= 0 ? "positive" : "negative"}">${formatVariance(item.variance, "currency")}</td>
+                  <td class="baseline-col">${formatCurrency(item.baselineValue)}</td>
+                </tr>
+              `;
+            });
+            
+            html += `</tbody></table>`;
+          });
+        }
+
+        // Add notes section if there are any
+        if (subMetricNotes && subMetricNotes.length > 0) {
+          html += `
+            <div style="margin-top: 24px; padding: 16px; background-color: #fffbeb; border-radius: 8px; border: 1px solid #fcd34d;">
+              <div style="font-weight: 600; color: #92400e; margin-bottom: 12px;">📋 Forecast Notes</div>
+          `;
+          
+          subMetricNotes.forEach((note) => {
+            html += `
+              <div style="margin-bottom: 8px; font-size: 13px;">
+                <span style="font-weight: 500; color: #92400e;">${note.sub_metric_key}:</span> ${note.note || ""}
+              </div>
+            `;
+          });
+          
+          html += `</div>`;
+        }
+      }
     }
 
     html += `
