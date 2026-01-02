@@ -702,6 +702,26 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
     setSendingEmail(true);
     try {
+      // Ensure the email reflects exactly what's on screen by flushing the latest computed grid
+      // values into forecast_entries before sending.
+      if (forecast && !bulkUpdateEntries.isPending) {
+        const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
+        latestMonthlyValuesRef.current.forEach((metrics, month) => {
+          metrics.forEach((result, metricKey) => {
+            updates.push({
+              month,
+              metricName: metricKey,
+              forecastValue: result.value,
+              baselineValue: result.baseline_value,
+            });
+          });
+        });
+        if (updates.length > 0) {
+          await bulkUpdateEntries.mutateAsync(updates);
+          isDirtyRef.current = false;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke('send-forecast-email', {
         body: {
           departmentId,
