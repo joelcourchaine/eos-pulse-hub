@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail, X } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -82,9 +82,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
-  const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>([]);
+  const [sendToMyself, setSendToMyself] = useState(true);
   const [customEmail, setCustomEmail] = useState('');
-  const [customEmails, setCustomEmails] = useState<string[]>([]);
   const [includeSubMetrics, setIncludeSubMetrics] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -174,30 +173,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     enabled: !!departmentId,
   });
 
-  // Fetch recipients (GMs and department managers for the store)
-  const { data: emailRecipients = [] } = useQuery({
-    queryKey: ['forecast-email-recipients', departmentId],
+  // Get current user for "send to myself" option
+  const { data: currentUser } = useQuery({
+    queryKey: ['current-user'],
     queryFn: async () => {
-      // First get the store_id for this department
-      const { data: dept, error: deptError } = await supabase
-        .from('departments')
-        .select('store_id')
-        .eq('id', departmentId)
-        .single();
-      
-      if (deptError || !dept) return [];
-
-      // Get GMs and department managers for this store
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .eq('store_id', dept.store_id)
-        .in('role', ['store_gm', 'department_manager']);
-
-      if (error) throw error;
-      return profiles || [];
+      const { data: { user } } = await supabase.auth.getUser();
+      return user;
     },
-    enabled: !!departmentId && emailDialogOpen,
   });
 
   const priorYearMonths = useMemo(() => {
@@ -699,30 +681,22 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     toast.success('Forecast reset to baseline');
   };
 
-  // Add custom email to list
-  const handleAddCustomEmail = () => {
-    const trimmed = customEmail.trim().toLowerCase();
-    if (trimmed && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) && !customEmails.includes(trimmed)) {
-      setCustomEmails([...customEmails, trimmed]);
-      setCustomEmail('');
-    }
-  };
-
-  const handleRemoveCustomEmail = (email: string) => {
-    setCustomEmails(customEmails.filter(e => e !== email));
-  };
-
   // Send forecast email
   const handleSendForecastEmail = async () => {
-    // Build recipient list from selected IDs and custom emails
-    const selectedProfileEmails = emailRecipients
-      .filter(r => selectedRecipientIds.includes(r.id))
-      .map(r => r.email);
+    const trimmedCustom = customEmail.trim().toLowerCase();
+    const isValidCustomEmail = trimmedCustom && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedCustom);
     
-    const allRecipients = [...new Set([...selectedProfileEmails, ...customEmails])];
+    // If custom email is filled, use that. Otherwise use logged in user's email if sendToMyself is checked.
+    let recipients: string[] = [];
     
-    if (allRecipients.length === 0) {
-      toast.error('Please select at least one recipient');
+    if (isValidCustomEmail) {
+      recipients = [trimmedCustom];
+    } else if (sendToMyself && currentUser?.email) {
+      recipients = [currentUser.email];
+    }
+    
+    if (recipients.length === 0) {
+      toast.error('Please enter a valid email or check "Send to myself"');
       return;
     }
 
@@ -733,7 +707,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           departmentId,
           forecastYear,
           view: emailView,
-          customRecipients: allRecipients,
+          customRecipients: recipients,
           includeSubMetrics,
         },
       });
@@ -742,8 +716,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
       toast.success('Forecast email sent successfully');
       setEmailDialogOpen(false);
-      setSelectedRecipientIds([]);
-      setCustomEmails([]);
+      setCustomEmail('');
+      setSendToMyself(true);
     } catch (error: any) {
       console.error('Error sending forecast email:', error);
       toast.error(error.message || 'Failed to send forecast email');
@@ -977,70 +951,38 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             </div>
 
             <div className="space-y-3">
-              <Label>Recipients</Label>
-              {emailRecipients.length > 0 ? (
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {emailRecipients.map((recipient) => (
-                    <div key={recipient.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`recipient-${recipient.id}`}
-                        checked={selectedRecipientIds.includes(recipient.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedRecipientIds([...selectedRecipientIds, recipient.id]);
-                          } else {
-                            setSelectedRecipientIds(selectedRecipientIds.filter(id => id !== recipient.id));
-                          }
-                        }}
-                      />
-                      <Label htmlFor={`recipient-${recipient.id}`} className="font-normal cursor-pointer text-sm">
-                        {recipient.full_name} 
-                        <span className="text-muted-foreground ml-1">
-                          ({recipient.role === 'store_gm' ? 'GM' : 'Dept Manager'})
-                        </span>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No GMs or department managers found for this store</p>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <Label>Custom Email</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="email"
-                  placeholder="Enter email address"
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddCustomEmail();
-                    }
-                  }}
+              <Label>Send To</Label>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="send-to-myself"
+                  checked={sendToMyself}
+                  onCheckedChange={(checked) => setSendToMyself(checked === true)}
+                  disabled={!!customEmail.trim()}
                 />
-                <Button type="button" variant="outline" size="sm" onClick={handleAddCustomEmail}>
-                  Add
-                </Button>
+                <Label htmlFor="send-to-myself" className="font-normal cursor-pointer">
+                  Send to myself {currentUser?.email && <span className="text-muted-foreground">({currentUser.email})</span>}
+                </Label>
               </div>
-              {customEmails.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {customEmails.map((email) => (
-                    <span key={email} className="inline-flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm">
-                      {email}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCustomEmail(email)}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+              
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
+                </div>
+              </div>
+
+              <Input
+                type="email"
+                placeholder="Enter custom email address"
+                value={customEmail}
+                onChange={(e) => setCustomEmail(e.target.value)}
+              />
+              {customEmail.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  Custom email will be used instead of "Send to myself"
+                </p>
               )}
             </div>
 
