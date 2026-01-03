@@ -596,19 +596,21 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       
       // When editing GP Net, remove any existing GP% override for the same sub-metric name
       // This allows GP% to be derived from the new GP Net value
-      if (parentKey === 'gp_net') {
-        // Extract sub-metric name from key (format: sub:gp_net:XXX:Name)
-        const parts = subMetricKey.split(':');
-        const subMetricName = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
-        
-        // Find and remove any GP% override with matching name
-        updated = updated.filter(o => {
-          if (o.parentKey !== 'gp_percent') return true;
-          const gpParts = o.subMetricKey.split(':');
-          const gpName = gpParts.length >= 4 ? gpParts.slice(3).join(':') : gpParts.slice(2).join(':');
-          return gpName.toLowerCase() !== subMetricName.toLowerCase();
-        });
-      }
+       if (parentKey === 'gp_net') {
+         // Extract sub-metric name from key (format: sub:gp_net:XXX:Name)
+         const parts = subMetricKey.split(':');
+         const subMetricNameRaw = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
+         const normalizeName = (name: string) => name.trim().toLowerCase();
+         const subMetricName = normalizeName(subMetricNameRaw);
+         
+         // Find and remove any GP% override with matching name
+         updated = updated.filter(o => {
+           if (o.parentKey !== 'gp_percent') return true;
+           const gpParts = o.subMetricKey.split(':');
+           const gpNameRaw = gpParts.length >= 4 ? gpParts.slice(3).join(':') : gpParts.slice(2).join(':');
+           return normalizeName(gpNameRaw) !== subMetricName;
+         });
+       }
       
       return updated;
     });
