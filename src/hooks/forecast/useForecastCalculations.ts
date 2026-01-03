@@ -1086,6 +1086,13 @@ export function useForecastCalculations({
           const matchingGpNet = gpNetByName.get(subName);
           const matchingSalesForGp = salesByNameForGpCalc.get(subName);
           
+          console.log('[forecast] GP% derivation check for:', subName, {
+            hasMatchingGpNet: !!matchingGpNet,
+            hasMatchingSales: !!matchingSalesForGp,
+            gpNetAnnual: matchingGpNet?.annualValue,
+            salesAnnual: matchingSalesForGp?.annualValue,
+          });
+          
           if (matchingGpNet && matchingSalesForGp) {
             console.log('[forecast] Deriving GP% from GP Net override for:', subName);
             
@@ -1100,6 +1107,9 @@ export function useForecastCalculations({
               newMonthlyValues.set(forecastMonth, derivedGpPercent);
               annualValue += derivedGpPercent;
             });
+            
+            const derivedAnnualGpPercent = annualValue / 12;
+            console.log('[forecast] Derived GP% for', subName, ':', derivedAnnualGpPercent.toFixed(2), '%');
             
             // Calculate quarterly values (average for percentages)
             const newQuarterlyValues = new Map<string, number>();
