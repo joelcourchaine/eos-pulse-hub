@@ -1073,15 +1073,14 @@ export function useForecastCalculations({
        const gpNetByName = new Map<string, SubMetricForecast>();
        forecasts.forEach(gnf => gpNetByName.set(normalizeName(gnf.label), gnf));
       
-       const updatedGpPercentForecasts = currentGpPercentForecasts.map((gpPctForecast) => {
-         const subName = normalizeName(gpPctForecast.label);
-        
-        // Check if this GP% sub-metric should be derived from GP Net override
-        // Condition: GP Net is overridden, but GP% is NOT overridden
-        const hasGpNetOverride = gpNetOverrideKeys.has(subName);
-        const hasGpPercentOverride = gpPercentOverrideKeys.has(subName);
-        
-        if (hasGpNetOverride && !hasGpPercentOverride) {
+        const updatedGpPercentForecasts = currentGpPercentForecasts.map((gpPctForecast) => {
+          const subName = normalizeName(gpPctForecast.label);
+         
+         // Check if this GP% sub-metric should be derived from GP Net override
+         // When GP Net is overridden, ALWAYS derive GP% from GP Net / Sales (takes precedence over direct GP% override)
+         const hasGpNetOverride = gpNetOverrideKeys.has(subName);
+         
+         if (hasGpNetOverride) {
           // Derive GP% from GP Net / Sales
           const matchingGpNet = gpNetByName.get(subName);
           const matchingSalesForGp = salesByNameForGpCalc.get(subName);
