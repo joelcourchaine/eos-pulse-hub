@@ -1,4 +1,5 @@
 import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { useEffect, useState } from "react";
 
 interface SparklineProps {
   data: (number | null | undefined)[];
@@ -6,7 +7,20 @@ interface SparklineProps {
   color?: string;
 }
 
-export const Sparkline = ({ data, className = "", color = "hsl(var(--primary))" }: SparklineProps) => {
+export const Sparkline = ({ data, className = "", color }: SparklineProps) => {
+  const [strokeColor, setStrokeColor] = useState("#3b82f6");
+  
+  useEffect(() => {
+    // Get the computed primary color from CSS variables
+    const computedColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--primary')
+      .trim();
+    
+    if (computedColor) {
+      setStrokeColor(`hsl(${computedColor})`);
+    }
+  }, []);
+
   // Filter out null/undefined values and create chart data
   const chartData = data.map((value, index) => ({
     index,
@@ -27,7 +41,7 @@ export const Sparkline = ({ data, className = "", color = "hsl(var(--primary))" 
           <Line
             type="monotone"
             dataKey="value"
-            stroke={color}
+            stroke={color || strokeColor}
             strokeWidth={1.5}
             dot={false}
             connectNulls
