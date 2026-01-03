@@ -701,7 +701,29 @@ export function useForecastCalculations({
         const monthNumber = monthIndex + 1;
         const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
         const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
-        baselineAnnualValue += subBaseline;
+        
+        // For GP% sub-metrics: recalculate from underlying sales and GP net instead of using stored values
+        // This ensures we always use actual financial data, not previously forecasted GP% values
+        if (isPercentageParent) {
+          // Find matching sales and gp_net sub-metrics with the same name
+          const salesSubKey = `sub:total_sales:${sub.orderIndex.toString().padStart(3, '0')}:${sub.name}`;
+          const gpNetSubKey = `sub:gp_net:${sub.orderIndex.toString().padStart(3, '0')}:${sub.name}`;
+          
+          const salesSub = subMetricBaselines.find(s => s.parentKey === 'total_sales' && s.name === sub.name);
+          const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
+          
+          if (salesSub && gpNetSub) {
+            const salesValue = salesSub.monthlyValues.get(priorMonth) ?? 0;
+            const gpNetValue = gpNetSub.monthlyValues.get(priorMonth) ?? 0;
+            const calculatedGpPercent = salesValue > 0 ? (gpNetValue / salesValue) * 100 : 0;
+            baselineAnnualValue += calculatedGpPercent;
+          } else {
+            baselineAnnualValue += subBaseline;
+          }
+        } else {
+          baselineAnnualValue += subBaseline;
+        }
+        
         if (sub.monthlyValues.has(priorMonth)) {
           baselineMonthCount++;
         }
