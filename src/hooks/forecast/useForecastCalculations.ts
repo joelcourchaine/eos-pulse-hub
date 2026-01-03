@@ -1096,21 +1096,28 @@ export function useForecastCalculations({
             console.log('[forecast] Deriving GP% from GP Net override for:', subName);
             
             const newMonthlyValues = new Map<string, number>();
-            let annualValue = 0;
-            
+
+            // IMPORTANT: For display we keep monthly GP% values, but for annual/quarter
+            // rollups we must compute GP% from totals (sum(GP Net) / sum(Sales)),
+            // NOT by averaging monthly percentages.
+            let annualGpNet = 0;
+            let annualSales = 0;
+
             months.forEach((forecastMonth) => {
               const gpNetVal = matchingGpNet.monthlyValues.get(forecastMonth) ?? 0;
               const salesVal = matchingSalesForGp.monthlyValues.get(forecastMonth) ?? 0;
-              
+
+              annualGpNet += gpNetVal;
+              annualSales += salesVal;
+
               const derivedGpPercent = salesVal > 0 ? (gpNetVal / salesVal) * 100 : 0;
               newMonthlyValues.set(forecastMonth, derivedGpPercent);
-              annualValue += derivedGpPercent;
             });
-            
-            const derivedAnnualGpPercent = annualValue / 12;
+
+            const derivedAnnualGpPercent = annualSales > 0 ? (annualGpNet / annualSales) * 100 : 0;
             console.log('[forecast] Derived GP% for', subName, ':', derivedAnnualGpPercent.toFixed(2), '%');
-            
-            // Calculate quarterly values (average for percentages)
+
+            // Calculate quarterly values as ratio-of-sums per quarter
             const newQuarterlyValues = new Map<string, number>();
             const quarterMonthIndices = {
               Q1: [0, 1, 2],
@@ -1118,21 +1125,23 @@ export function useForecastCalculations({
               Q3: [6, 7, 8],
               Q4: [9, 10, 11],
             };
-            
+
             Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
-              let quarterTotal = 0;
-              monthIndices.forEach(i => {
+              let qGpNet = 0;
+              let qSales = 0;
+              monthIndices.forEach((i) => {
                 const forecastMonth = months[i];
-                quarterTotal += newMonthlyValues.get(forecastMonth) ?? 0;
+                qGpNet += matchingGpNet.monthlyValues.get(forecastMonth) ?? 0;
+                qSales += matchingSalesForGp.monthlyValues.get(forecastMonth) ?? 0;
               });
-              newQuarterlyValues.set(quarter, quarterTotal / 3);
+              newQuarterlyValues.set(quarter, qSales > 0 ? (qGpNet / qSales) * 100 : 0);
             });
-            
+
             return {
               ...gpPctForecast,
               monthlyValues: newMonthlyValues,
               quarterlyValues: newQuarterlyValues,
-              annualValue: annualValue / 12,
+              annualValue: derivedAnnualGpPercent,
               isOverridden: true, // Mark as overridden since it's derived from GP Net override
             };
           }
