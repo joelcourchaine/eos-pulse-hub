@@ -919,13 +919,17 @@ export function useForecastCalculations({
       if (parent === 'gp_percent') gpPercentOverrideKeys.add(normalizeName(name));
     });
     
-    // Calculate GP% sub-metrics first (for those without GP Net overrides taking precedence)
-    // For GP Net overrides, we'll calculate GP% later as derived values
+    // Calculate GP% sub-metrics first (these may later be replaced by derived values)
     if (gpPercentSubs.length > 0) {
-      const forecasts: SubMetricForecast[] = gpPercentSubs.map((sub, index) => 
+      const forecasts: SubMetricForecast[] = gpPercentSubs.map((sub, index) =>
         calculateSingleSubMetric(sub, 'gp_percent', index, true)
       );
       result.set('gp_percent', forecasts);
+    }
+
+    if (overrideMap.size > 0) {
+      console.log('[forecast] gpNetOverrideKeys (by name):', Array.from(gpNetOverrideKeys));
+      console.log('[forecast] gpPercentOverrideKeys (by name):', Array.from(gpPercentOverrideKeys));
     }
     
     // SIMPLIFIED MODE: Growth % scales both Total Sales and GP Net proportionally
