@@ -695,12 +695,16 @@ export function useForecastCalculations({
       let annualValue = 0;
       let baselineAnnualValue = 0;
       
-      // First pass: calculate baseline annual value
+      // First pass: calculate baseline annual value from prior year data
+      let baselineMonthCount = 0;
       months.forEach((forecastMonth, monthIndex) => {
         const monthNumber = monthIndex + 1;
         const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
         const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
         baselineAnnualValue += subBaseline;
+        if (sub.monthlyValues.has(priorMonth)) {
+          baselineMonthCount++;
+        }
       });
       
       // If overridden, distribute override annual value across months
@@ -843,11 +847,35 @@ export function useForecastCalculations({
     // MODE: solve-for-sales
     // GP Net and GP% are inputs → Sales is derived (Sales = GP Net / GP%)
     
+    // MODE: solve-for-gp-percent (NEW)
+    // GP Net and Sales are inputs → GP% is derived (GP% = GP Net / Sales × 100)
+    
     const salesSubs = byParent.get('total_sales') ?? [];
     const gpPercentSubs = byParent.get('gp_percent') ?? [];
     const gpNetSubs = byParent.get('gp_net') ?? [];
     
-    // Always calculate GP% sub-metrics first (they're always an input)
+    // Check if any GP Net sub-metrics have overrides (without GP% overrides)
+    // In this case, we should derive GP% from GP Net / Sales instead
+    const gpNetOverrideKeys = new Set<string>();
+    gpNetSubs.forEach((sub, index) => {
+      const orderIndex = sub.orderIndex ?? index;
+      const subMetricKey = `sub:gp_net:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+      if (overrideMap.has(subMetricKey)) {
+        gpNetOverrideKeys.add(sub.name.toLowerCase());
+      }
+    });
+    
+    const gpPercentOverrideKeys = new Set<string>();
+    gpPercentSubs.forEach((sub, index) => {
+      const orderIndex = sub.orderIndex ?? index;
+      const subMetricKey = `sub:gp_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
+      if (overrideMap.has(subMetricKey)) {
+        gpPercentOverrideKeys.add(sub.name.toLowerCase());
+      }
+    });
+    
+    // Calculate GP% sub-metrics first (for those without GP Net overrides taking precedence)
+    // For GP Net overrides, we'll calculate GP% later as derived values
     if (gpPercentSubs.length > 0) {
       const forecasts: SubMetricForecast[] = gpPercentSubs.map((sub, index) => 
         calculateSingleSubMetric(sub, 'gp_percent', index, true)
@@ -984,6 +1012,78 @@ export function useForecastCalculations({
       });
       
       result.set('gp_net', forecasts);
+      
+      // NOW: Recalculate GP% sub-metrics for items where GP Net was overridden (but GP% was NOT)
+      // This ensures GP% = GP Net / Sales × 100 when user edits GP Net directly
+      const currentGpPercentForecasts = result.get('gp_percent') ?? [];
+      const salesForecastsForGpCalc = result.get('total_sales') ?? [];
+      
+      const salesByNameForGpCalc = new Map<string, SubMetricForecast>();
+      salesForecastsForGpCalc.forEach(sf => salesByNameForGpCalc.set(sf.label.toLowerCase(), sf));
+      
+      const gpNetByName = new Map<string, SubMetricForecast>();
+      forecasts.forEach(gnf => gpNetByName.set(gnf.label.toLowerCase(), gnf));
+      
+      const updatedGpPercentForecasts = currentGpPercentForecasts.map((gpPctForecast) => {
+        const subName = gpPctForecast.label.toLowerCase();
+        
+        // Check if this GP% sub-metric should be derived from GP Net override
+        // Condition: GP Net is overridden, but GP% is NOT overridden
+        const hasGpNetOverride = gpNetOverrideKeys.has(subName);
+        const hasGpPercentOverride = gpPercentOverrideKeys.has(subName);
+        
+        if (hasGpNetOverride && !hasGpPercentOverride) {
+          // Derive GP% from GP Net / Sales
+          const matchingGpNet = gpNetByName.get(subName);
+          const matchingSalesForGp = salesByNameForGpCalc.get(subName);
+          
+          if (matchingGpNet && matchingSalesForGp) {
+            console.log('[forecast] Deriving GP% from GP Net override for:', subName);
+            
+            const newMonthlyValues = new Map<string, number>();
+            let annualValue = 0;
+            
+            months.forEach((forecastMonth) => {
+              const gpNetVal = matchingGpNet.monthlyValues.get(forecastMonth) ?? 0;
+              const salesVal = matchingSalesForGp.monthlyValues.get(forecastMonth) ?? 0;
+              
+              const derivedGpPercent = salesVal > 0 ? (gpNetVal / salesVal) * 100 : 0;
+              newMonthlyValues.set(forecastMonth, derivedGpPercent);
+              annualValue += derivedGpPercent;
+            });
+            
+            // Calculate quarterly values (average for percentages)
+            const newQuarterlyValues = new Map<string, number>();
+            const quarterMonthIndices = {
+              Q1: [0, 1, 2],
+              Q2: [3, 4, 5],
+              Q3: [6, 7, 8],
+              Q4: [9, 10, 11],
+            };
+            
+            Object.entries(quarterMonthIndices).forEach(([quarter, monthIndices]) => {
+              let quarterTotal = 0;
+              monthIndices.forEach(i => {
+                const forecastMonth = months[i];
+                quarterTotal += newMonthlyValues.get(forecastMonth) ?? 0;
+              });
+              newQuarterlyValues.set(quarter, quarterTotal / 3);
+            });
+            
+            return {
+              ...gpPctForecast,
+              monthlyValues: newMonthlyValues,
+              quarterlyValues: newQuarterlyValues,
+              annualValue: annualValue / 12,
+              isOverridden: true, // Mark as overridden since it's derived from GP Net override
+            };
+          }
+        }
+        
+        return gpPctForecast;
+      });
+      
+      result.set('gp_percent', updatedGpPercentForecasts);
     }
     
     // Calculate remaining parent metrics (not Sales, GP%, GP Net)
