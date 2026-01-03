@@ -822,7 +822,8 @@ export function useForecastCalculations({
       // For percentage parents, annual value should be averaged not summed
       if (isPercentageParent) {
         annualValue = annualValue / 12;
-        baselineAnnualValue = baselineAnnualValue / 12;
+        // Use actual month count for baseline average (handles partial year data)
+        baselineAnnualValue = baselineMonthCount > 0 ? baselineAnnualValue / baselineMonthCount : 0;
       }
       
       if (isOverridden) {

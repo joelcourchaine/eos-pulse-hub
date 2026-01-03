@@ -586,12 +586,31 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const handleSubMetricEdit = (subMetricKey: string, parentKey: string, newAnnualValue: number) => {
     setSubMetricOverrides(prev => {
       const existingIndex = prev.findIndex(o => o.subMetricKey === subMetricKey);
+      let updated = [...prev];
+      
       if (existingIndex >= 0) {
-        const updated = [...prev];
         updated[existingIndex] = { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue };
-        return updated;
+      } else {
+        updated = [...updated, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
       }
-      return [...prev, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
+      
+      // When editing GP Net, remove any existing GP% override for the same sub-metric name
+      // This allows GP% to be derived from the new GP Net value
+      if (parentKey === 'gp_net') {
+        // Extract sub-metric name from key (format: sub:gp_net:XXX:Name)
+        const parts = subMetricKey.split(':');
+        const subMetricName = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
+        
+        // Find and remove any GP% override with matching name
+        updated = updated.filter(o => {
+          if (o.parentKey !== 'gp_percent') return true;
+          const gpParts = o.subMetricKey.split(':');
+          const gpName = gpParts.length >= 4 ? gpParts.slice(3).join(':') : gpParts.slice(2).join(':');
+          return gpName.toLowerCase() !== subMetricName.toLowerCase();
+        });
+      }
+      
+      return updated;
     });
     markDirty();
   };
