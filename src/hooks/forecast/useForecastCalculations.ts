@@ -702,22 +702,37 @@ export function useForecastCalculations({
         const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
         const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
         
-        // For GP% sub-metrics: recalculate from underlying sales and GP net instead of using stored values
-        // This ensures we always use actual financial data, not previously forecasted GP% values
+        // For percentage sub-metrics: recalculate from underlying values instead of using stored values
+        // This ensures we always use actual financial data, not previously forecasted percentage values
         if (isPercentageParent) {
-          // Find matching sales and gp_net sub-metrics with the same name
-          const salesSubKey = `sub:total_sales:${sub.orderIndex.toString().padStart(3, '0')}:${sub.name}`;
-          const gpNetSubKey = `sub:gp_net:${sub.orderIndex.toString().padStart(3, '0')}:${sub.name}`;
-          
-          const salesSub = subMetricBaselines.find(s => s.parentKey === 'total_sales' && s.name === sub.name);
-          const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
-          
-          if (salesSub && gpNetSub) {
-            const salesValue = salesSub.monthlyValues.get(priorMonth) ?? 0;
-            const gpNetValue = gpNetSub.monthlyValues.get(priorMonth) ?? 0;
-            const calculatedGpPercent = salesValue > 0 ? (gpNetValue / salesValue) * 100 : 0;
-            baselineAnnualValue += calculatedGpPercent;
+          if (parentKey === 'gp_percent') {
+            // GP% = GP Net / Sales * 100
+            const salesSub = subMetricBaselines.find(s => s.parentKey === 'total_sales' && s.name === sub.name);
+            const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
+            
+            if (salesSub && gpNetSub) {
+              const salesValue = salesSub.monthlyValues.get(priorMonth) ?? 0;
+              const gpNetValue = gpNetSub.monthlyValues.get(priorMonth) ?? 0;
+              const calculatedGpPercent = salesValue > 0 ? (gpNetValue / salesValue) * 100 : 0;
+              baselineAnnualValue += calculatedGpPercent;
+            } else {
+              baselineAnnualValue += subBaseline;
+            }
+          } else if (parentKey === 'sales_expense_percent') {
+            // Sales Exp% = Sales Expense / GP Net * 100
+            const salesExpSub = subMetricBaselines.find(s => s.parentKey === 'sales_expense' && s.name === sub.name);
+            const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
+            
+            if (salesExpSub && gpNetSub) {
+              const salesExpValue = salesExpSub.monthlyValues.get(priorMonth) ?? 0;
+              const gpNetValue = gpNetSub.monthlyValues.get(priorMonth) ?? 0;
+              const calculatedSalesExpPercent = gpNetValue > 0 ? (salesExpValue / gpNetValue) * 100 : 0;
+              baselineAnnualValue += calculatedSalesExpPercent;
+            } else {
+              baselineAnnualValue += subBaseline;
+            }
           } else {
+            // Other percentage parents - use stored value
             baselineAnnualValue += subBaseline;
           }
         } else {
