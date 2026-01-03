@@ -903,24 +903,20 @@ export function useForecastCalculations({
     const gpPercentSubs = byParent.get('gp_percent') ?? [];
     const gpNetSubs = byParent.get('gp_net') ?? [];
     
-    // Check if any GP Net sub-metrics have overrides (without GP% overrides)
-    // In this case, we should derive GP% from GP Net / Sales instead
+    // Detect overrides by NAME (not orderIndex), because orderIndex can differ across parents
+    // (e.g., Total Sales "Counter Retail" might be 043 while GP Net "Counter Retail" is 002).
     const gpNetOverrideKeys = new Set<string>();
-    gpNetSubs.forEach((sub, index) => {
-      const orderIndex = sub.orderIndex ?? index;
-      const subMetricKey = `sub:gp_net:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
-      if (overrideMap.has(subMetricKey)) {
-        gpNetOverrideKeys.add(normalizeName(sub.name));
-      }
-    });
-
     const gpPercentOverrideKeys = new Set<string>();
-    gpPercentSubs.forEach((sub, index) => {
-      const orderIndex = sub.orderIndex ?? index;
-      const subMetricKey = `sub:gp_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
-      if (overrideMap.has(subMetricKey)) {
-        gpPercentOverrideKeys.add(normalizeName(sub.name));
-      }
+
+    overrideMap.forEach((_, key) => {
+      // Key format: sub:{parent}:{NNN}:{Name (may contain :)}
+      const parts = key.split(':');
+      if (parts.length < 4 || parts[0] !== 'sub') return;
+      const parent = parts[1];
+      const name = parts.slice(3).join(':');
+
+      if (parent === 'gp_net') gpNetOverrideKeys.add(normalizeName(name));
+      if (parent === 'gp_percent') gpPercentOverrideKeys.add(normalizeName(name));
     });
     
     // Calculate GP% sub-metrics first (for those without GP Net overrides taking precedence)
