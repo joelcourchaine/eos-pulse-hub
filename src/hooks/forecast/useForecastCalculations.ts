@@ -665,6 +665,9 @@ export function useForecastCalculations({
       byParent.get(sub.parentKey)!.push(sub);
     });
 
+    // Normalize names for reliable cross-parent matching (handles casing/whitespace differences)
+    const normalizeName = (name: string) => name.trim().toLowerCase();
+
     // Helper to calculate a single sub-metric forecast
     const calculateSingleSubMetric = (
       sub: SubMetricBaseline,
@@ -707,8 +710,12 @@ export function useForecastCalculations({
         if (isPercentageParent) {
           if (parentKey === 'gp_percent') {
             // GP% = GP Net / Sales * 100
-            const salesSub = subMetricBaselines.find(s => s.parentKey === 'total_sales' && s.name === sub.name);
-            const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
+            const salesSub = subMetricBaselines.find(
+              (s) => s.parentKey === 'total_sales' && normalizeName(s.name) === normalizeName(sub.name)
+            );
+            const gpNetSub = subMetricBaselines.find(
+              (s) => s.parentKey === 'gp_net' && normalizeName(s.name) === normalizeName(sub.name)
+            );
             
             if (salesSub && gpNetSub) {
               const salesValue = salesSub.monthlyValues.get(priorMonth) ?? 0;
@@ -720,8 +727,12 @@ export function useForecastCalculations({
             }
           } else if (parentKey === 'sales_expense_percent') {
             // Sales Exp% = Sales Expense / GP Net * 100
-            const salesExpSub = subMetricBaselines.find(s => s.parentKey === 'sales_expense' && s.name === sub.name);
-            const gpNetSub = subMetricBaselines.find(s => s.parentKey === 'gp_net' && s.name === sub.name);
+            const salesExpSub = subMetricBaselines.find(
+              (s) => s.parentKey === 'sales_expense' && normalizeName(s.name) === normalizeName(sub.name)
+            );
+            const gpNetSub = subMetricBaselines.find(
+              (s) => s.parentKey === 'gp_net' && normalizeName(s.name) === normalizeName(sub.name)
+            );
             
             if (salesExpSub && gpNetSub) {
               const salesExpValue = salesExpSub.monthlyValues.get(priorMonth) ?? 0;
@@ -899,16 +910,16 @@ export function useForecastCalculations({
       const orderIndex = sub.orderIndex ?? index;
       const subMetricKey = `sub:gp_net:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
       if (overrideMap.has(subMetricKey)) {
-        gpNetOverrideKeys.add(sub.name.toLowerCase());
+        gpNetOverrideKeys.add(normalizeName(sub.name));
       }
     });
-    
+
     const gpPercentOverrideKeys = new Set<string>();
     gpPercentSubs.forEach((sub, index) => {
       const orderIndex = sub.orderIndex ?? index;
       const subMetricKey = `sub:gp_percent:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
       if (overrideMap.has(subMetricKey)) {
-        gpPercentOverrideKeys.add(sub.name.toLowerCase());
+        gpPercentOverrideKeys.add(normalizeName(sub.name));
       }
     });
     
@@ -942,16 +953,16 @@ export function useForecastCalculations({
       const salesForecasts = result.get('total_sales') ?? [];
       const gpPercentForecasts = result.get('gp_percent') ?? [];
       
-      const salesByName = new Map<string, SubMetricForecast>();
-      salesForecasts.forEach(sf => salesByName.set(sf.label.toLowerCase(), sf));
+       const salesByName = new Map<string, SubMetricForecast>();
+       salesForecasts.forEach(sf => salesByName.set(normalizeName(sf.label), sf));
+       
+       const gpPercentByName = new Map<string, SubMetricForecast>();
+       gpPercentForecasts.forEach(gpf => gpPercentByName.set(normalizeName(gpf.label), gpf));
       
-      const gpPercentByName = new Map<string, SubMetricForecast>();
-      gpPercentForecasts.forEach(gpf => gpPercentByName.set(gpf.label.toLowerCase(), gpf));
-      
-      const forecasts: SubMetricForecast[] = gpNetSubs.map((sub, index) => {
-        const subName = sub.name.toLowerCase();
-        const matchingSales = salesByName.get(subName);
-        const matchingGpPercent = gpPercentByName.get(subName);
+       const forecasts: SubMetricForecast[] = gpNetSubs.map((sub, index) => {
+         const subName = normalizeName(sub.name);
+         const matchingSales = salesByName.get(subName);
+         const matchingGpPercent = gpPercentByName.get(subName);
 
         const orderIndex = sub.orderIndex ?? index;
         const subMetricKey = `sub:gp_net:${String(orderIndex).padStart(3, '0')}:${sub.name}`;
@@ -1056,14 +1067,14 @@ export function useForecastCalculations({
       const currentGpPercentForecasts = result.get('gp_percent') ?? [];
       const salesForecastsForGpCalc = result.get('total_sales') ?? [];
       
-      const salesByNameForGpCalc = new Map<string, SubMetricForecast>();
-      salesForecastsForGpCalc.forEach(sf => salesByNameForGpCalc.set(sf.label.toLowerCase(), sf));
+       const salesByNameForGpCalc = new Map<string, SubMetricForecast>();
+       salesForecastsForGpCalc.forEach(sf => salesByNameForGpCalc.set(normalizeName(sf.label), sf));
+       
+       const gpNetByName = new Map<string, SubMetricForecast>();
+       forecasts.forEach(gnf => gpNetByName.set(normalizeName(gnf.label), gnf));
       
-      const gpNetByName = new Map<string, SubMetricForecast>();
-      forecasts.forEach(gnf => gpNetByName.set(gnf.label.toLowerCase(), gnf));
-      
-      const updatedGpPercentForecasts = currentGpPercentForecasts.map((gpPctForecast) => {
-        const subName = gpPctForecast.label.toLowerCase();
+       const updatedGpPercentForecasts = currentGpPercentForecasts.map((gpPctForecast) => {
+         const subName = normalizeName(gpPctForecast.label);
         
         // Check if this GP% sub-metric should be derived from GP Net override
         // Condition: GP Net is overridden, but GP% is NOT overridden
