@@ -1,4 +1,5 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -11,15 +12,74 @@ interface RichTextEditorProps {
   className?: string;
 }
 
-export const RichTextEditor = ({ 
-  value, 
-  onChange, 
+export const RichTextEditor = ({
+  value,
+  onChange,
   placeholder = "Type or paste (Cmd+V) your notes here...",
-  className 
+  className
 }: RichTextEditorProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+
+  // Tight allowlist for sanitization
+  const purifyConfig = useMemo(() => ({
+    ALLOWED_TAGS: [
+      "p", "br", "div", "span",
+      "b", "strong", "i", "em", "u",
+      "ul", "ol", "li",
+      "blockquote",
+      "h1", "h2", "h3",
+      "a",
+      "img"
+    ],
+    ALLOWED_ATTR: [
+      "href", "target", "rel",
+      "src", "alt",
+      "style"
+    ],
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ["svg", "math", "script", "iframe", "object", "embed", "link", "meta"],
+    KEEP_CONTENT: false
+  }), []);
+
+  const sanitizeHtml = (html: string) => {
+    const clean = DOMPurify.sanitize(html ?? "", purifyConfig);
+
+    // Extra guardrail: ensure anchors are safe
+    const tmp = document.createElement("div");
+    tmp.innerHTML = clean;
+
+    tmp.querySelectorAll("a").forEach((a) => {
+      const href = (a.getAttribute("href") || "").trim();
+      const isSafe =
+        href.startsWith("/") ||
+        href.startsWith("#") ||
+        /^https?:\/\//i.test(href) ||
+        /^mailto:/i.test(href) ||
+        /^tel:/i.test(href);
+
+      if (!isSafe) a.removeAttribute("href");
+
+      if (a.getAttribute("target") === "_blank") {
+        const rel = (a.getAttribute("rel") || "").toLowerCase();
+        const needed = ["noopener", "noreferrer"];
+        const merged = Array.from(new Set([...rel.split(/\s+/).filter(Boolean), ...needed]));
+        a.setAttribute("rel", merged.join(" "));
+      }
+    });
+
+    return tmp.innerHTML;
+  };
+
+  const emitChange = () => {
+    if (!editorRef.current) return;
+    const dirty = editorRef.current.innerHTML;
+    const clean = sanitizeHtml(dirty);
+
+    if (clean !== dirty) editorRef.current.innerHTML = clean;
+    onChange(clean);
+  };
 
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
@@ -27,42 +87,40 @@ export const RichTextEditor = ({
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      
-      if (item.type.indexOf('image') !== -1) {
+
+      if (item.type.indexOf("image") !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
         if (!file) continue;
 
         setIsUploading(true);
-        
+
         try {
-          // Upload to Supabase storage
-          const fileExt = file.type.split('/')[1];
+          const fileExt = file.type.split("/")[1];
           const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
           const filePath = `${fileName}`;
 
-          const { data, error } = await supabase.storage
-            .from('note-attachments')
+          const { error } = await supabase.storage
+            .from("note-attachments")
             .upload(filePath, file, {
-              cacheControl: '3600',
+              cacheControl: "3600",
               upsert: false
             });
 
           if (error) throw error;
 
-          // Get public URL
           const { data: { publicUrl } } = supabase.storage
-            .from('note-attachments')
+            .from("note-attachments")
             .getPublicUrl(filePath);
 
-          // Insert image into editor
-          const img = document.createElement('img');
+          const img = document.createElement("img");
           img.src = publicUrl;
-          img.style.maxWidth = '100%';
-          img.style.height = 'auto';
-          img.style.display = 'block';
-          img.style.margin = '8px 0';
-          
+          img.alt = "Pasted image";
+          img.style.maxWidth = "100%";
+          img.style.height = "auto";
+          img.style.display = "block";
+          img.style.margin = "8px 0";
+
           if (editorRef.current) {
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0) {
@@ -72,46 +130,62 @@ export const RichTextEditor = ({
             } else {
               editorRef.current.appendChild(img);
             }
-            
-            // Update value
-            onChange(editorRef.current.innerHTML);
+
+            emitChange();
           }
 
-          toast({
-            title: "Success",
-            description: "Image pasted successfully",
-          });
+          toast({ title: "Success", description: "Image pasted successfully" });
         } catch (error) {
-          console.error('Error uploading image:', error);
+          console.error("Error uploading image:", error);
           toast({
             title: "Error",
             description: "Failed to upload image",
-            variant: "destructive",
+            variant: "destructive"
           });
         } finally {
           setIsUploading(false);
         }
+
+        return;
       }
+    }
+
+    // Sanitize HTML paste
+    const html = e.clipboardData.getData("text/html");
+    const text = e.clipboardData.getData("text/plain");
+
+    if (html) {
+      e.preventDefault();
+      const clean = sanitizeHtml(html);
+      document.execCommand("insertHTML", false, clean);
+      emitChange();
+      return;
+    }
+
+    if (text) {
+      e.preventDefault();
+      document.execCommand("insertText", false, text);
+      emitChange();
     }
   };
 
   const handleInput = () => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
+    emitChange();
   };
 
-  // Initialize content only once when value changes externally
+  // Sanitize value before setting innerHTML
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
+    if (!editorRef.current) return;
+
+    const cleanValue = sanitizeHtml(value ?? "");
+    if (editorRef.current.innerHTML !== cleanValue) {
       const selection = window.getSelection();
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
       const startOffset = range?.startOffset;
       const endOffset = range?.endOffset;
-      
-      editorRef.current.innerHTML = value;
-      
-      // Restore cursor position if possible
+
+      editorRef.current.innerHTML = cleanValue;
+
       if (range && startOffset !== undefined && endOffset !== undefined) {
         try {
           const newRange = document.createRange();
@@ -122,7 +196,7 @@ export const RichTextEditor = ({
             selection?.removeAllRanges();
             selection?.addRange(newRange);
           }
-        } catch (e) {
+        } catch {
           // Cursor restoration failed, ignore
         }
       }
