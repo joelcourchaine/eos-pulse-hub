@@ -501,6 +501,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (isLoadingMore || now - lastLoadAt <= cooldownMs) return;
 
       lastLoadAt = now;
+      console.debug('[weekly-infinite-scroll] trigger', { currentLeft, year, quarter, loaded: loadedPreviousQuarters.length });
 
       // Calculate the previous quarter to load
       let prevQuarter = quarter - 1;
@@ -538,6 +539,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         }
       }
 
+      console.debug('[weekly-infinite-scroll] loading previous quarter', { targetYear, targetQuarter });
       loadPreviousQuarterData(targetYear, targetQuarter);
     };
 
@@ -583,11 +585,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const previousScrollLeft = scrollContainer?.scrollLeft || 0;
     
     try {
+      console.debug('[weekly-infinite-scroll] fetch start', { targetYear, targetQuarter });
+
       // Get weeks for the previous quarter
       const prevQuarterWeeks = getWeekDates({ year: targetYear, quarter: targetQuarter });
       const weekDates = prevQuarterWeeks.map(w => w.start.toISOString().split('T')[0]);
       const kpiIds = kpis.map(k => k.id);
-      
+
       // Load weekly entries for the previous quarter
       const { data: weeklyData, error: weeklyError } = await supabase
         .from("scorecard_entries")
@@ -595,12 +599,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         .in("kpi_id", kpiIds)
         .eq("entry_type", "weekly")
         .in("week_start_date", weekDates);
-      
+
       if (weeklyError) {
         console.error("Error loading previous quarter weekly data:", weeklyError);
         return;
       }
-      
+
       // Load targets for the previous quarter
       const { data: targetsData, error: targetsError } = await supabase
         .from("kpi_targets")
@@ -609,21 +613,28 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         .eq("quarter", targetQuarter)
         .eq("year", targetYear)
         .eq("entry_type", "weekly");
-      
+
       if (targetsError) {
         console.error("Error loading previous quarter targets:", targetsError);
       }
-      
+
+      console.debug('[weekly-infinite-scroll] fetch done', {
+        targetYear,
+        targetQuarter,
+        entries: weeklyData?.length ?? 0,
+        targets: targetsData?.length ?? 0,
+      });
+
       // Process the weekly entries
       const newEntries: { [key: string]: ScorecardEntry } = {};
       weeklyData?.forEach((entry) => {
         const key = `${entry.kpi_id}-${entry.week_start_date}`;
-        
+
         // Calculate status
         const kpi = kpis.find(k => k.id === entry.kpi_id);
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
           const target = targetsData?.find(t => t.kpi_id === kpi.id)?.target_value || kpi.target_value;
-          
+
           let variance: number;
           if (kpi.metric_type === "percentage") {
             variance = entry.actual_value - target;
@@ -636,35 +647,35 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               variance = entry.actual_value > 0 ? 100 : -100;
             }
           }
-          
+
           let status: string;
           if (kpi.target_direction === "above") {
             status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
           } else {
             status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
           }
-          
+
           entry.status = status;
           entry.variance = variance;
         }
-        
+
         newEntries[key] = entry;
       });
-      
+
       // Process targets
       const newTargets: { [key: string]: number } = {};
       targetsData?.forEach(target => {
         const key = `${target.kpi_id}-Q${targetQuarter}-${targetYear}`;
         newTargets[key] = target.target_value || 0;
       });
-      
+
       // Also store individual KPI targets for this quarter
       kpis.forEach(kpi => {
         const target = targetsData?.find(t => t.kpi_id === kpi.id);
         const key = `${kpi.id}-Q${targetQuarter}-${targetYear}`;
         newTargets[key] = target?.target_value || kpi.target_value;
       });
-      
+
       // Update state
       setPreviousQuarterWeeklyEntries(prev => ({ ...prev, ...newEntries }));
       setPreviousQuarterTargets(prev => ({ ...prev, ...newTargets }));
@@ -672,7 +683,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         if (a.year !== b.year) return a.year - b.year;
         return a.quarter - b.quarter;
       }));
-      
+
+      toast({
+        title: `Loaded Q${targetQuarter} ${targetYear}`,
+        description: `Added previous quarter weeks (entries: ${weeklyData?.length ?? 0})`,
+        duration: 2500,
+      });
+
       // Maintain scroll position after content is added
       requestAnimationFrame(() => {
         if (scrollContainer) {
@@ -681,7 +698,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           scrollContainer.scrollLeft = previousScrollLeft + addedWidth;
         }
       });
-      
+
     } finally {
       setIsLoadingMore(false);
     }
