@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,7 +26,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [departmentId, setDepartmentId] = useState<string>("");
+  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
   const [birthdayMonth, setBirthdayMonth] = useState<string>("");
   const [birthdayDay, setBirthdayDay] = useState<string>("");
   const [startMonth, setStartMonth] = useState<string>("");
@@ -176,7 +177,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           role,
           store_id: storeId || null,
           store_group_id: storeGroupId || null,
-          department_id: departmentId || null,
+          department_ids: departmentIds.length > 0 ? departmentIds : null,
           birthday_month: birthdayMonth ? parseInt(birthdayMonth) : null,
           birthday_day: birthdayDay ? parseInt(birthdayDay) : null,
           start_month: startMonth ? parseInt(startMonth) : null,
@@ -201,7 +202,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setRole("department_manager");
       setStoreId(currentStoreId || "");
       setStoreGroupId("");
-      setDepartmentId("");
+      setDepartmentIds([]);
       setBirthdayMonth("");
       setBirthdayDay("");
       setStartMonth("");
@@ -295,21 +296,32 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
 
           {role === "department_manager" && departments.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="department">Assign to Department *</Label>
-              <Select value={departmentId} onValueChange={setDepartmentId} required>
-                <SelectTrigger id="department">
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
+              <Label>Assign to Departments *</Label>
+              <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                {departments.map((dept) => (
+                  <div key={dept.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`dept-${dept.id}`}
+                      checked={departmentIds.includes(dept.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setDepartmentIds([...departmentIds, dept.id]);
+                        } else {
+                          setDepartmentIds(departmentIds.filter(id => id !== dept.id));
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor={`dept-${dept.id}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
                       {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </label>
+                  </div>
+                ))}
+              </div>
               <p className="text-xs text-muted-foreground">
-                This user will be assigned as the manager of the selected department
+                This user will be assigned as the manager of the selected department(s)
               </p>
             </div>
           )}

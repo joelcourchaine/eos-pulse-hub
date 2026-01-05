@@ -11,7 +11,8 @@ interface CreateUserRequest {
   role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor';
   store_id?: string;
   store_group_id?: string;
-  department_id?: string;
+  department_id?: string; // Legacy single department support
+  department_ids?: string[]; // New multi-department support
   birthday_month?: number;
   birthday_day?: number;
   start_month?: number;
@@ -84,7 +85,10 @@ Deno.serve(async (req) => {
     console.log('Authorization successful for user:', user.id);
 
     const requestBody: CreateUserRequest = await req.json();
-    let { email, full_name, role, store_id, store_group_id, department_id, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    let { email, full_name, role, store_id, store_group_id, department_id, department_ids, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    
+    // Support both legacy single department_id and new department_ids array
+    const finalDepartmentIds: string[] = department_ids || (department_id ? [department_id] : []);
 
     // SECURITY: For non-super-admins, enforce store assignment to their own store
     if (callerRole === 'store_gm' || callerRole === 'department_manager') {
@@ -104,7 +108,7 @@ Deno.serve(async (req) => {
     }
 
     // If department manager, verify they can only add users to their own departments
-    if (callerRole === 'department_manager' && department_id) {
+    if (callerRole === 'department_manager' && finalDepartmentIds.length > 0) {
       const { data: callerDepts } = await supabaseAdmin
         .from('departments')
         .select('id')
@@ -120,7 +124,8 @@ Deno.serve(async (req) => {
         ...(callerAccess?.map(a => a.department_id) || [])
       ];
       
-      if (!allowedDeptIds.includes(department_id)) {
+      const unauthorizedDepts = finalDepartmentIds.filter(id => !allowedDeptIds.includes(id));
+      if (unauthorizedDepts.length > 0) {
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -220,33 +225,34 @@ Deno.serve(async (req) => {
 
     console.log('User role and profile updated successfully');
 
-    // If department_id is provided, update the department's manager_id
-    if (department_id) {
-      const { error: departmentError } = await supabaseAdmin
-        .from('departments')
-        .update({ manager_id: userData.user.id })
-        .eq('id', department_id);
+    // If department_ids are provided, update departments and grant access
+    if (finalDepartmentIds.length > 0) {
+      for (const deptId of finalDepartmentIds) {
+        // Set user as manager of the department
+        const { error: departmentError } = await supabaseAdmin
+          .from('departments')
+          .update({ manager_id: userData.user.id })
+          .eq('id', deptId);
 
-      if (departmentError) {
-        console.error('Error assigning user to department:', departmentError);
-        // Don't throw - user was created successfully, just log the error
-      } else {
-        console.log('User assigned as department manager for department:', department_id);
+        if (departmentError) {
+          console.error('Error assigning user to department:', deptId, departmentError);
+        } else {
+          console.log('User assigned as department manager for department:', deptId);
+        }
         
-        // Also add to user_department_access table for access control
+        // Add to user_department_access table for access control
         const { error: accessError } = await supabaseAdmin
           .from('user_department_access')
           .insert({
             user_id: userData.user.id,
-            department_id: department_id,
+            department_id: deptId,
             granted_by: user.id
           });
 
         if (accessError) {
-          console.error('Error adding user department access:', accessError);
-          // Don't throw - user was created successfully, just log the error
+          console.error('Error adding user department access:', deptId, accessError);
         } else {
-          console.log('User granted access to department:', department_id);
+          console.log('User granted access to department:', deptId);
         }
       }
     }
