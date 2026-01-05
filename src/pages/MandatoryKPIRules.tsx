@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Check, AlertTriangle, Save, Shield } from "lucide-react";
+import { ArrowLeft, Check, AlertTriangle, Save, Shield, Pencil, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoreGroup {
@@ -42,6 +42,7 @@ interface PresetKPI {
 interface DepartmentManager {
   department_id: string;
   department_name: string;
+  store_id: string;
   store_name: string;
   manager_id: string | null;
   manager_name: string | null;
@@ -51,6 +52,12 @@ interface DepartmentManager {
 interface MandatoryRule {
   id: string;
   preset_kpi_id: string;
+}
+
+interface EligibleUser {
+  id: string;
+  full_name: string;
+  email: string;
 }
 
 const MandatoryKPIRules: React.FC = () => {
@@ -70,6 +77,13 @@ const MandatoryKPIRules: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Manager editing state
+  const [editingDeptId, setEditingDeptId] = useState<string | null>(null);
+  const [editingManagerId, setEditingManagerId] = useState<string>("");
+  const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [savingManager, setSavingManager] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -124,6 +138,7 @@ const MandatoryKPIRules: React.FC = () => {
         const managers: DepartmentManager[] = (deptData || []).map((d: any) => ({
           department_id: d.id,
           department_name: d.name,
+          store_id: d.stores?.id || "",
           store_name: d.stores?.name || "Unknown Store",
           manager_id: d.manager_id,
           manager_name: d.profiles?.full_name || null,
@@ -156,6 +171,87 @@ const MandatoryKPIRules: React.FC = () => {
 
     loadData();
   }, [selectedGroupId, selectedDeptTypeId, toast]);
+
+  const handleEditManager = async (dm: DepartmentManager) => {
+    setEditingDeptId(dm.department_id);
+    setEditingManagerId(dm.manager_id || "none");
+    setLoadingUsers(true);
+
+    try {
+      // Fetch eligible users for this store (department managers and store GMs)
+      const { data: users, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("store_id", dm.store_id)
+        .in("role", ["department_manager", "store_gm"])
+        .order("full_name");
+
+      if (error) throw error;
+      setEligibleUsers(users || []);
+    } catch (error) {
+      console.error("Error loading eligible users:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load eligible users.",
+        variant: "destructive",
+      });
+      setEditingDeptId(null);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDeptId(null);
+    setEditingManagerId("");
+    setEligibleUsers([]);
+  };
+
+  const handleSaveManager = async (departmentId: string) => {
+    setSavingManager(true);
+    try {
+      const newManagerId = editingManagerId === "none" ? null : editingManagerId;
+      
+      const { error } = await supabase
+        .from("departments")
+        .update({ manager_id: newManagerId })
+        .eq("id", departmentId);
+
+      if (error) throw error;
+
+      // Update local state
+      setDepartmentManagers((prev) =>
+        prev.map((dm) => {
+          if (dm.department_id === departmentId) {
+            const newManager = eligibleUsers.find((u) => u.id === newManagerId);
+            return {
+              ...dm,
+              manager_id: newManagerId,
+              manager_name: newManager?.full_name || null,
+              manager_email: newManager?.email || null,
+            };
+          }
+          return dm;
+        })
+      );
+
+      toast({
+        title: "Manager updated",
+        description: "Department manager has been updated.",
+      });
+
+      handleCancelEdit();
+    } catch (error) {
+      console.error("Error updating manager:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update department manager.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingManager(false);
+    }
+  };
 
   const handleKpiToggle = (kpiId: string) => {
     setSelectedKpis((prev) => {
@@ -327,6 +423,7 @@ const MandatoryKPIRules: React.FC = () => {
                         <TableHead>Department</TableHead>
                         <TableHead>Manager</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead className="w-[100px]">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -335,7 +432,30 @@ const MandatoryKPIRules: React.FC = () => {
                           <TableCell className="font-medium">{dm.store_name}</TableCell>
                           <TableCell>{dm.department_name}</TableCell>
                           <TableCell>
-                            {dm.manager_name ? (
+                            {editingDeptId === dm.department_id ? (
+                              <div className="flex items-center gap-2">
+                                {loadingUsers ? (
+                                  <span className="text-muted-foreground text-sm">Loading...</span>
+                                ) : (
+                                  <Select
+                                    value={editingManagerId}
+                                    onValueChange={setEditingManagerId}
+                                  >
+                                    <SelectTrigger className="w-[200px]">
+                                      <SelectValue placeholder="Select manager" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">No manager</SelectItem>
+                                      {eligibleUsers.map((user) => (
+                                        <SelectItem key={user.id} value={user.id}>
+                                          {user.full_name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
+                              </div>
+                            ) : dm.manager_name ? (
                               <div>
                                 <span>{dm.manager_name}</span>
                                 {dm.manager_email && (
@@ -359,6 +479,36 @@ const MandatoryKPIRules: React.FC = () => {
                                 <AlertTriangle className="h-3 w-3" />
                                 Not Assigned
                               </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingDeptId === dm.department_id ? (
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleSaveManager(dm.department_id)}
+                                  disabled={savingManager || loadingUsers}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={handleCancelEdit}
+                                  disabled={savingManager}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleEditManager(dm)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>
