@@ -465,12 +465,27 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     loadData();
   }, [departmentId, kpis, year, quarter, viewMode]);
 
+  // Track when scroll container is available
+  const [scrollContainerReady, setScrollContainerReady] = useState(false);
+  
+  // Set up scroll container ref callback
+  useEffect(() => {
+    const checkContainer = () => {
+      if (scrollContainerRef.current) {
+        setScrollContainerReady(true);
+      }
+    };
+    // Check immediately and after a brief delay for render
+    checkContainer();
+    const timeout = setTimeout(checkContainer, 100);
+    return () => clearTimeout(timeout);
+  }, [loading, viewMode]);
+
   // Infinite scroll handler for weekly view - load previous quarter when scrolling to left edge
   useEffect(() => {
-    if (!scrollContainerRef.current) return;
-    if (viewMode !== "weekly" || isQuarterTrendMode || isMonthlyTrendMode) return;
-    
     const container = scrollContainerRef.current;
+    if (!container) return;
+    if (viewMode !== "weekly" || isQuarterTrendMode || isMonthlyTrendMode) return;
     
     const handleScroll = () => {
       // If we're near the left edge (within 100px) and not currently loading
@@ -517,7 +532,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     container.addEventListener('scroll', handleScroll);
     return () => container.removeEventListener('scroll', handleScroll);
-  }, [scrollContainerRef.current, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year]);
+  }, [scrollContainerReady, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year]);
 
   // Function to load previous quarter's weekly data
   const loadPreviousQuarterData = async (targetYear: number, targetQuarter: number) => {
