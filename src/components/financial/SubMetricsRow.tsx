@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, Target, AlertCircle, Flag } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useSubMetricQuestions } from "@/hooks/useSubMetricQuestions";
 import { SubMetricQuestionTooltip } from "./SubMetricQuestionTooltip";
 
@@ -65,6 +66,16 @@ interface SubMetricsRowProps {
   getQuarterMonths?: (quarter: number, year: number) => string[];
   // Department ID for fetching related questions
   departmentId?: string;
+  // Issue creation callback
+  onCreateIssue?: (
+    subMetricName: string,
+    value: number | null,
+    periodLabel: string,
+    periodIdentifier: string,
+    periodType: 'month' | 'year-avg' | 'year-total' | 'quarter-avg'
+  ) => void;
+  // Set of cell keys that have issues (for flag indicator)
+  cellIssues?: Set<string>;
 }
 
 // Helper to calculate average from values
@@ -120,6 +131,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   quarterTrendPeriods,
   getQuarterMonths,
   departmentId,
+  onCreateIssue,
+  cellIssues,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -128,6 +141,25 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   
   // Get question data for sub-metric tooltips
   const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
+  
+  // Helper to get period label for display
+  const getPeriodLabel = (period: MonthlyPeriod): string => {
+    if (period.type === 'month') {
+      const [year, month] = period.identifier.split('-');
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[parseInt(month) - 1]} ${year}`;
+    }
+    if (period.type === 'year-avg') return `Avg ${period.year}`;
+    if (period.type === 'year-total') return `Total ${period.year}`;
+    if (period.type === 'quarter-avg') return `Q${quarter} Avg ${period.year}`;
+    return period.identifier;
+  };
+  
+  // Helper to check if a cell has an issue
+  const hasCellIssue = (subMetricName: string, periodIdentifier: string): boolean => {
+    if (!cellIssues || !parentMetricKey) return false;
+    return cellIssues.has(`sub:${parentMetricKey}:${subMetricName}-${periodIdentifier}`);
+  };
 
   if (!isExpanded) return null;
   
@@ -356,39 +388,59 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 const orderIndex = subMetric.orderIndex ?? idx;
                 
                 return (
-                  <TableCell 
-                    key={period.identifier} 
-                    className={cn(
-                      "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
-                      status === 'success' && "bg-success/10",
-                      status === 'warning' && "bg-warning/10",
-                      status === 'destructive' && "bg-destructive/10",
-                      !status && "text-muted-foreground",
-                      canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
-                    )}
-                    onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, period.identifier, value)}
-                  >
-                    {isEditingThisValue ? (
-                      <Input
-                        type="text"
-                        value={valueEditValue}
-                        onChange={(e) => setValueEditValue(e.target.value)}
-                        onBlur={() => handleValueSave(subMetric.name, orderIndex, period.identifier)}
-                        onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, period.identifier)}
-                        className="h-6 text-xs text-center w-full"
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span className={cn(
-                        status === 'success' && "text-success font-medium",
-                        status === 'warning' && "text-warning font-medium",
-                        status === 'destructive' && "text-destructive font-medium"
-                      )}>
-                        {value !== null ? formatValue(value) : "-"}
-                      </span>
-                    )}
-                  </TableCell>
+                  <ContextMenu key={period.identifier}>
+                    <ContextMenuTrigger asChild>
+                      <TableCell 
+                        className={cn(
+                          "text-center py-1 text-xs min-w-[125px] max-w-[125px] relative",
+                          status === 'success' && "bg-success/10",
+                          status === 'warning' && "bg-warning/10",
+                          status === 'destructive' && "bg-destructive/10",
+                          !status && "text-muted-foreground",
+                          canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
+                        )}
+                        onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, period.identifier, value)}
+                      >
+                        {isEditingThisValue ? (
+                          <Input
+                            type="text"
+                            value={valueEditValue}
+                            onChange={(e) => setValueEditValue(e.target.value)}
+                            onBlur={() => handleValueSave(subMetric.name, orderIndex, period.identifier)}
+                            onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, period.identifier)}
+                            className="h-6 text-xs text-center w-full"
+                            autoFocus
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className={cn(
+                            status === 'success' && "text-success font-medium",
+                            status === 'warning' && "text-warning font-medium",
+                            status === 'destructive' && "text-destructive font-medium"
+                          )}>
+                            {value !== null ? formatValue(value) : "-"}
+                          </span>
+                        )}
+                        {hasCellIssue(subMetric.name, period.identifier) && (
+                          <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                        )}
+                      </TableCell>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="bg-background z-50">
+                      <ContextMenuItem 
+                        onClick={() => onCreateIssue?.(
+                          subMetric.name,
+                          value,
+                          getPeriodLabel(period),
+                          period.identifier,
+                          'month'
+                        )}
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Create Issue from Cell
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 );
               }
               
@@ -428,17 +480,37 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               const summaryValue = getSummaryValue(subMetric.name, period.type, period.year);
               
               return (
-                <TableCell 
-                  key={period.identifier} 
-                  className={cn(
-                    "text-center py-1 text-xs text-muted-foreground",
-                    period.type === 'year-avg' && "bg-primary/5 border-l-2 border-primary/30 min-w-[125px] max-w-[125px]",
-                    period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30 min-w-[125px] max-w-[125px]",
-                    period.type === 'quarter-avg' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]"
-                  )}
-                >
-                  {summaryValue !== null ? formatValue(summaryValue) : "-"}
-                </TableCell>
+                <ContextMenu key={period.identifier}>
+                  <ContextMenuTrigger asChild>
+                    <TableCell 
+                      className={cn(
+                        "text-center py-1 text-xs text-muted-foreground relative",
+                        period.type === 'year-avg' && "bg-primary/5 border-l-2 border-primary/30 min-w-[125px] max-w-[125px]",
+                        period.type === 'year-total' && "bg-primary/5 border-r-2 border-primary/30 min-w-[125px] max-w-[125px]",
+                        period.type === 'quarter-avg' && "bg-primary/5 border-x-2 border-primary/30 min-w-[100px] max-w-[100px]"
+                      )}
+                    >
+                      {summaryValue !== null ? formatValue(summaryValue) : "-"}
+                      {hasCellIssue(subMetric.name, period.identifier) && (
+                        <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                      )}
+                    </TableCell>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="bg-background z-50">
+                    <ContextMenuItem 
+                      onClick={() => onCreateIssue?.(
+                        subMetric.name,
+                        summaryValue,
+                        getPeriodLabel(period),
+                        period.identifier,
+                        period.type as 'year-avg' | 'year-total' | 'quarter-avg'
+                      )}
+                    >
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      Create Issue from Cell
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               );
             })}
           </TableRow>
@@ -606,39 +678,64 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             const orderIndex = subMetric.orderIndex ?? idx;
             
             return (
-              <TableCell 
-                key={monthId} 
-                className={cn(
-                  "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
-                  status === 'success' && "bg-success/10",
-                  status === 'warning' && "bg-warning/10",
-                  status === 'destructive' && "bg-destructive/10",
-                  !status && "text-muted-foreground",
-                  canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
-                )}
-                onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, monthId, value)}
-              >
-                {isEditingThisValue ? (
-                  <Input
-                    type="text"
-                    value={valueEditValue}
-                    onChange={(e) => setValueEditValue(e.target.value)}
-                    onBlur={() => handleValueSave(subMetric.name, orderIndex, monthId)}
-                    onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, monthId)}
-                    className="h-6 text-xs text-center w-full"
-                    autoFocus
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className={cn(
-                    status === 'success' && "text-success font-medium",
-                    status === 'warning' && "text-warning font-medium",
-                    status === 'destructive' && "text-destructive font-medium"
-                  )}>
-                    {value !== null ? formatValue(value) : "-"}
-                  </span>
-                )}
-              </TableCell>
+              <ContextMenu key={monthId}>
+                <ContextMenuTrigger asChild>
+                  <TableCell 
+                    className={cn(
+                      "text-center py-1 text-xs min-w-[125px] max-w-[125px] relative",
+                      status === 'success' && "bg-success/10",
+                      status === 'warning' && "bg-warning/10",
+                      status === 'destructive' && "bg-destructive/10",
+                      !status && "text-muted-foreground",
+                      canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
+                    )}
+                    onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, monthId, value)}
+                  >
+                    {isEditingThisValue ? (
+                      <Input
+                        type="text"
+                        value={valueEditValue}
+                        onChange={(e) => setValueEditValue(e.target.value)}
+                        onBlur={() => handleValueSave(subMetric.name, orderIndex, monthId)}
+                        onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, monthId)}
+                        className="h-6 text-xs text-center w-full"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className={cn(
+                        status === 'success' && "text-success font-medium",
+                        status === 'warning' && "text-warning font-medium",
+                        status === 'destructive' && "text-destructive font-medium"
+                      )}>
+                        {value !== null ? formatValue(value) : "-"}
+                      </span>
+                    )}
+                    {hasCellIssue(subMetric.name, monthId) && (
+                      <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                    )}
+                  </TableCell>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="bg-background z-50">
+                  <ContextMenuItem 
+                    onClick={() => {
+                      const [year, month] = monthId.split('-');
+                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const periodLabel = `${monthNames[parseInt(month) - 1]} ${year}`;
+                      onCreateIssue?.(
+                        subMetric.name,
+                        value,
+                        periodLabel,
+                        monthId,
+                        'month'
+                      );
+                    }}
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    Create Issue from Cell
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             );
           })}
         </TableRow>
