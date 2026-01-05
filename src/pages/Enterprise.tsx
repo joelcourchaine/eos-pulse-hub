@@ -96,6 +96,9 @@ export default function Enterprise() {
   // Separate state for combined metric selection
   const [selectedKpiMetrics, setSelectedKpiMetrics] = useState<string[]>(() => getStoredState('selectedKpiMetrics', []));
   const [selectedFinancialMetrics, setSelectedFinancialMetrics] = useState<string[]>(() => getStoredState('selectedFinancialMetrics', []));
+  
+  // Filter for showing only department manager owned KPIs
+  const [showDeptManagerOnly, setShowDeptManagerOnly] = useState<boolean>(() => getStoredState('showDeptManagerOnly', false));
 
   // Save state to sessionStorage whenever it changes
   useEffect(() => {
@@ -115,7 +118,8 @@ export default function Enterprise() {
     sessionStorage.setItem('enterprise_sortByMetric', JSON.stringify(sortByMetric));
     sessionStorage.setItem('enterprise_selectedKpiMetrics', JSON.stringify(selectedKpiMetrics));
     sessionStorage.setItem('enterprise_selectedFinancialMetrics', JSON.stringify(selectedFinancialMetrics));
-  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics]);
+    sessionStorage.setItem('enterprise_showDeptManagerOnly', JSON.stringify(showDeptManagerOnly));
+  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly]);
 
   // Check authentication and get user
   const [userId, setUserId] = useState<string | undefined>(undefined);
@@ -464,10 +468,10 @@ export default function Enterprise() {
       // For combined type, we need monthly KPIs
       const entryType = metricType === "monthly_combined" ? "monthly" : metricType;
       
-      // First get KPIs with scorecard entries of the matching type
+      // First get KPIs with scorecard entries of the matching type - include assigned_to and department manager info
       const { data: entriesWithKpis, error: entriesError } = await supabase
         .from("scorecard_entries")
-        .select("kpi_id, kpi_definitions!inner(id, name, metric_type, department_id, display_order)")
+        .select("kpi_id, kpi_definitions!inner(id, name, metric_type, department_id, display_order, assigned_to, departments(id, manager_id))")
         .eq("entry_type", entryType)
         .in("kpi_definitions.department_id", departmentIds);
       
@@ -478,7 +482,10 @@ export default function Enterprise() {
       entriesWithKpis?.forEach((entry: any) => {
         const kpi = entry.kpi_definitions;
         if (kpi && !kpiMap.has(kpi.id)) {
-          kpiMap.set(kpi.id, kpi);
+          kpiMap.set(kpi.id, {
+            ...kpi,
+            isDeptManagerOwned: kpi.departments?.manager_id && kpi.assigned_to === kpi.departments.manager_id,
+          });
         }
       });
       
@@ -568,24 +575,35 @@ export default function Enterprise() {
     }
     // For weekly/monthly KPIs, get unique KPI names from definitions
     if ((metricType === "weekly" || metricType === "monthly") && kpiDefinitions) {
-      const uniqueNames = [...new Set(kpiDefinitions.map(k => k.name))];
+      // Filter by department manager ownership if toggle is on
+      const filteredKpis = showDeptManagerOnly
+        ? kpiDefinitions.filter((k: any) => k.isDeptManagerOwned)
+        : kpiDefinitions;
+      
+      const uniqueNames = [...new Set(filteredKpis.map((k: any) => k.name))];
       return uniqueNames.map(name => ({
         id: name,
         name: name,
       }));
     }
     return [];
-  }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions, subMetrics]);
+  }, [metricType, filteredStores, questionnaireQuestions, kpiDefinitions, subMetrics, showDeptManagerOnly]);
 
   // Get available KPI metrics for combined view
   const availableKpiMetricsForCombined = useMemo(() => {
     if (metricType !== "monthly_combined" || !kpiDefinitions) return [];
-    const uniqueNames = [...new Set(kpiDefinitions.map(k => k.name))];
+    
+    // Filter by department manager ownership if toggle is on
+    const filteredKpis = showDeptManagerOnly
+      ? kpiDefinitions.filter((k: any) => k.isDeptManagerOwned)
+      : kpiDefinitions;
+    
+    const uniqueNames = [...new Set(filteredKpis.map((k: any) => k.name))];
     return uniqueNames.map(name => ({
       id: name,
       name: name,
     }));
-  }, [metricType, kpiDefinitions]);
+  }, [metricType, kpiDefinitions, showDeptManagerOnly]);
 
   // Get available financial metrics for combined view (including sub-metrics)
   const availableFinancialMetricsForCombined = useMemo(() => {
@@ -1058,6 +1076,22 @@ export default function Enterprise() {
                     Combines monthly KPI scorecard and financial metrics with quarterly weighting.
                     {isTotalHoursRequired && " Total Hours is required for Service department."}
                   </p>
+                </div>
+              )}
+
+              {(metricType === "monthly" || metricType === "monthly_combined") && (
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox
+                    id="dept-manager-only"
+                    checked={showDeptManagerOnly}
+                    onCheckedChange={(checked) => setShowDeptManagerOnly(!!checked)}
+                  />
+                  <label
+                    htmlFor="dept-manager-only"
+                    className="text-sm cursor-pointer leading-none"
+                  >
+                    Show only Department Manager owned KPIs
+                  </label>
                 </div>
               )}
 
