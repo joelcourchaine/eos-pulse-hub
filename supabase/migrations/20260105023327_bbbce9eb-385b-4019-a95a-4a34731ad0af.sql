@@ -1,0 +1,2 @@
+-- Enable realtime for issues table
+ALTER PUBLICATION supabase_realtime ADD TABLE public.issues;
