@@ -490,64 +490,87 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     let lastScrollLeft = container.scrollLeft;
     let lastLoadAt = 0;
 
+    const tryLoadPrevious = () => {
+      const currentLeft = container.scrollLeft;
+
+      // Only load when we are at/near the left edge
+      if (currentLeft >= 80) return;
+
+      const now = Date.now();
+      const cooldownMs = 800;
+      if (isLoadingMore || now - lastLoadAt <= cooldownMs) return;
+
+      lastLoadAt = now;
+
+      // Calculate the previous quarter to load
+      let prevQuarter = quarter - 1;
+      let prevYear = year;
+      if (prevQuarter < 1) {
+        prevQuarter = 4;
+        prevYear = year - 1;
+      }
+
+      // Check if we've already loaded this quarter
+      const alreadyLoaded = loadedPreviousQuarters.some(
+        (pq) => pq.year === prevYear && pq.quarter === prevQuarter
+      );
+
+      // Also check if there's no more quarters to load (limit to 4 previous quarters)
+      if (alreadyLoaded || loadedPreviousQuarters.length >= 4) return;
+
+      // If there are already loaded quarters, get the earliest one and go back from there
+      let targetQuarter = prevQuarter;
+      let targetYear = prevYear;
+
+      if (loadedPreviousQuarters.length > 0) {
+        const earliest = loadedPreviousQuarters.reduce((min, pq) => {
+          if (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) {
+            return pq;
+          }
+          return min;
+        }, loadedPreviousQuarters[0]);
+
+        targetQuarter = earliest.quarter - 1;
+        targetYear = earliest.year;
+        if (targetQuarter < 1) {
+          targetQuarter = 4;
+          targetYear = earliest.year - 1;
+        }
+      }
+
+      loadPreviousQuarterData(targetYear, targetQuarter);
+    };
+
     const handleScroll = () => {
       const currentLeft = container.scrollLeft;
       const isScrollingLeft = currentLeft < lastScrollLeft;
       lastScrollLeft = currentLeft;
 
-      // Trigger when we're at the left edge (or moving into it). NOTE:
-      // when you're already at scrollLeft=0 and keep trying to scroll left,
-      // scrollLeft won't change, so we must also allow the "atLeftEdge" case.
+      // If we're at the left edge, scrollLeft may not change; allow that too.
       const atLeftEdge = currentLeft <= 0;
 
-      const now = Date.now();
-      const cooldownMs = 800;
-
-      if ((isScrollingLeft || atLeftEdge) && currentLeft < 80 && !isLoadingMore && now - lastLoadAt > cooldownMs) {
-        lastLoadAt = now;
-
-        // Calculate the previous quarter to load
-        let prevQuarter = quarter - 1;
-        let prevYear = year;
-        if (prevQuarter < 1) {
-          prevQuarter = 4;
-          prevYear = year - 1;
-        }
-
-        // Check if we've already loaded this quarter
-        const alreadyLoaded = loadedPreviousQuarters.some(
-          (pq) => pq.year === prevYear && pq.quarter === prevQuarter
-        );
-
-        // Also check if there's no more quarters to load (limit to 4 previous quarters)
-        if (!alreadyLoaded && loadedPreviousQuarters.length < 4) {
-          // If there are already loaded quarters, get the earliest one and go back from there
-          let targetQuarter = prevQuarter;
-          let targetYear = prevYear;
-
-          if (loadedPreviousQuarters.length > 0) {
-            const earliest = loadedPreviousQuarters.reduce((min, pq) => {
-              if (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) {
-                return pq;
-              }
-              return min;
-            }, loadedPreviousQuarters[0]);
-
-            targetQuarter = earliest.quarter - 1;
-            targetYear = earliest.year;
-            if (targetQuarter < 1) {
-              targetQuarter = 4;
-              targetYear = earliest.year - 1;
-            }
-          }
-
-          loadPreviousQuarterData(targetYear, targetQuarter);
-        }
+      if (isScrollingLeft || atLeftEdge) {
+        tryLoadPrevious();
       }
     };
-    
+
+    const handleWheel = (e: WheelEvent) => {
+      // Some devices emit horizontal scroll as deltaX, others as Shift+wheel (deltaY)
+      const wheelLeft = e.deltaX < -5 || (e.shiftKey && e.deltaY < -5);
+      if (!wheelLeft) return;
+
+      // When pinned at scrollLeft=0, wheel won't change scrollLeft, so scroll handler won't fire.
+      if (container.scrollLeft <= 0) {
+        tryLoadPrevious();
+      }
+    };
+
     container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
+    container.addEventListener('wheel', handleWheel, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      container.removeEventListener('wheel', handleWheel as any);
+    };
   }, [scrollContainerReady, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year]);
 
   // Function to load previous quarter's weekly data
