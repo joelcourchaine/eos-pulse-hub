@@ -139,10 +139,23 @@ export function useForecast(departmentId: string | undefined, year: number) {
     enabled: !!forecast?.id,
   });
 
-  // Create new forecast
+  // Create new forecast (or return existing one)
   const createForecast = useMutation({
     mutationFn: async (initialWeights: { month_number: number; weight: number }[]) => {
       if (!departmentId) throw new Error('Department ID required');
+
+      // Check if forecast already exists to avoid duplicate key error
+      const { data: existingForecast } = await supabase
+        .from('department_forecasts')
+        .select('*')
+        .eq('department_id', departmentId)
+        .eq('forecast_year', year)
+        .maybeSingle();
+      
+      if (existingForecast) {
+        // Forecast already exists, just return it
+        return existingForecast as Forecast;
+      }
 
       const { data: user } = await supabase.auth.getUser();
       
