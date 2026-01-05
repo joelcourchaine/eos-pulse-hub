@@ -15,6 +15,7 @@ import SetPassword from "./pages/SetPassword";
 import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
+import MandatoryKPIRules from "./pages/MandatoryKPIRules";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/dealer-comparison" element={<DealerComparison />} />
             <Route path="/questionnaire/:token" element={<Questionnaire />} />
             <Route path="/install" element={<Install />} />
+            <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
