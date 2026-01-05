@@ -341,6 +341,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [loadedPreviousQuarters, setLoadedPreviousQuarters] = useState<{ year: number; quarter: number }[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [previousQuarterWeeklyEntries, setPreviousQuarterWeeklyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
+  const [previousQuarterMonthlyEntries, setPreviousQuarterMonthlyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [previousQuarterTargets, setPreviousQuarterTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -360,6 +361,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const previousQuartersWeeks = loadedPreviousQuarters.flatMap(pq => {
     const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
     return pqWeeks.map(w => ({ ...w, quarterYear: pq.year, quarterNum: pq.quarter }));
+  });
+  
+  // Generate months for loaded previous quarters (for infinite scroll in monthly view)
+  const previousQuartersMonths = loadedPreviousQuarters.flatMap(pq => {
+    const pqMonths = getMonthsForQuarter(pq.quarter, pq.year);
+    return pqMonths.map(m => ({ ...m, quarterYear: pq.year, quarterNum: pq.quarter }));
   });
   
   // Combined weeks: previous quarters' weeks + current quarter weeks
@@ -481,11 +488,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     return () => clearTimeout(timeout);
   }, [loading, viewMode]);
 
-  // Infinite scroll handler for weekly view - load previous quarter when scrolling to left edge
+  // Infinite scroll handler for weekly/monthly view - load previous quarter when scrolling to left edge
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    if (viewMode !== "weekly" || isQuarterTrendMode || isMonthlyTrendMode) return;
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
     
     let lastScrollLeft = container.scrollLeft;
     let lastLoadAt = 0;
@@ -501,7 +508,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (isLoadingMore || now - lastLoadAt <= cooldownMs) return;
 
       lastLoadAt = now;
-      console.debug('[weekly-infinite-scroll] trigger', { currentLeft, year, quarter, loaded: loadedPreviousQuarters.length });
+      console.debug('[infinite-scroll] trigger', { viewMode, currentLeft, year, quarter, loaded: loadedPreviousQuarters.length });
 
       // Calculate the previous quarter to load
       let prevQuarter = quarter - 1;
@@ -539,8 +546,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         }
       }
 
-      console.debug('[weekly-infinite-scroll] loading previous quarter', { targetYear, targetQuarter });
-      loadPreviousQuarterData(targetYear, targetQuarter);
+      console.debug('[infinite-scroll] loading previous quarter', { viewMode, targetYear, targetQuarter });
+      loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
     };
 
     const handleScroll = () => {
@@ -573,10 +580,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       container.removeEventListener('scroll', handleScroll);
       container.removeEventListener('wheel', handleWheel as any);
     };
-  }, [scrollContainerReady, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year]);
+  }, [scrollContainerReady, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year, kpis]);
 
-  // Function to load previous quarter's weekly data
-  const loadPreviousQuarterData = async (targetYear: number, targetQuarter: number) => {
+  // Function to load previous quarter's data (weekly or monthly)
+  const loadPreviousQuarterData = async (targetYear: number, targetQuarter: number, mode: "weekly" | "monthly") => {
     if (isLoadingMore || kpis.length === 0) return;
     
     setIsLoadingMore(true);
@@ -585,110 +592,216 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const previousScrollLeft = scrollContainer?.scrollLeft || 0;
     
     try {
-      console.debug('[weekly-infinite-scroll] fetch start', { targetYear, targetQuarter });
+      console.debug('[infinite-scroll] fetch start', { targetYear, targetQuarter, mode });
 
-      // Get weeks for the previous quarter
-      const prevQuarterWeeks = getWeekDates({ year: targetYear, quarter: targetQuarter });
-      const weekDates = prevQuarterWeeks.map(w => w.start.toISOString().split('T')[0]);
       const kpiIds = kpis.map(k => k.id);
 
-      // Load weekly entries for the previous quarter
-      const { data: weeklyData, error: weeklyError } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", "weekly")
-        .in("week_start_date", weekDates);
+      if (mode === "weekly") {
+        // Get weeks for the previous quarter
+        const prevQuarterWeeks = getWeekDates({ year: targetYear, quarter: targetQuarter });
+        const weekDates = prevQuarterWeeks.map(w => w.start.toISOString().split('T')[0]);
 
-      if (weeklyError) {
-        console.error("Error loading previous quarter weekly data:", weeklyError);
-        return;
-      }
+        // Load weekly entries for the previous quarter
+        const { data: weeklyData, error: weeklyError } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "weekly")
+          .in("week_start_date", weekDates);
 
-      // Load targets for the previous quarter
-      const { data: targetsData, error: targetsError } = await supabase
-        .from("kpi_targets")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("quarter", targetQuarter)
-        .eq("year", targetYear)
-        .eq("entry_type", "weekly");
-
-      if (targetsError) {
-        console.error("Error loading previous quarter targets:", targetsError);
-      }
-
-      console.debug('[weekly-infinite-scroll] fetch done', {
-        targetYear,
-        targetQuarter,
-        entries: weeklyData?.length ?? 0,
-        targets: targetsData?.length ?? 0,
-      });
-
-      // Process the weekly entries
-      const newEntries: { [key: string]: ScorecardEntry } = {};
-      weeklyData?.forEach((entry) => {
-        const key = `${entry.kpi_id}-${entry.week_start_date}`;
-
-        // Calculate status
-        const kpi = kpis.find(k => k.id === entry.kpi_id);
-        if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
-          const target = targetsData?.find(t => t.kpi_id === kpi.id)?.target_value || kpi.target_value;
-
-          let variance: number;
-          if (kpi.metric_type === "percentage") {
-            variance = entry.actual_value - target;
-          } else if (target !== 0) {
-            variance = ((entry.actual_value - target) / target) * 100;
-          } else {
-            if (kpi.target_direction === "below") {
-              variance = entry.actual_value > 0 ? 100 : 0;
-            } else {
-              variance = entry.actual_value > 0 ? 100 : -100;
-            }
-          }
-
-          let status: string;
-          if (kpi.target_direction === "above") {
-            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
-          } else {
-            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
-          }
-
-          entry.status = status;
-          entry.variance = variance;
+        if (weeklyError) {
+          console.error("Error loading previous quarter weekly data:", weeklyError);
+          return;
         }
 
-        newEntries[key] = entry;
-      });
+        // Load targets for the previous quarter (weekly)
+        const { data: targetsData, error: targetsError } = await supabase
+          .from("kpi_targets")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("quarter", targetQuarter)
+          .eq("year", targetYear)
+          .eq("entry_type", "weekly");
 
-      // Process targets
-      const newTargets: { [key: string]: number } = {};
-      targetsData?.forEach(target => {
-        const key = `${target.kpi_id}-Q${targetQuarter}-${targetYear}`;
-        newTargets[key] = target.target_value || 0;
-      });
+        if (targetsError) {
+          console.error("Error loading previous quarter targets:", targetsError);
+        }
 
-      // Also store individual KPI targets for this quarter
-      kpis.forEach(kpi => {
-        const target = targetsData?.find(t => t.kpi_id === kpi.id);
-        const key = `${kpi.id}-Q${targetQuarter}-${targetYear}`;
-        newTargets[key] = target?.target_value || kpi.target_value;
-      });
+        console.debug('[infinite-scroll] fetch done', {
+          targetYear,
+          targetQuarter,
+          mode,
+          entries: weeklyData?.length ?? 0,
+          targets: targetsData?.length ?? 0,
+        });
 
-      // Update state
-      setPreviousQuarterWeeklyEntries(prev => ({ ...prev, ...newEntries }));
-      setPreviousQuarterTargets(prev => ({ ...prev, ...newTargets }));
+        // Process the weekly entries
+        const newEntries: { [key: string]: ScorecardEntry } = {};
+        weeklyData?.forEach((entry) => {
+          const key = `${entry.kpi_id}-${entry.week_start_date}`;
+
+          // Calculate status
+          const kpi = kpis.find(k => k.id === entry.kpi_id);
+          if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+            const target = targetsData?.find(t => t.kpi_id === kpi.id)?.target_value || kpi.target_value;
+
+            let variance: number;
+            if (kpi.metric_type === "percentage") {
+              variance = entry.actual_value - target;
+            } else if (target !== 0) {
+              variance = ((entry.actual_value - target) / target) * 100;
+            } else {
+              if (kpi.target_direction === "below") {
+                variance = entry.actual_value > 0 ? 100 : 0;
+              } else {
+                variance = entry.actual_value > 0 ? 100 : -100;
+              }
+            }
+
+            let status: string;
+            if (kpi.target_direction === "above") {
+              status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+            } else {
+              status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+            }
+
+            entry.status = status;
+            entry.variance = variance;
+          }
+
+          newEntries[key] = entry;
+        });
+
+        // Process targets
+        const newTargets: { [key: string]: number } = {};
+        targetsData?.forEach(target => {
+          const key = `${target.kpi_id}-Q${targetQuarter}-${targetYear}`;
+          newTargets[key] = target.target_value || 0;
+        });
+
+        // Also store individual KPI targets for this quarter
+        kpis.forEach(kpi => {
+          const target = targetsData?.find(t => t.kpi_id === kpi.id);
+          const key = `${kpi.id}-Q${targetQuarter}-${targetYear}`;
+          newTargets[key] = target?.target_value || kpi.target_value;
+        });
+
+        // Update state for weekly
+        setPreviousQuarterWeeklyEntries(prev => ({ ...prev, ...newEntries }));
+        setPreviousQuarterTargets(prev => ({ ...prev, ...newTargets }));
+
+        toast({
+          title: `Loaded Q${targetQuarter} ${targetYear}`,
+          description: `Added previous quarter weeks (entries: ${weeklyData?.length ?? 0})`,
+          duration: 2500,
+        });
+
+      } else {
+        // Monthly mode
+        const prevQuarterMonths = getMonthsForQuarter(targetQuarter, targetYear);
+        const monthIdentifiers = prevQuarterMonths.map(m => m.identifier);
+
+        // Load monthly entries for the previous quarter
+        const { data: monthlyData, error: monthlyError } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "monthly")
+          .in("month", monthIdentifiers);
+
+        if (monthlyError) {
+          console.error("Error loading previous quarter monthly data:", monthlyError);
+          return;
+        }
+
+        // Load targets for the previous quarter (monthly)
+        const { data: targetsData, error: targetsError } = await supabase
+          .from("kpi_targets")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("quarter", targetQuarter)
+          .eq("year", targetYear)
+          .eq("entry_type", "monthly");
+
+        if (targetsError) {
+          console.error("Error loading previous quarter monthly targets:", targetsError);
+        }
+
+        console.debug('[infinite-scroll] fetch done', {
+          targetYear,
+          targetQuarter,
+          mode,
+          entries: monthlyData?.length ?? 0,
+          targets: targetsData?.length ?? 0,
+        });
+
+        // Process the monthly entries
+        const newEntries: { [key: string]: ScorecardEntry } = {};
+        monthlyData?.forEach((entry) => {
+          const key = `${entry.kpi_id}-month-${entry.month}`;
+
+          // Calculate status
+          const kpi = kpis.find(k => k.id === entry.kpi_id);
+          if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+            const target = targetsData?.find(t => t.kpi_id === kpi.id)?.target_value || kpi.target_value;
+
+            let variance: number;
+            if (kpi.metric_type === "percentage") {
+              variance = entry.actual_value - target;
+            } else if (target !== 0) {
+              variance = ((entry.actual_value - target) / target) * 100;
+            } else {
+              if (kpi.target_direction === "below") {
+                variance = entry.actual_value > 0 ? 100 : 0;
+              } else {
+                variance = entry.actual_value > 0 ? 100 : -100;
+              }
+            }
+
+            let status: string;
+            if (kpi.target_direction === "above") {
+              status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+            } else {
+              status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+            }
+
+            entry.status = status;
+            entry.variance = variance;
+          }
+
+          newEntries[key] = entry;
+        });
+
+        // Process targets
+        const newTargets: { [key: string]: number } = {};
+        targetsData?.forEach(target => {
+          const key = `${target.kpi_id}-Q${targetQuarter}-${targetYear}`;
+          newTargets[key] = target.target_value || 0;
+        });
+
+        // Also store individual KPI targets for this quarter
+        kpis.forEach(kpi => {
+          const target = targetsData?.find(t => t.kpi_id === kpi.id);
+          const key = `${kpi.id}-Q${targetQuarter}-${targetYear}`;
+          newTargets[key] = target?.target_value || kpi.target_value;
+        });
+
+        // Update state for monthly
+        setPreviousQuarterMonthlyEntries(prev => ({ ...prev, ...newEntries }));
+        setPreviousQuarterTargets(prev => ({ ...prev, ...newTargets }));
+
+        toast({
+          title: `Loaded Q${targetQuarter} ${targetYear}`,
+          description: `Added previous quarter months (entries: ${monthlyData?.length ?? 0})`,
+          duration: 2500,
+        });
+      }
+
+      // Update loaded quarters list
       setLoadedPreviousQuarters(prev => [...prev, { year: targetYear, quarter: targetQuarter }].sort((a, b) => {
         if (a.year !== b.year) return a.year - b.year;
         return a.quarter - b.quarter;
       }));
-
-      toast({
-        title: `Loaded Q${targetQuarter} ${targetYear}`,
-        description: `Added previous quarter weeks (entries: ${weeklyData?.length ?? 0})`,
-        duration: 2500,
-      });
 
       // Maintain scroll position after content is added
       requestAnimationFrame(() => {
@@ -754,9 +867,16 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     };
   }, [departmentId, kpis, currentUserId, profiles]);
 
-  // Auto-scroll to the far right on initial load in weekly mode so the current quarter/weeks are in view
+  // Reset loaded previous quarters when view mode changes
+  useEffect(() => {
+    setLoadedPreviousQuarters([]);
+    setPreviousQuarterWeeklyEntries({});
+    setPreviousQuarterMonthlyEntries({});
+    setPreviousQuarterTargets({});
+  }, [viewMode]);
+
+  // Auto-scroll to the far right on initial load in weekly/monthly mode so the current quarter is in view
   useLayoutEffect(() => {
-    if (viewMode !== "weekly") return;
     if (isQuarterTrendMode || isMonthlyTrendMode) return;
     if (!scrollContainerRef.current) return;
     if (loading) return;
@@ -2884,8 +3004,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </div>
       ) : (
         <>
-          {/* Scroll hint for weekly view */}
-          {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && loadedPreviousQuarters.length < 4 && (
+          {/* Scroll hint for weekly/monthly view */}
+          {!isQuarterTrendMode && !isMonthlyTrendMode && loadedPreviousQuarters.length < 4 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
               <span>← Scroll left to load previous quarters</span>
               {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -3062,6 +3182,41 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               );
             }) : (
               <>
+                {/* Loading indicator for previous quarters in monthly view */}
+                {isLoadingMore && (
+                  <TableHead className="text-center min-w-[50px] py-[7.2px] bg-muted/30">
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
+                  </TableHead>
+                )}
+                {/* Previous quarters' months with their target columns */}
+                {loadedPreviousQuarters.map((pq, pqIndex) => {
+                  const pqMonths = getMonthsForQuarter(pq.quarter, pq.year);
+                  
+                  return (
+                    <React.Fragment key={`pq-monthly-${pq.year}-${pq.quarter}`}>
+                      {/* Quarter target column */}
+                      <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/70 border-x-2 border-muted-foreground/30 sticky top-0 z-10">
+                        <div className="flex flex-col items-center">
+                          <div className="text-xs">Q{pq.quarter} Target</div>
+                          <div className="text-xs font-normal text-muted-foreground">{pq.year}</div>
+                        </div>
+                      </TableHead>
+                      {/* Months for this previous quarter */}
+                      {pqMonths.map((month) => (
+                        <TableHead 
+                          key={`prev-${pq.year}-${pq.quarter}-${month.identifier}`}
+                          className="text-center min-w-[125px] max-w-[125px] text-xs py-[7.2px] bg-muted/30"
+                        >
+                          <div className="flex flex-col items-center">
+                            <div className="text-xs font-semibold">{month.label}</div>
+                            <div className="text-[10px] text-muted-foreground">Q{pq.quarter} {pq.year}</div>
+                          </div>
+                        </TableHead>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+                {/* Previous Year Quarter Avg */}
                 <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                   <div className="flex flex-col items-center">
                     <div>Q{quarter} Avg</div>
@@ -3079,7 +3234,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
-                <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-background border-x-2 border-primary/30 sticky top-0 z-10">
+                {/* Current Quarter Target */}
+                <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                   <div className="flex flex-col items-center">
                     <div>Q{quarter} Target</div>
                     <div className="text-xs font-normal text-muted-foreground">{year}</div>
@@ -3174,7 +3330,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : 1 + previousYearMonths.length + 1 + months.length + 1)} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : (1 + previousYearMonths.length + 1 + months.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getMonthsForQuarter(pq.quarter, pq.year).length + 1, 0) + (isLoadingMore ? 1 : 0)))} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -3764,6 +3920,61 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     );
                   }) : (
                     <>
+                      {/* Loading indicator cell for monthly view */}
+                      {isLoadingMore && (
+                        <TableCell className="text-center py-0.5 min-w-[50px] bg-muted/30">
+                          <Loader2 className="h-3 w-3 animate-spin mx-auto text-muted-foreground" />
+                        </TableCell>
+                      )}
+                      {/* Previous quarters' target cells and month cells */}
+                      {loadedPreviousQuarters.map((pq) => {
+                        const pqMonths = getMonthsForQuarter(pq.quarter, pq.year);
+                        const pqTargetKey = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
+                        const pqTargetValue = previousQuarterTargets[pqTargetKey] ?? kpi.target_value;
+                        
+                        return (
+                          <React.Fragment key={`pq-monthly-cells-${pq.year}-${pq.quarter}`}>
+                            {/* Previous quarter target cell */}
+                            <TableCell className="text-center py-0.5 min-w-[100px] bg-muted/70 border-x-2 border-muted-foreground/30 font-medium text-muted-foreground">
+                              {formatTarget(pqTargetValue, kpi.metric_type, kpi.name)}
+                            </TableCell>
+                            {/* Previous quarter month cells */}
+                            {pqMonths.map((month) => {
+                              const key = `${kpi.id}-month-${month.identifier}`;
+                              const entry = previousQuarterMonthlyEntries[key];
+                              const status = entry?.status;
+                              
+                              let cellStatus: "success" | "warning" | "destructive" | null = null;
+                              if (status === 'green') cellStatus = 'success';
+                              else if (status === 'yellow') cellStatus = 'warning';
+                              else if (status === 'red') cellStatus = 'destructive';
+                              
+                              return (
+                                <TableCell
+                                  key={`prev-cell-${pq.year}-${pq.quarter}-${month.identifier}`}
+                                  className={cn(
+                                    "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] bg-muted/20",
+                                    cellStatus === "success" && "bg-success/10",
+                                    cellStatus === "warning" && "bg-warning/10",
+                                    cellStatus === "destructive" && "bg-destructive/10"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    "text-muted-foreground",
+                                    cellStatus === "success" && "text-success font-medium",
+                                    cellStatus === "warning" && "text-warning font-medium",
+                                    cellStatus === "destructive" && "text-destructive font-medium"
+                                  )}>
+                                    {entry?.actual_value !== null && entry?.actual_value !== undefined 
+                                      ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
+                                      : "-"}
+                                  </span>
+                                </TableCell>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
                       {/* Previous Year Quarter */}
                       <TableCell 
                         className="text-center py-0.5 min-w-[100px] max-w-[100px] text-muted-foreground bg-primary/10 border-x-2 border-primary/30"
