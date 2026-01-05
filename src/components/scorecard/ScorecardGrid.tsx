@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -346,7 +346,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const tryLoadPreviousRef = useRef<null | (() => void)>(null);
   const [scrollLeftDebug, setScrollLeftDebug] = useState(0);
+  const [scrollWidthDebug, setScrollWidthDebug] = useState(0);
+  const [scrollClientWidthDebug, setScrollClientWidthDebug] = useState(0);
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const isQuarterTrendMode = quarter === 0;
@@ -558,9 +561,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
     };
 
+    // Expose to UI button
+    tryLoadPreviousRef.current = tryLoadPrevious;
+
+    const syncMetrics = () => {
+      setScrollLeftDebug(container.scrollLeft);
+      setScrollWidthDebug(container.scrollWidth);
+      setScrollClientWidthDebug(container.clientWidth);
+    };
+
+    // Sync once on mount
+    syncMetrics();
+
     const handleScroll = () => {
+      syncMetrics();
       const currentLeft = container.scrollLeft;
-      setScrollLeftDebug(currentLeft);
       const isScrollingLeft = currentLeft < lastScrollLeft;
       lastScrollLeft = currentLeft;
 
@@ -595,6 +610,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     container.addEventListener('pointerup', handlePointerUp);
     container.addEventListener('touchend', handlePointerUp);
     return () => {
+      tryLoadPreviousRef.current = null;
       container.removeEventListener('scroll', handleScroll);
       container.removeEventListener('wheel', handleWheel as any);
       container.removeEventListener('pointerup', handlePointerUp);
@@ -3030,9 +3046,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               <div className="flex items-center gap-2">
                 <span>← Scroll left to load previous quarters</span>
                 {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => tryLoadPreviousRef.current?.()}
+                  disabled={isLoadingMore || loadedPreviousQuarters.length >= 4}
+                >
+                  Load previous
+                </Button>
               </div>
               <div className="tabular-nums">
-                scrollLeft: {Math.round(scrollLeftDebug)} • loaded: {loadedPreviousQuarters.length}
+                scrollLeft: {Math.round(scrollLeftDebug)} • overflow: {Math.max(0, Math.round(scrollWidthDebug - scrollClientWidthDebug))} • loaded: {loadedPreviousQuarters.length}
               </div>
             </div>
           )}
