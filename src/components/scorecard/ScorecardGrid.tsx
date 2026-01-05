@@ -495,12 +495,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       const isScrollingLeft = currentLeft < lastScrollLeft;
       lastScrollLeft = currentLeft;
 
-      // Only trigger when the user is actively scrolling LEFT into the left edge
-      // (prevents loading/pushing-right while youre just starting to scroll around)
+      // Trigger when we're at the left edge (or moving into it). NOTE:
+      // when you're already at scrollLeft=0 and keep trying to scroll left,
+      // scrollLeft won't change, so we must also allow the "atLeftEdge" case.
+      const atLeftEdge = currentLeft <= 0;
+
       const now = Date.now();
       const cooldownMs = 800;
 
-      if (isScrollingLeft && currentLeft < 80 && !isLoadingMore && now - lastLoadAt > cooldownMs) {
+      if ((isScrollingLeft || atLeftEdge) && currentLeft < 80 && !isLoadingMore && now - lastLoadAt > cooldownMs) {
         lastLoadAt = now;
 
         // Calculate the previous quarter to load
