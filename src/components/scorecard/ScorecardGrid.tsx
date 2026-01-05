@@ -3040,19 +3040,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </div>
       ) : (
         <>
-          {/* Scroll hint for weekly/monthly view */}
-          {!isQuarterTrendMode && !isMonthlyTrendMode && loadedPreviousQuarters.length < 4 && (
-            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground mb-2">
-              <div className="flex items-center gap-2">
-                <span>← Scroll left to load previous quarters</span>
-                {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+          {/* Load previous quarters control */}
+          {!isQuarterTrendMode && !isMonthlyTrendMode && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+              {loadedPreviousQuarters.length < 4 && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-6 px-2 text-xs"
+                  className="h-6 px-2 text-xs gap-1"
                   onClick={() => {
-                    // Manual fallback: load without relying on scroll events
                     let targetQuarter = quarter - 1;
                     let targetYear = year;
 
@@ -3073,17 +3070,34 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       targetYear = targetYear - 1;
                     }
 
-                    console.log('[infinite-scroll] manual load click', { viewMode, targetYear, targetQuarter });
                     loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
                   }}
-                  disabled={isLoadingMore || loadedPreviousQuarters.length >= 4}
+                  disabled={isLoadingMore}
                 >
-                  Load previous
+                  {isLoadingMore ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <>← Load Q{(() => {
+                      let tq = quarter - 1;
+                      let ty = year;
+                      if (loadedPreviousQuarters.length > 0) {
+                        const earliest = loadedPreviousQuarters.reduce((min, pq) => 
+                          (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) ? pq : min
+                        , loadedPreviousQuarters[0]);
+                        tq = earliest.quarter - 1;
+                        ty = earliest.year;
+                      }
+                      if (tq < 1) { tq = 4; ty = ty - 1; }
+                      return `${tq} ${ty}`;
+                    })()}</>
+                  )}
                 </Button>
-              </div>
-              <div className="tabular-nums">
-                scrollLeft: {Math.round(scrollLeftDebug)} • overflow: {Math.max(0, Math.round(scrollWidthDebug - scrollClientWidthDebug))} • loaded: {loadedPreviousQuarters.length}
-              </div>
+              )}
+              {loadedPreviousQuarters.length > 0 && (
+                <span className="text-muted-foreground">
+                  Showing: {loadedPreviousQuarters.map(pq => `Q${pq.quarter} ${pq.year}`).join(', ')} + Q{quarter} {year}
+                </span>
+              )}
             </div>
           )}
           <div 
