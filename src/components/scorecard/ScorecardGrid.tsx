@@ -487,9 +487,22 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (!container) return;
     if (viewMode !== "weekly" || isQuarterTrendMode || isMonthlyTrendMode) return;
     
+    let lastScrollLeft = container.scrollLeft;
+    let lastLoadAt = 0;
+
     const handleScroll = () => {
-      // If we're near the left edge (within 100px) and not currently loading
-      if (container.scrollLeft < 100 && !isLoadingMore) {
+      const currentLeft = container.scrollLeft;
+      const isScrollingLeft = currentLeft < lastScrollLeft;
+      lastScrollLeft = currentLeft;
+
+      // Only trigger when the user is actively scrolling LEFT into the left edge
+      // (prevents loading/pushing-right while youre just starting to scroll around)
+      const now = Date.now();
+      const cooldownMs = 800;
+
+      if (isScrollingLeft && currentLeft < 80 && !isLoadingMore && now - lastLoadAt > cooldownMs) {
+        lastLoadAt = now;
+
         // Calculate the previous quarter to load
         let prevQuarter = quarter - 1;
         let prevYear = year;
@@ -497,18 +510,18 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           prevQuarter = 4;
           prevYear = year - 1;
         }
-        
+
         // Check if we've already loaded this quarter
         const alreadyLoaded = loadedPreviousQuarters.some(
-          pq => pq.year === prevYear && pq.quarter === prevQuarter
+          (pq) => pq.year === prevYear && pq.quarter === prevQuarter
         );
-        
+
         // Also check if there's no more quarters to load (limit to 4 previous quarters)
         if (!alreadyLoaded && loadedPreviousQuarters.length < 4) {
           // If there are already loaded quarters, get the earliest one and go back from there
           let targetQuarter = prevQuarter;
           let targetYear = prevYear;
-          
+
           if (loadedPreviousQuarters.length > 0) {
             const earliest = loadedPreviousQuarters.reduce((min, pq) => {
               if (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) {
@@ -516,7 +529,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               }
               return min;
             }, loadedPreviousQuarters[0]);
-            
+
             targetQuarter = earliest.quarter - 1;
             targetYear = earliest.year;
             if (targetQuarter < 1) {
@@ -524,7 +537,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
               targetYear = earliest.year - 1;
             }
           }
-          
+
           loadPreviousQuarterData(targetYear, targetQuarter);
         }
       }
