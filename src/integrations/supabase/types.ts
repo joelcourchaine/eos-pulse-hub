@@ -1012,6 +1012,61 @@ export type Database = {
           },
         ]
       }
+      mandatory_kpi_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          department_type_id: string
+          id: string
+          is_active: boolean
+          preset_kpi_id: string
+          store_group_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          department_type_id: string
+          id?: string
+          is_active?: boolean
+          preset_kpi_id: string
+          store_group_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string
+          id?: string
+          is_active?: boolean
+          preset_kpi_id?: string
+          store_group_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mandatory_kpi_rules_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mandatory_kpi_rules_preset_kpi_id_fkey"
+            columns: ["preset_kpi_id"]
+            isOneToOne: false
+            referencedRelation: "preset_kpis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mandatory_kpi_rules_store_group_id_fkey"
+            columns: ["store_group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_notes: {
         Row: {
           created_at: string
