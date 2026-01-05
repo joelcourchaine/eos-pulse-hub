@@ -309,18 +309,28 @@ const MandatoryKPIRules: React.FC = () => {
 
     if (!presets || presets.length === 0) return 0;
 
-    // 2. Find all matching departments (same store group + department type)
+    // 2. Get all stores in this group first
+    const { data: stores } = await supabase
+      .from("stores")
+      .select("id")
+      .eq("group_id", storeGroupId);
+
+    if (!stores || stores.length === 0) return 0;
+
+    const storeIds = stores.map((s) => s.id);
+
+    // 3. Find all departments matching the type and belonging to these stores
     const { data: departments } = await supabase
       .from("departments")
-      .select("id, store_id, stores!inner(group_id)")
+      .select("id")
       .eq("department_type_id", departmentTypeId)
-      .eq("stores.group_id", storeGroupId);
+      .in("store_id", storeIds);
 
     if (!departments || departments.length === 0) return 0;
 
     let syncedCount = 0;
 
-    // 3. For each department, add missing KPIs
+    // 4. For each department, add missing KPIs
     for (const dept of departments) {
       // Get existing KPIs for this department
       const { data: existingKpis } = await supabase
