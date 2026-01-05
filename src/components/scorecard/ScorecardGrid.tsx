@@ -3051,7 +3051,31 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   variant="outline"
                   size="sm"
                   className="h-6 px-2 text-xs"
-                  onClick={() => tryLoadPreviousRef.current?.()}
+                  onClick={() => {
+                    // Manual fallback: load without relying on scroll events
+                    let targetQuarter = quarter - 1;
+                    let targetYear = year;
+
+                    if (loadedPreviousQuarters.length > 0) {
+                      const earliest = loadedPreviousQuarters.reduce((min, pq) => {
+                        if (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) {
+                          return pq;
+                        }
+                        return min;
+                      }, loadedPreviousQuarters[0]);
+
+                      targetQuarter = earliest.quarter - 1;
+                      targetYear = earliest.year;
+                    }
+
+                    if (targetQuarter < 1) {
+                      targetQuarter = 4;
+                      targetYear = targetYear - 1;
+                    }
+
+                    console.log('[infinite-scroll] manual load click', { viewMode, targetYear, targetQuarter });
+                    loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
+                  }}
                   disabled={isLoadingMore || loadedPreviousQuarters.length >= 4}
                 >
                   Load previous
