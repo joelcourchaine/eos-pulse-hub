@@ -28,6 +28,7 @@ import { CollapsibleIssuesPanel } from "@/components/issues/CollapsibleIssuesPan
 import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
+import { Top10ListsPanel } from "@/components/top-10/Top10ListsPanel";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -1319,6 +1320,15 @@ const Dashboard = () => {
           <RocksPanel 
             key={`rocks-${selectedDepartment}`}
             departmentId={selectedDepartment} 
+          />
+        )}
+
+        {/* Top 10 Lists Section - show for view-all or rocks tab */}
+        {!isStoreSwitching && selectedDepartment && (meetingViewMode === "view-all" || meetingViewMode === "rocks") && (
+          <Top10ListsPanel
+            key={`top10-${selectedDepartment}`}
+            departmentId={selectedDepartment}
+            canEdit={isSuperAdmin || isStoreGM || isDepartmentManager}
           />
         )}
 

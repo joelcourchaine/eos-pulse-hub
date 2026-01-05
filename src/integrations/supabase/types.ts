@@ -1617,6 +1617,85 @@ export type Database = {
           },
         ]
       }
+      top_10_items: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          list_id: string
+          rank: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          list_id: string
+          rank: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          list_id?: string
+          rank?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top_10_items_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "top_10_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      top_10_lists: {
+        Row: {
+          columns: Json
+          created_at: string
+          department_id: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          department_id: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          department_id?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top_10_lists_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_department_access: {
         Row: {
           department_id: string
