@@ -67,6 +67,31 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     }
   }, [departmentId]);
 
+  // Subscribe to realtime changes for issues
+  useEffect(() => {
+    if (!departmentId) return;
+
+    const channel = supabase
+      .channel(`issues-${departmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'issues',
+          filter: `department_id=eq.${departmentId}`
+        },
+        () => {
+          loadIssues();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [departmentId]);
+
   const loadProfiles = async () => {
     if (!departmentId) return;
     
