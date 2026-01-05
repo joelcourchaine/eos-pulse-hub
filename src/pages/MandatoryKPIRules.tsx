@@ -293,6 +293,67 @@ const MandatoryKPIRules: React.FC = () => {
     });
   };
 
+  // Sync mandatory KPIs to all matching department scorecards
+  const syncMandatoryKpisToScorecards = async (
+    storeGroupId: string,
+    departmentTypeId: string,
+    mandatoryPresetIds: string[]
+  ): Promise<number> => {
+    if (mandatoryPresetIds.length === 0) return 0;
+
+    // 1. Get all preset KPIs that are mandatory
+    const { data: presets } = await supabase
+      .from("preset_kpis")
+      .select("id, name, metric_type, target_direction")
+      .in("id", mandatoryPresetIds);
+
+    if (!presets || presets.length === 0) return 0;
+
+    // 2. Find all matching departments (same store group + department type)
+    const { data: departments } = await supabase
+      .from("departments")
+      .select("id, store_id, stores!inner(group_id)")
+      .eq("department_type_id", departmentTypeId)
+      .eq("stores.group_id", storeGroupId);
+
+    if (!departments || departments.length === 0) return 0;
+
+    let syncedCount = 0;
+
+    // 3. For each department, add missing KPIs
+    for (const dept of departments) {
+      // Get existing KPIs for this department
+      const { data: existingKpis } = await supabase
+        .from("kpi_definitions")
+        .select("name")
+        .eq("department_id", dept.id);
+
+      const existingNames = new Set(existingKpis?.map((k) => k.name) || []);
+
+      // Find presets that don't exist yet
+      const missingPresets = presets.filter((p) => !existingNames.has(p.name));
+
+      // Insert missing KPIs
+      if (missingPresets.length > 0) {
+        const newKpis = missingPresets.map((preset, index) => ({
+          name: preset.name,
+          metric_type: preset.metric_type,
+          target_value: 0,
+          target_direction: preset.target_direction,
+          department_id: dept.id,
+          display_order: (existingKpis?.length || 0) + index + 1,
+        }));
+
+        const { error } = await supabase.from("kpi_definitions").insert(newKpis);
+        if (!error) {
+          syncedCount += missingPresets.length;
+        }
+      }
+    }
+
+    return syncedCount;
+  };
+
   const handleSave = async () => {
     if (!selectedGroupId || !selectedDeptTypeId) return;
 
@@ -324,9 +385,19 @@ const MandatoryKPIRules: React.FC = () => {
         if (error) throw error;
       }
 
+      // Sync mandatory KPIs to all matching department scorecards
+      const mandatoryIds = Array.from(selectedKpis);
+      const syncedCount = await syncMandatoryKpisToScorecards(
+        selectedGroupId,
+        selectedDeptTypeId,
+        mandatoryIds
+      );
+
       toast({
-        title: "Rules saved",
-        description: `${selectedKpis.size} mandatory KPI(s) configured.`,
+        title: "Rules saved and synced",
+        description: syncedCount > 0
+          ? `${selectedKpis.size} mandatory KPI(s) configured. Added ${syncedCount} KPI(s) to department scorecards.`
+          : `${selectedKpis.size} mandatory KPI(s) configured.`,
       });
 
       // Reload rules
