@@ -20,7 +20,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Check, AlertTriangle, Save, Shield, Pencil, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Check, AlertTriangle, Save, Shield, Pencil, X, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface StoreGroup {
@@ -37,6 +48,7 @@ interface PresetKPI {
   id: string;
   name: string;
   metric_type: string;
+  target_direction: string;
 }
 
 interface DepartmentManager {
@@ -85,6 +97,22 @@ const MandatoryKPIRules: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [savingManager, setSavingManager] = useState(false);
 
+  // KPI editing state
+  const [isAddingKpi, setIsAddingKpi] = useState(false);
+  const [newKpiName, setNewKpiName] = useState("");
+  const [newKpiType, setNewKpiType] = useState<string>("dollar");
+  const [newKpiDirection, setNewKpiDirection] = useState<string>("above");
+  const [savingNewKpi, setSavingNewKpi] = useState(false);
+
+  const [editingKpiId, setEditingKpiId] = useState<string | null>(null);
+  const [editingKpiName, setEditingKpiName] = useState("");
+  const [editingKpiType, setEditingKpiType] = useState("");
+  const [editingKpiDirection, setEditingKpiDirection] = useState("");
+  const [savingKpiEdit, setSavingKpiEdit] = useState(false);
+
+  const [deletingKpiId, setDeletingKpiId] = useState<string | null>(null);
+  const [kpiInUseWarning, setKpiInUseWarning] = useState(false);
+
   // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
@@ -93,7 +121,7 @@ const MandatoryKPIRules: React.FC = () => {
         const [groupsRes, typesRes, kpisRes] = await Promise.all([
           supabase.from("store_groups").select("id, name").order("name"),
           supabase.from("department_types").select("id, name").order("display_order"),
-          supabase.from("preset_kpis").select("id, name, metric_type").order("display_order"),
+          supabase.from("preset_kpis").select("id, name, metric_type, target_direction").order("display_order"),
         ]);
 
         if (groupsRes.data) setStoreGroups(groupsRes.data);
@@ -334,6 +362,128 @@ const MandatoryKPIRules: React.FC = () => {
     return false;
   };
 
+  const refreshPresetKpis = async () => {
+    const { data } = await supabase
+      .from("preset_kpis")
+      .select("id, name, metric_type, target_direction")
+      .order("display_order");
+    if (data) setPresetKpis(data);
+  };
+
+  const handleAddKpi = async () => {
+    if (!newKpiName.trim()) return;
+    setSavingNewKpi(true);
+    try {
+      const { error } = await supabase.from("preset_kpis").insert({
+        name: newKpiName.trim(),
+        metric_type: newKpiType,
+        target_direction: newKpiDirection,
+        display_order: presetKpis.length + 1,
+        dependencies: [],
+      });
+      if (error) throw error;
+      toast({ title: "KPI added", description: `"${newKpiName.trim()}" has been added.` });
+      setNewKpiName("");
+      setNewKpiType("dollar");
+      setNewKpiDirection("above");
+      setIsAddingKpi(false);
+      await refreshPresetKpis();
+    } catch (error) {
+      console.error("Error adding KPI:", error);
+      toast({ title: "Error", description: "Failed to add KPI.", variant: "destructive" });
+    } finally {
+      setSavingNewKpi(false);
+    }
+  };
+
+  const handleStartEditKpi = (kpi: PresetKPI) => {
+    setEditingKpiId(kpi.id);
+    setEditingKpiName(kpi.name);
+    setEditingKpiType(kpi.metric_type);
+    setEditingKpiDirection(kpi.target_direction);
+  };
+
+  const handleCancelEditKpi = () => {
+    setEditingKpiId(null);
+    setEditingKpiName("");
+    setEditingKpiType("");
+    setEditingKpiDirection("");
+  };
+
+  const handleSaveKpiEdit = async () => {
+    if (!editingKpiId || !editingKpiName.trim()) return;
+    setSavingKpiEdit(true);
+    try {
+      const { error } = await supabase
+        .from("preset_kpis")
+        .update({
+          name: editingKpiName.trim(),
+          metric_type: editingKpiType,
+          target_direction: editingKpiDirection,
+        })
+        .eq("id", editingKpiId);
+      if (error) throw error;
+      toast({ title: "KPI updated", description: "Changes saved successfully." });
+      handleCancelEditKpi();
+      await refreshPresetKpis();
+    } catch (error) {
+      console.error("Error updating KPI:", error);
+      toast({ title: "Error", description: "Failed to update KPI.", variant: "destructive" });
+    } finally {
+      setSavingKpiEdit(false);
+    }
+  };
+
+  const handleDeleteKpiClick = async (kpiId: string) => {
+    // Check if in use by any mandatory rules
+    const { data: rules } = await supabase
+      .from("mandatory_kpi_rules")
+      .select("id")
+      .eq("preset_kpi_id", kpiId);
+
+    if (rules && rules.length > 0) {
+      setKpiInUseWarning(true);
+      setDeletingKpiId(kpiId);
+    } else {
+      setKpiInUseWarning(false);
+      setDeletingKpiId(kpiId);
+    }
+  };
+
+  const handleConfirmDeleteKpi = async () => {
+    if (!deletingKpiId) return;
+    try {
+      // If in use, first delete the mandatory rules
+      if (kpiInUseWarning) {
+        await supabase
+          .from("mandatory_kpi_rules")
+          .delete()
+          .eq("preset_kpi_id", deletingKpiId);
+      }
+
+      const { error } = await supabase
+        .from("preset_kpis")
+        .delete()
+        .eq("id", deletingKpiId);
+
+      if (error) throw error;
+
+      toast({ title: "KPI deleted", description: "The KPI has been removed." });
+      setSelectedKpis((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(deletingKpiId);
+        return newSet;
+      });
+      await refreshPresetKpis();
+    } catch (error) {
+      console.error("Error deleting KPI:", error);
+      toast({ title: "Error", description: "Failed to delete KPI.", variant: "destructive" });
+    } finally {
+      setDeletingKpiId(null);
+      setKpiInUseWarning(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -521,33 +671,193 @@ const MandatoryKPIRules: React.FC = () => {
 
             {/* Mandatory KPIs */}
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-lg">📊 Mandatory KPIs for Department Managers</CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAddingKpi(true)}
+                  disabled={isAddingKpi}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add KPI
+                </Button>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm mb-4">
                   Select which KPIs must be tracked by department managers in this configuration.
                   These KPIs will be auto-added and cannot be deleted.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {presetKpis.map((kpi) => (
-                    <label
-                      key={kpi.id}
-                      className="flex items-center gap-3 p-3 border rounded-md cursor-pointer hover:bg-accent/50 transition-colors"
-                    >
-                      <Checkbox
-                        checked={selectedKpis.has(kpi.id)}
-                        onCheckedChange={() => handleKpiToggle(kpi.id)}
-                      />
-                      <div className="flex-1">
-                        <span className="font-medium">{kpi.name}</span>
-                        <span className="text-muted-foreground text-xs block">
-                          {kpi.metric_type}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">Required</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Direction</TableHead>
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {/* Add new KPI row */}
+                    {isAddingKpi && (
+                      <TableRow>
+                        <TableCell></TableCell>
+                        <TableCell>
+                          <Input
+                            placeholder="KPI name"
+                            value={newKpiName}
+                            onChange={(e) => setNewKpiName(e.target.value)}
+                            className="h-8"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select value={newKpiType} onValueChange={setNewKpiType}>
+                            <SelectTrigger className="h-8 w-[110px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dollar">Dollar</SelectItem>
+                              <SelectItem value="percentage">Percentage</SelectItem>
+                              <SelectItem value="unit">Unit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Select value={newKpiDirection} onValueChange={setNewKpiDirection}>
+                            <SelectTrigger className="h-8 w-[100px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="above">Above</SelectItem>
+                              <SelectItem value="below">Below</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleAddKpi}
+                              disabled={savingNewKpi || !newKpiName.trim()}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setIsAddingKpi(false);
+                                setNewKpiName("");
+                                setNewKpiType("dollar");
+                                setNewKpiDirection("above");
+                              }}
+                              disabled={savingNewKpi}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+
+                    {/* Existing KPIs */}
+                    {presetKpis.map((kpi) => (
+                      <TableRow key={kpi.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedKpis.has(kpi.id)}
+                            onCheckedChange={() => handleKpiToggle(kpi.id)}
+                            disabled={editingKpiId === kpi.id}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {editingKpiId === kpi.id ? (
+                            <Input
+                              value={editingKpiName}
+                              onChange={(e) => setEditingKpiName(e.target.value)}
+                              className="h-8"
+                            />
+                          ) : (
+                            <span className="font-medium">{kpi.name}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingKpiId === kpi.id ? (
+                            <Select value={editingKpiType} onValueChange={setEditingKpiType}>
+                              <SelectTrigger className="h-8 w-[110px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="dollar">Dollar</SelectItem>
+                                <SelectItem value="percentage">Percentage</SelectItem>
+                                <SelectItem value="unit">Unit</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="secondary">{kpi.metric_type}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingKpiId === kpi.id ? (
+                            <Select value={editingKpiDirection} onValueChange={setEditingKpiDirection}>
+                              <SelectTrigger className="h-8 w-[100px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="above">Above</SelectItem>
+                                <SelectItem value="below">Below</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge variant="outline">{kpi.target_direction}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingKpiId === kpi.id ? (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleSaveKpiEdit}
+                                disabled={savingKpiEdit || !editingKpiName.trim()}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleCancelEditKpi}
+                                disabled={savingKpiEdit}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleStartEditKpi(kpi)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteKpiClick(kpi.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
                 <div className="mt-6 flex items-center justify-between border-t pt-4">
                   <span className="text-sm text-muted-foreground">
@@ -560,6 +870,26 @@ const MandatoryKPIRules: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={!!deletingKpiId} onOpenChange={(open) => !open && setDeletingKpiId(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete KPI?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {kpiInUseWarning
+                      ? "This KPI is currently used in mandatory rules. Deleting it will also remove it from all mandatory rule configurations."
+                      : "Are you sure you want to delete this KPI? This action cannot be undone."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleConfirmDeleteKpi} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
       </div>
