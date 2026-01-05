@@ -189,9 +189,8 @@ export function Top10ListCard({
           <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between">
               <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="p-0 h-auto hover:bg-transparent flex items-center gap-2"
+                <div
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80"
                 >
                   <ChevronRight
                     className={`h-4 w-4 transition-transform ${
@@ -204,7 +203,7 @@ export function Top10ListCard({
                   <span className="text-sm text-muted-foreground">
                     ({items.length} items)
                   </span>
-                </Button>
+                </div>
               </CollapsibleTrigger>
 
               {canEdit && (
