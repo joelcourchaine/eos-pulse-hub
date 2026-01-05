@@ -346,6 +346,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollLeftDebug, setScrollLeftDebug] = useState(0);
   
   const currentQuarterInfo = getQuarterInfo(new Date());
   const isQuarterTrendMode = quarter === 0;
@@ -509,7 +510,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (isLoadingMore || now - lastLoadAt <= cooldownMs) return;
 
       lastLoadAt = now;
-      console.info('[infinite-scroll] trigger', {
+      console.log('[infinite-scroll] trigger', {
         viewMode,
         currentLeft,
         year,
@@ -553,12 +554,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         }
       }
 
-      console.info('[infinite-scroll] loading previous quarter', { viewMode, targetYear, targetQuarter });
+      console.log('[infinite-scroll] loading previous quarter', { viewMode, targetYear, targetQuarter });
       loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
     };
 
     const handleScroll = () => {
       const currentLeft = container.scrollLeft;
+      setScrollLeftDebug(currentLeft);
       const isScrollingLeft = currentLeft < lastScrollLeft;
       lastScrollLeft = currentLeft;
 
@@ -610,7 +612,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const previousScrollLeft = scrollContainer?.scrollLeft || 0;
     
     try {
-      console.info('[infinite-scroll] fetch start', { targetYear, targetQuarter, mode });
+      console.log('[infinite-scroll] fetch start', { targetYear, targetQuarter, mode });
 
       const kpiIds = kpis.map(k => k.id);
 
@@ -645,7 +647,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           console.error("Error loading previous quarter targets:", targetsError);
         }
 
-        console.info('[infinite-scroll] fetch done', {
+        console.log('[infinite-scroll] fetch done', {
           targetYear,
           targetQuarter,
           mode,
@@ -745,7 +747,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           console.error("Error loading previous quarter monthly targets:", targetsError);
         }
 
-        console.debug('[infinite-scroll] fetch done', {
+        console.log('[infinite-scroll] fetch done', {
           targetYear,
           targetQuarter,
           mode,
@@ -3024,9 +3026,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         <>
           {/* Scroll hint for weekly/monthly view */}
           {!isQuarterTrendMode && !isMonthlyTrendMode && loadedPreviousQuarters.length < 4 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-              <span>← Scroll left to load previous quarters</span>
-              {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground mb-2">
+              <div className="flex items-center gap-2">
+                <span>← Scroll left to load previous quarters</span>
+                {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+              </div>
+              <div className="tabular-nums">
+                scrollLeft: {Math.round(scrollLeftDebug)} • loaded: {loadedPreviousQuarters.length}
+              </div>
             </div>
           )}
           <div 
