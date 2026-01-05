@@ -319,10 +319,10 @@ const MandatoryKPIRules: React.FC = () => {
 
     const storeIds = stores.map((s) => s.id);
 
-    // 3. Find all departments matching the type and belonging to these stores
+    // 3. Find all departments matching the type and belonging to these stores (include manager_id)
     const { data: departments } = await supabase
       .from("departments")
-      .select("id")
+      .select("id, manager_id")
       .eq("department_type_id", departmentTypeId)
       .in("store_id", storeIds);
 
@@ -343,7 +343,7 @@ const MandatoryKPIRules: React.FC = () => {
       // Find presets that don't exist yet
       const missingPresets = presets.filter((p) => !existingNames.has(p.name));
 
-      // Insert missing KPIs
+      // Insert missing KPIs with department manager as owner
       if (missingPresets.length > 0) {
         const newKpis = missingPresets.map((preset, index) => ({
           name: preset.name,
@@ -351,6 +351,7 @@ const MandatoryKPIRules: React.FC = () => {
           target_value: 0,
           target_direction: preset.target_direction,
           department_id: dept.id,
+          assigned_to: dept.manager_id || null,
           display_order: (existingKpis?.length || 0) + index + 1,
         }));
 
