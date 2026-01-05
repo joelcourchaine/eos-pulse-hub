@@ -1894,6 +1894,86 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     setIssueDialogOpen(true);
   };
 
+  // Helper function to create issue from sub-metric cell
+  const handleCreateIssueFromSubMetricCell = (
+    parentMetricKey: string,
+    subMetricName: string,
+    value: number | null,
+    periodLabel: string,
+    periodIdentifier: string,
+    periodType: 'month' | 'year-avg' | 'year-total' | 'quarter-avg'
+  ) => {
+    const parentMetric = FINANCIAL_METRICS.find(m => m.key === parentMetricKey);
+    const formattedValue = value !== null 
+      ? formatTarget(value, parentMetric?.type || 'dollar') 
+      : 'N/A';
+    
+    // Format period type for display
+    const periodTypeLabel = periodType === 'month' ? '' : 
+      periodType === 'year-avg' ? ' (Year Average)' : 
+      periodType === 'year-total' ? ' (Year Total)' : 
+      periodType === 'quarter-avg' ? ' (Quarter Average)' : '';
+    
+    const title = `${subMetricName} - ${periodLabel}${periodTypeLabel}`;
+    const description = `**Sub-Metric:** ${subMetricName}
+**Parent Metric:** ${parentMetric?.name || parentMetricKey}
+**Period:** ${periodLabel}
+**Period Type:** ${periodType}
+**Year:** ${year}
+**Quarter:** Q${quarter}
+
+**Current Value:** ${formattedValue}
+
+---
+*Issue created from financial sub-metric*`;
+
+    // Default severity for sub-metrics
+    const severity = 'medium';
+
+    setIssueContext({ 
+      title, 
+      description, 
+      severity,
+      sourceMetricName: `sub:${parentMetricKey}:${subMetricName}`,
+      sourcePeriod: periodIdentifier
+    });
+    setIssueDialogOpen(true);
+  };
+
+  // Helper function to create issue from summary column (year-avg, year-total)
+  const handleCreateIssueFromSummaryCell = (
+    metric: FinancialMetric,
+    value: number | null | undefined,
+    periodType: 'year-avg' | 'year-total',
+    summaryYear: number
+  ) => {
+    const formattedValue = value !== null && value !== undefined 
+      ? formatTarget(value, metric.type) 
+      : 'N/A';
+    
+    const periodTypeLabel = periodType === 'year-avg' ? 'Year Average' : 'Year Total';
+    const periodIdentifier = `${periodType.replace('-', '')}:${summaryYear}`;
+    
+    const title = `${metric.name} - ${periodTypeLabel} ${summaryYear}`;
+    const description = `**Metric:** ${metric.name}
+**Period Type:** ${periodTypeLabel}
+**Year:** ${summaryYear}
+
+**Current Value:** ${formattedValue}
+
+---
+*Issue created from financial summary column*`;
+
+    setIssueContext({ 
+      title, 
+      description, 
+      severity: 'medium',
+      sourceMetricName: metric.key,
+      sourcePeriod: periodIdentifier
+    });
+    setIssueDialogOpen(true);
+  };
+
   const handleTargetSave = async (metricKey: string) => {
     const trimmedValue = targetEditValue.trim();
     
@@ -3294,18 +3374,37 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                }
                                
                                return (
-                                 <TableCell
-                                   key={period.identifier}
-                                   className={cn(
-                                     "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium",
-                                     period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
-                                     period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
-                                     isDepartmentProfit && "bg-primary/15",
-                                     isNetSellingGross && "bg-muted/40"
-                                   )}
-                                 >
-                                   {displayValue !== null && displayValue !== undefined ? formatTarget(displayValue, metric.type) : "-"}
-                                 </TableCell>
+                                 <ContextMenu key={period.identifier}>
+                                   <ContextMenuTrigger asChild>
+                                     <TableCell
+                                       className={cn(
+                                         "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium relative",
+                                         period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
+                                         period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
+                                         isDepartmentProfit && "bg-primary/15",
+                                         isNetSellingGross && "bg-muted/40"
+                                       )}
+                                     >
+                                       {displayValue !== null && displayValue !== undefined ? formatTarget(displayValue, metric.type) : "-"}
+                                       {cellIssues.has(`${metric.key}-${period.type.replace('-', '')}:${summaryYear}`) && (
+                                         <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                       )}
+                                     </TableCell>
+                                   </ContextMenuTrigger>
+                                   <ContextMenuContent className="bg-background z-50">
+                                     <ContextMenuItem 
+                                       onClick={() => handleCreateIssueFromSummaryCell(
+                                         metric,
+                                         displayValue,
+                                         period.type as 'year-avg' | 'year-total',
+                                         summaryYear
+                                       )}
+                                     >
+                                       <AlertCircle className="h-4 w-4 mr-2" />
+                                       Create Issue from Cell
+                                     </ContextMenuItem>
+                                   </ContextMenuContent>
+                                 </ContextMenu>
                                );
                              })}
                            </>
@@ -4051,6 +4150,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           return quarterMonths.map(m => m.identifier);
                         }}
                         departmentId={departmentId}
+                        onCreateIssue={(subMetricName, value, periodLabel, periodIdentifier, periodType) => {
+                          handleCreateIssueFromSubMetricCell(
+                            metric.key,
+                            subMetricName,
+                            value,
+                            periodLabel,
+                            periodIdentifier,
+                            periodType
+                          );
+                        }}
+                        cellIssues={cellIssues}
                       />
                       </React.Fragment>
                     );
