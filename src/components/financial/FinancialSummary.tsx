@@ -4352,7 +4352,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         </DialogContent>
       </Dialog>
 
-      {/* Issue Creation Dialog */}
+      {/* Issue Creation Dialog - triggered from cell context menu */}
       <IssueManagementDialog
         departmentId={departmentId}
         onIssueAdded={() => {
@@ -4372,6 +4372,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           setIssueDialogOpen(open);
           if (!open) setIssueContext(null);
         }}
+        trigger={<span className="hidden" />}
         initialTitle={issueContext?.title}
         initialDescription={issueContext?.description}
         initialSeverity={issueContext?.severity}
