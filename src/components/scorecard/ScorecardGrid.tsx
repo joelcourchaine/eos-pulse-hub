@@ -711,11 +711,22 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     };
   }, [departmentId, kpis, currentUserId, profiles]);
 
-  useEffect(() => {
-    if ((viewMode === "monthly" || isQuarterTrendMode || isMonthlyTrendMode) && kpis.length > 0) {
-      loadPrecedingQuartersData();
+  // Auto-scroll to the far right on initial load in weekly mode so the current quarter/weeks are in view
+  useLayoutEffect(() => {
+    if (viewMode !== "weekly") return;
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+    if (!scrollContainerRef.current) return;
+    if (loading) return;
+
+    const container = scrollContainerRef.current;
+
+    // Only force-scroll when no previous quarters are loaded yet (initial view)
+    if (loadedPreviousQuarters.length === 0) {
+      requestAnimationFrame(() => {
+        container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+      });
     }
-  }, [departmentId, kpis, year, quarter, viewMode, entries, isQuarterTrendMode, isMonthlyTrendMode]);
+  }, [viewMode, isQuarterTrendMode, isMonthlyTrendMode, loading, loadedPreviousQuarters.length]);
 
   // Auto-scroll to the far right in monthly trend mode to show the current year on load
   useLayoutEffect(() => {
