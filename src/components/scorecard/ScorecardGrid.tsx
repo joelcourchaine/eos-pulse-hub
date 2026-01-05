@@ -442,6 +442,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   useEffect(() => {
     setLoadedPreviousQuarters([]);
     setPreviousQuarterWeeklyEntries({});
+    setPreviousQuarterMonthlyEntries({});
     setPreviousQuarterTargets({});
   }, [year, quarter, viewMode, departmentId]);
 
@@ -493,7 +494,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const container = scrollContainerRef.current;
     if (!container) return;
     if (isQuarterTrendMode || isMonthlyTrendMode) return;
-    
+
     let lastScrollLeft = container.scrollLeft;
     let lastLoadAt = 0;
 
@@ -508,7 +509,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (isLoadingMore || now - lastLoadAt <= cooldownMs) return;
 
       lastLoadAt = now;
-      console.debug('[infinite-scroll] trigger', { viewMode, currentLeft, year, quarter, loaded: loadedPreviousQuarters.length });
+      console.info('[infinite-scroll] trigger', {
+        viewMode,
+        currentLeft,
+        year,
+        quarter,
+        loaded: loadedPreviousQuarters.length,
+      });
 
       // Calculate the previous quarter to load
       let prevQuarter = quarter - 1;
@@ -546,7 +553,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         }
       }
 
-      console.debug('[infinite-scroll] loading previous quarter', { viewMode, targetYear, targetQuarter });
+      console.info('[infinite-scroll] loading previous quarter', { viewMode, targetYear, targetQuarter });
       loadPreviousQuarterData(targetYear, targetQuarter, viewMode);
     };
 
@@ -574,11 +581,22 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       }
     };
 
+    const handlePointerUp = () => {
+      // Covers dragging the scrollbar thumb all the way to the left.
+      if (container.scrollLeft <= 0) {
+        tryLoadPrevious();
+      }
+    };
+
     container.addEventListener('scroll', handleScroll);
     container.addEventListener('wheel', handleWheel, { passive: true });
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('touchend', handlePointerUp);
     return () => {
       container.removeEventListener('scroll', handleScroll);
       container.removeEventListener('wheel', handleWheel as any);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('touchend', handlePointerUp);
     };
   }, [scrollContainerReady, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year, kpis]);
 
@@ -592,7 +610,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const previousScrollLeft = scrollContainer?.scrollLeft || 0;
     
     try {
-      console.debug('[infinite-scroll] fetch start', { targetYear, targetQuarter, mode });
+      console.info('[infinite-scroll] fetch start', { targetYear, targetQuarter, mode });
 
       const kpiIds = kpis.map(k => k.id);
 
@@ -627,7 +645,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
           console.error("Error loading previous quarter targets:", targetsError);
         }
 
-        console.debug('[infinite-scroll] fetch done', {
+        console.info('[infinite-scroll] fetch done', {
           targetYear,
           targetQuarter,
           mode,
