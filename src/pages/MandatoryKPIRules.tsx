@@ -944,10 +944,44 @@ const MandatoryKPIRules: React.FC = () => {
                   <span className="text-sm text-muted-foreground">
                     {selectedKpis.size} KPI(s) selected as mandatory
                   </span>
-                  <Button onClick={handleSave} disabled={saving || !hasChanges()}>
-                    <Save className="h-4 w-4 mr-2" />
-                    {saving ? "Saving..." : "Save Changes"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline"
+                      onClick={async () => {
+                        if (!selectedGroupId || !selectedDeptTypeId) return;
+                        setSaving(true);
+                        try {
+                          const syncedCount = await syncMandatoryKpisToScorecards(
+                            selectedGroupId,
+                            selectedDeptTypeId,
+                            Array.from(selectedKpis)
+                          );
+                          toast({
+                            title: "Sync complete",
+                            description: syncedCount > 0
+                              ? `Added ${syncedCount} KPI(s) to department scorecards.`
+                              : "All departments already have the mandatory KPIs.",
+                          });
+                        } catch (error) {
+                          console.error("Error syncing:", error);
+                          toast({
+                            title: "Sync failed",
+                            description: "Failed to sync KPIs to scorecards.",
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving || selectedKpis.size === 0}
+                    >
+                      {saving ? "Syncing..." : "Sync to Scorecards"}
+                    </Button>
+                    <Button onClick={handleSave} disabled={saving || !hasChanges()}>
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
