@@ -338,6 +338,10 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     sourcePeriod?: string;
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
+  const [loadedPreviousQuarters, setLoadedPreviousQuarters] = useState<{ year: number; quarter: number }[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [previousQuarterWeeklyEntries, setPreviousQuarterWeeklyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
+  const [previousQuarterTargets, setPreviousQuarterTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -351,6 +355,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
   const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year) : [];
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentQuarterInfo.year) : [];
+  
+  // Generate weeks for loaded previous quarters (for infinite scroll)
+  const previousQuartersWeeks = loadedPreviousQuarters.flatMap(pq => {
+    const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
+    return pqWeeks.map(w => ({ ...w, quarterYear: pq.year, quarterNum: pq.quarter }));
+  });
+  
+  // Combined weeks: previous quarters' weeks + current quarter weeks
+  const allWeeksWithQuarterInfo = viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode
+    ? [
+        ...previousQuartersWeeks,
+        ...weeks.map(w => ({ ...w, quarterYear: year, quarterNum: quarter }))
+      ]
+    : [];
+  
   const allPeriods = isQuarterTrendMode ? quarterTrendPeriods : isMonthlyTrendMode ? monthlyTrendPeriods : (viewMode === "weekly" ? weeks : months);
   
   // Filtered periods for paste dialog - excludes year averages and totals
@@ -412,6 +431,13 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     getCurrentUser();
   }, []);
 
+  // Reset loaded previous quarters when main quarter/year changes or when switching view modes
+  useEffect(() => {
+    setLoadedPreviousQuarters([]);
+    setPreviousQuarterWeeklyEntries({});
+    setPreviousQuarterTargets({});
+  }, [year, quarter, viewMode, departmentId]);
+
   useEffect(() => {
     // Set loading immediately to prevent rendering stale data
     setLoading(true);
@@ -438,6 +464,174 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     loadData();
   }, [departmentId, kpis, year, quarter, viewMode]);
+
+  // Infinite scroll handler for weekly view - load previous quarter when scrolling to left edge
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+    if (viewMode !== "weekly" || isQuarterTrendMode || isMonthlyTrendMode) return;
+    
+    const container = scrollContainerRef.current;
+    
+    const handleScroll = () => {
+      // If we're near the left edge (within 100px) and not currently loading
+      if (container.scrollLeft < 100 && !isLoadingMore) {
+        // Calculate the previous quarter to load
+        let prevQuarter = quarter - 1;
+        let prevYear = year;
+        if (prevQuarter < 1) {
+          prevQuarter = 4;
+          prevYear = year - 1;
+        }
+        
+        // Check if we've already loaded this quarter
+        const alreadyLoaded = loadedPreviousQuarters.some(
+          pq => pq.year === prevYear && pq.quarter === prevQuarter
+        );
+        
+        // Also check if there's no more quarters to load (limit to 4 previous quarters)
+        if (!alreadyLoaded && loadedPreviousQuarters.length < 4) {
+          // If there are already loaded quarters, get the earliest one and go back from there
+          let targetQuarter = prevQuarter;
+          let targetYear = prevYear;
+          
+          if (loadedPreviousQuarters.length > 0) {
+            const earliest = loadedPreviousQuarters.reduce((min, pq) => {
+              if (pq.year < min.year || (pq.year === min.year && pq.quarter < min.quarter)) {
+                return pq;
+              }
+              return min;
+            }, loadedPreviousQuarters[0]);
+            
+            targetQuarter = earliest.quarter - 1;
+            targetYear = earliest.year;
+            if (targetQuarter < 1) {
+              targetQuarter = 4;
+              targetYear = earliest.year - 1;
+            }
+          }
+          
+          loadPreviousQuarterData(targetYear, targetQuarter);
+        }
+      }
+    };
+    
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [scrollContainerRef.current, viewMode, isQuarterTrendMode, isMonthlyTrendMode, isLoadingMore, loadedPreviousQuarters, quarter, year]);
+
+  // Function to load previous quarter's weekly data
+  const loadPreviousQuarterData = async (targetYear: number, targetQuarter: number) => {
+    if (isLoadingMore || kpis.length === 0) return;
+    
+    setIsLoadingMore(true);
+    const scrollContainer = scrollContainerRef.current;
+    const previousScrollWidth = scrollContainer?.scrollWidth || 0;
+    const previousScrollLeft = scrollContainer?.scrollLeft || 0;
+    
+    try {
+      // Get weeks for the previous quarter
+      const prevQuarterWeeks = getWeekDates({ year: targetYear, quarter: targetQuarter });
+      const weekDates = prevQuarterWeeks.map(w => w.start.toISOString().split('T')[0]);
+      const kpiIds = kpis.map(k => k.id);
+      
+      // Load weekly entries for the previous quarter
+      const { data: weeklyData, error: weeklyError } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "weekly")
+        .in("week_start_date", weekDates);
+      
+      if (weeklyError) {
+        console.error("Error loading previous quarter weekly data:", weeklyError);
+        return;
+      }
+      
+      // Load targets for the previous quarter
+      const { data: targetsData, error: targetsError } = await supabase
+        .from("kpi_targets")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("quarter", targetQuarter)
+        .eq("year", targetYear)
+        .eq("entry_type", "weekly");
+      
+      if (targetsError) {
+        console.error("Error loading previous quarter targets:", targetsError);
+      }
+      
+      // Process the weekly entries
+      const newEntries: { [key: string]: ScorecardEntry } = {};
+      weeklyData?.forEach((entry) => {
+        const key = `${entry.kpi_id}-${entry.week_start_date}`;
+        
+        // Calculate status
+        const kpi = kpis.find(k => k.id === entry.kpi_id);
+        if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+          const target = targetsData?.find(t => t.kpi_id === kpi.id)?.target_value || kpi.target_value;
+          
+          let variance: number;
+          if (kpi.metric_type === "percentage") {
+            variance = entry.actual_value - target;
+          } else if (target !== 0) {
+            variance = ((entry.actual_value - target) / target) * 100;
+          } else {
+            if (kpi.target_direction === "below") {
+              variance = entry.actual_value > 0 ? 100 : 0;
+            } else {
+              variance = entry.actual_value > 0 ? 100 : -100;
+            }
+          }
+          
+          let status: string;
+          if (kpi.target_direction === "above") {
+            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+          } else {
+            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+          }
+          
+          entry.status = status;
+          entry.variance = variance;
+        }
+        
+        newEntries[key] = entry;
+      });
+      
+      // Process targets
+      const newTargets: { [key: string]: number } = {};
+      targetsData?.forEach(target => {
+        const key = `${target.kpi_id}-Q${targetQuarter}-${targetYear}`;
+        newTargets[key] = target.target_value || 0;
+      });
+      
+      // Also store individual KPI targets for this quarter
+      kpis.forEach(kpi => {
+        const target = targetsData?.find(t => t.kpi_id === kpi.id);
+        const key = `${kpi.id}-Q${targetQuarter}-${targetYear}`;
+        newTargets[key] = target?.target_value || kpi.target_value;
+      });
+      
+      // Update state
+      setPreviousQuarterWeeklyEntries(prev => ({ ...prev, ...newEntries }));
+      setPreviousQuarterTargets(prev => ({ ...prev, ...newTargets }));
+      setLoadedPreviousQuarters(prev => [...prev, { year: targetYear, quarter: targetQuarter }].sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.quarter - b.quarter;
+      }));
+      
+      // Maintain scroll position after content is added
+      requestAnimationFrame(() => {
+        if (scrollContainer) {
+          const newScrollWidth = scrollContainer.scrollWidth;
+          const addedWidth = newScrollWidth - previousScrollWidth;
+          scrollContainer.scrollLeft = previousScrollLeft + addedWidth;
+        }
+      });
+      
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   // Real-time subscription for scorecard entries
   useEffect(() => {
@@ -2607,10 +2801,18 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           <p className="text-sm text-muted-foreground">Click "Manage KPIs" to add your first metric.</p>
         </div>
       ) : (
-        <div 
-          ref={scrollContainerRef}
-          className="overflow-x-auto border rounded-lg"
-        >
+        <>
+          {/* Scroll hint for weekly view */}
+          {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && loadedPreviousQuarters.length < 4 && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+              <span>← Scroll left to load previous quarters</span>
+              {isLoadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+            </div>
+          )}
+          <div 
+            ref={scrollContainerRef}
+            className="overflow-x-auto border rounded-lg"
+          >
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
@@ -2620,12 +2822,52 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   KPI
                 </TableHead>
                 {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
-                <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
-                    <div className="flex flex-col items-center">
-                      <div>Q{quarter} Target</div>
-                      <div className="text-xs font-normal text-muted-foreground">{year}</div>
-                    </div>
-                  </TableHead>
+                  <>
+                    {/* Loading indicator for previous quarters */}
+                    {isLoadingMore && (
+                      <TableHead className="text-center min-w-[50px] py-[7.2px] bg-muted/30">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
+                      </TableHead>
+                    )}
+                    {/* Previous quarters' weeks with their target columns */}
+                    {loadedPreviousQuarters.map((pq, pqIndex) => {
+                      const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
+                      const isFirstQuarter = pqIndex === 0;
+                      
+                      return (
+                        <React.Fragment key={`pq-${pq.year}-${pq.quarter}`}>
+                          {/* Quarter target column */}
+                          <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/70 border-x-2 border-muted-foreground/30 sticky top-0 z-10">
+                            <div className="flex flex-col items-center">
+                              <div className="text-xs">Q{pq.quarter} Target</div>
+                              <div className="text-xs font-normal text-muted-foreground">{pq.year}</div>
+                            </div>
+                          </TableHead>
+                          {/* Weeks for this previous quarter */}
+                          {pqWeeks.map((week) => {
+                            const weekDate = week.start.toISOString().split('T')[0];
+                            
+                            return (
+                              <TableHead 
+                                key={`prev-${pq.year}-${pq.quarter}-${week.label}`}
+                                className="text-center min-w-[125px] max-w-[125px] text-xs py-[7.2px] bg-muted/30"
+                              >
+                                <div className="text-xs font-semibold">{week.label}</div>
+                                <div className="text-[10px] text-muted-foreground">Q{pq.quarter} {pq.year}</div>
+                              </TableHead>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                    })}
+                    {/* Current quarter target column */}
+                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                      <div className="flex flex-col items-center">
+                        <div>Q{quarter} Target</div>
+                        <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                      </div>
+                    </TableHead>
+                  </>
                 )}
               {isMonthlyTrendMode ? (
                 <>
@@ -2850,7 +3092,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? weeks.length + 1 : 1 + previousYearMonths.length + 1 + months.length + 1)} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : 1 + previousYearMonths.length + 1 + months.length + 1)} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -2860,42 +3102,101 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     {kpi.name}
                   </TableCell>
                   {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
-                    <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
-                      {canEditTargets() && editingTarget === kpi.id ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <Input
-                            type="number"
-                            step="any"
-                            value={targetEditValue}
-                            onChange={(e) => setTargetEditValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleTargetSave(kpi.id);
-                              if (e.key === 'Escape') setEditingTarget(null);
-                            }}
-                            className="w-20 h-7 text-center"
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleTargetSave(kpi.id)}
-                            className="h-7 px-2"
-                          >
-                            ✓
-                          </Button>
-                        </div>
-                      ) : (
-                        <span
-                          className={cn(
-                            "text-muted-foreground",
-                            canEditTargets() && "cursor-pointer hover:text-foreground"
-                          )}
-                          onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
-                        >
-                          {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
-                        </span>
+                    <>
+                      {/* Loading indicator cell */}
+                      {isLoadingMore && (
+                        <TableCell className="text-center py-0.5 min-w-[50px] bg-muted/30">
+                          <Loader2 className="h-3 w-3 animate-spin mx-auto text-muted-foreground" />
+                        </TableCell>
                       )}
-                    </TableCell>
+                      {/* Previous quarters' target cells and week cells */}
+                      {loadedPreviousQuarters.map((pq) => {
+                        const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
+                        const pqTargetKey = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
+                        const pqTargetValue = previousQuarterTargets[pqTargetKey] ?? kpi.target_value;
+                        
+                        return (
+                          <React.Fragment key={`pq-cells-${pq.year}-${pq.quarter}`}>
+                            {/* Previous quarter target cell */}
+                            <TableCell className="text-center py-0.5 min-w-[100px] bg-muted/70 border-x-2 border-muted-foreground/30 font-medium text-muted-foreground">
+                              {formatTarget(pqTargetValue, kpi.metric_type, kpi.name)}
+                            </TableCell>
+                            {/* Previous quarter week cells */}
+                            {pqWeeks.map((week) => {
+                              const weekDate = week.start.toISOString().split('T')[0];
+                              const key = `${kpi.id}-${weekDate}`;
+                              const entry = previousQuarterWeeklyEntries[key];
+                              const status = entry?.status;
+                              
+                              let cellStatus: "success" | "warning" | "destructive" | null = null;
+                              if (status === 'green') cellStatus = 'success';
+                              else if (status === 'yellow') cellStatus = 'warning';
+                              else if (status === 'red') cellStatus = 'destructive';
+                              
+                              return (
+                                <TableCell
+                                  key={`prev-cell-${pq.year}-${pq.quarter}-${weekDate}`}
+                                  className={cn(
+                                    "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] bg-muted/20",
+                                    cellStatus === "success" && "bg-success/10",
+                                    cellStatus === "warning" && "bg-warning/10",
+                                    cellStatus === "destructive" && "bg-destructive/10"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    "text-muted-foreground",
+                                    cellStatus === "success" && "text-success font-medium",
+                                    cellStatus === "warning" && "text-warning font-medium",
+                                    cellStatus === "destructive" && "text-destructive font-medium"
+                                  )}>
+                                    {entry?.actual_value !== null && entry?.actual_value !== undefined 
+                                      ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
+                                      : "-"}
+                                  </span>
+                                </TableCell>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                      {/* Current quarter target cell */}
+                      <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                        {canEditTargets() && editingTarget === kpi.id ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              step="any"
+                              value={targetEditValue}
+                              onChange={(e) => setTargetEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleTargetSave(kpi.id);
+                                if (e.key === 'Escape') setEditingTarget(null);
+                              }}
+                              className="w-20 h-7 text-center"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleTargetSave(kpi.id)}
+                              className="h-7 px-2"
+                            >
+                              ✓
+                            </Button>
+                          </div>
+                        ) : (
+                          <span
+                            className={cn(
+                              "text-muted-foreground",
+                              canEditTargets() && "cursor-pointer hover:text-foreground"
+                            )}
+                            onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
+                          >
+                            {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                          </span>
+                        )}
+                      </TableCell>
+                    </>
                   )}
                    {isMonthlyTrendMode ? (
                      <>
@@ -3625,6 +3926,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </TableBody>
       </Table>
     </div>
+        </>
       )}
 
       {/* Paste Row Dialog */}
