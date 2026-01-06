@@ -21,6 +21,7 @@ interface Question {
 interface RequestBody {
   departmentId: string;
   departmentName: string;
+  storeName?: string;
   managerEmail: string;
   questions: Question[];
   senderName?: string;
@@ -97,7 +98,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { departmentId, departmentName, managerEmail, questions, senderName }: RequestBody = await req.json();
+    const { departmentId, departmentName, storeName, managerEmail, questions, senderName }: RequestBody = await req.json();
 
     // Generate secure token
     const token = crypto.randomUUID();
@@ -166,6 +167,9 @@ const handler = async (req: Request): Promise<Response> => {
       `;
     }
 
+    // Build display name with store if available
+    const displayName = storeName ? `${departmentName} - ${storeName}` : departmentName;
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -175,19 +179,20 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
         to: [managerEmail],
-        subject: `Department Information Request - ${departmentName}`,
+        subject: `Department Information Request - ${displayName}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h1 style="color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px;">
               Department Information Request
             </h1>
+            ${storeName ? `<p style="color: #6b7280; margin-top: 8px; font-size: 16px;"><strong>Store:</strong> ${storeName}</p>` : ''}
             
             <p style="color: #374151; margin-top: 16px;">
               Hello,
             </p>
             
             <p style="color: #374151;">
-              ${senderName || 'Your manager'} would like you to provide information about your <strong>${departmentName}</strong>. 
+              ${senderName || 'Your manager'} would like you to provide information about your <strong>${departmentName}</strong>${storeName ? ` at <strong>${storeName}</strong>` : ''}. 
               Please click the button below to fill out the questionnaire online:
             </p>
 
