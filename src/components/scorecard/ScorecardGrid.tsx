@@ -1208,7 +1208,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return;
     }
 
-    setLoading(true);
+    // Note: setLoading(true) is already called in the parent useEffect
+    // Avoid calling it again here to prevent extra re-renders
     
     // Use fresh targets if provided, otherwise use state
     const targetsToUse = freshTargets || kpiTargets;
