@@ -86,10 +86,17 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   }, [open, currentStoreId, isSuperAdmin, currentUserGroupId]);
 
   const loadStores = async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from("stores")
       .select("*")
       .order("name");
+    
+    // Non-super-admins can only see stores in their group
+    if (!isSuperAdmin && currentUserGroupId) {
+      query = query.eq("group_id", currentUserGroupId);
+    }
+    
+    const { data, error } = await query;
     
     if (error) {
       console.error("Error fetching stores:", error);
