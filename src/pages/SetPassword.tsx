@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { z } from "zod";
 import { User } from "@supabase/supabase-js";
+import { Loader2, AlertCircle, CheckCircle, Mail } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const passwordSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -16,6 +18,8 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+type FlowState = 'loading' | 'ready' | 'expired' | 'success' | 'error';
+
 const SetPassword = () => {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
@@ -23,35 +27,110 @@ const SetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ full_name?: string } | null>(null);
+  const [flowState, setFlowState] = useState<FlowState>('loading');
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
-    // Check if this is an invite flow from email link
-    // Supabase puts auth params in the hash
     const checkInvite = async () => {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const type = hashParams.get('type');
-      
-      if (type === 'invite' || type === 'signup') {
-        // Get the current user session
-        const { data: { user } } = await supabase.auth.getUser();
+      try {
+        // Check for error in hash (Supabase puts errors here)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const error = hashParams.get('error');
+        const errorDescription = hashParams.get('error_description');
+        const type = hashParams.get('type');
         
-        if (user) {
-          setUser(user);
+        // Handle explicit errors from Supabase
+        if (error) {
+          console.error("Auth error:", error, errorDescription);
+          if (error === 'access_denied' || errorDescription?.includes('expired')) {
+            setFlowState('expired');
+            setErrorMessage("Your invitation link has expired. Please request a new one.");
+          } else {
+            setFlowState('error');
+            setErrorMessage(errorDescription || "There was a problem with your invitation link.");
+          }
+          return;
+        }
+        
+        // Check if this is a valid invite flow
+        if (type !== 'invite' && type !== 'signup' && type !== 'recovery') {
+          // No valid type - might be a direct visit without token
+          // Check if there's a session anyway
+          const { data: { session } } = await supabase.auth.getSession();
           
-          // Try to get additional profile info
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .single();
+          if (session?.user) {
+            // User has a session, maybe they refreshed after clicking the link
+            setUser(session.user);
+            setUserEmail(session.user.email || "");
+            
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileData) {
+              setProfile(profileData);
+            }
+            
+            setFlowState('ready');
+          } else {
+            // No session, no valid invite - redirect
+            navigate("/auth");
+          }
+          return;
+        }
+        
+        // Wait a moment for Supabase to process the token
+        // This is important because Supabase exchanges the token asynchronously
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Try to get the session multiple times (token exchange can be slow)
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (attempts < maxAttempts) {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
           
-          if (profileData) {
-            setProfile(profileData);
+          if (sessionError) {
+            console.error("Session error:", sessionError);
+          }
+          
+          if (session?.user) {
+            setUser(session.user);
+            setUserEmail(session.user.email || "");
+            
+            // Get profile info
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (profileData) {
+              setProfile(profileData);
+            }
+            
+            setFlowState('ready');
+            return;
+          }
+          
+          attempts++;
+          if (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
-      } else {
-        // If not an invite link, redirect to auth
-        navigate("/auth");
+        
+        // If we get here, we couldn't establish a session
+        setFlowState('expired');
+        setErrorMessage("Your invitation link has expired or was already used. Please request a new one from your administrator.");
+        
+      } catch (err: any) {
+        console.error("Error checking invite:", err);
+        setFlowState('error');
+        setErrorMessage(err.message || "An unexpected error occurred.");
       }
     };
     
@@ -77,11 +156,14 @@ const SetPassword = () => {
 
       if (error) throw error;
 
+      setFlowState('success');
       toast.success("Password created successfully!");
       
-      // Sign out to ensure clean state, then redirect to login
-      await supabase.auth.signOut();
-      navigate("/auth");
+      // Sign out and redirect after a brief delay
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+        navigate("/auth");
+      }, 2000);
     } catch (error: any) {
       toast.error(error.message || "Failed to create password");
     } finally {
@@ -89,6 +171,127 @@ const SetPassword = () => {
     }
   };
 
+  const handleRequestNewInvite = async () => {
+    setResendingEmail(true);
+    try {
+      // Try to send a password reset email if we have the user's email
+      if (userEmail) {
+        const { error } = await supabase.functions.invoke('send-password-reset', {
+          body: { email: userEmail }
+        });
+        
+        if (error) throw error;
+        
+        toast.success("A new password reset link has been sent to your email.");
+      } else {
+        toast.error("Please contact your administrator to resend your invitation.");
+      }
+    } catch (err: any) {
+      toast.error("Unable to send a new link. Please contact your administrator.");
+    } finally {
+      setResendingEmail(false);
+    }
+  };
+
+  // Loading state
+  if (flowState === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Verifying your invitation...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Expired/Error state
+  if (flowState === 'expired' || flowState === 'error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+              {flowState === 'expired' ? "Link Expired" : "Something Went Wrong"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Unable to continue</AlertTitle>
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+            
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Invitation links expire after 24 hours and can only be used once. If you've already clicked the link, 
+                try using the "Forgot password" option on the login page.
+              </p>
+              
+              {userEmail && (
+                <Button 
+                  onClick={handleRequestNewInvite} 
+                  disabled={resendingEmail}
+                  className="w-full"
+                  variant="outline"
+                >
+                  {resendingEmail ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Send New Password Reset Link
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              <Button 
+                onClick={() => navigate("/auth")} 
+                className="w-full"
+              >
+                Go to Login
+              </Button>
+              
+              <Button 
+                onClick={() => navigate("/reset-password")} 
+                variant="ghost"
+                className="w-full"
+              >
+                Forgot Password?
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Success state
+  if (flowState === 'success') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Password Created!</h2>
+            <p className="text-muted-foreground text-center mb-4">
+              Your password has been set successfully. Redirecting you to login...
+            </p>
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Ready state - show password form
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -125,6 +328,9 @@ const SetPassword = () => {
                 required
                 disabled={loading}
               />
+              <p className="text-xs text-muted-foreground">
+                Must be at least 6 characters
+              </p>
             </div>
             <div className="space-y-2">
               <label htmlFor="confirmPassword" className="text-sm font-medium">
@@ -141,7 +347,14 @@ const SetPassword = () => {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating..." : "Create Password"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Password"
+              )}
             </Button>
           </form>
         </CardContent>
