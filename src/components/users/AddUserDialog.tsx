@@ -22,6 +22,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<string>("department_manager");
   const [storeId, setStoreId] = useState<string>(currentStoreId || "");
+  const [storeIds, setStoreIds] = useState<string[]>([]); // Multi-store selection
   const [storeGroupId, setStoreGroupId] = useState<string>("");
   const [stores, setStores] = useState<any[]>([]);
   const [storeGroups, setStoreGroups] = useState<any[]>([]);
@@ -176,6 +177,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           full_name: fullName,
           role,
           store_id: storeId || null,
+          store_ids: storeIds.length > 0 ? storeIds : null, // Multi-store support
           store_group_id: storeGroupId || null,
           department_ids: departmentIds.length > 0 ? departmentIds : null,
           birthday_month: birthdayMonth ? parseInt(birthdayMonth) : null,
@@ -201,6 +203,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       setFullName("");
       setRole("department_manager");
       setStoreId(currentStoreId || "");
+      setStoreIds([]);
       setStoreGroupId("");
       setDepartmentIds([]);
       setBirthdayMonth("");
@@ -329,38 +332,73 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
           {/* Store Access - Only super admins can select different stores */}
           {isSuperAdmin ? (
             <div className="space-y-2">
-              <Label htmlFor="accessType">Store Access</Label>
-              <div className="grid grid-cols-2 gap-4">
+              <Label>Store Access</Label>
+              <div className="space-y-3">
+                {/* Multi-store selection with checkboxes */}
                 <div>
-                  <Label htmlFor="store" className="text-xs text-muted-foreground">Single Store</Label>
-                  <Select value={storeId || "none"} onValueChange={(value) => {
-                    setStoreId(value === "none" ? "" : value);
-                    if (value !== "none") {
-                      setStoreGroupId(""); // Clear group if store selected
-                      loadDepartments(value); // Load departments for the selected store
-                    } else {
-                      setDepartments([]); // Clear departments if no store selected
-                    }
-                  }}>
-                    <SelectTrigger id="store">
-                      <SelectValue placeholder="Select store" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {stores.map((store) => (
-                        <SelectItem key={store.id} value={store.id}>
+                  <Label className="text-xs text-muted-foreground">Select Stores (multi-select for multi-store access)</Label>
+                  <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto mt-1">
+                    {stores.map((store) => (
+                      <div key={store.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`store-${store.id}`}
+                          checked={storeIds.includes(store.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              const newStoreIds = [...storeIds, store.id];
+                              setStoreIds(newStoreIds);
+                              // Set first store as primary for profile.store_id
+                              if (newStoreIds.length === 1) {
+                                setStoreId(store.id);
+                                loadDepartments(store.id);
+                              }
+                              // Clear store group when selecting specific stores
+                              setStoreGroupId("");
+                            } else {
+                              const newStoreIds = storeIds.filter(id => id !== store.id);
+                              setStoreIds(newStoreIds);
+                              // Update primary store
+                              if (storeId === store.id) {
+                                const nextStore = newStoreIds[0] || "";
+                                setStoreId(nextStore);
+                                if (nextStore) {
+                                  loadDepartments(nextStore);
+                                } else {
+                                  setDepartments([]);
+                                }
+                              }
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`store-${store.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
                           {store.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  {storeIds.length > 1 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      User will have access to {storeIds.length} stores via the store dropdown
+                    </p>
+                  )}
+                </div>
+                
+                {/* Store Group as alternative */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>— OR —</span>
                 </div>
                 
                 <div>
-                  <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (Multi-Store)</Label>
+                  <Label htmlFor="storeGroup" className="text-xs text-muted-foreground">Store Group (all stores in group)</Label>
                   <Select value={storeGroupId || "none"} onValueChange={(value) => {
                     setStoreGroupId(value === "none" ? "" : value);
-                    if (value !== "none") setStoreId(""); // Clear store if group selected
+                    if (value !== "none") {
+                      setStoreId(""); // Clear store if group selected
+                      setStoreIds([]); // Clear multi-store selection
+                    }
                   }}>
                     <SelectTrigger id="storeGroup">
                       <SelectValue placeholder="Select group" />
@@ -376,9 +414,6 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                   </Select>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Assign to either a single store OR a store group for multi-store access
-              </p>
             </div>
           ) : (
             <div className="space-y-2">

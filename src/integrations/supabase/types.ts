@@ -1752,6 +1752,38 @@ export type Database = {
         }
         Relationships: []
       }
+      user_store_access: {
+        Row: {
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_store_access_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1773,6 +1805,12 @@ export type Database = {
       }
       get_user_store_no_rls: { Args: { _user_id: string }; Returns: string }
       get_user_stores: {
+        Args: { _user_id: string }
+        Returns: {
+          store_id: string
+        }[]
+      }
+      get_user_stores_access: {
         Args: { _user_id: string }
         Returns: {
           store_id: string
