@@ -22,7 +22,7 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type FlowState = 'loading' | 'request' | 'email-sent' | 'set-password' | 'success' | 'expired';
+type FlowState = 'loading' | 'request' | 'email-sent' | 'confirm' | 'set-password' | 'success' | 'expired';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
@@ -33,27 +33,42 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [flowState, setFlowState] = useState<FlowState>('loading');
   const [userEmail, setUserEmail] = useState<string>("");
+  const [continueUrl, setContinueUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkRecoveryFlow = async () => {
+      // If the email client pre-opens links, it can consume one-time tokens.
+      // To prevent that, our emails link to /reset-password?continue=<encoded_direct_link>
+      // and we only navigate to the direct link after a user click.
+      const searchParams = new URLSearchParams(window.location.search);
+      const continueParam = searchParams.get('continue');
+      if (continueParam) {
+        const decoded = decodeURIComponent(continueParam);
+        if (decoded.startsWith('http')) {
+          setContinueUrl(decoded);
+          setFlowState('confirm');
+          return;
+        }
+      }
+
       // Check if this is a password recovery flow from email link
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const type = hashParams.get('type');
       const error = hashParams.get('error');
       const errorDescription = hashParams.get('error_description');
-      
+
       // Handle errors in the URL
       if (error) {
         console.error("Auth error:", error, errorDescription);
         setFlowState('expired');
         return;
       }
-      
+
       if (type === 'recovery') {
         // Wait for Supabase to process the recovery token
         let attempts = 0;
         const maxAttempts = 10;
-        
+
         while (attempts < maxAttempts) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
@@ -66,12 +81,12 @@ const ResetPassword = () => {
           await new Promise(resolve => setTimeout(resolve, 500));
           attempts++;
         }
-        
+
         // Session never established
         setFlowState('expired');
         return;
       }
-      
+
       // Not a recovery flow - check if user already has a session (maybe they refreshed)
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -80,11 +95,11 @@ const ResetPassword = () => {
         setFlowState('set-password');
         return;
       }
-      
+
       // Normal password reset request flow
       setFlowState('request');
     };
-    
+
     checkRecoveryFlow();
   }, []);
 
@@ -196,6 +211,35 @@ const ResetPassword = () => {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
             <p className="text-muted-foreground">Verifying your reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Confirm state (prevents email scanners from consuming one-time links)
+  if (flowState === 'confirm' && continueUrl) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
+            <CardDescription className="text-center">
+              Click continue to open your secure password reset link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                This extra step helps prevent email security scanners from auto-opening and invalidating one-time links.
+              </AlertDescription>
+            </Alert>
+            <Button className="w-full" onClick={() => (window.location.href = continueUrl)}>
+              Continue
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => navigate('/auth')}>
+              Back to Sign In
+            </Button>
           </CardContent>
         </Card>
       </div>
