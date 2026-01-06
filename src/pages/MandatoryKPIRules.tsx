@@ -496,16 +496,113 @@ const MandatoryKPIRules: React.FC = () => {
     if (!editingKpiId || !editingKpiName.trim()) return;
     setSavingKpiEdit(true);
     try {
+      // Get the old preset KPI to know the original name
+      const { data: oldPreset } = await supabase
+        .from("preset_kpis")
+        .select("name")
+        .eq("id", editingKpiId)
+        .single();
+
+      const oldName = oldPreset?.name;
+      const newName = editingKpiName.trim();
+
+      // Update the preset KPI
       const { error } = await supabase
         .from("preset_kpis")
         .update({
-          name: editingKpiName.trim(),
+          name: newName,
           metric_type: editingKpiType,
           target_direction: editingKpiDirection,
         })
         .eq("id", editingKpiId);
       if (error) throw error;
-      toast({ title: "KPI updated", description: "Changes saved successfully." });
+
+      // Propagate name/type/direction changes to existing kpi_definitions that came from this preset
+      // We match by old name since that's how they were originally synced
+      if (oldName && oldName !== newName) {
+        // Find all mandatory rules that use this preset to get relevant department types and store groups
+        const { data: rules } = await supabase
+          .from("mandatory_kpi_rules")
+          .select("store_group_id, department_type_id")
+          .eq("preset_kpi_id", editingKpiId);
+
+        if (rules && rules.length > 0) {
+          // For each rule, find departments and update their KPIs
+          for (const rule of rules) {
+            // Get stores in this group
+            const { data: stores } = await supabase
+              .from("stores")
+              .select("id")
+              .eq("group_id", rule.store_group_id);
+
+            if (stores && stores.length > 0) {
+              const storeIds = stores.map(s => s.id);
+
+              // Get departments of this type in these stores
+              const { data: departments } = await supabase
+                .from("departments")
+                .select("id")
+                .eq("department_type_id", rule.department_type_id)
+                .in("store_id", storeIds);
+
+              if (departments && departments.length > 0) {
+                const deptIds = departments.map(d => d.id);
+
+                // Update KPI definitions matching the old name in these departments
+                await supabase
+                  .from("kpi_definitions")
+                  .update({
+                    name: newName,
+                    metric_type: editingKpiType,
+                    target_direction: editingKpiDirection,
+                  })
+                  .eq("name", oldName)
+                  .in("department_id", deptIds);
+              }
+            }
+          }
+        }
+      } else {
+        // Name didn't change, but type/direction might have - update all matching KPIs
+        const { data: rules } = await supabase
+          .from("mandatory_kpi_rules")
+          .select("store_group_id, department_type_id")
+          .eq("preset_kpi_id", editingKpiId);
+
+        if (rules && rules.length > 0) {
+          for (const rule of rules) {
+            const { data: stores } = await supabase
+              .from("stores")
+              .select("id")
+              .eq("group_id", rule.store_group_id);
+
+            if (stores && stores.length > 0) {
+              const storeIds = stores.map(s => s.id);
+
+              const { data: departments } = await supabase
+                .from("departments")
+                .select("id")
+                .eq("department_type_id", rule.department_type_id)
+                .in("store_id", storeIds);
+
+              if (departments && departments.length > 0) {
+                const deptIds = departments.map(d => d.id);
+
+                await supabase
+                  .from("kpi_definitions")
+                  .update({
+                    metric_type: editingKpiType,
+                    target_direction: editingKpiDirection,
+                  })
+                  .eq("name", newName)
+                  .in("department_id", deptIds);
+              }
+            }
+          }
+        }
+      }
+
+      toast({ title: "KPI updated", description: "Changes saved and synced to department scorecards." });
       handleCancelEditKpi();
       await refreshPresetKpis();
     } catch (error) {
