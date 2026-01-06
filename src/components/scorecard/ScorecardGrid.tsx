@@ -474,11 +474,15 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       await loadScorecardData(freshTargets);
 
       // Trend modes need additional aggregated data for sparklines + year summaries
+      // Regular monthly view also needs preceding quarters data for Q Avg columns
       if (isMonthlyTrendMode || isQuarterTrendMode) {
         await loadPrecedingQuartersData();
         if (isMonthlyTrendMode) {
           await calculateYearlyAverages();
         }
+      } else if (viewMode === "monthly") {
+        // Regular monthly view needs Q Avg data for the current and previous year
+        await loadPrecedingQuartersData();
       }
     };
     
