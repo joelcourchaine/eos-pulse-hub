@@ -81,6 +81,41 @@ export const ManagedStoresSelect = ({ userId, stores, onUpdate }: ManagedStoresS
           );
 
         if (insertError) throw insertError;
+
+        // Get all departments for the selected stores
+        const { data: departments } = await supabase
+          .from("departments")
+          .select("id")
+          .in("store_id", selectedStores);
+
+        if (departments && departments.length > 0) {
+          // Get existing department access for this user
+          const { data: existingAccess } = await supabase
+            .from("user_department_access")
+            .select("department_id")
+            .eq("user_id", userId);
+
+          const existingDeptIds = new Set(existingAccess?.map(a => a.department_id) || []);
+          
+          // Only insert department access for departments not already assigned
+          const newDeptAccess = departments
+            .filter(d => !existingDeptIds.has(d.id))
+            .map(dept => ({
+              user_id: userId,
+              department_id: dept.id,
+              granted_by: user?.id
+            }));
+
+          if (newDeptAccess.length > 0) {
+            const { error: deptAccessError } = await supabase
+              .from("user_department_access")
+              .insert(newDeptAccess);
+
+            if (deptAccessError) {
+              console.error("Error adding department access:", deptAccessError);
+            }
+          }
+        }
       }
 
       toast({ title: "Success", description: "Store access updated successfully" });
