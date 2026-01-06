@@ -468,10 +468,18 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       loadUserRole();
       fetchProfiles();
       loadStoreUsers();
-      
+
       // Load targets first and pass them directly to scorecard data to avoid stale state
       const freshTargets = await loadKPITargets();
       await loadScorecardData(freshTargets);
+
+      // Trend modes need additional aggregated data for sparklines + year summaries
+      if (isMonthlyTrendMode || isQuarterTrendMode) {
+        await loadPrecedingQuartersData();
+        if (isMonthlyTrendMode) {
+          await calculateYearlyAverages();
+        }
+      }
     };
     
     loadData();
@@ -1202,7 +1210,72 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     const targetsToUse = freshTargets || kpiTargets;
     
     const kpiIds = kpis.map((k) => k.id);
-    
+
+    // Monthly Trend Mode: load ALL monthly entries for the trend period
+    if (isMonthlyTrendMode) {
+      const monthIdentifiers = monthlyTrendPeriods
+        .filter((p) => p.type === "month")
+        .map((p) => p.identifier);
+
+      const { data: monthlyData, error: monthlyError } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "monthly")
+        .in("month", monthIdentifiers);
+
+      if (monthlyError) {
+        console.error("Error loading monthly trend data:", monthlyError);
+        toast({
+          title: "Error",
+          description: "Failed to load monthly trend scorecard data",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const newEntries: { [key: string]: ScorecardEntry } = {};
+      monthlyData?.forEach((entry) => {
+        const key = `${entry.kpi_id}-month-${entry.month}`;
+
+        const kpi = kpis.find((k) => k.id === entry.kpi_id);
+        if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+          // Targets in monthly trend are stored by quarter; for display we can safely fall back to the KPI default.
+          const target = kpi.target_value;
+
+          let variance: number;
+          if (kpi.metric_type === "percentage") {
+            variance = entry.actual_value - target;
+          } else if (target !== 0) {
+            variance = ((entry.actual_value - target) / target) * 100;
+          } else {
+            if (kpi.target_direction === "below") {
+              variance = entry.actual_value > 0 ? 100 : 0;
+            } else {
+              variance = entry.actual_value > 0 ? 100 : -100;
+            }
+          }
+
+          let status: string;
+          if (kpi.target_direction === "above") {
+            status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+          } else {
+            status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+          }
+
+          entry.status = status;
+          entry.variance = variance;
+        }
+
+        newEntries[key] = entry;
+      });
+
+      setEntries(newEntries);
+      setLoading(false);
+      return;
+    }
+
     if (viewMode === "weekly") {
       // For weeks: fetch weekly entries for this quarter
       const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
