@@ -3178,11 +3178,18 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               )}
             </div>
           )}
-          <div 
-            ref={scrollContainerRef}
-            className="overflow-x-auto border rounded-lg"
-          >
-          <Table>
+          <div className="relative">
+            {/* Loading overlay - prevents flash by covering stale content during transitions */}
+            {loading && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-[1px] z-30 flex items-center justify-center rounded-lg">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            <div 
+              ref={scrollContainerRef}
+              className="overflow-x-auto border rounded-lg"
+            >
+            <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead 
@@ -4385,7 +4392,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           })}
         </TableBody>
       </Table>
-    </div>
+            </div>
+          </div>
         </>
       )}
 
