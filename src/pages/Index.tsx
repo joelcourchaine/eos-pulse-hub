@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import * as Sentry from "@sentry/react";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Target, Users, Mail, Gauge, Calendar, CheckSquare, PartyPopper, AlertTriangle, DollarSign, Download, X } from "lucide-react";
 import goLogo from "@/assets/go-logo.png";
@@ -232,22 +231,10 @@ const Index = () => {
         </div>
 
         {/* Version Badge */}
-        <div className="mt-12 text-center space-y-4">
+        <div className="mt-12 text-center">
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
             v2.4.0
           </span>
-          {/* Temporary Sentry Test Button - Remove after testing */}
-          <div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                throw new Error("This is your first error!");
-              }}
-            >
-              Break the world (Sentry Test)
-            </Button>
-          </div>
         </div>
       </div>
     </div>
