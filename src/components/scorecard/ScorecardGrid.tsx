@@ -1336,7 +1336,9 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     
     if (isMonthlyTrendMode) {
       // Load data for all months in the monthly trend in a single query
-      const monthIdentifiers = monthlyTrendPeriods.map(m => m.identifier);
+      // Filter out summary periods (year-avg, year-total) - only include actual month periods
+      const actualMonthPeriods = monthlyTrendPeriods.filter(m => m.type === 'month');
+      const monthIdentifiers = actualMonthPeriods.map(m => m.identifier);
       
       const { data, error } = await supabase
         .from("scorecard_entries")
@@ -1348,8 +1350,8 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       if (error) {
         console.error("Error loading monthly trend data:", error);
       } else {
-        // Calculate average for each KPI in each month
-        monthlyTrendPeriods.forEach(month => {
+        // Calculate average for each KPI in each month (only actual months, not summaries)
+        actualMonthPeriods.forEach(month => {
           kpis.forEach(kpi => {
             const kpiEntries = data?.filter(e => e.kpi_id === kpi.id && e.month === month.identifier) || [];
             const values = kpiEntries
