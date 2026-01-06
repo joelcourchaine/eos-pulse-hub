@@ -199,7 +199,7 @@ const Dashboard = () => {
       };
       fetchAllDepartmentData();
     }
-  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore, scorecardViewMode, selectedQuarter, selectedYear]);
+  }, [selectedDepartment, departmentsLoaded, storesLoaded, departments, selectedStore, selectedQuarter, selectedYear]);
 
   // Real-time subscription for KPI status updates
   useEffect(() => {
