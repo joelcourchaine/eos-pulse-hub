@@ -162,6 +162,15 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       
       userIds = storeUsers?.map(u => u.id) || [];
       
+      // Get users with multi-store access to this store
+      const { data: storeAccessUsers } = await supabase
+        .from("user_store_access")
+        .select("user_id")
+        .eq("store_id", currentStoreId);
+      
+      const storeAccessUserIds = storeAccessUsers?.map(u => u.user_id) || [];
+      userIds = [...userIds, ...storeAccessUserIds];
+      
       // Get users who are assigned to KPIs in this store's departments
       const { data: departments } = await supabase
         .from("departments")
