@@ -12,7 +12,7 @@ interface PasswordResetRequest {
 }
 
 // Email template for password reset
-function getPasswordResetEmailHtml(actionLink: string): string {
+function getPasswordResetEmailHtml(continueLink: string, directLink: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -25,6 +25,7 @@ function getPasswordResetEmailHtml(actionLink: string): string {
           .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .button:hover { background-color: #1d4ed8; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          .note { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; font-size: 13px; color: #444; }
         </style>
       </head>
       <body>
@@ -34,14 +35,26 @@ function getPasswordResetEmailHtml(actionLink: string): string {
           </div>
           <div class="content">
             <h2>Password Reset Request</h2>
-            <p>We received a request to reset your password. Click the button below to create a new password.</p>
+            <p>We received a request to reset your password. Click the button below to continue and create a new password.</p>
             <div style="text-align: center;">
-              <a href="${actionLink}" class="button">Reset Password</a>
+              <a href="${continueLink}" class="button">Reset Password</a>
             </div>
+
+            <div class="note">
+              <strong>Important:</strong> Some email providers pre-open links for security scanning, which can make one-time links appear “expired”.
+              If you see an expired message, simply request a new reset link.
+            </div>
+
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
               If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
+              <a href="${continueLink}" style="color: #2563eb; word-break: break-all;">${continueLink}</a>
             </p>
+
+            <p style="margin-top: 18px; color: #666; font-size: 12px;">
+              Having trouble? You can also try the direct link (may expire if scanned):<br>
+              <a href="${directLink}" style="color: #2563eb; word-break: break-all;">${directLink}</a>
+            </p>
+
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
               This link will expire in 1 hour for security reasons.
             </p>
@@ -186,12 +199,14 @@ Deno.serve(async (req) => {
 
     console.log('Recovery link generated successfully');
     
-    // Send password reset email directly via Resend using the real email from profiles
-    const actionLink = linkData.properties.action_link;
+    // Send password reset email via Resend
+    const directLink = linkData.properties.action_link;
+    const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(directLink)}`;
+
     await sendEmailViaResend(
       profile.email, // Use real email from profiles
       'Reset Your Password - Dealer Growth Solutions',
-      getPasswordResetEmailHtml(actionLink)
+      getPasswordResetEmailHtml(continueLink, directLink)
     );
 
     console.log('Password reset email sent successfully to:', profile.email);

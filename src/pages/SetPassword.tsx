@@ -31,16 +31,32 @@ const SetPassword = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [resendingEmail, setResendingEmail] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
+  const [continueUrl, setContinueUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const checkInvite = async () => {
       try {
+        // If the email client pre-opens links, it can consume one-time tokens.
+        // Our emails link to /set-password?continue=<encoded_direct_link> and we only
+        // navigate to the direct link after a user click.
+        const searchParams = new URLSearchParams(window.location.search);
+        const continueParam = searchParams.get('continue');
+        if (continueParam) {
+          const decoded = decodeURIComponent(continueParam);
+          if (decoded.startsWith('http')) {
+            setContinueUrl(decoded);
+            setFlowState('error');
+            setErrorMessage('Click Continue to open your secure setup link.');
+            return;
+          }
+        }
+
         // Check for error in hash (Supabase puts errors here)
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const error = hashParams.get('error');
         const errorDescription = hashParams.get('error_description');
         const type = hashParams.get('type');
-        
+
         // Handle explicit errors from Supabase
         if (error) {
           console.error("Auth error:", error, errorDescription);
@@ -53,28 +69,28 @@ const SetPassword = () => {
           }
           return;
         }
-        
+
         // Check if this is a valid invite flow
         if (type !== 'invite' && type !== 'signup' && type !== 'recovery') {
           // No valid type - might be a direct visit without token
           // Check if there's a session anyway
           const { data: { session } } = await supabase.auth.getSession();
-          
+
           if (session?.user) {
             // User has a session, maybe they refreshed after clicking the link
             setUser(session.user);
             setUserEmail(session.user.email || "");
-            
+
             const { data: profileData } = await supabase
               .from('profiles')
               .select('full_name')
               .eq('id', session.user.id)
               .single();
-            
+
             if (profileData) {
               setProfile(profileData);
             }
-            
+
             setFlowState('ready');
           } else {
             // No session, no valid invite - redirect
@@ -82,58 +98,57 @@ const SetPassword = () => {
           }
           return;
         }
-        
+
         // Wait a moment for Supabase to process the token
-        // This is important because Supabase exchanges the token asynchronously
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         // Try to get the session multiple times (token exchange can be slow)
         let attempts = 0;
         const maxAttempts = 5;
-        
+
         while (attempts < maxAttempts) {
           const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          
+
           if (sessionError) {
             console.error("Session error:", sessionError);
           }
-          
+
           if (session?.user) {
             setUser(session.user);
             setUserEmail(session.user.email || "");
-            
+
             // Get profile info
             const { data: profileData } = await supabase
               .from('profiles')
               .select('full_name')
               .eq('id', session.user.id)
               .single();
-            
+
             if (profileData) {
               setProfile(profileData);
             }
-            
+
             setFlowState('ready');
             return;
           }
-          
+
           attempts++;
           if (attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
-        
+
         // If we get here, we couldn't establish a session
         setFlowState('expired');
         setErrorMessage("Your invitation link has expired or was already used. Please request a new one from your administrator.");
-        
+
       } catch (err: any) {
         console.error("Error checking invite:", err);
         setFlowState('error');
         setErrorMessage(err.message || "An unexpected error occurred.");
       }
     };
-    
+
     checkInvite();
   }, [navigate]);
 
@@ -227,13 +242,22 @@ const SetPassword = () => {
             
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Invitation links expire after 24 hours and can only be used once. If you've already clicked the link, 
+                Invitation links expire after 24 hours and can only be used once. If you've already clicked the link,
                 try using the "Forgot password" option on the login page.
               </p>
-              
+
+              {continueUrl && (
+                <Button
+                  onClick={() => (window.location.href = continueUrl)}
+                  className="w-full"
+                >
+                  Continue
+                </Button>
+              )}
+
               {userEmail && (
-                <Button 
-                  onClick={handleRequestNewInvite} 
+                <Button
+                  onClick={handleRequestNewInvite}
                   disabled={resendingEmail}
                   className="w-full"
                   variant="outline"
