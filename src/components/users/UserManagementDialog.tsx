@@ -434,6 +434,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'department_manager':
+      case 'fixed_ops_manager':
         return 'hsl(142 76% 36%)'; // Green
       case 'service_advisor':
         return 'hsl(221 83% 53%)'; // Blue
@@ -556,6 +557,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                           {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                           <SelectItem value="store_gm">Store GM</SelectItem>
                           <SelectItem value="department_manager">Dept Manager</SelectItem>
+                          <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                           <SelectItem value="read_only">Read Only</SelectItem>
                           <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
                           <SelectItem value="service_advisor">Service Advisor</SelectItem>

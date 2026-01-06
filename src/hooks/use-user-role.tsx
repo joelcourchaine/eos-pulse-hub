@@ -36,7 +36,8 @@ export const useUserRole = (userId: string | undefined) => {
   const hasRole = (role: string) => roles.includes(role);
   const isSuperAdmin = hasRole("super_admin");
   const isStoreGM = hasRole("store_gm");
-  const isDepartmentManager = hasRole("department_manager");
+  const isDepartmentManager = hasRole("department_manager") || hasRole("fixed_ops_manager");
+  const isFixedOpsManager = hasRole("fixed_ops_manager");
 
   return {
     roles,
@@ -45,5 +46,6 @@ export const useUserRole = (userId: string | undefined) => {
     isSuperAdmin,
     isStoreGM,
     isDepartmentManager,
+    isFixedOpsManager,
   };
 };

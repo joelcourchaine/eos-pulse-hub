@@ -391,6 +391,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     if (!role) return 'hsl(var(--muted))';
     switch (role) {
       case 'department_manager':
+      case 'fixed_ops_manager':
         return 'hsl(142 76% 36%)'; // Green
       case 'service_advisor':
         return 'hsl(221 83% 53%)'; // Blue
@@ -1032,7 +1033,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         setUserRole('store_gm');
         return;
       }
-      if (roleData.some(r => r.role === 'department_manager')) {
+      if (roleData.some(r => r.role === 'department_manager' || r.role === 'fixed_ops_manager')) {
         setUserRole('department_manager');
         return;
       }
