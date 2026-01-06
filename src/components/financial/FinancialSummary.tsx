@@ -753,7 +753,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         setUserRole('store_gm');
         return;
       }
-      if (roleData.some(r => r.role === 'department_manager')) {
+      if (roleData.some(r => r.role === 'department_manager' || r.role === 'fixed_ops_manager')) {
         setUserRole('department_manager');
         return;
       }

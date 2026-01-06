@@ -287,6 +287,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                 <SelectItem value="store_gm">Store GM</SelectItem>
                 <SelectItem value="department_manager">Department Manager</SelectItem>
+                <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
                 {departments.some(d => d.department_types?.name?.toLowerCase().includes('service')) && (
                   <>
@@ -304,7 +305,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
             </Select>
           </div>
 
-          {role === "department_manager" && departments.length > 0 && (
+          {(role === "department_manager" || role === "fixed_ops_manager") && departments.length > 0 && (
             <div className="space-y-2">
               <Label>Assign to Departments *</Label>
               <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
