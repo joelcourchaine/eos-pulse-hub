@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const emailSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -20,6 +22,8 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+type FlowState = 'loading' | 'request' | 'email-sent' | 'set-password' | 'success' | 'expired';
+
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -27,55 +31,62 @@ const ResetPassword = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
-
-  // Check if we're in password update mode (user clicked email link)
-  // Supabase puts auth params in the hash, not query params
-  const [isUpdateMode, setIsUpdateMode] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
+  const [flowState, setFlowState] = useState<FlowState>('loading');
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
-    // Check if this is a password recovery flow from email link
     const checkRecoveryFlow = async () => {
+      // Check if this is a password recovery flow from email link
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
       const type = hashParams.get('type');
+      const error = hashParams.get('error');
+      const errorDescription = hashParams.get('error_description');
+      
+      // Handle errors in the URL
+      if (error) {
+        console.error("Auth error:", error, errorDescription);
+        setFlowState('expired');
+        return;
+      }
       
       if (type === 'recovery') {
-        setIsUpdateMode(true);
-        
-        // Wait for Supabase to process the recovery token and establish session
-        // The hash contains access_token which Supabase client will auto-process
+        // Wait for Supabase to process the recovery token
         let attempts = 0;
         const maxAttempts = 10;
         
-        const checkSession = async (): Promise<boolean> => {
-          const { data: { session } } = await supabase.auth.getSession();
-          return session !== null;
-        };
-        
-        // Poll for session establishment (Supabase processes the token async)
         while (attempts < maxAttempts) {
-          const hasSession = await checkSession();
-          if (hasSession) {
-            setSessionReady(true);
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            setUserEmail(session.user.email || "");
+            setFlowState('set-password');
+            // Clear the hash to prevent issues on refresh
+            window.history.replaceState(null, '', window.location.pathname);
             return;
           }
           await new Promise(resolve => setTimeout(resolve, 500));
           attempts++;
         }
         
-        // If session never established, show error
-        toast({
-          variant: "destructive",
-          title: "Session expired",
-          description: "Your password reset link has expired. Please request a new one.",
-        });
-        navigate("/auth");
+        // Session never established
+        setFlowState('expired');
+        return;
       }
+      
+      // Not a recovery flow - check if user already has a session (maybe they refreshed)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // User has a session, they might have refreshed during reset flow
+        setUserEmail(session.user.email || "");
+        setFlowState('set-password');
+        return;
+      }
+      
+      // Normal password reset request flow
+      setFlowState('request');
     };
     
     checkRecoveryFlow();
-  }, [navigate, toast]);
+  }, []);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +95,6 @@ const ResetPassword = () => {
     try {
       const validation = emailSchema.parse({ email });
 
-      // Call the edge function directly to bypass the broken auth hook
       const response = await supabase.functions.invoke('send-password-reset', {
         body: { email: validation.email }
       });
@@ -93,7 +103,7 @@ const ResetPassword = () => {
         throw new Error(response.error.message || 'Failed to send password reset email');
       }
 
-      setEmailSent(true);
+      setFlowState('email-sent');
       toast({
         title: "Check your email",
         description: "If an account exists with this email, we've sent you a password reset link.",
@@ -124,7 +134,7 @@ const ResetPassword = () => {
     try {
       const validation = passwordSchema.parse({ password, confirmPassword });
 
-      // Verify we have an active session before attempting update
+      // Verify we have an active session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error("Your session has expired. Please request a new password reset link.");
@@ -136,22 +146,25 @@ const ResetPassword = () => {
 
       if (error) throw error;
       
-      // Verify the update was successful by checking we can still get the user
+      // Verify the update
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error("Password update could not be verified. Please try again.");
       }
       
       console.log("Password successfully updated for user:", user.email);
+      setFlowState('success');
 
       toast({
         title: "Password updated!",
         description: "Your password has been successfully updated.",
       });
 
-      // Sign out and redirect to login
-      await supabase.auth.signOut();
-      navigate("/auth");
+      // Sign out and redirect after delay
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+        navigate("/auth");
+      }, 2000);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         toast({
@@ -165,69 +178,160 @@ const ResetPassword = () => {
           title: "Error",
           description: error.message,
         });
+        // If session expired, show the expired state
+        if (error.message.includes("expired") || error.message.includes("session")) {
+          setFlowState('expired');
+        }
       }
     } finally {
       setLoading(false);
     }
   };
 
+  // Loading state
+  if (flowState === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Verifying your reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Success state
+  if (flowState === 'success') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Password Updated!</h2>
+            <p className="text-muted-foreground text-center mb-4">
+              Your password has been set successfully. Redirecting you to login...
+            </p>
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Expired state
+  if (flowState === 'expired') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center flex items-center justify-center gap-2">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+              Link Expired
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Your password reset link has expired or was already used. Reset links can only be used once and expire after 24 hours.
+              </AlertDescription>
+            </Alert>
+            
+            <p className="text-sm text-muted-foreground text-center">
+              Please request a new password reset link below.
+            </p>
+            
+            <div className="space-y-2">
+              <Button 
+                onClick={() => setFlowState('request')} 
+                className="w-full"
+              >
+                Request New Reset Link
+              </Button>
+              <Button 
+                onClick={() => navigate("/auth")} 
+                variant="outline"
+                className="w-full"
+              >
+                Back to Sign In
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isUpdateMode ? "Set New Password" : "Reset Password"}
+            {flowState === 'set-password' ? "Set New Password" : "Reset Password"}
           </CardTitle>
           <CardDescription className="text-center">
-            {isUpdateMode
-              ? "Enter your new password below"
-              : emailSent
+            {flowState === 'set-password'
+              ? userEmail 
+                ? `Enter a new password for ${userEmail}` 
+                : "Enter your new password below"
+              : flowState === 'email-sent'
               ? "Check your email for the reset link"
               : "Enter your email to receive a password reset link"}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isUpdateMode ? (
-            !sessionReady ? (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground">Verifying your reset link...</p>
+          {flowState === 'set-password' ? (
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">New Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Must be at least 6 characters
+                </p>
               </div>
-            ) : (
-              <form onSubmit={handleUpdatePassword} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">New Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update Password"}
-                </Button>
-              </form>
-            )
-          ) : emailSent ? (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
+            </form>
+          ) : flowState === 'email-sent' ? (
             <div className="text-center space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  We've sent a password reset link to <strong>{email}</strong>.
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground">
-                We've sent a password reset link to <strong>{email}</strong>.
-                Please check your email and click the link to reset your password.
+                Click the link in your email to set a new password. The link will expire in 24 hours.
               </p>
               <Button
                 variant="outline"
@@ -251,7 +355,14 @@ const ResetPassword = () => {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Sending..." : "Send Reset Link"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Reset Link"
+                )}
               </Button>
               <div className="text-center">
                 <button
