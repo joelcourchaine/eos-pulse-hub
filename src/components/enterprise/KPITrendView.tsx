@@ -130,17 +130,31 @@ export function KPITrendView({
     return departments?.map(d => d.id) || [];
   }, [departments]);
 
-  // Fetch KPI definitions
+  // Fetch KPI definitions - only those that have monthly scorecard entries
   const { data: kpiDefinitions } = useQuery({
     queryKey: ["kpi_trend_definitions", departmentIds],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("kpi_definitions")
-        .select("*, departments(id, name, store_id)")
-        .in("department_id", departmentIds);
+      
+      // Get KPIs that have monthly entries
+      const { data: entriesWithKpis, error } = await supabase
+        .from("scorecard_entries")
+        .select("kpi_id, kpi_definitions!inner(id, name, metric_type, department_id, display_order, departments(id, name, store_id))")
+        .eq("entry_type", "monthly")
+        .in("kpi_definitions.department_id", departmentIds);
+      
       if (error) throw error;
-      return data || [];
+      
+      // Extract unique KPIs that have monthly entries
+      const kpiMap = new Map<string, any>();
+      entriesWithKpis?.forEach((entry: any) => {
+        const kpi = entry.kpi_definitions;
+        if (kpi && !kpiMap.has(kpi.id)) {
+          kpiMap.set(kpi.id, kpi);
+        }
+      });
+      
+      return Array.from(kpiMap.values());
     },
     enabled: departmentIds.length > 0,
   });
