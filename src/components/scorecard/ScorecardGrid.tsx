@@ -343,6 +343,7 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [previousQuarterWeeklyEntries, setPreviousQuarterWeeklyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [previousQuarterMonthlyEntries, setPreviousQuarterMonthlyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [previousQuarterTargets, setPreviousQuarterTargets] = useState<{ [key: string]: number }>({});
+  const [previousYearTargets, setPreviousYearTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -1361,14 +1362,46 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
         return;
       }
 
+      // Load previous year targets for comparison
+      const previousYear = year - 1;
+      const { data: prevYearTargetsData, error: prevYearTargetsError } = await supabase
+        .from("kpi_targets")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("quarter", quarter)
+        .eq("year", previousYear)
+        .eq("entry_type", "monthly");
+
+      if (prevYearTargetsError) {
+        console.error("Error loading previous year targets:", prevYearTargetsError);
+      }
+
+      // Store previous year targets
+      const prevYearTargetsMap: { [key: string]: number } = {};
+      prevYearTargetsData?.forEach(target => {
+        prevYearTargetsMap[target.kpi_id] = target.target_value || 0;
+      });
+      // Fall back to default target_value for KPIs without previous year targets
+      kpis.forEach(kpi => {
+        if (prevYearTargetsMap[kpi.id] === undefined) {
+          prevYearTargetsMap[kpi.id] = kpi.target_value;
+        }
+      });
+      setPreviousYearTargets(prevYearTargetsMap);
+
       const newEntries: { [key: string]: ScorecardEntry } = {};
       monthlyData?.forEach((entry) => {
         const key = `${entry.kpi_id}-month-${entry.month}`;
         
-        // Recalculate status based on current target
+        // Recalculate status based on appropriate target (current year or previous year)
         const kpi = kpis.find(k => k.id === entry.kpi_id);
         if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
-          const target = targetsToUse[kpi.id] || kpi.target_value;
+          // Determine if this is a previous year entry
+          const entryYear = parseInt(entry.month.split('-')[0]);
+          const isPrevYear = entryYear === previousYear;
+          const target = isPrevYear 
+            ? (prevYearTargetsMap[kpi.id] ?? kpi.target_value)
+            : (targetsToUse[kpi.id] || kpi.target_value);
           
           let variance: number;
           if (kpi.metric_type === "percentage") {
@@ -3390,17 +3423,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </React.Fragment>
                   );
                 })}
-                {/* Previous Year Quarter Avg */}
-                <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                {/* Previous Year Quarter Target */}
+                <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-muted/70 border-x-2 border-muted-foreground/30 sticky top-0 z-10">
                   <div className="flex flex-col items-center">
-                    <div>Q{quarter} Avg</div>
+                    <div className="text-xs">Q{quarter} Target</div>
                     <div className="text-xs font-normal text-muted-foreground">{year - 1}</div>
                   </div>
                 </TableHead>
                 {previousYearMonths.map((month) => (
                   <TableHead 
                     key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/30 sticky top-0 z-10"
                   >
                     <div className="flex flex-col items-center">
                       <div>{month.label}</div>
@@ -3408,6 +3441,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     </div>
                   </TableHead>
                 ))}
+                {/* Previous Year Quarter Avg */}
+                <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-muted/50 border-x-2 border-muted-foreground/30 sticky top-0 z-10">
+                  <div className="flex flex-col items-center">
+                    <div>Q{quarter} Avg</div>
+                    <div className="text-xs font-normal text-muted-foreground">{year - 1}</div>
+                  </div>
+                </TableHead>
                 {/* Current Quarter Target */}
                 <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
                   <div className="flex flex-col items-center">
@@ -3504,7 +3544,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : (1 + previousYearMonths.length + 1 + months.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getMonthsForQuarter(pq.quarter, pq.year).length + 1, 0) + (isLoadingMore ? 1 : 0)))} className="bg-muted/50 py-1" />
+                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : (1 + previousYearMonths.length + 1 + 1 + months.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getMonthsForQuarter(pq.quarter, pq.year).length + 1, 0) + (isLoadingMore ? 1 : 0)))} className="bg-muted/50 py-1" />
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -4149,34 +4189,93 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           </React.Fragment>
                         );
                       })}
-                      {/* Previous Year Quarter */}
+                      {/* Previous Year Quarter Target */}
                       <TableCell 
-                        className="text-center py-0.5 min-w-[100px] max-w-[100px] text-muted-foreground bg-primary/10 border-x-2 border-primary/30"
+                        className="text-center py-0.5 min-w-[100px] max-w-[100px] text-muted-foreground bg-muted/70 border-x-2 border-muted-foreground/30 font-medium"
                       >
-                        {(() => {
-                          const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
-                          const qValue = precedingQuartersData[qKey];
-                          return qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-";
-                        })()}
+                        {formatTarget(previousYearTargets[kpi.id] ?? kpi.target_value, kpi.metric_type, kpi.name)}
                       </TableCell>
                       
-                      {/* Previous Year Months */}
+                      {/* Previous Year Months with visual cues */}
                       {previousYearMonths.map((month) => {
                         const key = `${kpi.id}-month-${month.identifier}`;
                         const entry = entries[key];
-                        const displayValue = localValues[key] !== undefined ? localValues[key] : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
+                        const status = getStatus(entry?.status || null);
                         
                         return (
                           <TableCell
                             key={month.identifier}
-                            className="px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center text-muted-foreground"
+                            className={cn(
+                              "px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center bg-muted/20",
+                              status === "success" && "bg-success/10",
+                              status === "warning" && "bg-warning/10",
+                              status === "destructive" && "bg-destructive/10"
+                            )}
                           >
-                            {entry?.actual_value !== null && entry?.actual_value !== undefined 
-                              ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
-                              : "-"}
+                            <span className={cn(
+                              "text-muted-foreground",
+                              status === "success" && "text-success font-medium",
+                              status === "warning" && "text-warning font-medium",
+                              status === "destructive" && "text-destructive font-medium"
+                            )}>
+                              {entry?.actual_value !== null && entry?.actual_value !== undefined 
+                                ? formatTarget(entry.actual_value, kpi.metric_type, kpi.name)
+                                : "-"}
+                            </span>
                           </TableCell>
                         );
                       })}
+                      
+                      {/* Previous Year Quarter Avg with visual cues */}
+                      <TableCell 
+                        className={cn(
+                          "text-center py-0.5 min-w-[100px] max-w-[100px] bg-muted/50 border-x-2 border-muted-foreground/30",
+                          (() => {
+                            const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
+                            const qValue = precedingQuartersData[qKey];
+                            const target = previousYearTargets[kpi.id] ?? kpi.target_value;
+                            if (qValue !== null && qValue !== undefined && target !== null && target !== undefined && target !== 0) {
+                              let variance: number;
+                              if (kpi.metric_type === "percentage") {
+                                variance = qValue - target;
+                              } else {
+                                variance = ((qValue - target) / target) * 100;
+                              }
+                              const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                              if (adjustedVariance >= 0) return "bg-success/10";
+                              if (adjustedVariance >= -10) return "bg-warning/10";
+                              return "bg-destructive/10";
+                            }
+                            return "";
+                          })()
+                        )}
+                      >
+                        {(() => {
+                          const qKey = `${kpi.id}-Q${quarter}-${year - 1}`;
+                          const qValue = precedingQuartersData[qKey];
+                          const target = previousYearTargets[kpi.id] ?? kpi.target_value;
+                          
+                          let statusClass = "text-muted-foreground";
+                          if (qValue !== null && qValue !== undefined && target !== null && target !== undefined && target !== 0) {
+                            let variance: number;
+                            if (kpi.metric_type === "percentage") {
+                              variance = qValue - target;
+                            } else {
+                              variance = ((qValue - target) / target) * 100;
+                            }
+                            const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                            if (adjustedVariance >= 0) statusClass = "text-success font-medium";
+                            else if (adjustedVariance >= -10) statusClass = "text-warning font-medium";
+                            else statusClass = "text-destructive font-medium";
+                          }
+                          
+                          return (
+                            <span className={statusClass}>
+                              {qValue !== null && qValue !== undefined ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name) : "-"}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       
                       {/* Q{quarter} Target */}
                       <TableCell className="text-center py-0.5 min-w-[100px] max-w-[100px] bg-background border-x-2 border-primary/30 font-medium">
