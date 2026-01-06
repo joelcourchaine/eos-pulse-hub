@@ -442,19 +442,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     getCurrentUser();
   }, []);
 
-  // Reset loaded previous quarters when main quarter/year changes or when switching view modes
-  useEffect(() => {
-    setLoadedPreviousQuarters([]);
-    setPreviousQuarterWeeklyEntries({});
-    setPreviousQuarterMonthlyEntries({});
-    setPreviousQuarterTargets({});
-  }, [year, quarter, viewMode, departmentId]);
-
+  // Consolidated effect: Clear ALL state synchronously when view/quarter/department changes
+  // This prevents flashing by ensuring all state is cleared in the same render cycle
   useEffect(() => {
     // Set loading immediately to prevent rendering stale data
     setLoading(true);
     
-    // Clear all state when department changes to prevent stale data
+    // Clear all state synchronously to prevent partial renders
+    setLoadedPreviousQuarters([]);
+    setPreviousQuarterWeeklyEntries({});
+    setPreviousQuarterMonthlyEntries({});
+    setPreviousQuarterTargets({});
     setEntries({});
     setLocalValues({});
     setKpiTargets({});
