@@ -24,27 +24,33 @@ export const ManagedStoresSelect = ({ userId, stores, onUpdate }: ManagedStoresS
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
-  // Fetch current store access when popover opens
+  const fetchStoreAccess = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("user_store_access")
+      .select("store_id")
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Error fetching store access:", error);
+    } else {
+      setSelectedStores(data?.map((d) => d.store_id) || []);
+    }
+    setLoading(false);
+  };
+
+  // Fetch store access on mount (so the button label is correct) and when popover opens
   useEffect(() => {
-    const fetchStoreAccess = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("user_store_access")
-        .select("store_id")
-        .eq("user_id", userId);
+    fetchStoreAccess();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
-      if (error) {
-        console.error("Error fetching store access:", error);
-      } else {
-        setSelectedStores(data?.map(d => d.store_id) || []);
-      }
-      setLoading(false);
-    };
-
+  useEffect(() => {
     if (open) {
       fetchStoreAccess();
     }
-  }, [userId, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleToggle = (storeId: string) => {
     setSelectedStores(prev =>
