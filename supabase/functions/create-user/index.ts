@@ -10,6 +10,7 @@ interface CreateUserRequest {
   full_name: string;
   role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor';
   store_id?: string;
+  store_ids?: string[]; // New multi-store support
   store_group_id?: string;
   department_id?: string; // Legacy single department support
   department_ids?: string[]; // New multi-department support
@@ -85,10 +86,13 @@ Deno.serve(async (req) => {
     console.log('Authorization successful for user:', user.id);
 
     const requestBody: CreateUserRequest = await req.json();
-    let { email, full_name, role, store_id, store_group_id, department_id, department_ids, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
+    let { email, full_name, role, store_id, store_ids, store_group_id, department_id, department_ids, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
     
     // Support both legacy single department_id and new department_ids array
     const finalDepartmentIds: string[] = department_ids || (department_id ? [department_id] : []);
+    
+    // Support both legacy single store_id and new store_ids array
+    const finalStoreIds: string[] = store_ids || (store_id ? [store_id] : []);
 
     // SECURITY: For non-super-admins, enforce store assignment to their own store
     if (callerRole === 'store_gm' || callerRole === 'department_manager') {
@@ -253,6 +257,25 @@ Deno.serve(async (req) => {
           console.error('Error adding user department access:', deptId, accessError);
         } else {
           console.log('User granted access to department:', deptId);
+        }
+      }
+    }
+
+    // If store_ids are provided, add to user_store_access table
+    if (finalStoreIds.length > 0) {
+      for (const storeId of finalStoreIds) {
+        const { error: storeAccessError } = await supabaseAdmin
+          .from('user_store_access')
+          .insert({
+            user_id: userData.user.id,
+            store_id: storeId,
+            granted_by: user.id
+          });
+
+        if (storeAccessError) {
+          console.error('Error adding user store access:', storeId, storeAccessError);
+        } else {
+          console.log('User granted access to store:', storeId);
         }
       }
     }

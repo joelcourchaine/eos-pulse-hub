@@ -9,6 +9,7 @@ import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { DepartmentAccessDialog } from "./DepartmentAccessDialog";
 import { ManagedDepartmentsSelect } from "./ManagedDepartmentsSelect";
+import { ManagedStoresSelect } from "./ManagedStoresSelect";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
@@ -487,6 +488,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                   <TableHead className="min-w-[220px]">Email</TableHead>
                   <TableHead className="min-w-[110px]">Role</TableHead>
                   <TableHead className="min-w-[100px]">Store/Group</TableHead>
+                  <TableHead className="min-w-[100px]">Store Access</TableHead>
                   <TableHead className="min-w-[110px]">Manages Dept</TableHead>
                   <TableHead className="min-w-[90px]">BD Month</TableHead>
                   <TableHead className="min-w-[70px]">BD Day</TableHead>
@@ -548,16 +550,23 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                     </TableCell>
                     <TableCell className="text-xs">
                       {profile.store_id ? (
-                        <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded">
+                        <span className="px-2 py-1 bg-muted text-foreground rounded">
                           {stores.find(s => s.id === profile.store_id)?.name || 'Unknown'}
                         </span>
                       ) : profile.store_group_id ? (
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                        <span className="px-2 py-1 bg-primary/10 text-primary rounded">
                           Group: {storeGroups.find(g => g.id === profile.store_group_id)?.name || 'Unknown'}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <ManagedStoresSelect
+                        userId={profile.id}
+                        stores={stores}
+                        onUpdate={loadProfiles}
+                      />
                     </TableCell>
                     <TableCell>
                       <ManagedDepartmentsSelect

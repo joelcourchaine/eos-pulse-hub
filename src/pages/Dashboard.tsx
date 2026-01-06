@@ -126,9 +126,8 @@ const Dashboard = () => {
     if (isSuperAdmin) {
       fetchStores();
     } else if (profile) {
-      // Non-super-admins don't need to load stores, so mark as loaded
-      setStoresLoaded(true);
-      fetchDepartments();
+      // Non-super-admins: check if they have multi-store access
+      fetchUserStoreAccess();
     }
   }, [profile, isSuperAdmin, rolesLoading]);
 
@@ -384,6 +383,65 @@ const Dashboard = () => {
     }
   };
 
+  const fetchUserStoreAccess = async () => {
+    try {
+      // Check if user has multi-store access via user_store_access table
+      const { data: storeAccessData, error: accessError } = await supabase
+        .from("user_store_access")
+        .select("store_id, stores(*)")
+        .eq("user_id", user?.id);
+
+      if (accessError) {
+        console.error("Error fetching user store access:", accessError);
+      }
+
+      if (storeAccessData && storeAccessData.length > 0) {
+        // User has explicit multi-store access
+        const accessibleStores = storeAccessData
+          .map(access => access.stores)
+          .filter(Boolean)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        
+        setStores(accessibleStores);
+        
+        // Validate and restore selected store from localStorage
+        const savedStore = localStorage.getItem('selectedStore');
+        if (savedStore && accessibleStores.find((s: any) => s.id === savedStore)) {
+          setSelectedStore(savedStore);
+        } else {
+          const firstStore = accessibleStores[0]?.id;
+          if (firstStore) {
+            setSelectedStore(firstStore);
+            localStorage.setItem('selectedStore', firstStore);
+          }
+        }
+        setStoresLoaded(true);
+      } else if (profile?.store_id) {
+        // Fallback: User has single store via profile.store_id
+        const { data: storeData } = await supabase
+          .from("stores")
+          .select("*")
+          .eq("id", profile.store_id)
+          .single();
+        
+        if (storeData) {
+          setStores([storeData]);
+          setSelectedStore(storeData.id);
+          localStorage.setItem('selectedStore', storeData.id);
+        }
+        setStoresLoaded(true);
+        fetchDepartments();
+      } else {
+        // No store access at all
+        setStoresLoaded(true);
+        fetchDepartments();
+      }
+    } catch (error: any) {
+      console.error("Error in fetchUserStoreAccess:", error);
+      setStoresLoaded(true);
+    }
+  };
+
   const fetchStores = async () => {
     try {
       const { data, error } = await supabase
@@ -482,23 +540,23 @@ const Dashboard = () => {
         return;
       }
 
-      // For super admins and store GMs, show all departments in the store
+      // For users with multi-store access, require selectedStore to be set
+      if (stores.length > 1 && !selectedStore) {
+        console.log('Multi-store user: waiting for store selection before fetching departments');
+        return;
+      }
+
+      // For super admins and store GMs/users with multi-store access, show all departments in the store
       let query = supabase
         .from("departments")
         .select("*, profiles(email, full_name), department_type_id")
         .order("name");
 
       // Filter departments by store
-      if (isSuperAdmin) {
-        // Super admin: filter by selected store
-        if (selectedStore) {
-          query = query.eq("store_id", selectedStore);
-        }
-      } else {
-        // Store GMs: filter by their profile's store
-        if (profile?.store_id) {
-          query = query.eq("store_id", profile.store_id);
-        }
+      // Use selectedStore if available (super admins and multi-store users), otherwise fall back to profile.store_id
+      const effectiveStoreId = selectedStore || profile?.store_id;
+      if (effectiveStoreId) {
+        query = query.eq("store_id", effectiveStoreId);
       }
 
       const { data, error } = await query;
