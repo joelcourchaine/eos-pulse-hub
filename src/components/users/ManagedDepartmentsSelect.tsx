@@ -29,18 +29,18 @@ export const ManagedDepartmentsSelect = ({
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
-  // Load current managed departments from user_department_access
+  // Load departments where user is the manager
   useEffect(() => {
     const loadManagedDepts = async () => {
       setLoading(true);
       try {
         const { data, error } = await supabase
-          .from("user_department_access")
-          .select("department_id")
-          .eq("user_id", userId);
+          .from("departments")
+          .select("id")
+          .eq("manager_id", userId);
 
         if (error) throw error;
-        setSelectedDepts(data?.map(d => d.department_id) || []);
+        setSelectedDepts(data?.map(d => d.id) || []);
       } catch (error) {
         console.error("Error loading managed departments:", error);
       } finally {
