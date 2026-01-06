@@ -415,10 +415,20 @@ export const DepartmentQuestionnaireDialog = ({
       const senderProfile = profiles.find(p => p.id === user?.id);
       const senderName = senderProfile?.full_name || "Your manager";
 
+      // Get store name for the email
+      const { data: department } = await supabase
+        .from("departments")
+        .select("store_id, stores(name)")
+        .eq("id", departmentId)
+        .maybeSingle();
+      
+      const storeName = (department?.stores as { name: string } | null)?.name || "";
+
       const { error } = await supabase.functions.invoke("send-questionnaire-email", {
         body: {
           departmentId,
           departmentName,
+          storeName,
           managerEmail: selectedRecipientEmail,
           questions,
           senderName,
