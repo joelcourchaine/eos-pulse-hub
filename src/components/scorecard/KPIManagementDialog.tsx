@@ -74,6 +74,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   
   const availableRoles = [
     { value: "department_manager", label: "Department Manager" },
+    { value: "fixed_ops_manager", label: "Fixed Ops Manager" },
     { value: "sales_advisor", label: "Sales Advisor" },
     { value: "service_advisor", label: "Service Advisor" },
     { value: "parts_advisor", label: "Parts Advisor" },
@@ -123,20 +124,46 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       return;
     }
 
-    // Then get profiles for that store only
-    const { data, error } = await supabase
+    const storeId = departmentData.store_id;
+
+    // Get profiles directly assigned to this store
+    const { data: directProfiles, error: directError } = await supabase
       .from("profiles")
       .select("id, full_name, email")
-      .eq("store_id", departmentData.store_id)
-      .order("full_name");
+      .eq("store_id", storeId);
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    if (directError) {
+      toast({ title: "Error", description: directError.message, variant: "destructive" });
       return;
     }
 
-    // Filter out any profiles with invalid IDs
-    setProfiles((data || []).filter(p => p.id && p.id.trim() !== ""));
+    // Get users with multi-store access to this store
+    const { data: storeAccessUsers } = await supabase
+      .from("user_store_access")
+      .select("user_id")
+      .eq("store_id", storeId);
+
+    const storeAccessUserIds = storeAccessUsers?.map(u => u.user_id) || [];
+
+    // Fetch profiles for users with store access
+    let accessProfiles: Profile[] = [];
+    if (storeAccessUserIds.length > 0) {
+      const { data: accessData } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", storeAccessUserIds);
+      
+      accessProfiles = accessData || [];
+    }
+
+    // Combine and deduplicate profiles
+    const allProfiles = [...(directProfiles || []), ...accessProfiles];
+    const uniqueProfiles = allProfiles.filter((profile, index, self) =>
+      profile.id && profile.id.trim() !== "" &&
+      index === self.findIndex(p => p.id === profile.id)
+    );
+
+    setProfiles(uniqueProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name)));
   };
 
   const handleAddPresetKPI = async (preset: PresetKPI) => {
