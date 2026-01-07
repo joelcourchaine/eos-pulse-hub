@@ -200,19 +200,39 @@ export function CombinedTrendView({
     enabled: kpiIds.length > 0,
   });
 
-  // Fetch financial entries for date range
+  // Fetch financial entries for date range - handle large datasets by paginating
   const { data: financialEntries, isLoading: loadingFinancial } = useQuery({
     queryKey: ["combined_trend_financial", departmentIds, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id)")
-        .in("department_id", departmentIds)
-        .gte("month", startMonth)
-        .lte("month", endMonth);
-      if (error) throw error;
-      return data || [];
+      
+      // Fetch all entries by paginating to avoid 1000 row limit
+      const allEntries: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("financial_entries")
+          .select("*, departments(id, name, store_id)")
+          .in("department_id", departmentIds)
+          .gte("month", startMonth)
+          .lte("month", endMonth)
+          .range(from, from + pageSize - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allEntries.push(...data);
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allEntries;
     },
     enabled: departmentIds.length > 0,
   });
