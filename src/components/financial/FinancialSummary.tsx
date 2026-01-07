@@ -106,16 +106,27 @@ const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count
   return quarters.reverse();
 };
 
-const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => {
+const getQuarterTrendPeriods = (selectedYear: number) => {
   const quarters = [];
-  const startYear = currentYear - 1;
+  const startYear = selectedYear - 1;
+  const now = new Date();
+  const actualCurrentYear = now.getFullYear();
+  const actualCurrentQuarter = Math.floor(now.getMonth() / 3) + 1;
   
   // Start from Q1 of last year
-  for (let y = startYear; y <= currentYear; y++) {
-    const startQ = y === startYear ? 1 : 1;
-    const endQ = y === currentYear ? currentQuarter : 4;
+  for (let y = startYear; y <= selectedYear; y++) {
+    // For the selected year: if it's in the past, show all 4 quarters
+    // If it's the current year, only show up to the current quarter
+    let endQ: number;
+    if (y < actualCurrentYear) {
+      endQ = 4; // Past year - show all quarters
+    } else if (y === actualCurrentYear) {
+      endQ = actualCurrentQuarter; // Current year - show up to current quarter
+    } else {
+      endQ = 0; // Future year - show nothing
+    }
     
-    for (let q = startQ; q <= endQ; q++) {
+    for (let q = 1; q <= endQ; q++) {
       quarters.push({
         quarter: q,
         year: y,
@@ -333,7 +344,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
   // Use the year prop for trend views, not the current year
-  const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarter, year) : [];
+  const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(year) : [];
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(year) : [];
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
