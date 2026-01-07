@@ -3793,6 +3793,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
                             const baseValue = getValueForMetric(metric.calculation.base);
                             
+                            // Debug logging for calculated metrics
+                            if (['net', 'department_profit', 'return_on_gross'].includes(metric.key)) {
+                              console.log(`[Calc Debug] ${metric.key} for ${month.identifier}:`, {
+                                base: metric.calculation.base,
+                                baseValue,
+                                deductions: metric.calculation.deductions,
+                                additions: 'additions' in metric.calculation ? metric.calculation.additions : [],
+                              });
+                            }
+                            
                             if (baseValue !== null && baseValue !== undefined) {
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
@@ -3805,11 +3815,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
                                 for (const addition of metric.calculation.additions) {
                                   const additionValue = getValueForMetric(addition);
+                                  if (['net'].includes(metric.key)) {
+                                    console.log(`[Calc Debug] ${metric.key} addition ${addition}:`, additionValue);
+                                  }
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
                               
                               value = calculatedValue;
+                              if (['net', 'department_profit'].includes(metric.key)) {
+                                console.log(`[Calc Debug] ${metric.key} final value:`, value);
+                              }
                             } else {
                               value = undefined;
                             }
