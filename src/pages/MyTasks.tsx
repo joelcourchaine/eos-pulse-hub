@@ -169,6 +169,20 @@ const MyTasks = () => {
       const uniqueDeptIds = [...new Set(departmentIds)];
       const profilesMap: Record<string, Profile[]> = {};
       
+      // Fetch all profiles using security definer function
+      const { data: allProfiles, error: profilesError } = await supabase.rpc("get_profiles_basic");
+      
+      if (profilesError) {
+        console.error("Error loading profiles:", profilesError);
+        return;
+      }
+      
+      // Create a map for quick lookup
+      const profilesById = new Map<string, Profile>();
+      (allProfiles || []).forEach((p: { id: string; full_name: string; store_id: string; store_group_id: string }) => {
+        profilesById.set(p.id, { id: p.id, full_name: p.full_name, email: '' });
+      });
+      
       // Fetch super admins (they should be available in all departments)
       const { data: superAdminRoles } = await supabase
         .from("user_roles")
@@ -177,14 +191,9 @@ const MyTasks = () => {
       
       const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
       
-      let superAdminProfiles: Profile[] = [];
-      if (superAdminIds.length > 0) {
-        const { data: superAdmins } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .in("id", superAdminIds);
-        superAdminProfiles = superAdmins || [];
-      }
+      const superAdminProfiles: Profile[] = superAdminIds
+        .map(id => profilesById.get(id))
+        .filter((p): p is Profile => !!p);
       
       // For group-level tasks, only super admins can be assigned
       if (includeGroupLevel) {
@@ -212,22 +221,20 @@ const MyTasks = () => {
         
         const storeGmIds = storeGmRoles?.map(r => r.user_id) || [];
         
-        let storeGmProfiles: Profile[] = [];
-        if (storeGmIds.length > 0 && storeGroupId) {
-          // Get store GM profiles that belong to the same store group
-          const { data: gmProfiles } = await supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .in("id", storeGmIds)
-            .eq("store_group_id", storeGroupId);
-          storeGmProfiles = gmProfiles || [];
-        }
+        // Filter store GM profiles that belong to the same store group
+        const storeGmProfiles: Profile[] = storeGmIds
+          .map(id => {
+            const profile = (allProfiles || []).find((p: { id: string; store_group_id: string }) => 
+              p.id === id && p.store_group_id === storeGroupId
+            );
+            return profile ? { id: profile.id, full_name: profile.full_name, email: '' } : null;
+          })
+          .filter((p): p is Profile => !!p);
         
         // Get profiles belonging to this store
-        const { data: storeProfiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .eq("store_id", dept.store_id);
+        const storeProfiles: Profile[] = (allProfiles || [])
+          .filter((p: { store_id: string }) => p.store_id === dept.store_id)
+          .map((p: { id: string; full_name: string }) => ({ id: p.id, full_name: p.full_name, email: '' }));
         
         // Get profiles with explicit department access
         const { data: deptAccess } = await supabase
@@ -237,18 +244,13 @@ const MyTasks = () => {
         
         const deptAccessUserIds = deptAccess?.map(a => a.user_id) || [];
         
-        let deptAccessProfiles: Profile[] = [];
-        if (deptAccessUserIds.length > 0) {
-          const { data: accessProfiles } = await supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .in("id", deptAccessUserIds);
-          deptAccessProfiles = accessProfiles || [];
-        }
+        const deptAccessProfiles: Profile[] = deptAccessUserIds
+          .map(id => profilesById.get(id))
+          .filter((p): p is Profile => !!p);
         
         // Combine all profiles (store profiles + dept access + store GMs + super admins), removing duplicates
-        const allProfiles = [...(storeProfiles || []), ...deptAccessProfiles, ...storeGmProfiles, ...superAdminProfiles];
-        const uniqueProfiles = allProfiles.filter((p, i, arr) => 
+        const allDeptProfiles = [...storeProfiles, ...deptAccessProfiles, ...storeGmProfiles, ...superAdminProfiles];
+        const uniqueProfiles = allDeptProfiles.filter((p, i, arr) => 
           arr.findIndex(x => x.id === p.id) === i
         );
         

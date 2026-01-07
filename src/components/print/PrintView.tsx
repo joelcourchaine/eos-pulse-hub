@@ -103,14 +103,12 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     setDepartments([]); // Clear previous departments
     setDepartmentData({}); // Clear previous data
     
-    // Fetch profiles
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("id, full_name");
+    // Fetch profiles using security definer function
+    const { data: profilesData } = await supabase.rpc("get_profiles_basic");
     
     const profilesMap: { [key: string]: Profile } = {};
-    profilesData?.forEach(profile => {
-      profilesMap[profile.id] = profile;
+    profilesData?.forEach((profile: { id: string; full_name: string }) => {
+      profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
     });
     setProfiles(profilesMap);
 

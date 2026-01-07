@@ -78,43 +78,14 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     if (!departmentId) return;
     
     try {
-      // First get the department's store_id
-      const { data: department, error: deptError } = await supabase
-        .from("departments")
-        .select("store_id")
-        .eq("id", departmentId)
-        .single();
-
-      if (deptError) throw deptError;
-
-      // Get super_admin user IDs
-      const { data: superAdmins, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "super_admin");
-
-      if (rolesError) throw rolesError;
-
-      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
-
-      // Get profiles for that store OR super_admins
-      let query = supabase
-        .from("profiles")
-        .select("id, full_name");
-
-      if (superAdminIds.length > 0) {
-        query = query.or(`store_id.eq.${department.store_id},id.in.(${superAdminIds.join(',')})`);
-      } else {
-        query = query.eq("store_id", department.store_id);
-      }
-
-      const { data, error } = await query;
+      // Use the security definer function to get basic profile data
+      const { data, error } = await supabase.rpc("get_profiles_basic");
 
       if (error) throw error;
 
       const profilesMap: { [key: string]: Profile } = {};
-      data?.forEach(profile => {
-        profilesMap[profile.id] = profile;
+      data?.forEach((profile: { id: string; full_name: string }) => {
+        profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
       });
       setProfiles(profilesMap);
     } catch (error: any) {

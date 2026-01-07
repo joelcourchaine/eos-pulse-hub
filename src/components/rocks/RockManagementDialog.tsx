@@ -87,21 +87,23 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
       accessData.forEach(access => userIdsWithAccess.add(access.user_id));
     }
 
-    // Fetch profiles that belong to the store AND have department access
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name")
-      .eq("store_id", department.store_id)
-      .order("full_name");
+    // Use security definer function to get all basic profiles
+    const { data, error } = await supabase.rpc("get_profiles_basic");
 
     if (error) {
       console.error("Error loading profiles:", error);
       return;
     }
 
-    // Filter to only those with department access
+    // Filter to only those with department access and same store
     const filteredProfiles = (data || []).filter(
-      profile => userIdsWithAccess.has(profile.id)
+      (profile: { id: string; full_name: string; store_id: string }) => 
+        profile.store_id === department.store_id && userIdsWithAccess.has(profile.id)
+    ).map((p: { id: string; full_name: string }) => ({ id: p.id, full_name: p.full_name }));
+
+    // Sort by name
+    filteredProfiles.sort((a: { full_name: string }, b: { full_name: string }) => 
+      a.full_name.localeCompare(b.full_name)
     );
 
     setProfiles(filteredProfiles);

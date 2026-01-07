@@ -1790,6 +1790,16 @@ export type Database = {
     }
     Functions: {
       get_current_user_store_group: { Args: never; Returns: string }
+      get_profiles_basic: {
+        Args: never
+        Returns: {
+          full_name: string
+          id: string
+          role: string
+          store_group_id: string
+          store_id: string
+        }[]
+      }
       get_user_department: { Args: { _user_id: string }; Returns: string }
       get_user_departments: {
         Args: { _user_id: string }

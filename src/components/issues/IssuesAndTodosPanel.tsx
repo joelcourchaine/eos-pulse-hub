@@ -96,34 +96,14 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!departmentId) return;
     
     try {
-      const { data: department } = await supabase
-        .from("departments")
-        .select("store_id")
-        .eq("id", departmentId)
-        .single();
+      // Use security definer function to get basic profile data
+      const { data, error } = await supabase.rpc("get_profiles_basic");
 
-      if (!department) return;
-
-      const { data: superAdmins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "super_admin");
-
-      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
-
-      let query = supabase.from("profiles").select("id, full_name");
-      
-      if (superAdminIds.length > 0) {
-        query = query.or(`store_id.eq.${department.store_id},id.in.(${superAdminIds.join(',')})`);
-      } else {
-        query = query.eq("store_id", department.store_id);
-      }
-
-      const { data } = await query;
+      if (error) throw error;
 
       const profilesMap: { [key: string]: Profile } = {};
-      data?.forEach(profile => {
-        profilesMap[profile.id] = profile;
+      data?.forEach((profile: { id: string; full_name: string }) => {
+        profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
       });
       setProfiles(profilesMap);
     } catch (error: any) {
