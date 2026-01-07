@@ -629,12 +629,7 @@ export function useForecastCalculations({
   ): Map<string, SubMetricForecast[]> => {
     const result = new Map<string, SubMetricForecast[]>();
     
-    if (import.meta.env.DEV) {
-      console.debug('[forecast] calculateSubMetricForecasts called', {
-        hasSubMetricBaselines: !!subMetricBaselines && subMetricBaselines.length > 0,
-        subMetricOverridesCount: subMetricOverrides?.length ?? 0,
-      });
-    }
+    // Debug logging removed to reduce console noise
     
     if (!subMetricBaselines || subMetricBaselines.length === 0) {
       return result;
@@ -646,10 +641,6 @@ export function useForecastCalculations({
       overrideMap.set(o.subMetricKey, o.overriddenAnnualValue);
     });
     
-    // Always log override map when overrides exist
-    if (subMetricOverrides && subMetricOverrides.length > 0) {
-      console.log('[forecast] overrideMap keys:', Array.from(overrideMap.keys()));
-    }
     
     // Identify which parent metrics are percentages
     const percentageParents = new Set(
@@ -681,18 +672,6 @@ export function useForecastCalculations({
       const isOverridden = overrideValue !== undefined || overrideMap.has(subMetricKey);
       const overriddenAnnual = overrideValue ?? overrideMap.get(subMetricKey);
 
-      // Log key matching for gp_percent sub-metrics
-      if (parentKey === 'gp_percent') {
-        console.log('[forecast] gp_percent sub check:', subMetricKey, 'override found:', isOverridden);
-      }
-
-      if (import.meta.env.DEV && parentKey === 'gp_percent' && sub.name.toLowerCase() === 'internal service') {
-        console.debug('[forecast] gp_percent sub override check', {
-          subMetricKey,
-          isOverridden,
-          overriddenAnnual,
-        });
-      }
       
       const forecastMonthlyValues = new Map<string, number>();
       let annualValue = 0;
@@ -757,14 +736,12 @@ export function useForecastCalculations({
       
       // If overridden, distribute override annual value across months
       if (isOverridden && overriddenAnnual !== undefined) {
-        console.log('[forecast] Applying override for', subMetricKey, 'value:', overriddenAnnual, 'isPercentageParent:', isPercentageParent);
         if (isPercentageParent) {
           // For percentage sub-metrics, each month gets the same percentage value
           months.forEach((forecastMonth) => {
             forecastMonthlyValues.set(forecastMonth, overriddenAnnual);
             annualValue += overriddenAnnual;
           });
-          console.log('[forecast] After override application, annualValue:', annualValue);
         } else {
           // For currency sub-metrics, distribute proportionally based on baseline pattern
           let totalBaselineWeight = 0;
@@ -874,9 +851,6 @@ export function useForecastCalculations({
         baselineAnnualValue = baselineMonthCount > 0 ? baselineAnnualValue / baselineMonthCount : 0;
       }
       
-      if (isOverridden) {
-        console.log('[forecast] Returning overridden sub-metric:', subMetricKey, 'annualValue:', annualValue, 'isOverridden:', isOverridden);
-      }
       
       return {
         key: subMetricKey,
@@ -1401,8 +1375,13 @@ export function useForecastCalculations({
   }, [subMetricBaselines, subMetricOverrides, months, forecastYear, baselineData, growth, salesExpense, fixedExpense, weightsMap, annualBaseline, entriesMap]);
 
   // Calculate all values - with sub-metric override flow-up
-  const baseMonthlyValues = calculateMonthlyValues();
-  const subMetricForecasts = calculateSubMetricForecasts(baseMonthlyValues);
+  // IMPORTANT: Memoize these to prevent recalculation on every render
+  const baseMonthlyValues = useMemo(() => calculateMonthlyValues(), [calculateMonthlyValues]);
+  
+  const subMetricForecasts = useMemo(
+    () => calculateSubMetricForecasts(baseMonthlyValues),
+    [calculateSubMetricForecasts, baseMonthlyValues]
+  );
   
   // Adjust parent totals based on sub-metric sums when overrides exist
   // This allows sub-metric changes to flow up to parent metrics and department profit
