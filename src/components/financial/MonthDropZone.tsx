@@ -93,7 +93,7 @@ export const MonthDropZone = ({
   const { toast } = useToast();
 
   // Supported brands for Excel processing
-  const SUPPORTED_BRANDS = ['Nissan', 'Ford'];
+  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC'];
   const isSupportedBrand = storeBrand && SUPPORTED_BRANDS.includes(storeBrand);
 
   // Re-validate on mount if there's an existing attachment for supported brands
