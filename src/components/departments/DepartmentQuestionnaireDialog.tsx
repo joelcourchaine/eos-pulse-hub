@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/use-user-role";
 import { supabase } from "@/integrations/supabase/client";
 import { ClipboardList, Save, History, Mail, Edit2, X, Upload, Trash2, Plus, Settings } from "lucide-react";
+import { SignedImage } from "@/components/ui/signed-image";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
@@ -664,13 +665,10 @@ export const DepartmentQuestionnaireDialog = ({
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("note-attachments")
-        .getPublicUrl(filePath);
-
+      // Store the file path, not the URL - we'll generate signed URLs when displaying
       const { error: updateError } = await supabase
         .from("department_questions")
-        .update({ reference_image_url: publicUrl })
+        .update({ reference_image_url: filePath })
         .eq("id", questionId);
 
       if (updateError) throw updateError;
@@ -692,7 +690,12 @@ export const DepartmentQuestionnaireDialog = ({
   const handleRemoveImage = async (questionId: string, imageUrl: string) => {
     try {
       const urlParts = imageUrl.split("/");
-      const filePath = `question-references/${urlParts[urlParts.length - 1]}`;
+      // The imageUrl is now a file path (or legacy full URL)
+      let filePath = imageUrl;
+      if (imageUrl.startsWith("http")) {
+        const urlParts = imageUrl.split("/note-attachments/");
+        filePath = urlParts.length === 2 ? urlParts[1] : `question-references/${imageUrl.split("/").pop()}`;
+      }
 
       const { error: deleteError } = await supabase.storage
         .from("note-attachments")
@@ -911,8 +914,9 @@ export const DepartmentQuestionnaireDialog = ({
         )}
         {question.reference_image_url && (
           <div className="relative">
-            <img
-              src={question.reference_image_url}
+            <SignedImage
+              bucket="note-attachments"
+              path={question.reference_image_url}
               alt="Reference"
               className="max-w-md rounded-lg border mb-2"
             />

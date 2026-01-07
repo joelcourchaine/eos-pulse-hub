@@ -109,12 +109,18 @@ export const RichTextEditor = ({
 
           if (error) throw error;
 
-          const { data: { publicUrl } } = supabase.storage
+          const { data: signedData, error: signedError } = await supabase.storage
             .from("note-attachments")
-            .getPublicUrl(filePath);
+            .createSignedUrl(filePath, 86400); // 24 hour expiry for embedded images
+
+          if (signedError || !signedData?.signedUrl) {
+            throw new Error("Failed to generate signed URL");
+          }
 
           const img = document.createElement("img");
-          img.src = publicUrl;
+          img.src = signedData.signedUrl;
+          // Store the file path as data attribute for future re-signing
+          img.dataset.storagePath = filePath;
           img.alt = "Pasted image";
           img.style.maxWidth = "100%";
           img.style.height = "auto";

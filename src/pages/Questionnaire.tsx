@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { SignedImage } from "@/components/ui/signed-image";
 
 interface Question {
   id: string;
@@ -169,8 +170,9 @@ export default function Questionnaire() {
                     <p className="text-xs text-muted-foreground">{question.answer_description}</p>
                   )}
                   {question.reference_image_url && (
-                    <img 
-                      src={question.reference_image_url} 
+                    <SignedImage 
+                      bucket="note-attachments"
+                      path={question.reference_image_url}
                       alt="Reference" 
                       className="mt-2 max-w-md rounded-lg border border-border"
                     />
