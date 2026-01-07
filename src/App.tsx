@@ -16,7 +16,6 @@ import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
 import MandatoryKPIRules from "./pages/MandatoryKPIRules";
-import Test from "./pages/Test";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,7 +39,6 @@ const App = () => (
             <Route path="/questionnaire/:token" element={<Questionnaire />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
-            <Route path="/test" element={<Test />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
