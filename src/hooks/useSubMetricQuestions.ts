@@ -2,16 +2,25 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface QuestionAnswer {
-  questionNumber: number;
+  questionId: string;
+  questionNumber: number; // display_order for display purposes
   questionText: string;
   answerValue: string | null;
 }
 
-// Mapping of sub-metric names to question display_order numbers
+// Mapping of sub-metric names to question UUIDs (stable - never changes regardless of display_order)
 // Add mappings here as needed
-const SUB_METRIC_QUESTION_MAP: Record<string, number[]> = {
-  "Tools & Supplies": [12, 13, 14],
-  "Shop Supplies": [12, 13, 14],
+const SUB_METRIC_QUESTION_MAP: Record<string, string[]> = {
+  "Tools & Supplies": [
+    "a8c8878d-0d10-4045-9571-b813411d4db8", // Shop Supplies Labour Calculation
+    "1d287b03-446c-401e-968d-7ddab314d6d1", // What is your max shop supplies amount?
+    "eca6c439-9e54-43f0-ab51-1433c573b078", // Do you charge shop supplies based on parts?
+  ],
+  "Shop Supplies": [
+    "a8c8878d-0d10-4045-9571-b813411d4db8", // Shop Supplies Labour Calculation
+    "1d287b03-446c-401e-968d-7ddab314d6d1", // What is your max shop supplies amount?
+    "eca6c439-9e54-43f0-ab51-1433c573b078", // Do you charge shop supplies based on parts?
+  ],
   // Add more mappings as needed
 };
 
@@ -44,12 +53,13 @@ export function useSubMetricQuestions(departmentId: string | undefined) {
         answerMap.set(a.question_id, a.answer_value);
       });
 
-      // Create a map of display_order -> { questionText, answerValue }
-      const questionMap = new Map<number, { questionText: string; answerValue: string | null }>();
+      // Create a map of question UUID -> { questionText, answerValue, displayOrder }
+      const questionMap = new Map<string, { questionText: string; answerValue: string | null; displayOrder: number }>();
       questions?.forEach((q) => {
-        questionMap.set(q.display_order, {
+        questionMap.set(q.id, {
           questionText: q.question_text,
           answerValue: answerMap.get(q.id) || null,
+          displayOrder: q.display_order,
         });
       });
 
@@ -63,15 +73,16 @@ export function useSubMetricQuestions(departmentId: string | undefined) {
   const getQuestionsForSubMetric = (subMetricName: string): QuestionAnswer[] => {
     if (!questionsAndAnswers) return [];
 
-    const questionNumbers = SUB_METRIC_QUESTION_MAP[subMetricName];
-    if (!questionNumbers) return [];
+    const questionIds = SUB_METRIC_QUESTION_MAP[subMetricName];
+    if (!questionIds) return [];
 
-    return questionNumbers
-      .map((num) => {
-        const qa = questionsAndAnswers.get(num);
+    return questionIds
+      .map((id) => {
+        const qa = questionsAndAnswers.get(id);
         if (!qa) return null;
         return {
-          questionNumber: num,
+          questionId: id,
+          questionNumber: qa.displayOrder,
           questionText: qa.questionText,
           answerValue: qa.answerValue,
         };
