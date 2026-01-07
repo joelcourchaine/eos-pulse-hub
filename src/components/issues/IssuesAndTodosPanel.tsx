@@ -437,7 +437,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                               {issue.status}
                             </Badge>
                             <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
-                              <SelectTrigger className="h-6 w-24 text-xs capitalize">
+                              <SelectTrigger className="h-6 w-[5.5rem] text-xs capitalize">
                                 <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
                                 <SelectValue />
                               </SelectTrigger>
@@ -555,7 +555,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                           </Badge>
                         )}
                         <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
-                          <SelectTrigger className="h-6 w-24 text-xs capitalize">
+                          <SelectTrigger className="h-6 w-[5.5rem] text-xs capitalize">
                             <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
                             <SelectValue />
                           </SelectTrigger>
