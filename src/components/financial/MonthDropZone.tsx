@@ -279,6 +279,12 @@ export const MonthDropZone = ({
         title: "Financial data imported",
         description: `Imported ${importResult.importedCount} values from Excel`,
       });
+    } else {
+      toast({
+        title: "Import failed",
+        description: importResult.error || "Failed to import values from Excel",
+        variant: "destructive",
+      });
     }
 
     // Create attachment records for ALL departments at this store
