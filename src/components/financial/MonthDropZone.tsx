@@ -68,6 +68,7 @@ interface MonthDropZoneProps {
 const ACCEPTED_TYPES = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
   "application/vnd.ms-excel": "excel",
+  "application/vnd.ms-excel.sheet.macroEnabled.12": "excel", // .xlsm files
   "text/csv": "csv",
   "application/pdf": "pdf",
 };
@@ -401,7 +402,7 @@ export const MonthDropZone = ({
       if (!fileType) {
         toast({
           title: "Invalid file type",
-          description: "Please drop an Excel (.xlsx, .xls, .csv) or PDF file",
+          description: "Please drop an Excel (.xlsx, .xlsm, .xls, .csv) or PDF file",
           variant: "destructive",
         });
         return;
