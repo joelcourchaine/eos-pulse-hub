@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { Resend } from 'https://esm.sh/resend@4.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +20,81 @@ interface CreateUserRequest {
   start_month?: number;
   start_year?: number;
   send_password_email?: boolean;
+}
+
+// Generate the invite email HTML
+function getInviteEmailHtml(inviteLink: string, fullName: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>You're Invited to Dealer Growth Solutions</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #1a1a1a; margin-bottom: 10px;">Welcome to Dealer Growth Solutions</h1>
+      </div>
+      
+      <p>Hello ${fullName || 'there'},</p>
+      
+      <p>You've been invited to join Dealer Growth Solutions. Click the button below to set your password and access your account.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${inviteLink}" style="background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Set Your Password</a>
+      </div>
+      
+      <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+      <p style="word-break: break-all; color: #2563eb; font-size: 14px;">${inviteLink}</p>
+      
+      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 24 hours.</p>
+      
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      
+      <p style="color: #999; font-size: 12px; text-align: center;">
+        Dealer Growth Solutions<br>
+        If you didn't expect this invitation, you can safely ignore this email.
+      </p>
+    </body>
+    </html>
+  `;
+}
+
+// Send email via Resend
+async function sendInviteEmailViaResend(
+  email: string, 
+  inviteLink: string, 
+  fullName: string
+): Promise<{ success: boolean; error?: string }> {
+  const resendApiKey = Deno.env.get('RESEND_API_KEY');
+  
+  if (!resendApiKey) {
+    console.error('RESEND_API_KEY is not configured');
+    return { success: false, error: 'Email service not configured' };
+  }
+
+  const resend = new Resend(resendApiKey);
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'Dealer Growth Solutions <noreply@dealergrowth.solutions>',
+      to: [email],
+      subject: "You're Invited to Dealer Growth Solutions",
+      html: getInviteEmailHtml(inviteLink, fullName),
+    });
+
+    if (error) {
+      console.error('Resend API error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('Invite email sent successfully via Resend:', data);
+    return { success: true };
+  } catch (err) {
+    console.error('Error sending email via Resend:', err);
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown email error' };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -165,30 +241,52 @@ Deno.serve(async (req) => {
     const referer = req.headers.get('referer') || '';
     const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
 
-    // Invite the user - this will send them an email to set their password
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      data: {
-        full_name,
-        birthday_month,
-        birthday_day,
-        start_month,
-        start_year,
+    // Generate the invite link (doesn't send email via Supabase)
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'invite',
+      email: email,
+      options: {
+        redirectTo: `${origin}/set-password`,
+        data: {
+          full_name,
+          birthday_month,
+          birthday_day,
+          start_month,
+          start_year,
+        },
       },
-      redirectTo: `${origin}/set-password`
     });
 
-    if (userError) {
-      console.error('Error creating user:', userError);
-      throw userError;
+    if (linkError) {
+      console.error('Error generating invite link:', linkError);
+      throw linkError;
     }
 
-    console.log('User created in auth:', userData.user.id);
+    if (!linkData?.properties?.action_link) {
+      console.error('No action link returned from generateLink');
+      throw new Error('Failed to generate invite link');
+    }
+
+    const inviteLink = linkData.properties.action_link;
+    const userId = linkData.user.id;
+
+    console.log('User created in auth:', userId);
+    console.log('Invite link generated successfully');
+
+    // Send the invite email via Resend
+    const emailResult = await sendInviteEmailViaResend(email, inviteLink, full_name);
+    if (!emailResult.success) {
+      console.error('Failed to send invite email:', emailResult.error);
+      // Note: We continue even if email fails - user is created, admin can resend later
+    } else {
+      console.log('Invite email sent successfully to:', email);
+    }
 
     // Insert into user_roles table (primary source of truth for roles)
     const { error: userRoleError } = await supabaseAdmin
       .from('user_roles')
       .insert({
-        user_id: userData.user.id,
+        user_id: userId,
         role: role,
         assigned_by: user.id,
       });
@@ -220,7 +318,7 @@ Deno.serve(async (req) => {
         store_id: store_id || null,
         store_group_id: finalStoreGroupId,
       })
-      .eq('id', userData.user.id);
+      .eq('id', userId);
 
     if (profileError) {
       console.error('Error updating profile:', profileError);
@@ -235,7 +333,7 @@ Deno.serve(async (req) => {
         // Set user as manager of the department
         const { error: departmentError } = await supabaseAdmin
           .from('departments')
-          .update({ manager_id: userData.user.id })
+          .update({ manager_id: userId })
           .eq('id', deptId);
 
         if (departmentError) {
@@ -248,7 +346,7 @@ Deno.serve(async (req) => {
         const { error: accessError } = await supabaseAdmin
           .from('user_department_access')
           .insert({
-            user_id: userData.user.id,
+            user_id: userId,
             department_id: deptId,
             granted_by: user.id
           });
@@ -267,7 +365,7 @@ Deno.serve(async (req) => {
         const { error: storeAccessError } = await supabaseAdmin
           .from('user_store_access')
           .insert({
-            user_id: userData.user.id,
+            user_id: userId,
             store_id: storeId,
             granted_by: user.id
           });
@@ -280,15 +378,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('Invitation email sent to:', email);
-
     return new Response(
       JSON.stringify({
         success: true,
         user: {
-          id: userData.user.id,
-          email: userData.user.email,
+          id: userId,
+          email: linkData.user.email,
         },
+        emailSent: emailResult.success,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
