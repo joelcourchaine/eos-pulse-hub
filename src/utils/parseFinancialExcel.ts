@@ -226,9 +226,21 @@ export const parseFinancialExcel = (
             a.metric_key.localeCompare(b.metric_key, undefined, { numeric: true })
           );
           
-          // Use Excel row number as orderIndex so $ and % lines on the same row share a stable key.
-          // This avoids any name-based pairing and makes cross-parent pairing deterministic.
+          // Use order index from the metric_key in the mapping, NOT the Excel row number.
+          // metric_key format: "sub:parent_key:order:Name" e.g., "sub:total_sales:001:Repair Shop"
+          // This ensures we use the intended order from the mappings.
           let fallbackOrderIndex = 0;
+          const extractOrderFromMetricKey = (metricKey: string): number => {
+            const parts = metricKey.split(':');
+            if (parts.length >= 4) {
+              // Format: sub:parent:order:name
+              const orderPart = parts[2];
+              const parsed = parseInt(orderPart, 10);
+              if (!isNaN(parsed)) return parsed;
+            }
+            return fallbackOrderIndex++;
+          };
+
           for (const mapping of sortedMappings) {
             // Try exact match first, then case-insensitive match, then fall back to first sheet
             let sheet = workbook.Sheets[mapping.sheet_name];
@@ -257,9 +269,8 @@ export const parseFinancialExcel = (
               continue;
             }
 
-            // Derive statement order from the row number in cell_reference (e.g., "D70" -> 70)
-            const cellRef = parseCellReference(mapping.cell_reference);
-            const orderIndex = cellRef?.row ?? fallbackOrderIndex++;
+            // Extract order index from the metric_key in the mapping
+            const orderIndex = extractOrderFromMetricKey(mapping.metric_key);
 
             // Read the metric name from name_cell_reference OR extract from metric_key
             let metricName: string | null = null;
