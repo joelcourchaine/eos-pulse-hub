@@ -545,11 +545,20 @@ export const MonthDropZone = ({
   const handleViewAttachment = async () => {
     if (!attachment) return;
 
-    const { data } = supabase.storage
+    const { data, error } = await supabase.storage
       .from("financial-attachments")
-      .getPublicUrl(attachment.file_path);
+      .createSignedUrl(attachment.file_path, 3600);
 
-    window.open(data.publicUrl, "_blank");
+    if (error || !data?.signedUrl) {
+      toast({
+        title: "Failed to open file",
+        description: "Could not generate download link",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank");
   };
 
   const getFileIcon = (fileType: string) => {
