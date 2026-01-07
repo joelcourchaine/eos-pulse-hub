@@ -298,7 +298,15 @@ export const parseFinancialExcel = (
 
             // Read the value from cell_reference
             const valueCell = sheet[mapping.cell_reference];
-            const value = extractNumericValue(valueCell, workbook);
+            let value = extractNumericValue(valueCell, workbook);
+            
+            // For percentage sub-metrics (gp_percent), Excel stores as decimals (0.28 = 28%)
+            // Convert to percentage format (multiply by 100) if value is in decimal range
+            if (value !== null && mapping.parent_metric_key === 'gp_percent' && Math.abs(value) <= 1) {
+              value = value * 100;
+              console.log(`[Excel Parse Sub] ${deptName} - Converted gp_percent from decimal ${value/100} to ${value}%`);
+            }
+            
             console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${mapping.cell_reference}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
 
             // Only include if we have both a name and the parent key
