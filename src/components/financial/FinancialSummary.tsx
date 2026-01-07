@@ -1059,11 +1059,31 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       // Combine all month identifiers and dedupe
       const allMonthIdentifiers = [...new Set([...trendMonthIdentifiers, ...allPrevYearMonthIds, ...allCurrentYearMonthIds])];
       
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*")
-        .eq("department_id", departmentId)
-        .in("month", allMonthIdentifiers);
+      // Fetch all rows by paginating to avoid the 1000 row limit (sub-metrics create large datasets)
+      const allRows: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: page, error: pageError } = await supabase
+          .from("financial_entries")
+          .select("*")
+          .eq("department_id", departmentId)
+          .in("month", allMonthIdentifiers)
+          .range(from, from + pageSize - 1);
+
+        if (pageError) {
+          throw pageError;
+        }
+
+        allRows.push(...(page || []));
+        from += pageSize;
+        hasMore = (page?.length || 0) === pageSize;
+      }
+
+      const data = allRows;
+      const error = null as any;
 
       if (error) {
         console.error("Error loading monthly trend data:", error);
@@ -1188,12 +1208,31 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         allQuarterMonthIds.push(...monthIds);
       });
       
-      // Single query to fetch all data
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*")
-        .eq("department_id", departmentId)
-        .in("month", allQuarterMonthIds);
+      // Single query to fetch all data (paginate to avoid 1000 row limit)
+      const allRows: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: page, error: pageError } = await supabase
+          .from("financial_entries")
+          .select("*")
+          .eq("department_id", departmentId)
+          .in("month", allQuarterMonthIds)
+          .range(from, from + pageSize - 1);
+
+        if (pageError) {
+          throw pageError;
+        }
+
+        allRows.push(...(page || []));
+        from += pageSize;
+        hasMore = (page?.length || 0) === pageSize;
+      }
+
+      const data = allRows;
+      const error = null as any;
 
       if (error) {
         console.error("Error loading quarter trend data:", error);
