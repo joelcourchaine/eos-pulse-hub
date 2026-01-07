@@ -1052,34 +1052,17 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   };
 
   const fetchProfiles = async () => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, role");
+    // Use security definer function to get basic profile data
+    const { data, error } = await supabase.rpc("get_profiles_basic");
 
     if (error) {
       console.error("Error fetching profiles:", error);
       return;
     }
 
-    // Fetch user roles for each profile
-    const profilesWithRoles = await Promise.all(
-      (data || []).map(async (profile) => {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", profile.id)
-          .single();
-        
-        return {
-          ...profile,
-          role: roleData?.role || profile.role // Fall back to profile role if user_roles is empty
-        };
-      })
-    );
-
     const profilesMap: { [key: string]: Profile } = {};
-    profilesWithRoles.forEach(profile => {
-      profilesMap[profile.id] = profile;
+    (data || []).forEach((profile: { id: string; full_name: string; role: string }) => {
+      profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name, role: profile.role };
     });
     setProfiles(profilesMap);
   };
