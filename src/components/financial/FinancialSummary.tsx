@@ -863,6 +863,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       });
       
       setTrendTargets(trendTargetsMap);
+      
+      // Also load targets for the Set Targets dialog (organized by targetYear)
+      const editMapByQuarter: { [quarter: number]: { [key: string]: string } } = { 1: {}, 2: {}, 3: {}, 4: {} };
+      const editDirectionsMapByQuarter: { [quarter: number]: { [key: string]: "above" | "below" } } = { 1: {}, 2: {}, 3: {}, 4: {} };
+      
+      data?.forEach(target => {
+        if (target.year === targetYear) {
+          editMapByQuarter[target.quarter][target.metric_name] = target.target_value?.toString() || "";
+          editDirectionsMapByQuarter[target.quarter][target.metric_name] = (target.target_direction as "above" | "below") || "above";
+        }
+      });
+      
+      // Fill in default directions for metrics without saved targets
+      [1, 2, 3, 4].forEach(q => {
+        FINANCIAL_METRICS.forEach(metric => {
+          if (!editDirectionsMapByQuarter[q][metric.key]) {
+            editDirectionsMapByQuarter[q][metric.key] = metric.targetDirection;
+          }
+        });
+      });
+      
+      setEditTargets(editMapByQuarter);
+      setEditTargetDirections(editDirectionsMapByQuarter);
       return;
     }
 
