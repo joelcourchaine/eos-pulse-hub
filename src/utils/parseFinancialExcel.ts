@@ -438,7 +438,8 @@ export const importFinancialData = async (
   userId: string
 ): Promise<{ success: boolean; importedCount: number; error?: string }> => {
   let importedCount = 0;
-  
+  const errors: string[] = [];
+
   // Build batch arrays for regular metrics
   const regularEntries: Array<{
     department_id: string;
@@ -447,40 +448,40 @@ export const importFinancialData = async (
     value: number;
     created_by: string;
   }> = [];
-  
+
   for (const [deptName, metrics] of Object.entries(parsedData.metrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) continue;
-    
+
     for (const [metricKey, value] of Object.entries(metrics)) {
       if (value === null) continue;
       regularEntries.push({
         department_id: departmentId,
         month: monthIdentifier,
         metric_name: metricKey,
-        value: value,
+        value,
         created_by: userId,
       });
     }
   }
-  
+
   // Batch upsert regular metrics (single DB call)
   if (regularEntries.length > 0) {
     const { error } = await supabase
       .from('financial_entries')
       .upsert(regularEntries, {
-        onConflict: 'department_id,month,metric_name'
+        onConflict: 'department_id,month,metric_name',
       });
-    
+
     if (error) {
       console.error('Error batch upserting financial entries:', error);
+      errors.push(`Regular metrics upsert failed: ${error.message}`);
     } else {
       importedCount += regularEntries.length;
     }
   }
-  
+
   // Import sub-metrics with their dynamic names
-  // Collect all department IDs that have sub-metrics to delete
   const deptIdsWithSubMetrics = new Set<string>();
   const subMetricEntries: Array<{
     department_id: string;
@@ -489,13 +490,13 @@ export const importFinancialData = async (
     value: number | null;
     created_by: string;
   }> = [];
-  
+
   for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId || subMetrics.length === 0) continue;
-    
+
     deptIdsWithSubMetrics.add(departmentId);
-    
+
     for (const subMetric of subMetrics) {
       // Format: sub:{parent_key}:{order_index}:{name}
       const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
@@ -508,10 +509,10 @@ export const importFinancialData = async (
       });
     }
   }
-  
-  // Delete existing sub-metrics for all affected departments in parallel
+
+  // Delete existing sub-metrics for all affected departments (parallel)
   if (deptIdsWithSubMetrics.size > 0) {
-    const deletePromises = Array.from(deptIdsWithSubMetrics).map(deptId =>
+    const deletePromises = Array.from(deptIdsWithSubMetrics).map((deptId) =>
       supabase
         .from('financial_entries')
         .delete()
@@ -519,15 +520,16 @@ export const importFinancialData = async (
         .eq('month', monthIdentifier)
         .like('metric_name', 'sub:%')
     );
-    
+
     const deleteResults = await Promise.all(deletePromises);
-    deleteResults.forEach((result, idx) => {
+    deleteResults.forEach((result) => {
       if (result.error) {
         console.error('Error deleting sub-metric entries:', result.error);
+        errors.push(`Sub-metric delete failed: ${result.error.message}`);
       }
     });
   }
-  
+
   // Batch upsert sub-metrics (single DB call)
   if (subMetricEntries.length > 0) {
     const { error } = await supabase
@@ -535,13 +537,18 @@ export const importFinancialData = async (
       .upsert(subMetricEntries, {
         onConflict: 'department_id,month,metric_name',
       });
-    
+
     if (error) {
       console.error('Error batch upserting sub-metric entries:', error);
+      errors.push(`Sub-metrics upsert failed: ${error.message}`);
     } else {
       importedCount += subMetricEntries.length;
     }
   }
-  
+
+  if (errors.length > 0) {
+    return { success: false, importedCount, error: errors.join(' | ') };
+  }
+
   return { success: true, importedCount };
 };
