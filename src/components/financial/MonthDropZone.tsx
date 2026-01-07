@@ -397,7 +397,23 @@ export const MonthDropZone = ({
       if (files.length === 0) return;
 
       const file = files[0];
-      const fileType = ACCEPTED_TYPES[file.type as keyof typeof ACCEPTED_TYPES];
+
+      // Some browsers/providers (and some .xlsm files) may come through with a generic/empty MIME type,
+      // so we fall back to checking the file extension.
+      const getFileType = (f: File) => {
+        const byMime = ACCEPTED_TYPES[f.type as keyof typeof ACCEPTED_TYPES];
+        if (byMime) return byMime;
+
+        const ext = f.name.split(".").pop()?.toLowerCase();
+        if (!ext) return null;
+
+        if (["xlsx", "xls", "xlsm"].includes(ext)) return "excel" as const;
+        if (ext === "csv") return "csv" as const;
+        if (ext === "pdf") return "pdf" as const;
+        return null;
+      };
+
+      const fileType = getFileType(file);
 
       if (!fileType) {
         toast({
