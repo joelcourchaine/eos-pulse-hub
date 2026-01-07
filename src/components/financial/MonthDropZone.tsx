@@ -264,22 +264,21 @@ export const MonthDropZone = ({
     // Check if there are any sub-metrics to import
     const hasSubMetrics = Object.values(parsedData.subMetrics).some(arr => arr.length > 0);
 
-    // If any department needs import OR there are sub-metrics, do it
-    // Sub-metrics are always imported since they're not checked in validation
-    if (hasImported || hasSubMetrics) {
-      const importResult = await importFinancialData(
-        parsedData,
-        departmentsByName,
-        monthIdentifier,
-        userId
-      );
+    // Always import data when a file is dropped - this updates/refreshes all values
+    // Even if validation shows 'match', we still import to ensure sub-metrics are updated
+    // and any changes in the Excel file are reflected in the database
+    const importResult = await importFinancialData(
+      parsedData,
+      departmentsByName,
+      monthIdentifier,
+      userId
+    );
 
-      if (importResult.success) {
-        toast({
-          title: "Financial data imported",
-          description: `Imported ${importResult.importedCount} values from Excel`,
-        });
-      }
+    if (importResult.success) {
+      toast({
+        title: "Financial data imported",
+        description: `Imported ${importResult.importedCount} values from Excel`,
+      });
     }
 
     // Create attachment records for ALL departments at this store
