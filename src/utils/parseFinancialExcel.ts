@@ -429,7 +429,7 @@ export const validateAgainstDatabase = async (
 
 /**
  * Import parsed Excel data into the database
- * Now also imports sub-metrics
+ * Now also imports sub-metrics - OPTIMIZED with batch operations
  */
 export const importFinancialData = async (
   parsedData: ParsedFinancialData,
@@ -439,83 +439,109 @@ export const importFinancialData = async (
 ): Promise<{ success: boolean; importedCount: number; error?: string }> => {
   let importedCount = 0;
   
-  // Import regular metrics
+  // Build batch arrays for regular metrics
+  const regularEntries: Array<{
+    department_id: string;
+    month: string;
+    metric_name: string;
+    value: number;
+    created_by: string;
+  }> = [];
+  
   for (const [deptName, metrics] of Object.entries(parsedData.metrics)) {
     const departmentId = departmentsByName[deptName];
     if (!departmentId) continue;
     
     for (const [metricKey, value] of Object.entries(metrics)) {
       if (value === null) continue;
-      
-      const { error } = await supabase
-        .from('financial_entries')
-        .upsert({
-          department_id: departmentId,
-          month: monthIdentifier,
-          metric_name: metricKey,
-          value: value,
-          created_by: userId,
-        }, {
-          onConflict: 'department_id,month,metric_name'
-        });
-      
-      if (error) {
-        console.error('Error upserting financial entry:', error);
-      } else {
-        importedCount++;
-      }
+      regularEntries.push({
+        department_id: departmentId,
+        month: monthIdentifier,
+        metric_name: metricKey,
+        value: value,
+        created_by: userId,
+      });
+    }
+  }
+  
+  // Batch upsert regular metrics (single DB call)
+  if (regularEntries.length > 0) {
+    const { error } = await supabase
+      .from('financial_entries')
+      .upsert(regularEntries, {
+        onConflict: 'department_id,month,metric_name'
+      });
+    
+    if (error) {
+      console.error('Error batch upserting financial entries:', error);
+    } else {
+      importedCount += regularEntries.length;
     }
   }
   
   // Import sub-metrics with their dynamic names
-  // IMPORTANT: before inserting, delete any existing sub-metrics for that department+month.
-  // This prevents legacy/wrong-parent leftovers (e.g., older mappings saved under a different parent key)
-  // from sticking around and showing duplicate rows.
+  // Collect all department IDs that have sub-metrics to delete
+  const deptIdsWithSubMetrics = new Set<string>();
+  const subMetricEntries: Array<{
+    department_id: string;
+    month: string;
+    metric_name: string;
+    value: number | null;
+    created_by: string;
+  }> = [];
+  
   for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
     const departmentId = departmentsByName[deptName];
-    if (!departmentId) continue;
-
-    // Delete ALL existing sub-metrics for this department/month (regardless of parent)
-    const { error: deleteAllError } = await supabase
-      .from('financial_entries')
-      .delete()
-      .eq('department_id', departmentId)
-      .eq('month', monthIdentifier)
-      .like('metric_name', 'sub:%');
-
-    if (deleteAllError) {
-      console.error('Error deleting existing sub-metric entries:', deleteAllError);
-    }
-
-    // Insert the new sub-metrics (use upsert so repeated names in the same import are still stable)
+    if (!departmentId || subMetrics.length === 0) continue;
+    
+    deptIdsWithSubMetrics.add(departmentId);
+    
     for (const subMetric of subMetrics) {
-      // Import even when value is null so the sub-metric name still appears in the UI.
-      // This helps catch missing/blank cells (e.g., formula cells without cached values).
-
       // Format: sub:{parent_key}:{order_index}:{name}
       const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
-
-      const { error } = await supabase
-        .from('financial_entries')
-        .upsert(
-          {
-            department_id: departmentId,
-            month: monthIdentifier,
-            metric_name: metricName,
-            value: subMetric.value,
-            created_by: userId,
-          },
-          {
-            onConflict: 'department_id,month,metric_name',
-          }
-        );
-
-      if (error) {
-        console.error('Error upserting sub-metric entry:', error);
-      } else {
-        importedCount++;
-      }
+      subMetricEntries.push({
+        department_id: departmentId,
+        month: monthIdentifier,
+        metric_name: metricName,
+        value: subMetric.value,
+        created_by: userId,
+      });
     }
   }
+  
+  // Delete existing sub-metrics for all affected departments in parallel
+  if (deptIdsWithSubMetrics.size > 0) {
+    const deletePromises = Array.from(deptIdsWithSubMetrics).map(deptId =>
+      supabase
+        .from('financial_entries')
+        .delete()
+        .eq('department_id', deptId)
+        .eq('month', monthIdentifier)
+        .like('metric_name', 'sub:%')
+    );
+    
+    const deleteResults = await Promise.all(deletePromises);
+    deleteResults.forEach((result, idx) => {
+      if (result.error) {
+        console.error('Error deleting sub-metric entries:', result.error);
+      }
+    });
+  }
+  
+  // Batch upsert sub-metrics (single DB call)
+  if (subMetricEntries.length > 0) {
+    const { error } = await supabase
+      .from('financial_entries')
+      .upsert(subMetricEntries, {
+        onConflict: 'department_id,month,metric_name',
+      });
+    
+    if (error) {
+      console.error('Error batch upserting sub-metric entries:', error);
+    } else {
+      importedCount += subMetricEntries.length;
+    }
+  }
+  
   return { success: true, importedCount };
 };
