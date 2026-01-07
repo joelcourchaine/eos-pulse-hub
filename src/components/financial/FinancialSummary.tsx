@@ -106,27 +106,16 @@ const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count
   return quarters.reverse();
 };
 
-const getQuarterTrendPeriods = (selectedYear: number) => {
+const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => {
   const quarters = [];
-  const startYear = selectedYear - 1;
-  const now = new Date();
-  const actualCurrentYear = now.getFullYear();
-  const actualCurrentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const startYear = currentYear - 1;
   
-  // Start from Q1 of last year
-  for (let y = startYear; y <= selectedYear; y++) {
-    // For the selected year: if it's in the past, show all 4 quarters
-    // If it's the current year, only show up to the current quarter
-    let endQ: number;
-    if (y < actualCurrentYear) {
-      endQ = 4; // Past year - show all quarters
-    } else if (y === actualCurrentYear) {
-      endQ = actualCurrentQuarter; // Current year - show up to current quarter
-    } else {
-      endQ = 0; // Future year - show nothing
-    }
+  // Start from Q1 of last year - matches ScorecardGrid behavior
+  for (let y = startYear; y <= currentYear; y++) {
+    const startQ = 1;
+    const endQ = y === currentYear ? currentQuarter : 4;
     
-    for (let q = 1; q <= endQ; q++) {
+    for (let q = startQ; q <= endQ; q++) {
       quarters.push({
         quarter: q,
         year: y,
@@ -343,9 +332,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
-  // Use the year prop for trend views, not the current year
-  const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(year) : [];
-  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(year) : [];
+  // Use actual current quarter/year for trend views - matches ScorecardGrid behavior
+  const quarterTrendPeriods = isQuarterTrendMode ? getQuarterTrendPeriods(currentQuarter, currentYear) : [];
+  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(currentYear) : [];
   const months = getMonthsForQuarter(quarter || 1, year);
   const previousYearMonths = getPreviousYearMonthsForQuarter(quarter || 1, year);
   const precedingQuarters = getPrecedingQuarters(quarter || 1, year, 4);
