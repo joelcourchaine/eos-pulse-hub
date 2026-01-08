@@ -480,17 +480,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (existingValue !== null && existingValue !== undefined) {
       return existingValue;
     }
-    
-    // Only try sub-metric sum if not explicitly skipped
-    // Skip sub-metric sum for base metrics in calculations (total_direct_expenses, etc.)
-    // because their sub-metrics may not represent the full total
-    if (!skipSubMetricSum) {
+
+    // Only try sub-metric sum if not explicitly skipped.
+    // Additionally: never use sub-metric sum for Total Direct Expenses because its sub-metrics
+    // typically represent only the semi-fixed portion (and exclude Sales Expense), which would
+    // corrupt downstream calculations like Nissan Semi Fixed Expense.
+    const shouldSkipSubMetricSum = skipSubMetricSum || metricKey === 'total_direct_expenses';
+
+    if (!shouldSkipSubMetricSum) {
       const subMetricSum = getSubMetricSum(metricKey, monthIdentifier);
       if (subMetricSum !== null) {
         return subMetricSum;
       }
     }
-    
+
     return undefined;
   }, [entries, getSubMetricSum]);
 
