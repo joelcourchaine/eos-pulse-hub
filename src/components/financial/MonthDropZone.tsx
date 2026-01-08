@@ -679,10 +679,10 @@ export const MonthDropZone = ({
               <Loader2 className="h-3 w-3 animate-spin" />
             </div>
           ) : attachment ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <DropdownMenu>
+            <DropdownMenu>
+              <TooltipProvider>
+                <Tooltip delayDuration={100}>
+                  <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
                       <button className={cn(
                         "text-white rounded-full p-0.5 transition-colors",
@@ -691,56 +691,56 @@ export const MonthDropZone = ({
                         {getFileIcon(attachment.file_type)}
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleViewAttachment}>
-                        View / Download
-                      </DropdownMenuItem>
-                      {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
-                        <DropdownMenuItem onClick={handleReimport}>
-                          <RefreshCw className="h-3 w-3 mr-2" />
-                          Re-import Data
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem 
-                        onClick={handleRemoveAttachment}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Remove
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[350px]">
-                  <p className="text-xs font-medium">{attachment.file_name}</p>
-                  {currentDeptHasMismatch && (
-                    <>
-                      <p className="text-xs font-semibold mt-2 text-amber-500">
-                        Data Discrepancies ({getCurrentDeptMismatchCount()} items)
-                      </p>
-                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
-                        {getMismatchTooltipContent()}
-                      </p>
-                    </>
-                  )}
-                  {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
-                    <>
-                      <p className="text-xs font-semibold mt-2 text-amber-500">
-                        Other departments have discrepancies
-                      </p>
-                      <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
-                        {getMismatchTooltipContent()}
-                      </p>
-                    </>
-                  )}
-                  {currentDeptValidation?.status === 'match' && (
-                    <p className="text-xs mt-1 text-green-500">All data matches</p>
-                  )}
-                  {currentDeptValidation?.status === 'imported' && (
-                    <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[350px]">
+                    <p className="text-xs font-medium">{attachment.file_name}</p>
+                    {currentDeptHasMismatch && (
+                      <>
+                        <p className="text-xs font-semibold mt-2 text-amber-500">
+                          Data Discrepancies ({getCurrentDeptMismatchCount()} items)
+                        </p>
+                        <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                          {getMismatchTooltipContent()}
+                        </p>
+                      </>
+                    )}
+                    {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
+                      <>
+                        <p className="text-xs font-semibold mt-2 text-amber-500">
+                          Other departments have discrepancies
+                        </p>
+                        <p className="text-xs whitespace-pre-wrap mt-1 text-muted-foreground">
+                          {getMismatchTooltipContent()}
+                        </p>
+                      </>
+                    )}
+                    {currentDeptValidation?.status === 'match' && (
+                      <p className="text-xs mt-1 text-green-500">All data matches</p>
+                    )}
+                    {currentDeptValidation?.status === 'imported' && (
+                      <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleViewAttachment}>
+                  View / Download
+                </DropdownMenuItem>
+                {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
+                  <DropdownMenuItem onClick={handleReimport}>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Re-import Data
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem 
+                  onClick={handleRemoveAttachment}
+                  className="text-destructive focus:text-destructive"
+                >
+                  Remove
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </div>
       )}
