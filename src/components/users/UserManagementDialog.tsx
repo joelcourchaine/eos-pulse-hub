@@ -29,8 +29,20 @@ interface Profile {
   store_id: string | null;
   store_group_id: string | null;
   last_sign_in_at: string | null;
+  created_at: string;
   user_role?: string; // Role from user_roles table
 }
+
+// Helper to check if user has actually logged in (not just created via admin API)
+const hasActuallyLoggedIn = (profile: Profile): boolean => {
+  if (!profile.last_sign_in_at) return false;
+  
+  const lastLogin = new Date(profile.last_sign_in_at).getTime();
+  const createdAt = new Date(profile.created_at).getTime();
+  
+  // If last_sign_in_at is within 60 seconds of created_at, it's just the creation timestamp
+  return Math.abs(lastLogin - createdAt) > 60000;
+};
 
 interface UserManagementDialogProps {
   open: boolean;
@@ -676,8 +688,8 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </Select>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {profile.last_sign_in_at 
-                        ? format(new Date(profile.last_sign_in_at), "MMM d, yyyy")
+                      {hasActuallyLoggedIn(profile)
+                        ? format(new Date(profile.last_sign_in_at!), "MMM d, yyyy")
                         : "Never"}
                     </TableCell>
                     <TableCell className="text-right">
