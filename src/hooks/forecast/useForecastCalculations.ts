@@ -287,10 +287,24 @@ export function useForecastCalculations({
         total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
         adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
         parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+        total_direct_expenses: baselineMonthData?.get('total_direct_expenses') ?? 0,
+        semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
+        dealer_salary: baselineMonthData?.get('dealer_salary') ?? 0,
       };
 
-      const baselineNetSellingGross =
-        baselineInputs.gp_net - baselineInputs.sales_expense;
+      // For Nissan: semi_fixed_expense = total_direct_expenses - sales_expense
+      // For other brands: semi_fixed_expense is stored directly
+      const baselineSemiFixed = baselineInputs.semi_fixed_expense > 0 
+        ? baselineInputs.semi_fixed_expense 
+        : (baselineInputs.total_direct_expenses > 0 
+            ? baselineInputs.total_direct_expenses - baselineInputs.sales_expense 
+            : 0);
+
+      // For Nissan: net_selling_gross = gp_net - total_direct_expenses
+      // For other brands: net_selling_gross = gp_net - sales_expense - semi_fixed_expense
+      const baselineNetSellingGross = baselineInputs.total_direct_expenses > 0
+        ? baselineInputs.gp_net - baselineInputs.total_direct_expenses
+        : baselineInputs.gp_net - baselineInputs.sales_expense - baselineSemiFixed;
 
       const derivedPartsTransfer = hasStoredPartsTransfer
         ? baselineInputs.parts_transfer
@@ -304,16 +318,19 @@ export function useForecastCalculations({
         gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
         sales_expense: baselineInputs.sales_expense,
         sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+        total_direct_expenses: baselineInputs.total_direct_expenses,
+        semi_fixed_expense: baselineSemiFixed,
+        semi_fixed_expense_percent: baselineInputs.gp_net > 0 ? (baselineSemiFixed / baselineInputs.gp_net) * 100 : 0,
         net_selling_gross: baselineNetSellingGross,
         total_fixed_expense: baselineInputs.total_fixed_expense,
-        department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
+        department_profit: baselineNetSellingGross - baselineInputs.total_fixed_expense,
         parts_transfer: derivedPartsTransfer,
+        dealer_salary: baselineInputs.dealer_salary,
         net_operating_profit:
-          (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) +
-          derivedPartsTransfer,
+          (baselineNetSellingGross - baselineInputs.total_fixed_expense) + derivedPartsTransfer - baselineInputs.dealer_salary,
         return_on_gross:
           baselineInputs.gp_net > 0
-            ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
+            ? ((baselineNetSellingGross - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100
             : 0,
       };
 
@@ -439,7 +456,12 @@ export function useForecastCalculations({
       calculatedValues['adjusted_selling_gross'] = baselineMonthData?.get('adjusted_selling_gross') ?? 0;
       calculatedValues['dealer_salary'] = baselineMonthData?.get('dealer_salary') ?? 0;
       // For Nissan: total_direct_expenses is a driver, scale it by growth
-      calculatedValues['total_direct_expenses'] = (baselineMonthData?.get('total_direct_expenses') ?? 0) * growthFactor;
+      calculatedValues['total_direct_expenses'] = (baselineMonthlyValues.total_direct_expenses ?? 0) * growthFactor;
+      // Pre-calculate semi_fixed_expense for Nissan (total_direct_expenses - sales_expense)
+      // For other brands, this will be recalculated or use baseline
+      calculatedValues['semi_fixed_expense'] = baselineMonthlyValues.semi_fixed_expense > 0 
+        ? baselineMonthlyValues.semi_fixed_expense * growthFactor
+        : calculatedValues['total_direct_expenses'] - calculatedValues['sales_expense'];
       
       METRIC_DEFINITIONS.forEach(metric => {
         const entryKey = `${month}:${metric.key}`;
