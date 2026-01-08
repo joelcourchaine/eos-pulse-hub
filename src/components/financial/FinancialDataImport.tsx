@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { getMetricsForBrand, isHondaLegacyMonth } from "@/config/financialMetrics";
 import * as XLSX from 'xlsx';
 
 interface ImportRow {
@@ -196,13 +197,15 @@ export const FinancialDataImport = ({ open, onOpenChange, onImportComplete }: Fi
           // Find store by name
           const { data: stores } = await supabase
             .from('stores')
-            .select('id, name')
+            .select('id, name, brand')
             .ilike('name', `%${row.storeName}%`)
             .limit(1);
 
           if (!stores || stores.length === 0) {
             throw new Error(`Store not found: ${row.storeName}`);
           }
+
+          const brandForMetrics = stores[0].brand || stores[0].name;
 
           // Find department by name and store
           const { data: departments } = await supabase
@@ -228,18 +231,37 @@ export const FinancialDataImport = ({ open, onOpenChange, onImportComplete }: Fi
             }
           }
 
+          // Prevent imports from overwriting derived metrics (e.g. Nissan semi_fixed_expense)
+          const metricsForBrand = getMetricsForBrand(brandForMetrics);
+          const metricDef = metricsForBrand.find((m) => m.key === row.metricName);
+          const isDerivedMetric = !!metricDef?.calculation;
+
+          // Exception: Honda legacy months allowed to import Semi Fixed Expense manually
+          const isHonda = brandForMetrics.toLowerCase().includes('honda');
+          const allowHondaLegacySemiFixed = isHonda && row.metricName === 'semi_fixed_expense' && isHondaLegacyMonth(normalizedMonth);
+
+          if (isDerivedMetric && !allowHondaLegacySemiFixed) {
+            updatedData[i].status = 'success';
+            updatedData[i].error = 'Skipped (calculated metric)';
+            successCount++;
+            continue;
+          }
+
           // Upsert the entry
           const { error } = await supabase
             .from('financial_entries')
-            .upsert({
-              department_id: departments[0].id,
-              metric_name: row.metricName,
-              month: normalizedMonth,
-              value: row.value,
-              created_by: user.id
-            }, {
-              onConflict: 'department_id,metric_name,month'
-            });
+            .upsert(
+              {
+                department_id: departments[0].id,
+                metric_name: row.metricName,
+                month: normalizedMonth,
+                value: row.value,
+                created_by: user.id,
+              },
+              {
+                onConflict: 'department_id,metric_name,month',
+              }
+            );
 
           if (error) throw error;
 
