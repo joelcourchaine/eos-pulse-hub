@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import type { ForecastEntry, ForecastWeight } from './useForecast';
+import { getMetricsForBrand, type FinancialMetric } from '@/config/financialMetrics';
 
 interface CalculationResult {
   month: string;
@@ -15,33 +16,98 @@ interface MetricDefinition {
   type: 'currency' | 'percent' | 'number';
   isDriver: boolean;
   isDerived: boolean;
+  hasSubMetrics?: boolean;
   calculate?: (inputs: Record<string, number>) => number;
   reverseCalculate?: (value: number, inputs: Record<string, number>) => Partial<Record<string, number>>;
 }
 
-// Define metrics and their calculation logic
-// Order matches Ford financial summary: Total Sales, GP Net, GP %, Sales Expense, Sales Exp %, Net Selling Gross, Fixed Expense, Dept Profit, Parts Transfer, Net Operating, Return on Gross
-const METRIC_DEFINITIONS: MetricDefinition[] = [
+// Convert FinancialMetric to forecast MetricDefinition with proper calculations
+function buildMetricDefinitions(brand: string | null): MetricDefinition[] {
+  const financialMetrics = getMetricsForBrand(brand);
+  
+  // Build calculation functions based on the metric's calculation property
+  const buildCalculateFn = (metric: FinancialMetric): ((inputs: Record<string, number>) => number) | undefined => {
+    if (!metric.calculation) return undefined;
+    
+    const calc = metric.calculation;
+    
+    if ('numerator' in calc && 'denominator' in calc) {
+      // Percentage calculation: numerator / denominator * 100
+      return (i) => {
+        const denominator = i[calc.denominator] || 0;
+        return denominator > 0 ? (i[calc.numerator] / denominator) * 100 : 0;
+      };
+    }
+    
+    if ('type' in calc && calc.type === 'subtract') {
+      // Subtraction: base - sum(deductions)
+      return (i) => {
+        const base = i[calc.base] || 0;
+        const deductions = calc.deductions.reduce((sum, key) => sum + (i[key] || 0), 0);
+        return base - deductions;
+      };
+    }
+    
+    if ('type' in calc && calc.type === 'complex') {
+      // Complex: base - deductions + additions
+      return (i) => {
+        const base = i[calc.base] || 0;
+        const deductions = calc.deductions.reduce((sum, key) => sum + (i[key] || 0), 0);
+        const additions = calc.additions.reduce((sum, key) => sum + (i[key] || 0), 0);
+        return base - deductions + additions;
+      };
+    }
+    
+    return undefined;
+  };
+  
+  // Determine if metric is a driver (directly editable) vs derived (calculated)
+  const isDriverMetric = (metric: FinancialMetric): boolean => {
+    // Metrics with calculations are derived, not drivers
+    if (metric.calculation) return false;
+    // These are always drivers
+    const driverKeys = ['total_sales', 'gp_percent', 'sales_expense', 'total_fixed_expense', 'total_direct_expenses'];
+    return driverKeys.includes(metric.key);
+  };
+  
+  return financialMetrics.map(metric => ({
+    key: metric.key,
+    label: metric.name,
+    type: metric.type === 'percentage' ? 'percent' : 'currency',
+    isDriver: isDriverMetric(metric),
+    isDerived: !!metric.calculation,
+    hasSubMetrics: metric.hasSubMetrics,
+    calculate: buildCalculateFn(metric),
+  }));
+}
+
+// Default metrics for backward compatibility (Ford-like structure)
+const DEFAULT_METRIC_DEFINITIONS: MetricDefinition[] = [
   { key: 'total_sales', label: 'Total Sales', type: 'currency', isDriver: true, isDerived: false },
   { key: 'gp_net', label: 'GP Net', type: 'currency', isDriver: false, isDerived: true,
     calculate: (i) => i.total_sales * (i.gp_percent / 100),
-    reverseCalculate: (value, i) => ({ gp_percent: i.total_sales > 0 ? (value / i.total_sales) * 100 : 0 })
   },
   { key: 'gp_percent', label: 'GP %', type: 'percent', isDriver: true, isDerived: false },
   { key: 'sales_expense', label: 'Sales Expense', type: 'currency', isDriver: true, isDerived: false },
   { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent', isDriver: false, isDerived: true,
     calculate: (i) => i.gp_net > 0 ? (i.sales_expense / i.gp_net) * 100 : 0
   },
+  { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency', isDriver: false, isDerived: true,
+    calculate: (i) => (i.total_direct_expenses || 0) - (i.sales_expense || 0)
+  },
+  { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent', isDriver: false, isDerived: true,
+    calculate: (i) => i.gp_net > 0 ? ((i.semi_fixed_expense || 0) / i.gp_net) * 100 : 0
+  },
   { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.gp_net - i.sales_expense
+    calculate: (i) => i.gp_net - i.sales_expense - (i.semi_fixed_expense || 0)
   },
   { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency', isDriver: true, isDerived: false },
   { key: 'department_profit', label: 'Dept Profit', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.gp_net - i.sales_expense - i.total_fixed_expense
+    calculate: (i) => i.gp_net - i.sales_expense - (i.semi_fixed_expense || 0) - i.total_fixed_expense
   },
   { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency', isDriver: false, isDerived: false },
   { key: 'net_operating_profit', label: 'Net Operating', type: 'currency', isDriver: false, isDerived: true,
-    calculate: (i) => i.department_profit + (i.parts_transfer || 0)
+    calculate: (i) => (i.department_profit || 0) + (i.parts_transfer || 0)
   },
   { key: 'return_on_gross', label: 'Return on Gross', type: 'percent', isDriver: false, isDerived: true,
     calculate: (i) => i.gp_net > 0 ? (i.department_profit / i.gp_net) * 100 : 0
@@ -83,6 +149,7 @@ interface UseForecastCalculationsProps {
   growth: number; // Single growth % that scales both Total Sales and GP Net proportionally
   salesExpense: number; // Annual sales expense in dollars (fixed)
   fixedExpense: number;
+  brand?: string | null; // Brand to determine metrics structure
 }
 
 export function useForecastCalculations({
@@ -95,7 +162,20 @@ export function useForecastCalculations({
   growth,
   salesExpense,
   fixedExpense,
+  brand,
 }: UseForecastCalculationsProps) {
+  
+  // Build metric definitions based on brand
+  const METRIC_DEFINITIONS = useMemo(() => {
+    if (brand) {
+      const brandMetrics = buildMetricDefinitions(brand);
+      // If brand metrics are valid, use them; otherwise fall back to default
+      if (brandMetrics.length > 0) {
+        return brandMetrics;
+      }
+    }
+    return DEFAULT_METRIC_DEFINITIONS;
+  }, [brand]);
   
   // Get all months for the forecast year
   const months = useMemo(() => {

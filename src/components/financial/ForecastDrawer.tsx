@@ -168,7 +168,36 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     enabled: !!departmentId,
   });
 
-  // Get current user for "send to myself" option
+  // Fetch store brand for metric definitions
+  const { data: storeBrand } = useQuery({
+    queryKey: ['department-store-brand', departmentId],
+    queryFn: async () => {
+      if (!departmentId) return null;
+
+      // Get department's store
+      const { data: dept, error: deptError } = await supabase
+        .from('departments')
+        .select('store_id')
+        .eq('id', departmentId)
+        .maybeSingle();
+
+      if (deptError || !dept?.store_id) return null;
+
+      // Get store's brand
+      const { data: store, error: storeError } = await supabase
+        .from('stores')
+        .select('brand, brand_id, brands:brand_id(name)')
+        .eq('id', dept.store_id)
+        .maybeSingle();
+
+      if (storeError || !store) return null;
+
+      // Prefer brand_id -> brands.name, fallback to store.brand
+      const brandsData = store.brands as { name: string } | null;
+      return brandsData?.name || store.brand || null;
+    },
+    enabled: !!departmentId,
+  });
   const { data: currentUser } = useQuery({
     queryKey: ['current-user'],
     queryFn: async () => {
@@ -257,6 +286,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     growth,
     salesExpense,
     fixedExpense,
+    brand: storeBrand,
   });
 
   // Keep latest computed values in refs so the auto-save effect
