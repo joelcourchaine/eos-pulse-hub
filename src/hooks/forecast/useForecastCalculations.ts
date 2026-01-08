@@ -514,7 +514,7 @@ export function useForecastCalculations({
     });
     
     return results;
-  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, growth, salesExpense, fixedExpense, subMetricBaselines, forecastYear]);
+  }, [months, weightsMap, entriesMap, baselineData, annualBaseline, growth, salesExpense, fixedExpense, subMetricBaselines, forecastYear, METRIC_DEFINITIONS]);
 
   // Get quarterly totals
   const calculateQuarterlyValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
@@ -574,7 +574,7 @@ export function useForecastCalculations({
     });
     
     return quarters;
-  }, [months]);
+  }, [months, METRIC_DEFINITIONS]);
 
   // Get annual totals
   const calculateAnnualValues = useCallback((monthlyValues: Map<string, Map<string, CalculationResult>>) => {
@@ -647,6 +647,20 @@ export function useForecastCalculations({
         const baselineSalesExp = totals['sales_expense']?.baseline ?? 0;
         const baselineGpNet = totals['gp_net']?.baseline ?? 0;
         finalBaseline = baselineGpNet > 0 ? (baselineSalesExp / baselineGpNet) * 100 : 0;
+      } else if (metric.key === 'semi_fixed_expense_percent') {
+        // Semi Fixed Exp % = Semi Fixed Expense / GP Net * 100
+        const semiFixed = totals['semi_fixed_expense']?.value ?? 0;
+        const gpNet = totals['gp_net']?.value ?? 0;
+        
+        if (isPercentMetric && allSameValue) {
+          finalValue = totals[metric.key].lockedValues[0];
+        } else {
+          finalValue = gpNet > 0 ? (semiFixed / gpNet) * 100 : 0;
+        }
+        
+        const baselineSemiFixed = totals['semi_fixed_expense']?.baseline ?? 0;
+        const baselineGpNet = totals['gp_net']?.baseline ?? 0;
+        finalBaseline = baselineGpNet > 0 ? (baselineSemiFixed / baselineGpNet) * 100 : 0;
       } else if (metric.key === 'return_on_gross') {
         // Return on Gross = Dept Profit / GP Net * 100
         const deptProfit = totals['department_profit']?.value ?? 0;
@@ -673,7 +687,7 @@ export function useForecastCalculations({
     });
     
     return annualResults;
-  }, [months]);
+  }, [months, METRIC_DEFINITIONS]);
 
   // Distribute quarter edit to months using weights
   const distributeQuarterToMonths = useCallback((
