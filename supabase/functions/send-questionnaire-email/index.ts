@@ -123,19 +123,8 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Failed to create questionnaire token');
     }
 
-    // Generate questionnaire URL using the request origin
-    // This ensures it works both in preview and production
-    const referer = req.headers.get('referer') || '';
-    let appUrl = '';
-    
-    if (referer) {
-      // Extract origin from referer
-      const url = new URL(referer);
-      appUrl = url.origin;
-    } else {
-      // Fallback to using the Supabase URL pattern
-      appUrl = SUPABASE_URL.replace('.supabase.co', '.lovableproject.com');
-    }
+    // Always use the production URL from environment variable
+    const appUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
     
     const questionnaireUrl = `${appUrl}/questionnaire/${token}`;
     
