@@ -29,27 +29,37 @@ export const ManagedDepartmentsSelect = ({
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
 
-  // Load departments where user is the manager
+  // Load departments from user_department_access
+  const loadManagedDepts = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("user_department_access")
+        .select("department_id")
+        .eq("user_id", userId);
+
+      if (error) throw error;
+      setSelectedDepts(data?.map(d => d.department_id) || []);
+    } catch (error) {
+      console.error("Error loading managed departments:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch on mount so button label is correct
   useEffect(() => {
-    const loadManagedDepts = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("departments")
-          .select("id")
-          .eq("manager_id", userId);
-
-        if (error) throw error;
-        setSelectedDepts(data?.map(d => d.id) || []);
-      } catch (error) {
-        console.error("Error loading managed departments:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadManagedDepts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Refetch when popover opens
+  useEffect(() => {
+    if (open) {
+      loadManagedDepts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const handleToggle = (deptId: string) => {
     setSelectedDepts(prev => 
