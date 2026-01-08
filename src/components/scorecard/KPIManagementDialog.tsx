@@ -19,6 +19,7 @@ interface PresetKPI {
   target_direction: "above" | "below";
   dependencies: string[];
   display_order: number;
+  aggregation_type: "sum" | "average";
 }
 
 interface KPI {
@@ -29,6 +30,7 @@ interface KPI {
   display_order: number;
   assigned_to: string | null;
   target_direction: "above" | "below";
+  aggregation_type: "sum" | "average";
 }
 
 interface Profile {
@@ -56,11 +58,13 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [customKPIName, setCustomKPIName] = useState("");
   const [customKPIType, setCustomKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [customKPIDirection, setCustomKPIDirection] = useState<"above" | "below">("above");
+  const [customKPIAggregation, setCustomKPIAggregation] = useState<"sum" | "average">("sum");
   const [addingPresetKpi, setAddingPresetKpi] = useState<string | null>(null);
   const [presetKpis, setPresetKpis] = useState<PresetKPI[]>([]);
   const [newPresetName, setNewPresetName] = useState("");
   const [newPresetType, setNewPresetType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [newPresetDirection, setNewPresetDirection] = useState<"above" | "below">("above");
+  const [newPresetAggregation, setNewPresetAggregation] = useState<"sum" | "average">("sum");
   const [isAddingPreset, setIsAddingPreset] = useState(false);
   const [userId, setUserId] = useState<string | undefined>();
   const [selectedKpiIds, setSelectedKpiIds] = useState<Set<string>>(new Set());
@@ -183,6 +187,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                 metric_type: depPreset.metric_type,
                 target_value: 0,
                 target_direction: depPreset.target_direction,
+                aggregation_type: depPreset.aggregation_type,
                 department_id: departmentId,
                 display_order: kpis.length + 1
               });
@@ -204,6 +209,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
           metric_type: preset.metric_type,
           target_value: 0,
           target_direction: preset.target_direction,
+          aggregation_type: preset.aggregation_type,
           department_id: departmentId,
           display_order: kpis.length + preset.dependencies.length + 1
         });
@@ -242,6 +248,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         name: newPresetName.trim(),
         metric_type: newPresetType,
         target_direction: newPresetDirection,
+        aggregation_type: newPresetAggregation,
         dependencies: [],
         display_order: presetKpis.length + 1
       });
@@ -261,6 +268,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     setNewPresetName("");
     setNewPresetType("dollar");
     setNewPresetDirection("above");
+    setNewPresetAggregation("sum");
     setIsAddingPreset(false);
     
     loadPresetKpis();
@@ -298,6 +306,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         metric_type: customKPIType,
         target_value: 0,
         target_direction: customKPIDirection,
+        aggregation_type: customKPIAggregation,
         department_id: departmentId,
         display_order: kpis.length + 1
       });
@@ -316,6 +325,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     setCustomKPIName("");
     setCustomKPIType("dollar");
     setCustomKPIDirection("above");
+    setCustomKPIAggregation("sum");
     
     onKPIsChange();
   };
@@ -465,6 +475,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
             metric_type: kpi.metric_type,
             target_value: kpi.target_value,
             target_direction: kpi.target_direction,
+            aggregation_type: kpi.aggregation_type,
             department_id: departmentId,
             assigned_to: userId,
             display_order: kpis.length + insertions.length + 1
@@ -543,6 +554,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
             metric_type: kpi.metric_type,
             target_value: kpi.target_value,
             target_direction: kpi.target_direction,
+            aggregation_type: kpi.aggregation_type,
             department_id: departmentId,
             assigned_to: userId,
             display_order: kpis.length + insertions.length + 1
@@ -623,7 +635,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
               {isSuperAdmin && (
                 <div className="border-t pt-4 space-y-3">
                   <h4 className="text-sm font-medium">Create New Preset (Super Admin)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                     <div>
                       <Label htmlFor="new-preset-name">Name</Label>
                       <Input
@@ -655,6 +667,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                         <SelectContent>
                           <SelectItem value="above">Above Target</SelectItem>
                           <SelectItem value="below">Below Target</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="new-preset-aggregation">Totals</Label>
+                      <Select value={newPresetAggregation} onValueChange={(v: any) => setNewPresetAggregation(v)}>
+                        <SelectTrigger id="new-preset-aggregation">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sum">Sum</SelectItem>
+                          <SelectItem value="average">Average</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -723,7 +747,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
             {/* Custom KPI Section */}
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold text-sm">Add Custom KPI</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <Label htmlFor="custom-name">KPI Name</Label>
                   <Input
@@ -755,6 +779,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     <SelectContent>
                       <SelectItem value="above">Above Target</SelectItem>
                       <SelectItem value="below">Below Target</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="custom-aggregation">Totals</Label>
+                  <Select value={customKPIAggregation} onValueChange={(v: any) => setCustomKPIAggregation(v)}>
+                    <SelectTrigger id="custom-aggregation">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sum">Sum</SelectItem>
+                      <SelectItem value="average">Average</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -833,6 +869,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       <TableHead className="min-w-[250px]">Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Goal</TableHead>
+                      <TableHead>Totals</TableHead>
                       <TableHead>Owner</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -933,6 +970,20 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                                 </SelectContent>
                               </Select>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={kpi.aggregation_type || "sum"}
+                              onValueChange={(v) => handleUpdateKPI(kpi.id, "aggregation_type", v)}
+                            >
+                              <SelectTrigger className="h-8 w-[100px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="sum">Sum</SelectItem>
+                                <SelectItem value="average">Average</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <Select
