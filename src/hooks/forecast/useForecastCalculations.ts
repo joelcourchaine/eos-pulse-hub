@@ -425,6 +425,22 @@ export function useForecastCalculations({
         return gpNet > 0 ? gpNet * (basePct / 100) : 0;
       };
 
+      // First pass: calculate all driver/base metrics
+      const calculatedValues: Record<string, number> = {};
+      
+      // Always calculate these base values first
+      calculatedValues['total_sales'] = getCalculatedTotalSales();
+      calculatedValues['gp_net'] = getCalculatedGpNet();
+      calculatedValues['gp_percent'] = targetGpPercent;
+      calculatedValues['sales_expense'] = getCalculatedSalesExpense();
+      calculatedValues['sales_expense_percent'] = baselineMonthlyValues.sales_expense_percent;
+      calculatedValues['total_fixed_expense'] = baselineMonthData?.get('total_fixed_expense') ?? baselineMonthlyValues.total_fixed_expense ?? 0;
+      calculatedValues['parts_transfer'] = baselineMonthData?.get('parts_transfer') ?? baselineMonthlyValues.parts_transfer ?? 0;
+      calculatedValues['adjusted_selling_gross'] = baselineMonthData?.get('adjusted_selling_gross') ?? 0;
+      calculatedValues['dealer_salary'] = baselineMonthData?.get('dealer_salary') ?? 0;
+      // For Nissan: total_direct_expenses is a driver, scale it by growth
+      calculatedValues['total_direct_expenses'] = (baselineMonthData?.get('total_direct_expenses') ?? 0) * growthFactor;
+      
       METRIC_DEFINITIONS.forEach(metric => {
         const entryKey = `${month}:${metric.key}`;
         const existingEntry = entriesMap.get(entryKey);
@@ -446,56 +462,22 @@ export function useForecastCalculations({
         } else if (useBaselineDirectly) {
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
           value = baselineValue;
-        } else if (metric.key === 'gp_percent') {
-          // GP%: use locked value if set, otherwise baseline ratio
-          value = targetGpPercent;
-        } else if (metric.key === 'total_sales') {
-          // Use helper which scales up if GP% is locked higher (for stores without sub-metrics)
-          value = getCalculatedTotalSales();
-        } else if (metric.key === 'gp_net') {
-          // GP Net calculation: derived from Total Sales * GP%
-          value = getCalculatedGpNet();
-        } else if (metric.key === 'sales_expense_percent') {
-          // Sales Expense % stays constant - use baseline ratio
-          value = baselineMonthlyValues.sales_expense_percent;
-        } else if (metric.key === 'sales_expense') {
-          // Sales Expense should keep the same % of GP Net unless explicitly locked
-          value = getCalculatedSalesExpense();
-        } else if (metric.key === 'total_fixed_expense') {
-          // Use baseline pattern for fixed expense
-          value = baselineValue;
-        } else if (metric.key === 'parts_transfer') {
-          // Keep baseline pattern for parts transfer
-          value = baselineValue;
-        } else if (metric.key === 'net_selling_gross') {
-          // Derived: GP Net - Sales Expense
-          const calcGpNet = getCalculatedGpNet();
-          const calcSalesExp = getCalculatedSalesExpense();
-          value = calcGpNet - calcSalesExp;
-        } else if (metric.key === 'department_profit') {
-          // Derived: GP Net - Sales Expense - Fixed
-          const calcGpNet = getCalculatedGpNet();
-          const calcSalesExp = getCalculatedSalesExpense();
-          const fixedExp = baselineMonthlyValues.total_fixed_expense;
-          value = calcGpNet - calcSalesExp - fixedExp;
-        } else if (metric.key === 'net_operating_profit') {
-          // Derived: Dept Profit + Parts Transfer
-          const calcGpNet = getCalculatedGpNet();
-          const calcSalesExp = getCalculatedSalesExpense();
-          const fixedExp = baselineMonthlyValues.total_fixed_expense;
-          const deptProfit = calcGpNet - calcSalesExp - fixedExp;
-          value = deptProfit + baselineMonthlyValues.parts_transfer;
-        } else if (metric.key === 'return_on_gross') {
-          // Derived: (Dept Profit / GP Net) * 100
-          const calcGpNet = getCalculatedGpNet();
-          const calcSalesExp = getCalculatedSalesExpense();
-          const fixedExp = baselineMonthlyValues.total_fixed_expense;
-          const deptProfit = calcGpNet - calcSalesExp - fixedExp;
-          value = calcGpNet > 0 ? (deptProfit / calcGpNet) * 100 : 0;
+        } else if (calculatedValues[metric.key] !== undefined && !metric.isDerived) {
+          // Use pre-calculated driver value
+          value = calculatedValues[metric.key];
+        } else if (metric.calculate) {
+          // Use brand-specific calculation from metric definition
+          value = metric.calculate(calculatedValues);
+        } else if (calculatedValues[metric.key] !== undefined) {
+          // Fallback to pre-calculated value if available
+          value = calculatedValues[metric.key];
         } else {
           // Default: scale by growth factor
           value = baselineValue * growthFactor;
         }
+        
+        // Store calculated value for dependent metrics
+        calculatedValues[metric.key] = value;
         
         monthResults.set(metric.key, {
           month,
