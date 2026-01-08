@@ -39,6 +39,7 @@ interface KPI {
   display_order: number;
   assigned_to: string | null;
   target_direction: "above" | "below";
+  aggregation_type: "sum" | "average";
 }
 
 interface KPITarget {
@@ -3751,14 +3752,12 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                               const total = yearMonthlyValues.reduce((a, b) => a + b, 0);
                               const average = total / yearMonthlyValues.length;
                               
-                              // For percentage metrics and rate-based metrics (ELR, Gross %), 
+                              // For percentage metrics and rate-based metrics, 
                               // the Total should equal the Average since you don't sum these
-                              const isRateBasedMetric = 
-                                kpi.metric_type === 'percentage' ||
-                                kpi.name.includes('ELR') ||
-                                kpi.name.includes('Gross %');
+                              // Use the aggregation_type from the database
+                              const shouldAverage = kpi.aggregation_type === 'average';
                               
-                              displayValue = isAvg || isRateBasedMetric ? average : total;
+                              displayValue = isAvg || shouldAverage ? average : total;
                             }
                             
                             return (

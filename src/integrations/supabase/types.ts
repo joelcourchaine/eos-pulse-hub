@@ -919,6 +919,7 @@ export type Database = {
       }
       kpi_definitions: {
         Row: {
+          aggregation_type: string
           assigned_to: string | null
           created_at: string
           department_id: string
@@ -931,6 +932,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aggregation_type?: string
           assigned_to?: string | null
           created_at?: string
           department_id: string
@@ -943,6 +945,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aggregation_type?: string
           assigned_to?: string | null
           created_at?: string
           department_id?: string
@@ -1117,6 +1120,7 @@ export type Database = {
       }
       preset_kpis: {
         Row: {
+          aggregation_type: string
           created_at: string
           dependencies: string[] | null
           display_order: number
@@ -1127,6 +1131,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aggregation_type?: string
           created_at?: string
           dependencies?: string[] | null
           display_order?: number
@@ -1137,6 +1142,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aggregation_type?: string
           created_at?: string
           dependencies?: string[] | null
           display_order?: number
