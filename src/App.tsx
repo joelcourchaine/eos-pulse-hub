@@ -16,6 +16,7 @@ import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
 import MandatoryKPIRules from "./pages/MandatoryKPIRules";
+import SignDocument from "./pages/SignDocument";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/enterprise" element={<Enterprise />} />
             <Route path="/dealer-comparison" element={<DealerComparison />} />
             <Route path="/questionnaire/:token" element={<Questionnaire />} />
+            <Route path="/sign/:requestId" element={<SignDocument />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
