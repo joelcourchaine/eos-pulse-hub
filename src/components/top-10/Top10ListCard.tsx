@@ -272,6 +272,7 @@ export function Top10ListCard({
                             onUpdate={(data) => handleUpdateItem(item.id, data)}
                             onDelete={() => handleDeleteItem(item.id, item.rank)}
                             canEdit={canEdit}
+                            departmentId={departmentId}
                           />
                         ))}
                         {items.length === 0 && (
