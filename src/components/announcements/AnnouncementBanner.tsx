@@ -132,26 +132,31 @@ export const AnnouncementBanner = () => {
   const announcement = announcements[0];
 
   return (
-    <div 
-      className={`fixed top-0 inset-x-0 w-full z-[9999] ${priorityStyles[announcement.priority]} py-2 px-4 flex items-center justify-between overflow-hidden`}
-    >
-      <div className="flex-1 overflow-hidden relative">
-        <div 
-          className="whitespace-nowrap animate-marquee inline-block"
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(announcement.message, sanitizeConfig)
-          }}
-        />
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="ml-4 shrink-0 h-6 w-6 p-0 hover:bg-white/20"
-        onClick={() => handleDismiss(announcement.id)}
+    <>
+      {/* Spacer to push content down */}
+      <div className="h-10" />
+      {/* Fixed banner */}
+      <div 
+        className={`fixed top-0 inset-x-0 w-full z-[9999] ${priorityStyles[announcement.priority]} py-2 px-4 flex items-center justify-between overflow-hidden h-10`}
       >
-        <X className="h-4 w-4" />
-        <span className="sr-only">Dismiss</span>
-      </Button>
-    </div>
+        <div className="flex-1 overflow-hidden relative">
+          <div 
+            className="whitespace-nowrap animate-marquee inline-block"
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(announcement.message, sanitizeConfig)
+            }}
+          />
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-4 shrink-0 h-6 w-6 p-0 hover:bg-white/20"
+          onClick={() => handleDismiss(announcement.id)}
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Dismiss</span>
+        </Button>
+      </div>
+    </>
   );
 };
