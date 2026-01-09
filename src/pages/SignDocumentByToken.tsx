@@ -50,9 +50,11 @@ const SignDocumentByToken = () => {
   const [error, setError] = useState<string | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 150 });
 
   useEffect(() => {
     if (token) {
@@ -126,6 +128,22 @@ const SignDocumentByToken = () => {
     }
   };
 
+  // Resize canvas to fit container
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (canvasContainerRef.current) {
+        const containerWidth = canvasContainerRef.current.clientWidth - 16; // Account for padding
+        const width = Math.min(containerWidth, 600);
+        const height = Math.round(width * 0.375); // Maintain aspect ratio
+        setCanvasSize({ width, height });
+      }
+    };
+
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, [request]);
+
   // Canvas setup for signature
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -139,18 +157,15 @@ const SignDocumentByToken = () => {
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-  }, [request]);
+  }, [canvasSize]);
 
   const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    // Scale coordinates to account for CSS sizing vs canvas internal dimensions
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     };
   };
 
@@ -159,12 +174,9 @@ const SignDocumentByToken = () => {
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
-    // Scale coordinates to account for CSS sizing vs canvas internal dimensions
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
     return {
-      x: (touch.clientX - rect.left) * scaleX,
-      y: (touch.clientY - rect.top) * scaleY,
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
     };
   };
 
@@ -414,12 +426,13 @@ const SignDocumentByToken = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-2 bg-white mb-4">
+            <div ref={canvasContainerRef} className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-2 bg-white mb-4">
               <canvas
                 ref={canvasRef}
-                width={400}
-                height={150}
-                className="w-full max-w-[400px] mx-auto touch-none cursor-crosshair"
+                width={canvasSize.width}
+                height={canvasSize.height}
+                className="block mx-auto touch-none cursor-crosshair"
+                style={{ width: canvasSize.width, height: canvasSize.height }}
                 onMouseDown={(e) => startDrawing(getMousePos(e))}
                 onMouseMove={(e) => draw(getMousePos(e))}
                 onMouseUp={stopDrawing}
