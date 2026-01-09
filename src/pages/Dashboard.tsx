@@ -8,7 +8,7 @@ import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp } from "lucide-react";
+import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp, Megaphone } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
 import MeetingFramework, { MeetingViewMode } from "@/components/meeting/MeetingFramework";
@@ -1040,6 +1040,12 @@ const Dashboard = () => {
                 <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)} className="w-full md:w-auto">
                   <Building className="mr-2 h-4 w-4" />
                   Departments
+                </Button>
+              )}
+              {isSuperAdmin && (
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin/announcements")} className="w-full md:w-auto">
+                  <Megaphone className="mr-2 h-4 w-4" />
+                  Announcements
                 </Button>
               )}
               {(isSuperAdmin || isStoreGM) && (

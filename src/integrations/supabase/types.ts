@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcement_dismissals: {
+        Row: {
+          announcement_id: string
+          dismissed_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          dismissed_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          dismissed_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          message: string
+          priority: Database["public"]["Enums"]["announcement_priority"]
+          starts_at: string
+          store_group_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          message: string
+          priority?: Database["public"]["Enums"]["announcement_priority"]
+          starts_at?: string
+          store_group_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          message?: string
+          priority?: Database["public"]["Enums"]["announcement_priority"]
+          starts_at?: string
+          store_group_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_store_group_id_fkey"
+            columns: ["store_group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brands: {
         Row: {
           created_at: string
@@ -1999,6 +2078,7 @@ export type Database = {
       }
     }
     Enums: {
+      announcement_priority: "info" | "warning" | "urgent"
       app_role:
         | "super_admin"
         | "store_gm"
@@ -2137,6 +2217,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      announcement_priority: ["info", "warning", "urgent"],
       app_role: [
         "super_admin",
         "store_gm",

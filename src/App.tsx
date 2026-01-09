@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanner";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -16,6 +17,7 @@ import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
 import MandatoryKPIRules from "./pages/MandatoryKPIRules";
+import Announcements from "./pages/Announcements";
 import Signatures from "./pages/Signatures";
 import SignDocument from "./pages/SignDocument";
 import SignDocumentByToken from "./pages/SignDocumentByToken";
@@ -30,6 +32,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <AnnouncementBanner />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -44,6 +47,7 @@ const App = () => (
             <Route path="/sign/:requestId" element={<SignDocument />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
+            <Route path="/admin/announcements" element={<Announcements />} />
             <Route path="/admin/signatures" element={<Signatures />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
