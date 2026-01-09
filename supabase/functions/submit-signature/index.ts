@@ -183,21 +183,6 @@ const handler = async (req: Request): Promise<Response> => {
     const sigNaturalHeight = signatureImage.height;
     const sigAspectRatio = sigNaturalWidth / sigNaturalHeight;
 
-    // DEBUG: draw a visible stamp to prove the PDF is being modified
-    try {
-      const firstPage = pdfDoc.getPages()[0];
-      if (firstPage) {
-        firstPage.drawText('SIGNED (DEBUG STAMP)', {
-          x: 36,
-          y: 36,
-          size: 14,
-          color: rgb(1, 0, 0),
-        });
-      }
-    } catch (e) {
-      console.error('Failed to draw debug stamp:', e);
-    }
-
     for (const spot of spots) {
       const pageIndex = (spot.page_number || 1) - 1; // Convert to 0-based index
       const pages = pdfDoc.getPages();
@@ -231,19 +216,8 @@ const handler = async (req: Request): Promise<Response> => {
         const y = pageHeight - centerY - (drawHeight / 2);
 
         console.log(
-          `Spot ${spot.id}: page=${pageIndex + 1}/${pages.length}, center=(${spot.x_position}%, ${spot.y_position}%), box=(${boxWidth.toFixed(1)}x${boxHeight.toFixed(1)}), draw=(${drawWidth.toFixed(1)}x${drawHeight.toFixed(1)}), pos=(${x.toFixed(1)},${y.toFixed(1)}), pageSize=(${pageWidth.toFixed(1)}x${pageHeight.toFixed(1)})`
+          `Spot ${spot.id}: page=${pageIndex + 1}/${pages.length}, center=(${spot.x_position}%, ${spot.y_position}%), box=(${boxWidth.toFixed(1)}x${boxHeight.toFixed(1)}), draw=(${drawWidth.toFixed(1)}x${drawHeight.toFixed(1)}), pos=(${x.toFixed(1)},${y.toFixed(1)})`
         );
-
-        // DEBUG: draw a red outline around the intended box
-        page.drawRectangle({
-          x: centerX - boxWidth / 2,
-          y: pageHeight - centerY - boxHeight / 2,
-          width: boxWidth,
-          height: boxHeight,
-          borderColor: rgb(1, 0, 0),
-          borderWidth: 1,
-          opacity: 0.35,
-        });
 
         // Draw the signature
         page.drawImage(signatureImage, {
@@ -263,8 +237,8 @@ const handler = async (req: Request): Promise<Response> => {
         page.drawText(`Signed: ${dateStr}`, {
           x,
           y: y - 12,
-          size: 10,
-          color: rgb(1, 0, 0),
+          size: 8,
+          color: rgb(0.4, 0.4, 0.4),
         });
       }
     }
