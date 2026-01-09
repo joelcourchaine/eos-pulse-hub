@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Top10ListCard } from "./Top10ListCard";
 import { Top10ListManagementDialog } from "./Top10ListManagementDialog";
 import { ListOrdered } from "lucide-react";
+import { useUserRole } from "@/hooks/use-user-role";
 
 interface ColumnDefinition {
   key: string;
@@ -26,6 +27,16 @@ interface Top10ListsPanelProps {
 export function Top10ListsPanel({ departmentId, canEdit = true }: Top10ListsPanelProps) {
   const [lists, setLists] = useState<Top10List[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | undefined>();
+  const { isSuperAdmin } = useUserRole(userId);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id);
+    };
+    getUser();
+  }, []);
 
   const loadLists = useCallback(async () => {
     if (!departmentId) return;
@@ -100,9 +111,11 @@ export function Top10ListsPanel({ departmentId, canEdit = true }: Top10ListsPane
               <Top10ListCard
                 key={list.id}
                 list={list}
+                departmentId={departmentId}
                 onListChange={loadLists}
                 canEdit={canEdit}
                 existingListCount={lists.length}
+                isSuperAdmin={isSuperAdmin}
               />
             ))}
           </div>
