@@ -273,6 +273,7 @@ export function Top10ListCard({
                             onDelete={() => handleDeleteItem(item.id, item.rank)}
                             canEdit={canEdit}
                             departmentId={departmentId}
+                            listTitle={list.title}
                           />
                         ))}
                         {items.length === 0 && (

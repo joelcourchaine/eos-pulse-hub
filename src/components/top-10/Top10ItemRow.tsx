@@ -24,6 +24,7 @@ interface Top10ItemRowProps {
   onDelete: () => void;
   canEdit: boolean;
   departmentId: string;
+  listTitle: string;
   onIssueCreated?: () => void;
 }
 
@@ -35,6 +36,7 @@ export function Top10ItemRow({
   onDelete,
   canEdit,
   departmentId,
+  listTitle,
   onIssueCreated,
 }: Top10ItemRowProps) {
   const [localData, setLocalData] = useState<Record<string, string>>(data);
@@ -144,6 +146,7 @@ export function Top10ItemRow({
         departmentId={departmentId}
         onIssueAdded={handleIssueAdded}
         initialTitle={selectedCellContent}
+        initialDescription={`From Top 10 List: ${listTitle}`}
         open={issueDialogOpen}
         onOpenChange={setIssueDialogOpen}
       />
