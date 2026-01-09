@@ -23,6 +23,9 @@ interface SignatureSpot {
   label: string;
 }
 
+type DragMode = "none" | "draw" | "move" | "resize";
+type ResizeHandle = "se" | "sw" | "ne" | "nw";
+
 interface Signer {
   id: string;
   full_name: string;
@@ -58,6 +61,14 @@ export const SignatureRequestDialog = ({
   const [isMarkingMode, setIsMarkingMode] = useState(false);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [pageWidth, setPageWidth] = useState(500);
+  
+  // Drag/resize state
+  const [dragMode, setDragMode] = useState<DragMode>("none");
+  const [activeSpotId, setActiveSpotId] = useState<string | null>(null);
+  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
+  const [initialSpot, setInitialSpot] = useState<SignatureSpot | null>(null);
 
   // Fetch eligible signers (GMs and executives) for the store
   useEffect(() => {
@@ -133,25 +144,152 @@ export const SignatureRequestDialog = ({
     setNumPages(numPages);
   };
 
-  const handlePdfClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMarkingMode || !pdfContainerRef.current) return;
-
+  const getRelativePosition = (e: React.MouseEvent | MouseEvent) => {
+    if (!pdfContainerRef.current) return { x: 0, y: 0 };
     const rect = pdfContainerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-
-    const newSpot: SignatureSpot = {
-      id: crypto.randomUUID(),
-      pageNumber: currentPage,
-      xPosition: x,
-      yPosition: y,
-      width: 150,
-      height: 50,
-      label: `Signature ${signatureSpots.length + 1}`,
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * 100,
+      y: ((e.clientY - rect.top) / rect.height) * 100,
     };
+  };
 
-    setSignatureSpots([...signatureSpots, newSpot]);
-    setIsMarkingMode(false);
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pdfContainerRef.current) return;
+    
+    // Only start drawing if in marking mode and clicking on the PDF (not on a spot)
+    if (isMarkingMode && (e.target as HTMLElement).closest('.signature-spot') === null) {
+      const pos = getRelativePosition(e);
+      setDrawStart(pos);
+      setDragMode("draw");
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!pdfContainerRef.current) return;
+    
+    const pos = getRelativePosition(e);
+    
+    if (dragMode === "draw" && drawStart) {
+      // Create or update temporary spot while drawing
+      const minX = Math.min(drawStart.x, pos.x);
+      const minY = Math.min(drawStart.y, pos.y);
+      const width = Math.abs(pos.x - drawStart.x);
+      const height = Math.abs(pos.y - drawStart.y);
+      
+      // Convert percentage to pixels for width/height
+      const rect = pdfContainerRef.current.getBoundingClientRect();
+      const widthPx = (width / 100) * rect.width;
+      const heightPx = (height / 100) * rect.height;
+      
+      const existingIndex = signatureSpots.findIndex(s => s.id === "temp-drawing");
+      const tempSpot: SignatureSpot = {
+        id: "temp-drawing",
+        pageNumber: currentPage,
+        xPosition: minX + width / 2,
+        yPosition: minY + height / 2,
+        width: Math.max(widthPx, 40),
+        height: Math.max(heightPx, 20),
+        label: `Signature ${signatureSpots.filter(s => s.id !== "temp-drawing").length + 1}`,
+      };
+      
+      if (existingIndex >= 0) {
+        setSignatureSpots(spots => spots.map(s => s.id === "temp-drawing" ? tempSpot : s));
+      } else {
+        setSignatureSpots(spots => [...spots, tempSpot]);
+      }
+    } else if (dragMode === "move" && activeSpotId && initialSpot) {
+      const deltaX = pos.x - dragOffset.x;
+      const deltaY = pos.y - dragOffset.y;
+      
+      setSignatureSpots(spots => spots.map(s => 
+        s.id === activeSpotId 
+          ? { ...s, xPosition: initialSpot.xPosition + deltaX, yPosition: initialSpot.yPosition + deltaY }
+          : s
+      ));
+    } else if (dragMode === "resize" && activeSpotId && resizeHandle && initialSpot) {
+      const rect = pdfContainerRef.current.getBoundingClientRect();
+      const deltaX = pos.x - dragOffset.x;
+      const deltaY = pos.y - dragOffset.y;
+      
+      let newWidth = initialSpot.width;
+      let newHeight = initialSpot.height;
+      let newX = initialSpot.xPosition;
+      let newY = initialSpot.yPosition;
+      
+      const deltaXPx = (deltaX / 100) * rect.width;
+      const deltaYPx = (deltaY / 100) * rect.height;
+      
+      switch (resizeHandle) {
+        case "se":
+          newWidth = Math.max(60, initialSpot.width + deltaXPx);
+          newHeight = Math.max(30, initialSpot.height + deltaYPx);
+          newX = initialSpot.xPosition + (deltaXPx / rect.width * 100) / 2;
+          newY = initialSpot.yPosition + (deltaYPx / rect.height * 100) / 2;
+          break;
+        case "sw":
+          newWidth = Math.max(60, initialSpot.width - deltaXPx);
+          newHeight = Math.max(30, initialSpot.height + deltaYPx);
+          newX = initialSpot.xPosition + (deltaXPx / rect.width * 100) / 2;
+          newY = initialSpot.yPosition + (deltaYPx / rect.height * 100) / 2;
+          break;
+        case "ne":
+          newWidth = Math.max(60, initialSpot.width + deltaXPx);
+          newHeight = Math.max(30, initialSpot.height - deltaYPx);
+          newX = initialSpot.xPosition + (deltaXPx / rect.width * 100) / 2;
+          newY = initialSpot.yPosition + (deltaYPx / rect.height * 100) / 2;
+          break;
+        case "nw":
+          newWidth = Math.max(60, initialSpot.width - deltaXPx);
+          newHeight = Math.max(30, initialSpot.height - deltaYPx);
+          newX = initialSpot.xPosition + (deltaXPx / rect.width * 100) / 2;
+          newY = initialSpot.yPosition + (deltaYPx / rect.height * 100) / 2;
+          break;
+      }
+      
+      setSignatureSpots(spots => spots.map(s => 
+        s.id === activeSpotId 
+          ? { ...s, width: newWidth, height: newHeight, xPosition: newX, yPosition: newY }
+          : s
+      ));
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (dragMode === "draw") {
+      // Finalize the drawn spot
+      setSignatureSpots(spots => spots.map(s => 
+        s.id === "temp-drawing" 
+          ? { ...s, id: crypto.randomUUID() }
+          : s
+      ));
+      setIsMarkingMode(false);
+    }
+    
+    setDragMode("none");
+    setDrawStart(null);
+    setActiveSpotId(null);
+    setResizeHandle(null);
+    setInitialSpot(null);
+  };
+
+  const startMove = (e: React.MouseEvent, spot: SignatureSpot) => {
+    e.stopPropagation();
+    const pos = getRelativePosition(e);
+    setDragMode("move");
+    setActiveSpotId(spot.id);
+    setDragOffset(pos);
+    setInitialSpot({ ...spot });
+  };
+
+  const startResize = (e: React.MouseEvent, spot: SignatureSpot, handle: ResizeHandle) => {
+    e.stopPropagation();
+    const pos = getRelativePosition(e);
+    setDragMode("resize");
+    setActiveSpotId(spot.id);
+    setResizeHandle(handle);
+    setDragOffset(pos);
+    setInitialSpot({ ...spot });
   };
 
   const removeSpot = (spotId: string) => {
@@ -354,8 +492,11 @@ export const SignatureRequestDialog = ({
 
             <div
               ref={pdfContainerRef}
-              className={`relative border rounded-lg overflow-hidden bg-muted/30 ${isMarkingMode ? "cursor-crosshair" : ""}`}
-              onClick={handlePdfClick}
+              className={`relative border rounded-lg overflow-hidden bg-muted/30 select-none ${isMarkingMode ? "cursor-crosshair" : ""}`}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
             >
               <Document
                 file={pdfUrl}
@@ -374,7 +515,9 @@ export const SignatureRequestDialog = ({
               {spotsOnCurrentPage.map((spot) => (
                 <div
                   key={spot.id}
-                  className="absolute border-2 border-primary bg-primary/10 rounded flex items-center justify-center group"
+                  className={`signature-spot absolute border-2 border-primary bg-primary/10 rounded flex items-center justify-center group ${
+                    dragMode === "none" ? "cursor-move" : ""
+                  } ${activeSpotId === spot.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
                   style={{
                     left: `${spot.xPosition}%`,
                     top: `${spot.yPosition}%`,
@@ -382,12 +525,15 @@ export const SignatureRequestDialog = ({
                     height: spot.height,
                     transform: "translate(-50%, -50%)",
                   }}
+                  onMouseDown={(e) => startMove(e, spot)}
                 >
-                  <span className="text-xs font-medium text-primary">Sign Here</span>
+                  <span className="text-xs font-medium text-primary pointer-events-none">Sign Here</span>
+                  
+                  {/* Delete button */}
                   <Button
                     variant="destructive"
                     size="icon"
-                    className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeSpot(spot.id);
@@ -395,6 +541,24 @@ export const SignatureRequestDialog = ({
                   >
                     <X className="h-3 w-3" />
                   </Button>
+                  
+                  {/* Resize handles */}
+                  <div
+                    className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => startResize(e, spot, "se")}
+                  />
+                  <div
+                    className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-sw-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => startResize(e, spot, "sw")}
+                  />
+                  <div
+                    className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-ne-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => startResize(e, spot, "ne")}
+                  />
+                  <div
+                    className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => startResize(e, spot, "nw")}
+                  />
                 </div>
               ))}
             </div>
