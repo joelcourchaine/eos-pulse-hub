@@ -277,7 +277,11 @@ export const SignatureRequestsPanel = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleDownload(request.original_pdf_path, `${request.title}.pdf`)}
+                    onClick={() =>
+                      request.status === "signed" && request.signed_pdf_path
+                        ? handleDownload(request.signed_pdf_path, `${request.title}_signed.pdf`)
+                        : handleDownload(request.original_pdf_path, `${request.title}.pdf`)
+                    }
                   >
                     <Download className="h-4 w-4" />
                   </Button>
