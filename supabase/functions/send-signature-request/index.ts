@@ -115,7 +115,24 @@ const handler = async (req: Request): Promise<Response> => {
     const senderName = senderProfile?.full_name || 'Your administrator';
 
     // Build the token-based signing URL (no login required)
-    const appUrl = (Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions').replace(/\/+$/, '');
+    // Prefer the request Origin/Referer so the link matches the environment (preview vs production).
+    const getBaseUrl = () => {
+      const origin = req.headers.get("origin");
+      if (origin) return origin.replace(/\/+$/, "");
+
+      const referer = req.headers.get("referer");
+      if (referer) {
+        try {
+          return new URL(referer).origin.replace(/\/+$/, "");
+        } catch {
+          // ignore
+        }
+      }
+
+      return (Deno.env.get("APP_BASE_URL") || "https://dealergrowth.solutions").replace(/\/+$/, "");
+    };
+
+    const appUrl = getBaseUrl();
     const signatureUrl = `${appUrl}/sign/t/${signatureRequest.access_token}`;
     
     console.log('Generated token-based signature URL:', signatureUrl);
