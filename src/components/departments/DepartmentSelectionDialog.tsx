@@ -223,13 +223,13 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                               ))}
                             </SelectContent>
                           </Select>
-                           <Button
+                          <Button
                             size="sm"
                             onClick={() => updateManagerMutation.mutate({ 
                               departmentId: dept.id, 
-                              newManagerId: editingManagerId === "none" ? "none" : editingManagerId 
+                              newManagerId: editingManagerId 
                             })}
-                            disabled={updateManagerMutation.isPending}
+                            disabled={updateManagerMutation.isPending || !editingManagerId}
                           >
                             Save
                           </Button>
