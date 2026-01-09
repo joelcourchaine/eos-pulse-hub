@@ -40,8 +40,8 @@ const App = () => (
             <Route path="/enterprise" element={<Enterprise />} />
             <Route path="/dealer-comparison" element={<DealerComparison />} />
             <Route path="/questionnaire/:token" element={<Questionnaire />} />
-            <Route path="/sign/:requestId" element={<SignDocument />} />
             <Route path="/sign/t/:token" element={<SignDocumentByToken />} />
+            <Route path="/sign/:requestId" element={<SignDocument />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
             <Route path="/admin/signatures" element={<Signatures />} />
