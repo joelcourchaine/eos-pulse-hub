@@ -1458,6 +1458,123 @@ export type Database = {
           },
         ]
       }
+      signature_requests: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          message: string | null
+          original_pdf_path: string
+          signed_at: string | null
+          signed_pdf_path: string | null
+          signer_id: string
+          status: Database["public"]["Enums"]["signature_status"]
+          store_id: string
+          title: string
+          updated_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string
+          id?: string
+          message?: string | null
+          original_pdf_path: string
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signer_id: string
+          status?: Database["public"]["Enums"]["signature_status"]
+          store_id: string
+          title: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          message?: string | null
+          original_pdf_path?: string
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signer_id?: string
+          status?: Database["public"]["Enums"]["signature_status"]
+          store_id?: string
+          title?: string
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_signer_id_fkey"
+            columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signature_spots: {
+        Row: {
+          created_at: string
+          height: number
+          id: string
+          label: string | null
+          page_number: number
+          request_id: string
+          width: number
+          x_position: number
+          y_position: number
+        }
+        Insert: {
+          created_at?: string
+          height?: number
+          id?: string
+          label?: string | null
+          page_number?: number
+          request_id: string
+          width?: number
+          x_position: number
+          y_position: number
+        }
+        Update: {
+          created_at?: string
+          height?: number
+          id?: string
+          label?: string | null
+          page_number?: number
+          request_id?: string
+          width?: number
+          x_position?: number
+          y_position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_spots_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_groups: {
         Row: {
           created_at: string
@@ -1851,6 +1968,7 @@ export type Database = {
         | "parts_advisor"
         | "technician"
         | "fixed_ops_manager"
+      signature_status: "pending" | "viewed" | "signed" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1989,6 +2107,7 @@ export const Constants = {
         "technician",
         "fixed_ops_manager",
       ],
+      signature_status: ["pending", "viewed", "signed", "expired"],
     },
   },
 } as const
