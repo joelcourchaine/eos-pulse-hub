@@ -128,20 +128,24 @@ const SignDocumentByToken = () => {
     }
   };
 
-  // Resize canvas to fit container
+  // Resize canvas to fit container (keep a comfortably large signing area)
   useEffect(() => {
     const updateCanvasSize = () => {
-      if (canvasContainerRef.current) {
-        const containerWidth = canvasContainerRef.current.clientWidth - 16; // Account for padding
-        const width = Math.min(containerWidth, 600);
-        const height = Math.round(width * 0.375); // Maintain aspect ratio
-        setCanvasSize({ width, height });
-      }
+      if (!canvasContainerRef.current) return;
+
+      // Fill the available width of the signature box
+      const containerWidth = canvasContainerRef.current.clientWidth - 16; // account for padding
+      const width = Math.max(320, containerWidth);
+
+      // Use a fixed-ish height so the signing area isn't too short
+      const height = 220;
+
+      setCanvasSize({ width, height });
     };
 
     updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    window.addEventListener("resize", updateCanvasSize);
+    return () => window.removeEventListener("resize", updateCanvasSize);
   }, [request]);
 
   // Canvas setup for signature
@@ -431,8 +435,8 @@ const SignDocumentByToken = () => {
                 ref={canvasRef}
                 width={canvasSize.width}
                 height={canvasSize.height}
-                className="block mx-auto touch-none cursor-crosshair"
-                style={{ width: canvasSize.width, height: canvasSize.height }}
+                className="block w-full touch-none cursor-crosshair"
+                style={{ height: canvasSize.height }}
                 onMouseDown={(e) => startDrawing(getMousePos(e))}
                 onMouseMove={(e) => draw(getMousePos(e))}
                 onMouseUp={stopDrawing}
