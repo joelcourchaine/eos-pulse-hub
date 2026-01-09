@@ -123,8 +123,9 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Failed to create questionnaire token');
     }
 
-    // Always use the production URL from environment variable
-    const appUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
+    // Always use the production URL from environment variable, removing any trailing slashes
+    const rawAppUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
+    const appUrl = rawAppUrl.replace(/\/+$/, ''); // Remove trailing slashes
     
     const questionnaireUrl = `${appUrl}/questionnaire/${token}`;
     
