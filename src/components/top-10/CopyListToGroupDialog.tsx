@@ -185,6 +185,17 @@ export function CopyListToGroupDialog({
 
     setLoading(true);
     try {
+      // Get the current list's items to know how many rows to create
+      const { data: sourceItems, error: itemsError } = await supabase
+        .from("top_10_items")
+        .select("rank")
+        .eq("list_id", list.id)
+        .order("rank", { ascending: true });
+
+      if (itemsError) throw itemsError;
+
+      const rowCount = sourceItems?.length || 0;
+
       // Get existing list counts for each department to set proper display_order
       const { data: existingLists, error: countError } = await supabase
         .from("top_10_lists")
@@ -229,16 +240,39 @@ export function CopyListToGroupDialog({
         is_active: true,
       }));
 
-      const { error: insertError } = await supabase
+      const { data: insertedLists, error: insertError } = await supabase
         .from("top_10_lists")
-        .insert(newLists);
+        .insert(newLists)
+        .select("id");
 
       if (insertError) throw insertError;
 
+      // Create empty rows for each new list if the source had rows
+      if (rowCount > 0 && insertedLists && insertedLists.length > 0) {
+        const emptyItems: Array<{ list_id: string; rank: number; data: Record<string, string> }> = [];
+        
+        for (const newList of insertedLists) {
+          for (let rank = 1; rank <= rowCount; rank++) {
+            emptyItems.push({
+              list_id: newList.id,
+              rank: rank,
+              data: {}, // Empty data - just column headers
+            });
+          }
+        }
+
+        const { error: itemsInsertError } = await supabase
+          .from("top_10_items")
+          .insert(emptyItems);
+
+        if (itemsInsertError) throw itemsInsertError;
+      }
+
       const skippedCount = selectedDepartments.length - departmentsToInsert.length;
+      const rowsMessage = rowCount > 0 ? ` with ${rowCount} empty rows` : "";
       const successMessage = skippedCount > 0
-        ? `List copied to ${departmentsToInsert.length} departments. ${skippedCount} skipped (already had this list).`
-        : `List copied to ${departmentsToInsert.length} departments successfully!`;
+        ? `List copied to ${departmentsToInsert.length} departments${rowsMessage}. ${skippedCount} skipped (already had this list).`
+        : `List copied to ${departmentsToInsert.length} departments${rowsMessage}!`;
 
       toast.success(successMessage);
       setOpen(false);
