@@ -133,7 +133,7 @@ export const AnnouncementBanner = () => {
 
   return (
     <div 
-      className={`fixed top-0 left-0 right-0 z-50 ${priorityStyles[announcement.priority]} py-2 px-4 flex items-center justify-between overflow-hidden`}
+      className={`fixed top-0 inset-x-0 w-full z-[9999] ${priorityStyles[announcement.priority]} py-2 px-4 flex items-center justify-between overflow-hidden`}
     >
       <div className="flex-1 overflow-hidden relative">
         <div 
