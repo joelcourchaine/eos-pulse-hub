@@ -16,6 +16,7 @@ import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
 import MandatoryKPIRules from "./pages/MandatoryKPIRules";
+import Signatures from "./pages/Signatures";
 import SignDocument from "./pages/SignDocument";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/sign/:requestId" element={<SignDocument />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
+            <Route path="/admin/signatures" element={<Signatures />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
