@@ -178,6 +178,11 @@ const handler = async (req: Request): Promise<Response> => {
     const spots = signatureRequest.signature_spots || [];
     console.log(`Embedding signature at ${spots.length} spots`);
 
+    // Get the signature image's natural aspect ratio
+    const sigNaturalWidth = signatureImage.width;
+    const sigNaturalHeight = signatureImage.height;
+    const sigAspectRatio = sigNaturalWidth / sigNaturalHeight;
+
     for (const spot of spots) {
       const pageIndex = (spot.page_number || 1) - 1; // Convert to 0-based index
       const pages = pdfDoc.getPages();
@@ -196,20 +201,30 @@ const handler = async (req: Request): Promise<Response> => {
         const boxWidth = isPercentSize ? (Number(spot.width) / 100) * pageWidth : Number(spot.width);
         const boxHeight = isPercentSize ? (Number(spot.height) / 100) * pageHeight : Number(spot.height);
 
-        // Calculate top-left corner position for the PDF (which uses bottom-left as origin)
-        const x = centerX - (boxWidth / 2);
-        const y = pageHeight - centerY - (boxHeight / 2);
+        // Scale signature to fit within box while preserving aspect ratio
+        let drawWidth = boxWidth;
+        let drawHeight = boxWidth / sigAspectRatio;
+
+        // If height exceeds box, scale down by height instead
+        if (drawHeight > boxHeight) {
+          drawHeight = boxHeight;
+          drawWidth = boxHeight * sigAspectRatio;
+        }
+
+        // Center the signature within the box
+        const x = centerX - (drawWidth / 2);
+        const y = pageHeight - centerY - (drawHeight / 2);
 
         console.log(
-          `Spot ${spot.id}: center=(${spot.x_position}%, ${spot.y_position}%), size=${isPercentSize ? 'pct' : 'px'}(${spot.width},${spot.height}), calculated x=${x}, y=${y}, w=${boxWidth}, h=${boxHeight}`
+          `Spot ${spot.id}: center=(${spot.x_position}%, ${spot.y_position}%), box=(${boxWidth.toFixed(1)}x${boxHeight.toFixed(1)}), draw=(${drawWidth.toFixed(1)}x${drawHeight.toFixed(1)}), pos=(${x.toFixed(1)},${y.toFixed(1)})`
         );
 
         // Draw the signature
         page.drawImage(signatureImage, {
           x: x,
           y: y,
-          width: boxWidth,
-          height: boxHeight,
+          width: drawWidth,
+          height: drawHeight,
         });
 
         // Add signature date below
