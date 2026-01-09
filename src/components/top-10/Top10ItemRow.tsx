@@ -149,6 +149,7 @@ export function Top10ItemRow({
         initialDescription={`From Top 10 List: ${listTitle}`}
         open={issueDialogOpen}
         onOpenChange={setIssueDialogOpen}
+        trigger={<span className="hidden" />}
       />
     </>
   );
