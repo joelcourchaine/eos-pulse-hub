@@ -381,13 +381,14 @@ const SignDocumentByToken = () => {
           <CardContent>
             <div 
               ref={pdfContainerRef}
-              className="relative border rounded-lg overflow-hidden bg-muted/30 flex justify-center"
+              className="border rounded-lg overflow-hidden bg-muted/30 flex justify-center"
             >
               {pdfUrl && (
-                <div className="relative">
+                <div className="relative inline-block">
                   <Document
                     file={pdfUrl}
                     onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                    className="flex justify-center"
                   >
                     <Page
                       pageNumber={currentPage}
@@ -397,7 +398,7 @@ const SignDocumentByToken = () => {
                     />
                   </Document>
 
-                  {/* Highlight signature spots */}
+                  {/* Highlight signature spots - positioned relative to the PDF page */}
                   {spotsOnCurrentPage.map((spot) => (
                     <div
                       key={spot.id}

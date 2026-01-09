@@ -716,25 +716,27 @@ export const SignatureRequestDialog = ({
             </div>
 
             <div
-              ref={pdfContainerRef}
-              className={`relative border rounded-lg overflow-hidden bg-muted/30 select-none ${isMarkingMode ? "cursor-crosshair" : ""}`}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              className={`border rounded-lg overflow-hidden bg-muted/30 select-none flex justify-center ${isMarkingMode ? "cursor-crosshair" : ""}`}
             >
-              <Document
-                file={pdfUrl}
-                onLoadSuccess={handleDocumentLoadSuccess}
-                className="flex justify-center"
+              <div
+                ref={pdfContainerRef}
+                className="relative inline-block"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
               >
-                <Page
-                  pageNumber={currentPage}
-                  width={pageWidth}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
-                />
-              </Document>
+                <Document
+                  file={pdfUrl}
+                  onLoadSuccess={handleDocumentLoadSuccess}
+                >
+                  <Page
+                    pageNumber={currentPage}
+                    width={pageWidth}
+                    renderTextLayer={false}
+                    renderAnnotationLayer={false}
+                  />
+                </Document>
 
               {/* Render signature spots for current page */}
               {spotsOnCurrentPage.map((spot) => (
@@ -786,6 +788,7 @@ export const SignatureRequestDialog = ({
                   />
                 </div>
               ))}
+              </div>
             </div>
 
             <div className="flex justify-between">
