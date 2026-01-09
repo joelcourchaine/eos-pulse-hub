@@ -122,8 +122,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const senderName = senderProfile?.full_name || 'Your administrator';
 
-    // Always use the production URL from environment variable
-    const appUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
+    // Always use the production URL from environment variable, removing any trailing slash
+    const appUrl = (Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions').replace(/\/+$/, '');
     const signatureUrl = `${appUrl}/sign/${requestId}`;
     
     console.log('Generated signature URL:', signatureUrl);
