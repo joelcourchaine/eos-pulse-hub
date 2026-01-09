@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, FileText, Send, Loader2, MousePointer } from "lucide-react";
+import { Upload, X, FileText, Send, Loader2, MousePointer, Trash2 } from "lucide-react";
 import { Document, Page, pdfjs } from 'react-pdf';
 
 // Set up PDF.js worker
@@ -61,6 +61,8 @@ export const SignatureRequestDialog = ({
   const [isMarkingMode, setIsMarkingMode] = useState(false);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [pageWidth, setPageWidth] = useState(500);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   
   // Drag/resize state
   const [dragMode, setDragMode] = useState<DragMode>("none");
@@ -123,19 +125,86 @@ export const SignatureRequestDialog = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === "application/pdf") {
-      setPdfFile(file);
-      const url = URL.createObjectURL(file);
-      setPdfUrl(url);
-      setStep("mark");
-      setTitle(file.name.replace(".pdf", ""));
-    } else {
+    if (!file || file.type !== "application/pdf") {
       toast({
         variant: "destructive",
         title: "Invalid file",
         description: "Please upload a PDF file",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setPdfFile(file);
+    setTitle(file.name.replace(".pdf", ""));
+    
+    try {
+      // Immediately upload to storage
+      const fileName = `${storeId}/${crypto.randomUUID()}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from("signature-documents")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      setUploadedFilePath(fileName);
+      
+      // Get signed URL for viewing
+      const { data: signedData } = await supabase.storage
+        .from("signature-documents")
+        .createSignedUrl(fileName, 3600); // 1 hour expiry
+
+      if (signedData?.signedUrl) {
+        setPdfUrl(signedData.signedUrl);
+      } else {
+        // Fallback to local URL
+        const url = URL.createObjectURL(file);
+        setPdfUrl(url);
+      }
+      
+      setStep("mark");
+      
+      toast({
+        title: "PDF uploaded",
+        description: "Document saved. You can now mark signature spots.",
+      });
+    } catch (error: any) {
+      console.error("Error uploading PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error.message || "Failed to upload document",
+      });
+      setPdfFile(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeletePdf = async () => {
+    if (!uploadedFilePath) return;
+    
+    try {
+      const { error } = await supabase.storage
+        .from("signature-documents")
+        .remove([uploadedFilePath]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Document deleted",
+        description: "The PDF has been removed",
+      });
+      
+      resetDialog();
+    } catch (error: any) {
+      console.error("Error deleting PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: error.message || "Failed to delete document",
       });
     }
   };
@@ -297,7 +366,7 @@ export const SignatureRequestDialog = ({
   };
 
   const handleSubmit = async () => {
-    if (!pdfFile || !selectedSigner || signatureSpots.length === 0) {
+    if (!uploadedFilePath || !selectedSigner || signatureSpots.length === 0) {
       toast({
         variant: "destructive",
         title: "Missing information",
@@ -312,20 +381,12 @@ export const SignatureRequestDialog = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Upload PDF to storage
-      const fileName = `${storeId}/${crypto.randomUUID()}.pdf`;
-      const { error: uploadError } = await supabase.storage
-        .from("signature-documents")
-        .upload(fileName, pdfFile);
-
-      if (uploadError) throw uploadError;
-
-      // Create signature request
+      // Create signature request using already-uploaded file
       const { data: request, error: requestError } = await supabase
         .from("signature_requests")
         .insert({
           title,
-          original_pdf_path: fileName,
+          original_pdf_path: uploadedFilePath,
           store_id: storeId,
           signer_id: selectedSigner,
           message,
@@ -397,6 +458,7 @@ export const SignatureRequestDialog = ({
     setStep("upload");
     setPdfFile(null);
     setPdfUrl(null);
+    setUploadedFilePath(null);
     setNumPages(0);
     setCurrentPage(1);
     setSignatureSpots([]);
@@ -438,14 +500,23 @@ export const SignatureRequestDialog = ({
         {/* Step 1: Upload */}
         {step === "upload" && (
           <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-muted-foreground/25">
-            <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">Drop a PDF file here or click to browse</p>
-            <Input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileUpload}
-              className="max-w-xs"
-            />
+            {isUploading ? (
+              <>
+                <Loader2 className="h-12 w-12 text-primary mb-4 animate-spin" />
+                <p className="text-muted-foreground">Uploading document...</p>
+              </>
+            ) : (
+              <>
+                <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">Drop a PDF file here or click to browse</p>
+                <Input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handleFileUpload}
+                  className="max-w-xs"
+                />
+              </>
+            )}
           </div>
         )}
 
@@ -460,7 +531,7 @@ export const SignatureRequestDialog = ({
                   onClick={() => setIsMarkingMode(!isMarkingMode)}
                 >
                   <MousePointer className="h-4 w-4 mr-2" />
-                  {isMarkingMode ? "Click on PDF to place" : "Add Signature Spot"}
+                  {isMarkingMode ? "Drag to draw box" : "Add Signature Spot"}
                 </Button>
                 <span className="text-sm text-muted-foreground">
                   {signatureSpots.length} spot{signatureSpots.length !== 1 ? "s" : ""} marked
@@ -486,6 +557,14 @@ export const SignatureRequestDialog = ({
                   onClick={() => setCurrentPage(p => p + 1)}
                 >
                   Next
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeletePdf}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete PDF
                 </Button>
               </div>
             </div>
