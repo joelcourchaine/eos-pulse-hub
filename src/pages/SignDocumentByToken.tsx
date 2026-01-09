@@ -169,8 +169,17 @@ const SignDocumentByToken = () => {
   };
 
   const startDrawing = (pos: { x: number; y: number }) => {
-    const ctx = canvasRef.current?.getContext("2d");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    
+    // Set stroke style each time to ensure it's applied
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    
     setIsDrawing(true);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
@@ -178,8 +187,11 @@ const SignDocumentByToken = () => {
 
   const draw = (pos: { x: number; y: number }) => {
     if (!isDrawing) return;
-    const ctx = canvasRef.current?.getContext("2d");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
     setHasSignature(true);
