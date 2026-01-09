@@ -139,14 +139,15 @@ Deno.serve(async (req) => {
     }
 
     // Check if caller has super_admin, store_gm, or department_manager role
-    const { data: callerRoles, error: roleError } = await userClient
+    // Use admin client to bypass RLS on user_roles table
+    const { data: callerRoles, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .in('role', ['super_admin', 'store_gm', 'department_manager']);
 
     if (roleError || !callerRoles || callerRoles.length === 0) {
-      console.error('Role check failed:', roleError);
+      console.error('Role check failed:', roleError, 'User ID:', user.id, 'Roles found:', callerRoles);
       return new Response(
         JSON.stringify({ 
           success: false, 
