@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, FileText, Send, Loader2, MousePointer, Trash2 } from "lucide-react";
+import { Upload, X, FileText, Send, Loader2, MousePointer, Trash2, FolderOpen } from "lucide-react";
 import { Document, Page, pdfjs } from 'react-pdf';
+import { format } from "date-fns";
 
 // Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -20,6 +21,12 @@ interface SignatureSpot {
   width: number;
   height: number;
   label: string;
+}
+
+interface ExistingPdf {
+  name: string;
+  path: string;
+  created_at: string;
 }
 
 type DragMode = "none" | "draw" | "move" | "resize";
@@ -60,6 +67,11 @@ export const SignatureRequestDialog = ({
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   
+  // Existing PDFs state
+  const [existingPdfs, setExistingPdfs] = useState<ExistingPdf[]>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [showExisting, setShowExisting] = useState(false);
+  
   // Drag/resize state
   const [dragMode, setDragMode] = useState<DragMode>("none");
   const [activeSpotId, setActiveSpotId] = useState<string | null>(null);
@@ -67,6 +79,76 @@ export const SignatureRequestDialog = ({
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
   const [initialSpot, setInitialSpot] = useState<SignatureSpot | null>(null);
+
+  // Load existing PDFs when dialog opens
+  useEffect(() => {
+    if (open && storeId) {
+      loadExistingPdfs();
+    }
+  }, [open, storeId]);
+
+  const loadExistingPdfs = async () => {
+    setLoadingExisting(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from("signature-documents")
+        .list(storeId, {
+          limit: 50,
+          sortBy: { column: "created_at", order: "desc" },
+        });
+
+      if (error) throw error;
+
+      // Filter to only PDFs and exclude signed copies
+      const pdfs = (data || [])
+        .filter(f => f.name.endsWith(".pdf") && !f.name.includes("_signed"))
+        .map(f => ({
+          name: f.name,
+          path: `${storeId}/${f.name}`,
+          created_at: f.created_at || "",
+        }));
+
+      setExistingPdfs(pdfs);
+    } catch (error) {
+      console.error("Error loading existing PDFs:", error);
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
+
+  const selectExistingPdf = async (pdf: ExistingPdf) => {
+    setIsUploading(true);
+    try {
+      // Get signed URL for viewing
+      const { data: signedData, error } = await supabase.storage
+        .from("signature-documents")
+        .createSignedUrl(pdf.path, 3600);
+
+      if (error) throw error;
+
+      if (signedData?.signedUrl) {
+        setPdfUrl(signedData.signedUrl);
+        setUploadedFilePath(pdf.path);
+        setTitle(pdf.name.replace(".pdf", ""));
+        setStep("mark");
+        setShowExisting(false);
+        
+        toast({
+          title: "PDF selected",
+          description: "You can now mark signature spots.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error selecting PDF:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load the selected PDF",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const processFile = async (file: File) => {
     if (!file || file.type !== "application/pdf") {
@@ -494,35 +576,93 @@ export const SignatureRequestDialog = ({
 
         {/* Step 1: Upload */}
         {step === "upload" && (
-          <div 
-            className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors ${
-              isDragOver 
-                ? "border-primary bg-primary/5" 
-                : "border-muted-foreground/25"
-            }`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-12 w-12 text-primary mb-4 animate-spin" />
-                <p className="text-muted-foreground">Uploading document...</p>
-              </>
-            ) : (
-              <>
-                <Upload className={`h-12 w-12 mb-4 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
-                <p className={`mb-4 ${isDragOver ? "text-primary font-medium" : "text-muted-foreground"}`}>
-                  {isDragOver ? "Drop PDF here" : "Drop a PDF file here or click to browse"}
-                </p>
-                <Input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  onChange={handleFileUpload}
-                  className="max-w-xs"
-                />
-              </>
+          <div className="space-y-4">
+            {/* Existing PDFs section */}
+            {existingPdfs.length > 0 && (
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setShowExisting(!showExisting)}
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  {showExisting ? "Hide" : "Select from"} previously uploaded PDFs ({existingPdfs.length})
+                </Button>
+                
+                {showExisting && (
+                  <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                    {loadingExisting ? (
+                      <div className="p-4 flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Loading...
+                      </div>
+                    ) : (
+                      existingPdfs.map((pdf) => (
+                        <button
+                          key={pdf.path}
+                          className="w-full p-3 text-left hover:bg-muted/50 transition-colors flex items-center gap-3"
+                          onClick={() => selectExistingPdf(pdf)}
+                        >
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{pdf.name}</p>
+                            {pdf.created_at && (
+                              <p className="text-xs text-muted-foreground">
+                                Uploaded {format(new Date(pdf.created_at), "MMM d, yyyy")}
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
             )}
+
+            {/* Separator if there are existing PDFs */}
+            {existingPdfs.length > 0 && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or upload new</span>
+                </div>
+              </div>
+            )}
+
+            {/* Upload area */}
+            <div 
+              className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors ${
+                isDragOver 
+                  ? "border-primary bg-primary/5" 
+                  : "border-muted-foreground/25"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-12 w-12 text-primary mb-4 animate-spin" />
+                  <p className="text-muted-foreground">Uploading document...</p>
+                </>
+              ) : (
+                <>
+                  <Upload className={`h-12 w-12 mb-4 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                  <p className={`mb-4 ${isDragOver ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                    {isDragOver ? "Drop PDF here" : "Drop a PDF file here or click to browse"}
+                  </p>
+                  <Input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleFileUpload}
+                    className="max-w-xs"
+                  />
+                </>
+              )}
+            </div>
           </div>
         )}
 
