@@ -300,64 +300,94 @@ const handler = async (req: Request): Promise<Response> => {
     // Get signer's name for notification
     const signerName = signatureRequest.signer_name || 'A user';
 
+    // For token-based access, we need to fetch the full signature request to get created_by
+    let creatorId = signatureRequest.created_by;
+    if (!creatorId && signatureRequest.id) {
+      const { data: fullRequest } = await supabase
+        .from('signature_requests')
+        .select('created_by')
+        .eq('id', signatureRequest.id)
+        .single();
+      creatorId = fullRequest?.created_by;
+    }
+
     // Get document owner's info for notification
-    const { data: ownerProfile } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('id', signatureRequest.created_by)
-      .single();
+    let ownerEmail: string | null = null;
+    let ownerName: string | null = null;
+    
+    if (creatorId) {
+      const { data: ownerProfile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', creatorId)
+        .single();
+      ownerEmail = ownerProfile?.email || null;
+      ownerName = ownerProfile?.full_name || null;
+    }
 
     // Send notification email to document owner
-    if (ownerProfile?.email) {
+    if (RESEND_API_KEY && ownerEmail) {
       const appUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
       
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${RESEND_API_KEY}`,
-        },
-        body: JSON.stringify({
-          from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
-          to: [ownerProfile.email],
-          subject: `Document Signed - ${signatureRequest.title}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h1 style="color: #1f2937; border-bottom: 2px solid #22c55e; padding-bottom: 12px;">
-                ✅ Document Signed
-              </h1>
-              
-              <p style="color: #374151; margin-top: 16px;">
-                Hello ${ownerProfile.full_name},
-              </p>
-              
-              <p style="color: #374151;">
-                <strong>${signerName}</strong> has signed the document: <strong>${signatureRequest.title}</strong>
-              </p>
+      console.log(`Sending signature notification email to: ${ownerEmail}`);
+      
+      try {
+        const emailResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${RESEND_API_KEY}`,
+          },
+          body: JSON.stringify({
+            from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
+            to: [ownerEmail],
+            subject: `Document Signed - ${signatureRequest.title}`,
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h1 style="color: #1f2937; border-bottom: 2px solid #22c55e; padding-bottom: 12px;">
+                  ✅ Document Signed
+                </h1>
+                
+                <p style="color: #374151; margin-top: 16px;">
+                  Hello ${ownerName || 'Admin'},
+                </p>
+                
+                <p style="color: #374151;">
+                  <strong>${signerName}</strong> has signed the document: <strong>${signatureRequest.title}</strong>
+                </p>
 
-              <div style="margin: 24px 0; padding: 16px; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
-                <p style="color: #166534; margin: 0;">
-                  <strong>Signed:</strong> ${new Date().toLocaleString('en-US', { 
-                    dateStyle: 'full', 
-                    timeStyle: 'short' 
-                  })}
+                <div style="margin: 24px 0; padding: 16px; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
+                  <p style="color: #166534; margin: 0;">
+                    <strong>Signed:</strong> ${new Date().toLocaleString('en-US', { 
+                      dateStyle: 'full', 
+                      timeStyle: 'short' 
+                    })}
+                  </p>
+                </div>
+
+                <div style="text-align: center; margin: 32px 0;">
+                  <a href="${appUrl}/admin/signatures" 
+                     style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 500;">
+                    View Signature Requests
+                  </a>
+                </div>
+
+                <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">
+                  This is an automated message from Dealer Growth Solutions.
                 </p>
               </div>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${appUrl}/admin/signatures" 
-                   style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 500;">
-                  View Signature Requests
-                </a>
-              </div>
-
-              <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">
-                This is an automated message from Dealer Growth Solutions.
-              </p>
-            </div>
-          `,
-        }),
-      });
+            `,
+          }),
+        });
+        
+        const emailResult = await emailResponse.json();
+        console.log('Email notification result:', emailResult);
+      } catch (emailError) {
+        console.error('Failed to send notification email:', emailError);
+        // Don't fail the signature process if email fails
+      }
+    } else {
+      console.log('Skipping email notification - missing RESEND_API_KEY or owner email');
     }
 
     console.log('Signature submitted successfully for request:', signatureRequest.id);
