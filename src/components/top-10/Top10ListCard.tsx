@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Collapsible,
   CollapsibleContent,
@@ -23,7 +25,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ChevronRight, Plus, Trash2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Top10ItemRow } from "./Top10ItemRow";
@@ -70,6 +80,9 @@ export function Top10ListCard({
   const [items, setItems] = useState<Top10Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateTitle, setDuplicateTitle] = useState("");
+  const [duplicating, setDuplicating] = useState(false);
 
   const maxItems = 10;
 
@@ -187,6 +200,62 @@ export function Top10ListCard({
     }
   };
 
+  const handleDuplicateList = async () => {
+    if (!duplicateTitle.trim()) {
+      toast.error("Please enter a title for the duplicate list");
+      return;
+    }
+
+    setDuplicating(true);
+    try {
+      // Create the new list
+      const { data: newList, error: listError } = await supabase
+        .from("top_10_lists")
+        .insert({
+          department_id: departmentId,
+          title: duplicateTitle.trim(),
+          description: list.description,
+          columns: JSON.parse(JSON.stringify(list.columns)),
+          display_order: existingListCount,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+
+      if (listError) throw listError;
+
+      // Copy items if there are any
+      if (items.length > 0) {
+        const itemsToInsert = items.map((item) => ({
+          list_id: newList.id,
+          rank: item.rank,
+          data: JSON.parse(JSON.stringify(item.data)),
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("top_10_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+      }
+
+      toast.success("List duplicated successfully");
+      setDuplicateDialogOpen(false);
+      setDuplicateTitle("");
+      onListChange();
+    } catch (error: any) {
+      console.error("Error duplicating list:", error);
+      toast.error(error.message || "Failed to duplicate list");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const openDuplicateDialog = () => {
+    setDuplicateTitle(`${list.title} (Copy)`);
+    setDuplicateDialogOpen(true);
+  };
+
   return (
     <>
       <Card className="border shadow-sm">
@@ -219,6 +288,15 @@ export function Top10ListCard({
                       currentDepartmentId={departmentId}
                     />
                   )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={openDuplicateDialog}
+                    title="Duplicate list"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
                   <Top10ListManagementDialog
                     departmentId=""
                     list={list}
@@ -329,6 +407,35 @@ export function Top10ListCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Duplicate List</DialogTitle>
+            <DialogDescription>
+              Create a copy of "{list.title}" with all its items.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="duplicateTitle">New List Title</Label>
+            <Input
+              id="duplicateTitle"
+              value={duplicateTitle}
+              onChange={(e) => setDuplicateTitle(e.target.value)}
+              placeholder="Enter title for the duplicate"
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleDuplicateList} disabled={duplicating}>
+              {duplicating ? "Duplicating..." : "Duplicate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
