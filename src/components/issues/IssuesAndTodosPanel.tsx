@@ -105,6 +105,13 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
       if (deptError) throw deptError;
       
+      // Get super admin user IDs
+      const { data: superAdminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+      const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
+      
       // Use security definer function to get basic profile data, then filter by store
       const { data, error } = await supabase.rpc("get_profiles_basic");
 
@@ -112,8 +119,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
       const profilesMap: { [key: string]: Profile } = {};
       data?.forEach((profile: { id: string; full_name: string; store_id: string | null }) => {
-        // Only include profiles that belong to this store
-        if (profile.store_id === department.store_id) {
+        // Include profiles that belong to this store OR are super admins
+        if (profile.store_id === department.store_id || superAdminIds.includes(profile.id)) {
           profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
         }
       });
