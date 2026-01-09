@@ -12,7 +12,8 @@ const corsHeaders = {
 };
 
 interface RequestBody {
-  requestId: string;
+  requestId?: string;
+  accessToken?: string;
   signatureDataUrl: string; // Base64 PNG data URL of signature
 }
 
@@ -22,59 +23,103 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Get the authorization token from the request
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Verify the user is authenticated
-    const jwtToken = authHeader.replace('Bearer ', '');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwtToken);
-    
-    if (authError || !user) {
+    const { requestId, accessToken, signatureDataUrl }: RequestBody = await req.json();
+
+    let signatureRequest: any;
+
+    // Support both token-based (external) and ID-based (authenticated) access
+    if (accessToken) {
+      // Token-based access - no authentication required
+      console.log('Token-based signature submission for token:', accessToken);
+      
+      const { data, error: requestError } = await supabase
+        .rpc('get_signature_request_by_token', { p_token: accessToken });
+
+      if (requestError || !data || data.length === 0) {
+        console.error('Error fetching signature request by token:', requestError);
+        return new Response(
+          JSON.stringify({ error: 'Signature request not found or invalid token' }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
+      signatureRequest = data[0];
+
+      // Get signature spots using the RPC function
+      const { data: spots, error: spotsError } = await supabase
+        .rpc('get_signature_spots_by_request', { p_request_id: signatureRequest.id });
+
+      if (spotsError) {
+        console.error('Error fetching signature spots:', spotsError);
+      }
+
+      signatureRequest.signature_spots = spots || [];
+
+    } else if (requestId) {
+      // ID-based access - requires authentication
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
+      const jwtToken = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabase.auth.getUser(jwtToken);
+      
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          {
+            status: 401,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
+      // Get the signature request
+      const { data, error: requestError } = await supabase
+        .from('signature_requests')
+        .select('*, signature_spots(*)')
+        .eq('id', requestId)
+        .single();
+
+      if (requestError || !data) {
+        console.error('Error fetching signature request:', requestError);
+        return new Response(
+          JSON.stringify({ error: 'Signature request not found' }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
+      // Verify the user is the designated signer (for legacy requests with signer_id)
+      if (data.signer_id && data.signer_id !== user.id) {
+        return new Response(
+          JSON.stringify({ error: 'You are not authorized to sign this document' }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+
+      signatureRequest = data;
+    } else {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
+        JSON.stringify({ error: 'Either requestId or accessToken is required' }),
         {
-          status: 401,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    const { requestId, signatureDataUrl }: RequestBody = await req.json();
-
-    // Get the signature request and verify the user is the signer
-    const { data: signatureRequest, error: requestError } = await supabase
-      .from('signature_requests')
-      .select('*, signature_spots(*)')
-      .eq('id', requestId)
-      .single();
-
-    if (requestError || !signatureRequest) {
-      console.error('Error fetching signature request:', requestError);
-      return new Response(
-        JSON.stringify({ error: 'Signature request not found' }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
-    }
-
-    // Verify the user is the designated signer
-    if (signatureRequest.signer_id !== user.id) {
-      return new Response(
-        JSON.stringify({ error: 'You are not authorized to sign this document' }),
-        {
-          status: 403,
+          status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
@@ -102,7 +147,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log('Processing signature for request:', requestId);
+    console.log('Processing signature for request:', signatureRequest.id);
 
     // Download the original PDF from storage
     const { data: pdfData, error: downloadError } = await supabase.storage
@@ -200,7 +245,7 @@ const handler = async (req: Request): Promise<Response> => {
         signed_pdf_path: signedPdfPath,
         signed_at: new Date().toISOString(),
       })
-      .eq('id', requestId);
+      .eq('id', signatureRequest.id);
 
     if (updateError) {
       console.error('Error updating signature request:', updateError);
@@ -213,13 +258,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get signer's name and document owner's info for notification
-    const { data: signerProfile } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('id', user.id)
-      .single();
+    // Get signer's name for notification
+    const signerName = signatureRequest.signer_name || 'A user';
 
+    // Get document owner's info for notification
     const { data: ownerProfile } = await supabase
       .from('profiles')
       .select('full_name, email')
@@ -251,7 +293,7 @@ const handler = async (req: Request): Promise<Response> => {
               </p>
               
               <p style="color: #374151;">
-                <strong>${signerProfile?.full_name || 'A user'}</strong> has signed the document: <strong>${signatureRequest.title}</strong>
+                <strong>${signerName}</strong> has signed the document: <strong>${signatureRequest.title}</strong>
               </p>
 
               <div style="margin: 24px 0; padding: 16px; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
@@ -264,9 +306,9 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
 
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${appUrl}/dashboard" 
+                <a href="${appUrl}/admin/signatures" 
                    style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: 500;">
-                  View in Dashboard
+                  View Signature Requests
                 </a>
               </div>
 
@@ -279,7 +321,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    console.log('Signature submitted successfully for request:', requestId);
+    console.log('Signature submitted successfully for request:', signatureRequest.id);
 
     return new Response(JSON.stringify({ 
       success: true,

@@ -1460,6 +1460,7 @@ export type Database = {
       }
       signature_requests: {
         Row: {
+          access_token: string
           created_at: string
           created_by: string
           expires_at: string
@@ -1468,7 +1469,9 @@ export type Database = {
           original_pdf_path: string
           signed_at: string | null
           signed_pdf_path: string | null
-          signer_id: string
+          signer_email: string | null
+          signer_id: string | null
+          signer_name: string | null
           status: Database["public"]["Enums"]["signature_status"]
           store_id: string
           title: string
@@ -1476,6 +1479,7 @@ export type Database = {
           viewed_at: string | null
         }
         Insert: {
+          access_token?: string
           created_at?: string
           created_by: string
           expires_at?: string
@@ -1484,7 +1488,9 @@ export type Database = {
           original_pdf_path: string
           signed_at?: string | null
           signed_pdf_path?: string | null
-          signer_id: string
+          signer_email?: string | null
+          signer_id?: string | null
+          signer_name?: string | null
           status?: Database["public"]["Enums"]["signature_status"]
           store_id: string
           title: string
@@ -1492,6 +1498,7 @@ export type Database = {
           viewed_at?: string | null
         }
         Update: {
+          access_token?: string
           created_at?: string
           created_by?: string
           expires_at?: string
@@ -1500,7 +1507,9 @@ export type Database = {
           original_pdf_path?: string
           signed_at?: string | null
           signed_pdf_path?: string | null
-          signer_id?: string
+          signer_email?: string | null
+          signer_id?: string | null
+          signer_name?: string | null
           status?: Database["public"]["Enums"]["signature_status"]
           store_id?: string
           title?: string
@@ -1921,6 +1930,34 @@ export type Database = {
           role: string
           store_group_id: string
           store_id: string
+        }[]
+      }
+      get_signature_request_by_token: {
+        Args: { p_token: string }
+        Returns: {
+          created_at: string
+          expires_at: string
+          id: string
+          message: string
+          original_pdf_path: string
+          signed_pdf_path: string
+          signer_email: string
+          signer_name: string
+          status: Database["public"]["Enums"]["signature_status"]
+          store_id: string
+          title: string
+        }[]
+      }
+      get_signature_spots_by_request: {
+        Args: { p_request_id: string }
+        Returns: {
+          height: number
+          id: string
+          label: string
+          page_number: number
+          width: number
+          x_position: number
+          y_position: number
         }[]
       }
       get_user_department: { Args: { _user_id: string }; Returns: string }

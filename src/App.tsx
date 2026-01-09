@@ -18,6 +18,7 @@ import Install from "./pages/Install";
 import MandatoryKPIRules from "./pages/MandatoryKPIRules";
 import Signatures from "./pages/Signatures";
 import SignDocument from "./pages/SignDocument";
+import SignDocumentByToken from "./pages/SignDocumentByToken";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/dealer-comparison" element={<DealerComparison />} />
             <Route path="/questionnaire/:token" element={<Questionnaire />} />
             <Route path="/sign/:requestId" element={<SignDocument />} />
+            <Route path="/sign/t/:token" element={<SignDocumentByToken />} />
             <Route path="/install" element={<Install />} />
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
             <Route path="/admin/signatures" element={<Signatures />} />
