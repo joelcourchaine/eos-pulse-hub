@@ -12,7 +12,7 @@ interface ResendInviteRequest {
 }
 
 // Email template for invitations
-function getInviteEmailHtml(continueLink: string, directLink: string): string {
+function getInviteEmailHtml(continueLink: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -25,7 +25,6 @@ function getInviteEmailHtml(continueLink: string, directLink: string): string {
           .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .button:hover { background-color: #1d4ed8; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-          .note { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; font-size: 13px; color: #444; }
         </style>
       </head>
       <body>
@@ -40,22 +39,6 @@ function getInviteEmailHtml(continueLink: string, directLink: string): string {
             <div style="text-align: center;">
               <a href="${continueLink}" class="button">Accept Invitation</a>
             </div>
-
-            <div class="note">
-              <strong>Important:</strong> Some email providers pre-open links for security scanning, which can make one-time links appear “expired”.
-              If you see an expired message, request a new invite from your administrator.
-            </div>
-
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${continueLink}" style="color: #2563eb; word-break: break-all;">${continueLink}</a>
-            </p>
-
-            <p style="margin-top: 18px; color: #666; font-size: 12px;">
-              Having trouble? You can also try the direct link (may expire if scanned):<br>
-              <a href="${directLink}" style="color: #2563eb; word-break: break-all;">${directLink}</a>
-            </p>
-
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
               This link will expire in 24 hours for security reasons.
             </p>
@@ -73,7 +56,7 @@ function getInviteEmailHtml(continueLink: string, directLink: string): string {
 }
 
 // Email template for password reset
-function getPasswordResetEmailHtml(continueLink: string, directLink: string): string {
+function getPasswordResetEmailHtml(continueLink: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -86,7 +69,6 @@ function getPasswordResetEmailHtml(continueLink: string, directLink: string): st
           .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .button:hover { background-color: #1d4ed8; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-          .note { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; font-size: 13px; color: #444; }
         </style>
       </head>
       <body>
@@ -100,22 +82,6 @@ function getPasswordResetEmailHtml(continueLink: string, directLink: string): st
             <div style="text-align: center;">
               <a href="${continueLink}" class="button">Reset Password</a>
             </div>
-
-            <div class="note">
-              <strong>Important:</strong> Some email providers pre-open links for security scanning, which can make one-time links appear “expired”.
-              If you see an expired message, simply request a new reset link.
-            </div>
-
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${continueLink}" style="color: #2563eb; word-break: break-all;">${continueLink}</a>
-            </p>
-
-            <p style="margin-top: 18px; color: #666; font-size: 12px;">
-              Having trouble? You can also try the direct link (may expire if scanned):<br>
-              <a href="${directLink}" style="color: #2563eb; word-break: break-all;">${directLink}</a>
-            </p>
-
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
               This link will expire in 1 hour for security reasons.
             </p>
@@ -337,14 +303,14 @@ Deno.serve(async (req) => {
 
       console.log('Recovery link generated successfully');
       
-      // Send password reset email via Resend
-      const directLink = linkData.properties.action_link;
-      const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(directLink)}`;
+      // Send password reset email via Resend - only use continueLink to prevent scanner consumption
+      const actionLink = linkData.properties.action_link;
+      const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(actionLink)}`;
 
       await sendEmailViaResend(
         realEmail,
         'Reset Your Password - Dealer Growth Solutions',
-        getPasswordResetEmailHtml(continueLink, directLink)
+        getPasswordResetEmailHtml(continueLink)
       );
 
       console.log('Password reset email sent successfully to:', realEmail);
@@ -391,14 +357,13 @@ Deno.serve(async (req) => {
         console.log('Invite link generated successfully');
       }
       
-      // Send invitation email via Resend
-      const directLink = actionLink;
-      const continueLink = `${appUrl}/set-password?continue=${encodeURIComponent(directLink)}`;
+      // Send invitation email via Resend - only use continueLink to prevent scanner consumption
+      const continueLink = `${appUrl}/set-password?continue=${encodeURIComponent(actionLink)}`;
 
       await sendEmailViaResend(
         realEmail,
         'Welcome to Dealer Growth Solutions - Set Your Password',
-        getInviteEmailHtml(continueLink, directLink)
+        getInviteEmailHtml(continueLink)
       );
 
       console.log(`${linkType} email sent successfully to:`, realEmail);
