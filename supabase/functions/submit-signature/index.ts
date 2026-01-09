@@ -187,24 +187,29 @@ const handler = async (req: Request): Promise<Response> => {
         const { width: pageWidth, height: pageHeight } = page.getSize();
         
         // Calculate actual position
-        // spot.x_position and y_position are stored as percentages, 
-        // and they represent the CENTER of the signature box (due to transform: translate(-50%, -50%) in the UI)
-        // PDF coordinate system has origin at bottom-left, so we need to convert accordingly
+        // x_position / y_position are stored as percentages of the page.
+        // width/height are stored as percentages for newer requests, but may be legacy pixel values for older ones.
         const centerX = (spot.x_position / 100) * pageWidth;
         const centerY = (spot.y_position / 100) * pageHeight;
-        
+
+        const isPercentSize = Number(spot.width) <= 100 && Number(spot.height) <= 100;
+        const boxWidth = isPercentSize ? (Number(spot.width) / 100) * pageWidth : Number(spot.width);
+        const boxHeight = isPercentSize ? (Number(spot.height) / 100) * pageHeight : Number(spot.height);
+
         // Calculate top-left corner position for the PDF (which uses bottom-left as origin)
-        const x = centerX - (spot.width / 2);
-        const y = pageHeight - centerY - (spot.height / 2);
-        
-        console.log(`Spot ${spot.id}: center=(${spot.x_position}%, ${spot.y_position}%), calculated x=${x}, y=${y}, w=${spot.width}, h=${spot.height}`);
-        
+        const x = centerX - (boxWidth / 2);
+        const y = pageHeight - centerY - (boxHeight / 2);
+
+        console.log(
+          `Spot ${spot.id}: center=(${spot.x_position}%, ${spot.y_position}%), size=${isPercentSize ? 'pct' : 'px'}(${spot.width},${spot.height}), calculated x=${x}, y=${y}, w=${boxWidth}, h=${boxHeight}`
+        );
+
         // Draw the signature
         page.drawImage(signatureImage, {
           x: x,
           y: y,
-          width: spot.width,
-          height: spot.height,
+          width: boxWidth,
+          height: boxHeight,
         });
 
         // Add signature date below
