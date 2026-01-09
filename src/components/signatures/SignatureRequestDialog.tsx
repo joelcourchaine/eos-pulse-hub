@@ -63,6 +63,7 @@ export const SignatureRequestDialog = ({
   const [pageWidth, setPageWidth] = useState(500);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   // Drag/resize state
   const [dragMode, setDragMode] = useState<DragMode>("none");
@@ -125,8 +126,7 @@ export const SignatureRequestDialog = ({
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processFile = async (file: File) => {
     if (!file || file.type !== "application/pdf") {
       toast({
         variant: "destructive",
@@ -182,6 +182,37 @@ export const SignatureRequestDialog = ({
       setIsUploading(false);
     }
   };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processFile(file);
+    }
+  };
+
 
   const handleDeletePdf = async () => {
     if (!uploadedFilePath) return;
@@ -499,7 +530,16 @@ export const SignatureRequestDialog = ({
 
         {/* Step 1: Upload */}
         {step === "upload" && (
-          <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg border-muted-foreground/25">
+          <div 
+            className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors ${
+              isDragOver 
+                ? "border-primary bg-primary/5" 
+                : "border-muted-foreground/25"
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
             {isUploading ? (
               <>
                 <Loader2 className="h-12 w-12 text-primary mb-4 animate-spin" />
@@ -507,8 +547,10 @@ export const SignatureRequestDialog = ({
               </>
             ) : (
               <>
-                <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">Drop a PDF file here or click to browse</p>
+                <Upload className={`h-12 w-12 mb-4 ${isDragOver ? "text-primary" : "text-muted-foreground"}`} />
+                <p className={`mb-4 ${isDragOver ? "text-primary font-medium" : "text-muted-foreground"}`}>
+                  {isDragOver ? "Drop PDF here" : "Drop a PDF file here or click to browse"}
+                </p>
                 <Input
                   type="file"
                   accept=".pdf,application/pdf"
