@@ -53,8 +53,11 @@ const SignDocument = () => {
   const [error, setError] = useState<string | null>(null);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [renderedPageWidth, setRenderedPageWidth] = useState(0);
+  const [renderedPageHeight, setRenderedPageHeight] = useState(0);
 
   useEffect(() => {
     if (requestId) {
@@ -343,40 +346,54 @@ const SignDocument = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="relative border rounded-lg overflow-hidden bg-muted/30">
+            <div 
+              ref={pdfContainerRef}
+              className="relative border rounded-lg overflow-hidden bg-muted/30 flex justify-center"
+            >
               {pdfUrl && (
-                <Document
-                  file={pdfUrl}
-                  onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-                  className="flex justify-center"
-                >
-                  <Page
-                    pageNumber={currentPage}
-                    width={Math.min(600, window.innerWidth - 80)}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                  />
-                </Document>
-              )}
+                <div className="relative">
+                  <Document
+                    file={pdfUrl}
+                    onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                  >
+                    <Page
+                      pageNumber={currentPage}
+                      width={Math.min(600, window.innerWidth - 80)}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      onRenderSuccess={(page) => {
+                        // Store the rendered page dimensions for spot positioning
+                        if (pdfContainerRef.current) {
+                          const canvas = pdfContainerRef.current.querySelector('canvas');
+                          if (canvas) {
+                            setRenderedPageHeight(canvas.height);
+                            setRenderedPageWidth(canvas.width);
+                          }
+                        }
+                      }}
+                    />
+                  </Document>
 
-              {/* Highlight signature spots */}
-              {spotsOnCurrentPage.map((spot) => (
-                <div
-                  key={spot.id}
-                  className="absolute border-2 border-primary bg-primary/10 rounded animate-pulse"
-                  style={{
-                    left: `${spot.x_position}%`,
-                    top: `${spot.y_position}%`,
-                    width: spot.width,
-                    height: spot.height,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                >
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary">
-                    Sign Here
-                  </span>
+                  {/* Highlight signature spots - positioned relative to the PDF page */}
+                  {spotsOnCurrentPage.map((spot) => (
+                    <div
+                      key={spot.id}
+                      className="absolute border-2 border-primary bg-primary/10 rounded animate-pulse pointer-events-none"
+                      style={{
+                        left: `${spot.x_position}%`,
+                        top: `${spot.y_position}%`,
+                        width: spot.width,
+                        height: spot.height,
+                        transform: "translate(-50%, -50%)",
+                      }}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary">
+                        Sign Here
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
