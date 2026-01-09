@@ -96,14 +96,26 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!departmentId) return;
     
     try {
-      // Use security definer function to get basic profile data
+      // First get the store_id for this department
+      const { data: department, error: deptError } = await supabase
+        .from("departments")
+        .select("store_id")
+        .eq("id", departmentId)
+        .single();
+
+      if (deptError) throw deptError;
+      
+      // Use security definer function to get basic profile data, then filter by store
       const { data, error } = await supabase.rpc("get_profiles_basic");
 
       if (error) throw error;
 
       const profilesMap: { [key: string]: Profile } = {};
-      data?.forEach((profile: { id: string; full_name: string }) => {
-        profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
+      data?.forEach((profile: { id: string; full_name: string; store_id: string | null }) => {
+        // Only include profiles that belong to this store
+        if (profile.store_id === department.store_id) {
+          profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
+        }
       });
       setProfiles(profilesMap);
     } catch (error: any) {
