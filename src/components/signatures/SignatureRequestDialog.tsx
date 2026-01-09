@@ -365,8 +365,8 @@ export const SignatureRequestDialog = ({
                 <Page
                   pageNumber={currentPage}
                   width={pageWidth}
-                  renderTextLayer={true}
-                  renderAnnotationLayer={true}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
                 />
               </Document>
 
