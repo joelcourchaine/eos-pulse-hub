@@ -405,23 +405,26 @@ const SignDocumentByToken = () => {
                   </Document>
 
                   {/* Highlight signature spots - positioned relative to the PDF page */}
-                  {spotsOnCurrentPage.map((spot) => (
-                    <div
-                      key={spot.id}
-                      className="absolute border-2 border-primary bg-primary/10 rounded animate-pulse pointer-events-none"
-                      style={{
-                        left: `${spot.x_position}%`,
-                        top: `${spot.y_position}%`,
-                        width: spot.width,
-                        height: spot.height,
-                        transform: "translate(-50%, -50%)",
-                      }}
-                    >
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary">
-                        Sign Here
-                      </span>
-                    </div>
-                  ))}
+                  {spotsOnCurrentPage.map((spot) => {
+                    const isPercentSize = spot.width <= 100 && spot.height <= 100;
+                    return (
+                      <div
+                        key={spot.id}
+                        className="absolute border-2 border-primary bg-primary/10 rounded animate-pulse pointer-events-none"
+                        style={{
+                          left: `${spot.x_position}%`,
+                          top: `${spot.y_position}%`,
+                          width: isPercentSize ? `${spot.width}%` : spot.width,
+                          height: isPercentSize ? `${spot.height}%` : spot.height,
+                          transform: "translate(-50%, -50%)",
+                        }}
+                      >
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-primary">
+                          Sign Here
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

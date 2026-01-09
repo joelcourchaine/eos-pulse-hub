@@ -63,6 +63,7 @@ export const SignatureRequestDialog = ({
   const [isMarkingMode, setIsMarkingMode] = useState(false);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const [pageWidth, setPageWidth] = useState(500);
+  const [markContainerSize, setMarkContainerSize] = useState<{ width: number; height: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -477,15 +478,23 @@ export const SignatureRequestDialog = ({
       if (requestError) throw requestError;
 
       // Create signature spots
-      const spotsToInsert = signatureSpots.map(spot => ({
-        request_id: request.id,
-        page_number: spot.pageNumber,
-        x_position: spot.xPosition,
-        y_position: spot.yPosition,
-        width: spot.width,
-        height: spot.height,
-        label: spot.label,
-      }));
+      // NOTE: We store x/y as percentages and also store width/height as percentages of the rendered page.
+      // This keeps placement consistent when the PDF is viewed/downloaded at different sizes.
+      const size = markContainerSize;
+      const spotsToInsert = signatureSpots.map((spot) => {
+        const widthPct = size ? (spot.width / size.width) * 100 : spot.width;
+        const heightPct = size ? (spot.height / size.height) * 100 : spot.height;
+
+        return {
+          request_id: request.id,
+          page_number: spot.pageNumber,
+          x_position: spot.xPosition,
+          y_position: spot.yPosition,
+          width: widthPct,
+          height: heightPct,
+          label: spot.label,
+        };
+      });
 
       const { error: spotsError } = await supabase
         .from("signature_spots")
@@ -796,7 +805,13 @@ export const SignatureRequestDialog = ({
                 Back
               </Button>
               <Button
-                onClick={() => setStep("details")}
+                onClick={() => {
+                  if (pdfContainerRef.current) {
+                    const rect = pdfContainerRef.current.getBoundingClientRect();
+                    setMarkContainerSize({ width: rect.width, height: rect.height });
+                  }
+                  setStep("details");
+                }}
                 disabled={signatureSpots.length === 0}
               >
                 Continue
