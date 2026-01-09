@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Top10ItemRow } from "./Top10ItemRow";
 import { Top10ListManagementDialog } from "./Top10ListManagementDialog";
+import { CopyListToGroupDialog } from "./CopyListToGroupDialog";
 
 interface ColumnDefinition {
   key: string;
@@ -50,16 +51,20 @@ interface Top10List {
 
 interface Top10ListCardProps {
   list: Top10List;
+  departmentId: string;
   onListChange: () => void;
   canEdit: boolean;
   existingListCount: number;
+  isSuperAdmin?: boolean;
 }
 
 export function Top10ListCard({
   list,
+  departmentId,
   onListChange,
   canEdit,
   existingListCount,
+  isSuperAdmin = false,
 }: Top10ListCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<Top10Item[]>([]);
@@ -208,6 +213,12 @@ export function Top10ListCard({
 
               {canEdit && (
                 <div className="flex items-center gap-1">
+                  {isSuperAdmin && (
+                    <CopyListToGroupDialog
+                      list={list}
+                      currentDepartmentId={departmentId}
+                    />
+                  )}
                   <Top10ListManagementDialog
                     departmentId=""
                     list={list}
