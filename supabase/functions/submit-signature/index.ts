@@ -186,9 +186,18 @@ const handler = async (req: Request): Promise<Response> => {
         const page = pages[pageIndex];
         const { width: pageWidth, height: pageHeight } = page.getSize();
         
-        // Calculate actual position (spots are stored as percentages)
-        const x = (spot.x_position / 100) * pageWidth;
-        const y = pageHeight - (spot.y_position / 100) * pageHeight - spot.height;
+        // Calculate actual position
+        // spot.x_position and y_position are stored as percentages, 
+        // and they represent the CENTER of the signature box (due to transform: translate(-50%, -50%) in the UI)
+        // PDF coordinate system has origin at bottom-left, so we need to convert accordingly
+        const centerX = (spot.x_position / 100) * pageWidth;
+        const centerY = (spot.y_position / 100) * pageHeight;
+        
+        // Calculate top-left corner position for the PDF (which uses bottom-left as origin)
+        const x = centerX - (spot.width / 2);
+        const y = pageHeight - centerY - (spot.height / 2);
+        
+        console.log(`Spot ${spot.id}: center=(${spot.x_position}%, ${spot.y_position}%), calculated x=${x}, y=${y}, w=${spot.width}, h=${spot.height}`);
         
         // Draw the signature
         page.drawImage(signatureImage, {
