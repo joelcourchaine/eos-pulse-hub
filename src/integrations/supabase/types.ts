@@ -1921,6 +1921,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_signature_document: {
+        Args: { file_path: string }
+        Returns: boolean
+      }
       get_current_user_store_group: { Args: never; Returns: string }
       get_profiles_basic: {
         Args: never
