@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, X, FileText, Send, Loader2, MousePointer, Trash2 } from "lucide-react";
@@ -26,13 +25,6 @@ interface SignatureSpot {
 type DragMode = "none" | "draw" | "move" | "resize";
 type ResizeHandle = "se" | "sw" | "ne" | "nw";
 
-interface Signer {
-  id: string;
-  full_name: string;
-  email: string;
-  role?: string;
-}
-
 interface SignatureRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,8 +45,11 @@ export const SignatureRequestDialog = ({
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [signatureSpots, setSignatureSpots] = useState<SignatureSpot[]>([]);
-  const [signers, setSigners] = useState<Signer[]>([]);
-  const [selectedSigner, setSelectedSigner] = useState<string>("");
+  
+  // External signer fields (no account required)
+  const [signerEmail, setSignerEmail] = useState("");
+  const [signerName, setSignerName] = useState("");
+  
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,59 +67,6 @@ export const SignatureRequestDialog = ({
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
   const [initialSpot, setInitialSpot] = useState<SignatureSpot | null>(null);
-
-  // Fetch eligible signers (GMs and executives) for the store
-  useEffect(() => {
-    if (open && storeId) {
-      fetchSigners();
-    }
-  }, [open, storeId]);
-
-  const fetchSigners = async () => {
-    try {
-      // Get users with store_gm role who have access to this store
-      const { data: gmRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "store_gm");
-
-      const gmUserIds = gmRoles?.map(r => r.user_id) || [];
-
-      if (gmUserIds.length === 0) {
-        setSigners([]);
-        return;
-      }
-
-      // Get profiles for these users
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, store_id")
-        .in("id", gmUserIds);
-
-      if (error) throw error;
-
-      // Filter to users who have access to this store (either direct or through store access)
-      const { data: storeAccess } = await supabase
-        .from("user_store_access")
-        .select("user_id")
-        .eq("store_id", storeId);
-
-      const usersWithStoreAccess = storeAccess?.map(a => a.user_id) || [];
-
-      const eligibleSigners = (profiles || []).filter(p => 
-        p.store_id === storeId || usersWithStoreAccess.includes(p.id)
-      );
-
-      setSigners(eligibleSigners);
-    } catch (error) {
-      console.error("Error fetching signers:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load eligible signers",
-      });
-    }
-  };
 
   const processFile = async (file: File) => {
     if (!file || file.type !== "application/pdf") {
@@ -396,12 +338,34 @@ export const SignatureRequestDialog = ({
     setSignatureSpots(signatureSpots.filter(s => s.id !== spotId));
   };
 
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleSubmit = async () => {
-    if (!uploadedFilePath || !selectedSigner || signatureSpots.length === 0) {
+    if (!uploadedFilePath || signatureSpots.length === 0) {
       toast({
         variant: "destructive",
         title: "Missing information",
-        description: "Please upload a PDF, mark signature spots, and select a signer",
+        description: "Please upload a PDF and mark signature spots",
+      });
+      return;
+    }
+
+    if (!signerEmail || !signerName) {
+      toast({
+        variant: "destructive",
+        title: "Missing signer information",
+        description: "Please enter the signer's name and email",
+      });
+      return;
+    }
+
+    if (!validateEmail(signerEmail)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid email",
+        description: "Please enter a valid email address",
       });
       return;
     }
@@ -412,14 +376,15 @@ export const SignatureRequestDialog = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Create signature request using already-uploaded file
+      // Create signature request for external signer (no signer_id, just email/name)
       const { data: request, error: requestError } = await supabase
         .from("signature_requests")
         .insert({
           title,
           original_pdf_path: uploadedFilePath,
           store_id: storeId,
-          signer_id: selectedSigner,
+          signer_email: signerEmail,
+          signer_name: signerName,
           message,
           status: "pending",
           created_by: user.id,
@@ -446,14 +411,12 @@ export const SignatureRequestDialog = ({
 
       if (spotsError) throw spotsError;
 
-      // Send email notification
-      const signer = signers.find(s => s.id === selectedSigner);
+      // Send email notification with token-based URL
       const { error: emailError } = await supabase.functions.invoke("send-signature-request", {
         body: {
           requestId: request.id,
-          signerId: selectedSigner,
-          signerEmail: signer?.email,
-          signerName: signer?.full_name,
+          signerEmail,
+          signerName,
           title,
           message,
           storeName,
@@ -467,7 +430,7 @@ export const SignatureRequestDialog = ({
 
       toast({
         title: "Signature request sent",
-        description: `${signer?.full_name} will receive an email to sign the document`,
+        description: `${signerName} will receive an email at ${signerEmail} to sign the document`,
       });
 
       // Reset and close
@@ -493,7 +456,8 @@ export const SignatureRequestDialog = ({
     setNumPages(0);
     setCurrentPage(1);
     setSignatureSpots([]);
-    setSelectedSigner("");
+    setSignerEmail("");
+    setSignerName("");
     setTitle("");
     setMessage("");
     setIsMarkingMode(false);
@@ -524,7 +488,7 @@ export const SignatureRequestDialog = ({
           <DialogDescription>
             {step === "upload" && "Upload a PDF document to request a signature"}
             {step === "mark" && "Click on the document to mark where signatures are needed"}
-            {step === "details" && "Enter details and select who should sign"}
+            {step === "details" && "Enter the signer's details"}
           </DialogDescription>
         </DialogHeader>
 
@@ -698,7 +662,7 @@ export const SignatureRequestDialog = ({
           </div>
         )}
 
-        {/* Step 3: Details */}
+        {/* Step 3: Details - External signer (email + name) */}
         {step === "details" && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -720,26 +684,29 @@ export const SignatureRequestDialog = ({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Select Signer</Label>
-              <Select value={selectedSigner} onValueChange={setSelectedSigner}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose who should sign" />
-                </SelectTrigger>
-                <SelectContent>
-                  {signers.map((signer) => (
-                    <SelectItem key={signer.id} value={signer.id}>
-                      {signer.full_name} ({signer.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {signers.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No eligible signers found for this store
-                </p>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Signer's Name</Label>
+                <Input
+                  value={signerName}
+                  onChange={(e) => setSignerName(e.target.value)}
+                  placeholder="John Smith"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Signer's Email</Label>
+                <Input
+                  type="email"
+                  value={signerEmail}
+                  onChange={(e) => setSignerEmail(e.target.value)}
+                  placeholder="john@example.com"
+                />
+              </div>
             </div>
+            
+            <p className="text-sm text-muted-foreground">
+              The signer will receive an email with a secure link to sign the document. No account required.
+            </p>
 
             <div className="space-y-2">
               <Label>Message (optional)</Label>
@@ -757,7 +724,7 @@ export const SignatureRequestDialog = ({
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={isSubmitting || !selectedSigner || !title}
+                disabled={isSubmitting || !signerEmail || !signerName || !title}
               >
                 {isSubmitting ? (
                   <>

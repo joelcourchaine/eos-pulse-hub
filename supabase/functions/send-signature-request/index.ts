@@ -10,18 +10,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface SignatureSpot {
-  pageNumber: number;
-  xPosition: number;
-  yPosition: number;
-  width: number;
-  height: number;
-  label?: string;
-}
-
 interface RequestBody {
   requestId: string;
-  signerId: string;
   signerEmail: string;
   signerName: string;
   title: string;
@@ -93,12 +83,14 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { requestId, signerId, signerEmail, signerName, title, message, storeName }: RequestBody = await req.json();
+    const { requestId, signerEmail, signerName, title, message, storeName }: RequestBody = await req.json();
 
-    // Verify the signature request exists
+    console.log('Processing signature request:', { requestId, signerEmail, signerName, title });
+
+    // Verify the signature request exists and get its access_token
     const { data: signatureRequest, error: requestError } = await supabase
       .from('signature_requests')
-      .select('*')
+      .select('*, access_token')
       .eq('id', requestId)
       .single();
 
@@ -122,11 +114,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     const senderName = senderProfile?.full_name || 'Your administrator';
 
-    // Always use the production URL from environment variable, removing any trailing slash
+    // Build the token-based signing URL (no login required)
     const appUrl = (Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions').replace(/\/+$/, '');
-    const signatureUrl = `${appUrl}/sign/${requestId}`;
+    const signatureUrl = `${appUrl}/sign/t/${signatureRequest.access_token}`;
     
-    console.log('Generated signature URL:', signatureUrl);
+    console.log('Generated token-based signature URL:', signatureUrl);
 
     // Send email notification
     const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -176,7 +168,7 @@ const handler = async (req: Request): Promise<Response> => {
 
             <div style="margin-top: 24px; padding: 16px; background-color: #f3f4f6; border-radius: 8px;">
               <p style="color: #374151; margin: 0; font-size: 14px;">
-                <strong>Note:</strong> This request will expire in 7 days. Please sign the document at your earliest convenience.
+                <strong>Note:</strong> This request will expire in 7 days. Please sign the document at your earliest convenience. No account is required to sign.
               </p>
             </div>
 
@@ -190,6 +182,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (!emailResponse.ok) {
       const errorData = await emailResponse.text();
+      console.error('Resend API error:', errorData);
       throw new Error(`Resend API error: ${errorData}`);
     }
 

@@ -25,7 +25,9 @@ interface SignatureRequest {
   title: string;
   original_pdf_path: string;
   signed_pdf_path: string | null;
-  signer_id: string;
+  signer_id: string | null;
+  signer_email: string | null;
+  signer_name: string | null;
   message: string | null;
   status: "pending" | "viewed" | "signed" | "expired";
   created_by: string;
@@ -36,7 +38,7 @@ interface SignatureRequest {
   signer?: {
     full_name: string;
     email: string;
-  };
+  } | null;
 }
 
 interface SignatureRequestsPanelProps {
@@ -127,12 +129,19 @@ export const SignatureRequestsPanel = ({
   const handleResend = async (request: SignatureRequest) => {
     setResendingId(request.id);
     try {
+      // Use external signer info if available, otherwise fall back to linked profile
+      const signerEmail = request.signer_email || request.signer?.email;
+      const signerName = request.signer_name || request.signer?.full_name;
+
+      if (!signerEmail || !signerName) {
+        throw new Error("No signer information available");
+      }
+
       const { error } = await supabase.functions.invoke("send-signature-request", {
         body: {
           requestId: request.id,
-          signerId: request.signer_id,
-          signerEmail: request.signer?.email,
-          signerName: request.signer?.full_name,
+          signerEmail,
+          signerName,
           title: request.title,
           message: request.message,
           storeName,
@@ -143,18 +152,29 @@ export const SignatureRequestsPanel = ({
 
       toast({
         title: "Email resent",
-        description: `Reminder sent to ${request.signer?.full_name}`,
+        description: `Reminder sent to ${signerName}`,
       });
     } catch (error: any) {
       console.error("Error resending email:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to resend email",
+        description: error.message || "Failed to resend email",
       });
     } finally {
       setResendingId(null);
     }
+  };
+
+  // Get display name: prefer external signer fields, fall back to linked profile
+  const getSignerDisplay = (request: SignatureRequest) => {
+    if (request.signer_name && request.signer_email) {
+      return `${request.signer_name} (${request.signer_email})`;
+    }
+    if (request.signer?.full_name) {
+      return request.signer.full_name;
+    }
+    return "Unknown signer";
   };
 
   const getStatusBadge = (status: string) => {
@@ -219,7 +239,7 @@ export const SignatureRequestsPanel = ({
                     {getStatusBadge(request.status)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    To: {request.signer?.full_name} • {format(new Date(request.created_at), "MMM d, yyyy")}
+                    To: {getSignerDisplay(request)} • {format(new Date(request.created_at), "MMM d, yyyy")}
                   </p>
                   {request.signed_at && (
                     <p className="text-sm text-green-600">
