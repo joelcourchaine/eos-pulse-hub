@@ -474,17 +474,20 @@ export const importFinancialData = async (
   }
 
   // Batch upsert regular metrics (single DB call)
+  console.log('[Excel Import] Regular entries to upsert:', regularEntries.length, regularEntries);
   if (regularEntries.length > 0) {
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('financial_entries')
       .upsert(regularEntries, {
         onConflict: 'department_id,month,metric_name',
-      });
+      })
+      .select();
 
     if (error) {
       console.error('Error batch upserting financial entries:', error);
       errors.push(`Regular metrics upsert failed: ${error.message}`);
     } else {
+      console.log('[Excel Import] Upserted regular entries:', data?.length);
       importedCount += regularEntries.length;
     }
   }
