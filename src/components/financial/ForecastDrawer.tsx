@@ -168,6 +168,48 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     enabled: !!departmentId,
   });
 
+  // Keep forecast baseline in sync when spreadsheets are imported (they write financial_entries).
+  // Without this, React Query can hold onto stale prior-year data and the forecast won't update.
+  useEffect(() => {
+    if (!departmentId) return;
+
+    const getYearFromMonth = (m?: string) => {
+      if (!m) return null;
+      const y = parseInt(String(m).slice(0, 4), 10);
+      return Number.isFinite(y) ? y : null;
+    };
+
+    const channel = supabase
+      .channel(`financial-entries:${departmentId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_entries',
+          filter: `department_id=eq.${departmentId}`,
+        },
+        (payload) => {
+          const rowNew = payload.new as any;
+          const rowOld = payload.old as any;
+
+          const changedMonth: string | undefined = rowNew?.month ?? rowOld?.month;
+          const changedYear = getYearFromMonth(changedMonth);
+
+          // Forecast baselines depend on the *prior year* and the weights depend on baselineYear (which = priorYear).
+          if (changedYear === priorYear) {
+            queryClient.invalidateQueries({ queryKey: ['prior-year-financial', departmentId, priorYear] });
+            queryClient.invalidateQueries({ queryKey: ['baseline-year-sales', departmentId, priorYear] });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [departmentId, priorYear, queryClient]);
+
   // Fetch store brand for metric definitions
   const { data: storeBrand } = useQuery({
     queryKey: ['department-store-brand', departmentId],
