@@ -201,9 +201,11 @@ export const parseFinancialExcel = (
               continue;
             }
             
-            const cell = sheet[mapping.cell_reference];
+            // Excel cell references must be uppercase (e.g., "BC41" not "bc41")
+            const uppercaseCellRef = mapping.cell_reference.toUpperCase();
+            const cell = sheet[uppercaseCellRef];
             const extractedValue = extractNumericValue(cell, workbook);
-            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${mapping.cell_reference} on sheet ${mapping.sheet_name} → extracted: ${extractedValue}`);
+            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${uppercaseCellRef} on sheet ${mapping.sheet_name} → extracted: ${extractedValue}`);
             result[deptName][mapping.metric_key] = extractedValue;
           }
         }
@@ -275,9 +277,11 @@ export const parseFinancialExcel = (
             // Read the metric name from name_cell_reference OR extract from metric_key
             let metricName: string | null = null;
             if (mapping.name_cell_reference) {
-              const nameCell = sheet[mapping.name_cell_reference];
+              // Uppercase the cell reference for Excel lookup
+              const upperNameCellRef = mapping.name_cell_reference.toUpperCase();
+              const nameCell = sheet[upperNameCellRef];
               metricName = extractStringValue(nameCell);
-              console.log(`[Excel Parse Sub] ${deptName} - Name cell ${mapping.name_cell_reference}: "${metricName}" (cell exists: ${!!nameCell})`);
+              console.log(`[Excel Parse Sub] ${deptName} - Name cell ${upperNameCellRef}: "${metricName}" (cell exists: ${!!nameCell})`);
             }
 
             // If no name_cell_reference or it returned garbage (single char), extract name from metric_key
@@ -296,8 +300,9 @@ export const parseFinancialExcel = (
               }
             }
 
-            // Read the value from cell_reference
-            const valueCell = sheet[mapping.cell_reference];
+            // Read the value from cell_reference (uppercase for Excel lookup)
+            const upperValueCellRef = mapping.cell_reference.toUpperCase();
+            const valueCell = sheet[upperValueCellRef];
             let value = extractNumericValue(valueCell, workbook);
             
             // For percentage sub-metrics (gp_percent), Excel stores as decimals (0.28 = 28%)
@@ -307,7 +312,7 @@ export const parseFinancialExcel = (
               console.log(`[Excel Parse Sub] ${deptName} - Converted gp_percent from decimal ${value/100} to ${value}%`);
             }
             
-            console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${mapping.cell_reference}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
+            console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${upperValueCellRef}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
 
             // Only include if we have both a name and the parent key
             if (metricName && mapping.parent_metric_key) {
