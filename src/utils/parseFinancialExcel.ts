@@ -203,9 +203,12 @@ export const parseFinancialExcel = (
             
             // Excel cell references must be uppercase (e.g., "BC41" not "bc41")
             const uppercaseCellRef = mapping.cell_reference.toUpperCase();
-            const cell = sheet[uppercaseCellRef];
+            const cell = sheet[uppercaseCellRef] as XLSX.CellObject | undefined;
             const extractedValue = extractNumericValue(cell, workbook);
-            console.log(`[Excel Parse] ${deptName} - ${mapping.metric_key}: Cell ${uppercaseCellRef} on sheet ${mapping.sheet_name} → extracted: ${extractedValue}`);
+            console.log(
+              `[Excel Parse] ${deptName} - ${mapping.metric_key}: Sheet ${mapping.sheet_name} Cell ${uppercaseCellRef} ` +
+                `v=${(cell as any)?.v}, w=${(cell as any)?.w}, f=${(cell as any)?.f} → extracted: ${extractedValue}`
+            );
             result[deptName][mapping.metric_key] = extractedValue;
           }
         }
