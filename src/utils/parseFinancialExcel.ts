@@ -457,8 +457,12 @@ export const importFinancialData = async (
     created_by: string;
   }> = [];
 
+  console.log('[Excel Import] departmentsByName keys:', Object.keys(departmentsByName));
+  console.log('[Excel Import] parsedData.metrics keys:', Object.keys(parsedData.metrics));
+  
   for (const [deptName, metrics] of Object.entries(parsedData.metrics)) {
     const departmentId = departmentsByName[deptName];
+    console.log(`[Excel Import] Looking up dept "${deptName}" -> found: ${departmentId || 'NOT FOUND'}`);
     if (!departmentId) continue;
 
     for (const [metricKey, value] of Object.entries(metrics)) {
