@@ -31,7 +31,12 @@ import {
   validateAgainstDatabase,
   importFinancialData,
   type ValidationResult,
+  type ParsedFinancialData,
 } from "@/utils/parseFinancialExcel";
+import {
+  parseStellantisExcel,
+  isStellantisDataDump,
+} from "@/utils/parseStellantisExcel";
 
 interface Attachment {
   id: string;
@@ -94,8 +99,9 @@ export const MonthDropZone = ({
   const { toast } = useToast();
 
   // Supported brands for Excel processing
-  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC'];
+  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC', 'Stellantis'];
   const isSupportedBrand = storeBrand && SUPPORTED_BRANDS.includes(storeBrand);
+  const isStellantis = storeBrand?.toLowerCase() === 'stellantis';
 
   // Re-validate on mount if there's an existing attachment for supported brands
   useEffect(() => {
@@ -180,13 +186,6 @@ export const MonthDropZone = ({
   ) => {
     if (!storeId) return;
 
-    // Fetch cell mappings for the brand
-    const mappings = await fetchCellMappings(brand);
-    if (mappings.length === 0) {
-      console.log(`No cell mappings found for ${brand}`);
-      return;
-    }
-
     // Get all departments for this store
     const { data: storeDepartments } = await supabase
       .from('departments')
@@ -220,34 +219,98 @@ export const MonthDropZone = ({
       departmentsByNormalized.set(normalizeDeptName(dept.name), { id: dept.id, name: dept.name });
     });
 
-    // Third: add mapping-department aliases so parseFinancialExcel output can always resolve.
-    // (parseFinancialExcel groups by mapping.department_name)
-    const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
-    const unresolved: string[] = [];
+    // Special handling for Stellantis - check if it's a data dump format
+    const isStellantisFile = brand.toLowerCase() === 'stellantis';
+    let parsedData: ParsedFinancialData;
 
-    for (const mappingDeptName of mappingDeptNames) {
-      if (departmentsByName[mappingDeptName]) continue; // exact match already
-
-      const normalized = normalizeDeptName(mappingDeptName);
-      const match = departmentsByNormalized.get(normalized);
-      if (match) {
-        departmentsByName[mappingDeptName] = match.id;
+    if (isStellantisFile) {
+      // Check if this is a Stellantis data dump file
+      const isDataDump = await isStellantisDataDump(file);
+      
+      if (isDataDump) {
+        console.log('[Excel Import] Detected Stellantis data dump format, using specialized parser');
+        
+        // Get department names for parsing
+        const deptNames = storeDepartments.map(d => d.name);
+        
+        // Parse using specialized Stellantis parser
+        parsedData = await parseStellantisExcel(file, deptNames);
+        
+        // Also add mappings for the Stellantis parser's department names
+        const stellantisDeptNames = [
+          'New Vehicle Department',
+          'Used Vehicle Department',
+          'Service Department',
+          'Parts Department',
+          'Body Shop Department'
+        ];
+        
+        for (const stellantisDeptName of stellantisDeptNames) {
+          if (departmentsByName[stellantisDeptName]) continue;
+          
+          const normalized = normalizeDeptName(stellantisDeptName);
+          const match = departmentsByNormalized.get(normalized);
+          if (match) {
+            departmentsByName[stellantisDeptName] = match.id;
+          }
+        }
       } else {
-        unresolved.push(mappingDeptName);
+        // Fall back to standard parser with mappings
+        const mappings = await fetchCellMappings(brand);
+        if (mappings.length === 0) {
+          console.log(`No cell mappings found for ${brand}`);
+          return;
+        }
+        
+        // Add mapping-department aliases
+        const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
+        for (const mappingDeptName of mappingDeptNames) {
+          if (departmentsByName[mappingDeptName]) continue;
+          const normalized = normalizeDeptName(mappingDeptName);
+          const match = departmentsByNormalized.get(normalized);
+          if (match) {
+            departmentsByName[mappingDeptName] = match.id;
+          }
+        }
+        
+        parsedData = await parseFinancialExcel(file, mappings);
       }
-    }
+    } else {
+      // Standard flow for other brands - fetch cell mappings
+      const mappings = await fetchCellMappings(brand);
+      if (mappings.length === 0) {
+        console.log(`No cell mappings found for ${brand}`);
+        return;
+      }
 
-    if (unresolved.length > 0) {
-      console.warn('[Excel Import] Some mapping departments could not be matched to store departments', {
-        storeId,
-        storeBrand,
-        unresolved,
-        storeDepartments: storeDepartments.map((d) => d.name),
-      });
-    }
+      // Add mapping-department aliases so parseFinancialExcel output can always resolve.
+      const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
+      const unresolved: string[] = [];
 
-    // Parse the Excel file
-    const parsedData = await parseFinancialExcel(file, mappings);
+      for (const mappingDeptName of mappingDeptNames) {
+        if (departmentsByName[mappingDeptName]) continue; // exact match already
+
+        const normalized = normalizeDeptName(mappingDeptName);
+        const match = departmentsByNormalized.get(normalized);
+        if (match) {
+          departmentsByName[mappingDeptName] = match.id;
+        } else {
+          unresolved.push(mappingDeptName);
+        }
+      }
+
+      if (unresolved.length > 0) {
+        console.warn('[Excel Import] Some mapping departments could not be matched to store departments', {
+          storeId,
+          storeBrand,
+          unresolved,
+          storeDepartments: storeDepartments.map((d) => d.name),
+        });
+      }
+
+      // Parse the Excel file
+      parsedData = await parseFinancialExcel(file, mappings);
+    }
 
     // Validate against database
     const validationResults = await validateAgainstDatabase(
