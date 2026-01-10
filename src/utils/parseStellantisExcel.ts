@@ -347,7 +347,9 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
         const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
         // Check first 50 rows for Stellantis code patterns
+        // These are very specific data dump codes like "EXPN37M", "EXPS38M"
         let stellantisCodeCount = 0;
+        const matchedCodes: string[] = [];
         const stellantisPatterns = [
           /^EXP[NUSPB]\d+M$/i,  // EXPN37M, EXPS38M, etc.
           /^SALES[NUSPB]\d+M$/i, // SALESN24M, etc.
@@ -356,18 +358,31 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
           /^LIAB\d+M$/i,        // LIAB11M, etc.
         ];
         
+        // Also check if this looks like a standard formatted Excel (with sheet names like Chrysler1, Chrysler2, etc.)
+        const hasStandardSheetNames = workbook.SheetNames.some(name => 
+          /^Chrysler\d+$/i.test(name) || /^Data$/i.test(name) || /^Stats$/i.test(name)
+        );
+        
+        if (hasStandardSheetNames) {
+          console.log('[Stellantis Check] File has standard Chrysler sheet names - NOT a data dump');
+          resolve(false);
+          return;
+        }
+        
         for (let i = 0; i < Math.min(50, rows.length); i++) {
           const row = rows[i];
           if (row && row[1] && typeof row[1] === 'string') {
             const code = row[1].trim().toUpperCase();
             if (stellantisPatterns.some(pattern => pattern.test(code))) {
               stellantisCodeCount++;
+              matchedCodes.push(code);
             }
           }
         }
         
-        console.log('[Stellantis Check] Found', stellantisCodeCount, 'Stellantis codes in first 50 rows');
-        resolve(stellantisCodeCount >= 5);
+        console.log('[Stellantis Check] Found', stellantisCodeCount, 'Stellantis codes in first 50 rows:', matchedCodes);
+        // Require more matches and ensure they look like actual data dump codes
+        resolve(stellantisCodeCount >= 10);
       } catch (error) {
         console.error('[Stellantis Check] Error:', error);
         resolve(false);
