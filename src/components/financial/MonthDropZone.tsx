@@ -311,6 +311,11 @@ export const MonthDropZone = ({
       // Parse the Excel file
       parsedData = await parseFinancialExcel(file, mappings);
     }
+    
+    // Debug: Log what was parsed
+    console.log('[MonthDropZone] parsedData.metrics:', JSON.stringify(parsedData.metrics, null, 2));
+    console.log('[MonthDropZone] parsedData.metrics keys:', Object.keys(parsedData.metrics));
+    console.log('[MonthDropZone] departmentsByName:', JSON.stringify(departmentsByName, null, 2));
 
     // Validate against database
     const validationResults = await validateAgainstDatabase(
