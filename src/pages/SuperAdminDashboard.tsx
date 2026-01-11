@@ -9,6 +9,8 @@ import { AdminOverviewTab } from "@/components/admin/AdminOverviewTab";
 import { AdminUsersTab } from "@/components/admin/AdminUsersTab";
 import { AdminStoreGroupsTab } from "@/components/admin/AdminStoreGroupsTab";
 import { AdminSystemTab } from "@/components/admin/AdminSystemTab";
+import { AdminTicketsTab } from "@/components/admin/AdminTicketsTab";
+import { Ticket } from "lucide-react";
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -70,6 +72,10 @@ const SuperAdminDashboard = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="store-groups">Store Groups</TabsTrigger>
+            <TabsTrigger value="tickets" className="flex items-center gap-1.5">
+              <Ticket className="h-4 w-4" />
+              Tickets
+            </TabsTrigger>
             <TabsTrigger value="system">System</TabsTrigger>
           </TabsList>
 
@@ -83,6 +89,10 @@ const SuperAdminDashboard = () => {
 
           <TabsContent value="store-groups">
             <AdminStoreGroupsTab />
+          </TabsContent>
+
+          <TabsContent value="tickets">
+            <AdminTicketsTab />
           </TabsContent>
 
           <TabsContent value="system">
