@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanner";
+import { FloatingSupportButton } from "@/components/support/FloatingSupportButton";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -21,6 +22,7 @@ import Announcements from "./pages/Announcements";
 import Signatures from "./pages/Signatures";
 import SignDocument from "./pages/SignDocument";
 import SignDocumentByToken from "./pages/SignDocumentByToken";
+import AdminTickets from "./pages/AdminTickets";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -49,9 +51,11 @@ const App = () => (
             <Route path="/admin/kpi-rules" element={<MandatoryKPIRules />} />
             <Route path="/admin/announcements" element={<Announcements />} />
             <Route path="/admin/signatures" element={<Signatures />} />
+            <Route path="/admin/tickets" element={<AdminTickets />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <FloatingSupportButton />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

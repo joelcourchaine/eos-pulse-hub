@@ -62,3 +62,9 @@ verify_jwt = true
 
 [functions.submit-signature]
 verify_jwt = true
+
+[functions.send-ticket-notification]
+verify_jwt = true
+
+[functions.send-ticket-reply]
+verify_jwt = true
