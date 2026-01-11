@@ -1,17 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const useUserRole = (userId: string | undefined) => {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const previousUserId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
+    // If userId hasn't been set yet, keep loading true
     if (!userId) {
-      setRoles([]);
-      setLoading(false);
+      // Only reset roles if we had a userId before (user logged out)
+      if (previousUserId.current !== undefined) {
+        setRoles([]);
+        setLoading(false);
+      }
+      // Otherwise keep loading = true (initial state, waiting for user)
       return;
     }
 
+    // userId is now defined, fetch roles
     const fetchRoles = async () => {
       setLoading(true);
       try {
@@ -27,6 +34,7 @@ export const useUserRole = (userId: string | undefined) => {
         setRoles([]);
       } finally {
         setLoading(false);
+        previousUserId.current = userId;
       }
     };
 
