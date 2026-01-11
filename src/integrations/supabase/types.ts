@@ -930,6 +930,132 @@ export type Database = {
           },
         ]
       }
+      help_ticket_replies: {
+        Row: {
+          created_at: string
+          id: string
+          is_admin_reply: boolean
+          message: string
+          ticket_id: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_admin_reply?: boolean
+          message: string
+          ticket_id: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_admin_reply?: boolean
+          message?: string
+          ticket_id?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_ticket_replies_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "help_tickets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "help_ticket_replies_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      help_tickets: {
+        Row: {
+          assigned_to: string | null
+          browser_info: string | null
+          category: Database["public"]["Enums"]["ticket_category"]
+          created_at: string
+          description: string
+          error_message: string | null
+          error_stack: string | null
+          id: string
+          page_url: string | null
+          priority: Database["public"]["Enums"]["ticket_priority"]
+          resolved_at: string | null
+          screenshot_path: string | null
+          status: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+          ticket_number: number
+          updated_at: string
+          user_email: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          browser_info?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string
+          description: string
+          error_message?: string | null
+          error_stack?: string | null
+          id?: string
+          page_url?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"]
+          resolved_at?: string | null
+          screenshot_path?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject: string
+          ticket_number?: number
+          updated_at?: string
+          user_email: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          assigned_to?: string | null
+          browser_info?: string | null
+          category?: Database["public"]["Enums"]["ticket_category"]
+          created_at?: string
+          description?: string
+          error_message?: string | null
+          error_stack?: string | null
+          id?: string
+          page_url?: string | null
+          priority?: Database["public"]["Enums"]["ticket_priority"]
+          resolved_at?: string | null
+          screenshot_path?: string | null
+          status?: Database["public"]["Enums"]["ticket_status"]
+          subject?: string
+          ticket_number?: number
+          updated_at?: string
+          user_email?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "help_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "help_tickets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       issues: {
         Row: {
           created_at: string
@@ -2090,6 +2216,9 @@ export type Database = {
         | "technician"
         | "fixed_ops_manager"
       signature_status: "pending" | "viewed" | "signed" | "expired"
+      ticket_category: "bug_report" | "feature_request" | "question" | "other"
+      ticket_priority: "low" | "normal" | "urgent"
+      ticket_status: "open" | "in_progress" | "resolved" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2230,6 +2359,9 @@ export const Constants = {
         "fixed_ops_manager",
       ],
       signature_status: ["pending", "viewed", "signed", "expired"],
+      ticket_category: ["bug_report", "feature_request", "question", "other"],
+      ticket_priority: ["low", "normal", "urgent"],
+      ticket_status: ["open", "in_progress", "resolved", "closed"],
     },
   },
 } as const
