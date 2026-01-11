@@ -132,7 +132,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailResponse = await resend.emails.send({
       from: "Dealer Growth Support <support@dealergrowth.solutions>",
-      to: [supportEmail!],
+      to: [supportEmail!, "joelcourchaine@gmail.com"],
       subject: `[Ticket #${ticket.ticket_number}] ${ticket.subject}`,
       html: emailHtml,
     });
