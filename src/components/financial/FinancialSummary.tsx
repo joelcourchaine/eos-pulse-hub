@@ -1413,16 +1413,31 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const currentYearMonths = getQuarterMonthsForCalculation(currentYearQuarter.quarter, currentYearQuarter.year);
     const allMonthIds = [...prevYearMonths.map(m => m.identifier), ...currentYearMonths.map(m => m.identifier)];
 
-    const { data, error } = await supabase
-      .from("financial_entries")
-      .select("*")
-      .eq("department_id", departmentId)
-      .in("month", allMonthIds);
+    // Paginate to avoid the 1000 row limit when sub-metrics create large datasets
+    const allRows: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      console.error("Error loading preceding quarters data:", error);
-      return;
+    while (hasMore) {
+      const { data: page, error: pageError } = await supabase
+        .from("financial_entries")
+        .select("*")
+        .eq("department_id", departmentId)
+        .in("month", allMonthIds)
+        .range(from, from + pageSize - 1);
+
+      if (pageError) {
+        console.error("Error loading preceding quarters data:", pageError);
+        return;
+      }
+
+      allRows.push(...(page || []));
+      from += pageSize;
+      hasMore = (page?.length || 0) === pageSize;
     }
+
+    const data = allRows;
 
     // Helper function to recursively calculate metric values
     const getMetricTotal = (metricKey: string, quarterMonthIds: string[]): number => {
@@ -1666,17 +1681,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     
     const allMonthIds = [...new Set([...monthIds, ...previousYearMonthIds, ...allCurrentYearMonthIds])];
 
-    const { data, error } = await supabase
-      .from("financial_entries")
-      .select("*")
-      .eq("department_id", departmentId)
-      .in("month", allMonthIds);
+    // Paginate to avoid the 1000 row limit when sub-metrics create large datasets
+    const allRows: any[] = [];
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to load financial data", variant: "destructive" });
-      setLoading(false);
-      return;
+    while (hasMore) {
+      const { data: page, error: pageError } = await supabase
+        .from("financial_entries")
+        .select("*")
+        .eq("department_id", departmentId)
+        .in("month", allMonthIds)
+        .range(from, from + pageSize - 1);
+
+      if (pageError) {
+        toast({ title: "Error", description: "Failed to load financial data", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      allRows.push(...(page || []));
+      from += pageSize;
+      hasMore = (page?.length || 0) === pageSize;
     }
+
+    const data = allRows;
 
     const entriesMap: { [key: string]: number } = {};
     const notesMap: { [key: string]: string } = {};
