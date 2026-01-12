@@ -154,40 +154,47 @@ export function Top10ListCard({
 
   const handleDeleteItem = async (itemId: string, rank: number) => {
     try {
-      // Delete the item
-      const { error: deleteError } = await supabase
-        .from("top_10_items")
-        .delete()
-        .eq("id", itemId);
-
-      if (deleteError) throw deleteError;
-
-      // Re-rank remaining items
+      // Optimistically update UI first for instant feedback
       const remainingItems = items.filter((item) => item.id !== itemId);
-      for (let i = 0; i < remainingItems.length; i++) {
-        if (remainingItems[i].rank !== i + 1) {
-          await supabase
-            .from("top_10_items")
-            .update({ rank: i + 1 })
-            .eq("id", remainingItems[i].id);
-        }
-      }
+      const rerankedItems = remainingItems.map((item, index) => ({
+        ...item,
+        rank: index + 1,
+      }));
+      // Add placeholder for new row at rank 10
+      setItems([...rerankedItems, { id: 'temp-' + Date.now(), rank: 10, data: {} }]);
 
-      // Add a new empty row at rank 10 to maintain 10 rows
-      const { error: insertError } = await supabase
-        .from("top_10_items")
-        .insert({
+      // Delete the item and insert new row in parallel
+      const [deleteResult, insertResult] = await Promise.all([
+        supabase.from("top_10_items").delete().eq("id", itemId),
+        supabase.from("top_10_items").insert({
           list_id: list.id,
           rank: 10,
           data: {},
-        });
+        }),
+      ]);
 
-      if (insertError) throw insertError;
+      if (deleteResult.error) throw deleteResult.error;
+      if (insertResult.error) throw insertResult.error;
+
+      // Re-rank items that need updating (only those with rank > deleted rank)
+      const updatePromises = remainingItems
+        .filter((item) => item.rank > rank)
+        .map((item) =>
+          supabase
+            .from("top_10_items")
+            .update({ rank: item.rank - 1 })
+            .eq("id", item.id)
+        );
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
 
       loadItems();
     } catch (error: any) {
       console.error("Error deleting item:", error);
       toast.error(error.message || "Failed to delete item");
+      loadItems(); // Reload to restore correct state on error
     }
   };
 
