@@ -45,14 +45,29 @@ export const AdminUsersTab = () => {
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["admin-all-users"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email, role, store_group_id, last_sign_in_at")
+        .select("id, full_name, email, store_group_id, last_sign_in_at")
         .eq("is_system_user", false)
         .order("full_name");
 
-      if (error) throw error;
-      return data;
+      if (profilesError) throw profilesError;
+
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      if (rolesError) throw rolesError;
+
+      const roleMap: Record<string, string> = {};
+      roles?.forEach((r) => {
+        roleMap[r.user_id] = r.role;
+      });
+
+      return profiles?.map((p) => ({
+        ...p,
+        role: roleMap[p.id] || null,
+      }));
     },
   });
 
