@@ -31,22 +31,40 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
       const monthList = stableMonthIds.split(',').filter(Boolean);
       if (monthList.length === 0) return;
 
-      const { data, error } = await supabase
-        .from('financial_entries')
-        .select('metric_name, month, value')
-        .eq('department_id', departmentId)
-        .in('month', monthList)
-        .like('metric_name', 'sub:%');
+      // IMPORTANT: financial_entries can easily exceed the default 1000 row query limit
+      // when sub-metrics are present across many months. We must paginate.
+      const pageSize = 1000;
+      let from = 0;
+      const allRows: Array<{ metric_name: string; month: string; value: number | null }> = [];
 
-      if (error) {
-        console.error('Error fetching sub-metrics:', error);
-        return;
+      while (true) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('financial_entries')
+          .select('metric_name, month, value')
+          .eq('department_id', departmentId)
+          .in('month', monthList)
+          .like('metric_name', 'sub:%')
+          // Use deterministic ordering so pagination doesn't miss/duplicate rows
+          .order('month', { ascending: true })
+          .order('metric_name', { ascending: true })
+          .range(from, from + pageSize - 1);
+
+        if (pageError) {
+          console.error('Error fetching sub-metrics:', pageError);
+          return;
+        }
+
+        if (!pageData || pageData.length === 0) break;
+        allRows.push(...pageData);
+
+        if (pageData.length < pageSize) break;
+        from += pageSize;
       }
 
       if (!isMountedRef.current) return;
 
       const parsed: SubMetricEntry[] = [];
-      data?.forEach((entry) => {
+      allRows.forEach((entry) => {
         // Format: sub:{parent_key}:{order_index}:{name}
         // Legacy format (no order): sub:{parent_key}:{name}
         const parts = entry.metric_name.split(':');
@@ -76,8 +94,13 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
         }
       });
 
-      // Sort by order index
-      parsed.sort((a, b) => a.orderIndex - b.orderIndex);
+      // Sort by order index (and keep a stable order for same orderIndex)
+      parsed.sort((a, b) => {
+        if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex;
+        if (a.parentMetricKey !== b.parentMetricKey) return a.parentMetricKey.localeCompare(b.parentMetricKey);
+        if (a.name !== b.name) return a.name.localeCompare(b.name);
+        return a.monthIdentifier.localeCompare(b.monthIdentifier);
+      });
 
       setSubMetrics(parsed);
     } finally {
