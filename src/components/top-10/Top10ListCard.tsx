@@ -173,6 +173,17 @@ export function Top10ListCard({
         }
       }
 
+      // Add a new empty row at rank 10 to maintain 10 rows
+      const { error: insertError } = await supabase
+        .from("top_10_items")
+        .insert({
+          list_id: list.id,
+          rank: 10,
+          data: {},
+        });
+
+      if (insertError) throw insertError;
+
       loadItems();
     } catch (error: any) {
       console.error("Error deleting item:", error);
