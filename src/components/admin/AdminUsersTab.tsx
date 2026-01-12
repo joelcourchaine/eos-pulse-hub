@@ -20,6 +20,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export const AdminUsersTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -57,10 +58,11 @@ export const AdminUsersTab = () => {
 
   const filteredUsers = users?.filter((user) => {
     const search = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       user.full_name?.toLowerCase().includes(search) ||
-      user.email?.toLowerCase().includes(search)
-    );
+      user.email?.toLowerCase().includes(search);
+    const matchesRole = !roleFilter || user.role === roleFilter;
+    return matchesSearch && matchesRole;
   }).slice(0, 50);
 
   const handleResetPassword = async (userId: string, userEmail: string) => {
@@ -112,11 +114,19 @@ export const AdminUsersTab = () => {
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
+              <Badge
+                variant="secondary"
+                className={`cursor-pointer transition-all ${!roleFilter ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                onClick={() => setRoleFilter(null)}
+              >
+                All: {users?.length || 0}
+              </Badge>
               {roleBreakdown?.map((item) => (
                 <Badge
                   key={item.role}
                   variant="secondary"
-                  className={roleColors[item.role] || ""}
+                  className={`cursor-pointer transition-all ${roleColors[item.role] || ""} ${roleFilter === item.role ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                  onClick={() => setRoleFilter(roleFilter === item.role ? null : item.role)}
                 >
                   {item.role.replace(/_/g, " ")}: {item.count}
                 </Badge>
@@ -201,7 +211,7 @@ export const AdminUsersTab = () => {
               </Table>
               {filteredUsers && filteredUsers.length >= 50 && (
                 <p className="text-sm text-muted-foreground mt-4 text-center">
-                  Showing first 50 results. Use search to narrow down.
+                  Showing first 50 results{roleFilter ? ` for "${roleFilter.replace(/_/g, " ")}"` : ""}. Use search to narrow down.
                 </p>
               )}
             </>
