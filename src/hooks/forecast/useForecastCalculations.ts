@@ -341,7 +341,8 @@ export function useForecastCalculations({
 
       // For Nissan: semi_fixed_expense = total_direct_expenses - sales_expense
       // For other brands: semi_fixed_expense is stored directly
-      const baselineSemiFixed = baselineInputs.semi_fixed_expense > 0 
+      // Use !== 0 to handle negative semi_fixed_expense (e.g., when rebates exceed expenses)
+      const baselineSemiFixed = baselineInputs.semi_fixed_expense !== 0 
         ? baselineInputs.semi_fixed_expense 
         : (baselineInputs.total_direct_expenses > 0 
             ? baselineInputs.total_direct_expenses - baselineInputs.sales_expense 
@@ -506,7 +507,8 @@ export function useForecastCalculations({
       calculatedValues['total_direct_expenses'] = (baselineMonthlyValues.total_direct_expenses ?? 0) * growthFactor;
       // Pre-calculate semi_fixed_expense for Nissan (total_direct_expenses - sales_expense)
       // For other brands, this will be recalculated or use baseline
-      calculatedValues['semi_fixed_expense'] = baselineMonthlyValues.semi_fixed_expense > 0 
+      // Use !== 0 to handle negative semi_fixed_expense (e.g., when rebates exceed expenses)
+      calculatedValues['semi_fixed_expense'] = baselineMonthlyValues.semi_fixed_expense !== 0 
         ? baselineMonthlyValues.semi_fixed_expense * growthFactor
         : calculatedValues['total_direct_expenses'] - calculatedValues['sales_expense'];
       
