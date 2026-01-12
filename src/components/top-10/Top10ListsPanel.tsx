@@ -17,6 +17,7 @@ interface Top10List {
   description: string | null;
   columns: ColumnDefinition[];
   display_order: number;
+  last_item_activity: string | null;
 }
 
 interface Top10ListsPanelProps {
@@ -45,7 +46,7 @@ export function Top10ListsPanel({ departmentId, canEdit = true }: Top10ListsPane
       setLoading(true);
       const { data, error } = await supabase
         .from("top_10_lists")
-        .select("id, title, description, columns, display_order")
+        .select("id, title, description, columns, display_order, last_item_activity")
         .eq("department_id", departmentId)
         .eq("is_active", true)
         .order("display_order", { ascending: true });

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { format } from "date-fns";
 import {
   Collapsible,
   CollapsibleContent,
@@ -57,6 +58,7 @@ interface Top10List {
   description: string | null;
   columns: ColumnDefinition[];
   display_order: number;
+  last_item_activity: string | null;
 }
 
 interface Top10ListCardProps {
@@ -351,6 +353,12 @@ export function Top10ListCard({
                   </span>
                 </div>
               </CollapsibleTrigger>
+
+              {list.last_item_activity && (
+                <span className="text-xs text-destructive opacity-70">
+                  {format(new Date(list.last_item_activity), 'MMM d, yyyy')}
+                </span>
+              )}
 
               {canEdit && (
                 <div className="flex items-center gap-1">
