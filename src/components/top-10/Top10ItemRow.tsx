@@ -10,6 +10,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
+import { MiniConfetti } from "@/components/ui/mini-confetti";
 
 interface ColumnDefinition {
   key: string;
@@ -43,7 +44,9 @@ export function Top10ItemRow({
   const [isHovered, setIsHovered] = useState(false);
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [selectedCellContent, setSelectedCellContent] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   // Sync local data when props change
   useEffect(() => {
@@ -84,6 +87,14 @@ export function Top10ItemRow({
     setIssueDialogOpen(false);
     onIssueCreated?.();
   };
+
+  const handleDeleteClick = () => {
+    setIsDeleting(true);
+  };
+
+  const handleConfettiComplete = useCallback(() => {
+    onDelete();
+  }, [onDelete]);
 
   // Get a summary of the row data for the issue title
   const getRowSummary = () => {
@@ -127,17 +138,24 @@ export function Top10ItemRow({
           </ContextMenu>
         ))}
         {canEdit && (
-          <TableCell className="w-10 p-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`h-7 w-7 text-destructive opacity-0 transition-opacity ${
-                isHovered ? "opacity-100" : ""
-              }`}
-              onClick={onDelete}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <TableCell className="w-10 p-1 relative">
+            <div className="relative">
+              <Button
+                ref={deleteButtonRef}
+                variant="ghost"
+                size="icon"
+                className={`h-7 w-7 text-destructive opacity-0 transition-opacity ${
+                  isHovered ? "opacity-100" : ""
+                }`}
+                onClick={handleDeleteClick}
+                disabled={isDeleting}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+              {isDeleting && (
+                <MiniConfetti onComplete={handleConfettiComplete} />
+              )}
+            </div>
           </TableCell>
         )}
       </TableRow>
