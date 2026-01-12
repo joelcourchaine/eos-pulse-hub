@@ -68,19 +68,69 @@ const FIXED_EXPENSE_CODES: Record<number, string> = {
   55: 'TELEPHONE',
 };
 
-// Main metric account codes (from Page 7 of the statement)
-const MAIN_METRIC_CODES: Record<string, Record<string, string>> = {
-  // New Vehicle Department
+// Main metric account codes for DATA DUMP format
+// Data dumps use codes like SALESS36M (Sales-Service-Line36-Monthly)
+// These map the formatted statement cell positions to data dump code patterns
+const MAIN_METRIC_CODES_DATA_DUMP: Record<string, Record<string, string[]>> = {
+  // New Vehicle Department - codes use N suffix
   'New Vehicle Department': {
-    'P04': 'total_sales',           // Total Department Sales
-    'R19': 'gp_net',                // Total Department Gross Profit  
-    'K05': 'total_variable_expense', // Total Variable Sales Expense
-    'K13': 'total_semi_fixed_expense', // Total Semi-Fixed Sales Expense
-    'K14': 'department_profit',     // Net Department Profit (before fixed)
-    'E791': 'fixed_expense',        // Total Department Fixed Expense
-    'E821': 'net',                  // Department Profit/Loss (after fixed)
+    'total_sales': ['SALESN04', 'P04N'],
+    'gp_net': ['SALESN19', 'R19N'],
+    'sales_expense': ['EXPN05', 'K05N'],
+    'total_fixed_expense': ['EXPN791', 'E791N'],
+    'department_profit': ['EXPN14', 'K14N'],
+    'net': ['EXPN821', 'E821N'],
   },
-  // Used Vehicle Department
+  // Used Vehicle Department - codes use U suffix
+  'Used Vehicle Department': {
+    'total_sales': ['SALESU13', 'P13U'],
+    'gp_net': ['SALESU09', 'S09U'],
+    'sales_expense': ['EXPU20', 'K20U'],
+    'total_fixed_expense': ['EXPU792', 'E792U'],
+    'department_profit': ['EXPU05', 'L05U'],
+    'net': ['EXPU822', 'E822U'],
+  },
+  // Service/Mechanical Department - codes use S suffix
+  'Service Department': {
+    'total_sales': ['SALESS36', 'SALESS04', 'P04S'],
+    'gp_net': ['SALESS37', 'SALESS11', 'X11S'],
+    'sales_expense': ['EXPS14', 'EXPS60', 'L14S'],
+    'total_fixed_expense': ['EXPS793', 'EXPS60', 'E793S'],
+    'department_profit': ['EXPS61', 'EXPS15', 'L15S'],
+    'net': ['EXPS63', 'EXPS823', 'E823S'],
+    'parts_transfer': ['EXPS62'],
+  },
+  // Parts Department - codes use P suffix
+  'Parts Department': {
+    'total_sales': ['SALESP23', 'W23P'],
+    'gp_net': ['SALESP10', 'Y10P'],
+    'sales_expense': ['EXPP24', 'L24P'],
+    'total_fixed_expense': ['EXPP794', 'E794P'],
+    'department_profit': ['EXPP01', 'M01P'],
+    'net': ['EXPP824', 'E824P'],
+  },
+  // Body Shop Department - codes use B suffix
+  'Body Shop Department': {
+    'total_sales': ['SALESB11', 'W11B'],
+    'gp_net': ['SALESB19', 'X19B'],
+    'sales_expense': ['EXPB21', 'J21B'],
+    'total_fixed_expense': ['EXPB795', 'E795B'],
+    'department_profit': ['EXPB22', 'J22B'],
+    'net': ['EXPB825', 'E825B'],
+  },
+};
+
+// Legacy main metric codes (for backward compatibility with formatted statement references)
+const MAIN_METRIC_CODES: Record<string, Record<string, string>> = {
+  'New Vehicle Department': {
+    'P04': 'total_sales',
+    'R19': 'gp_net',
+    'K05': 'total_variable_expense',
+    'K13': 'total_semi_fixed_expense',
+    'K14': 'department_profit',
+    'E791': 'fixed_expense',
+    'E821': 'net',
+  },
   'Used Vehicle Department': {
     'P13': 'total_sales',
     'S09': 'gp_net',
@@ -90,16 +140,14 @@ const MAIN_METRIC_CODES: Record<string, Record<string, string>> = {
     'E792': 'fixed_expense',
     'E822': 'net',
   },
-  // Service/Mechanical Department  
   'Service Department': {
-    'P04': 'total_sales',           // Note: Same code, different context
+    'P04': 'total_sales',
     'X11': 'gp_net',
-    'L14': 'total_variable_expense', // Actually "Total Sales Expense"
-    'L15': 'department_profit',      // Net Department Profit (before fixed)
+    'L14': 'total_variable_expense',
+    'L15': 'department_profit',
     'E793': 'fixed_expense',
     'E823': 'net',
   },
-  // Parts Department
   'Parts Department': {
     'W23': 'total_sales',
     'Y10': 'gp_net',
@@ -108,7 +156,6 @@ const MAIN_METRIC_CODES: Record<string, Record<string, string>> = {
     'E794': 'fixed_expense',
     'E824': 'net',
   },
-  // Body Shop Department
   'Body Shop Department': {
     'W11': 'total_sales',
     'X19': 'gp_net',
@@ -231,19 +278,59 @@ export const parseStellantisExcel = (
         
         // Filter to only departments we're importing for
         const targetDepts = departmentNames.filter(name => 
+          Object.keys(MAIN_METRIC_CODES_DATA_DUMP).includes(name) || 
           Object.keys(MAIN_METRIC_CODES).includes(name)
         );
         
         console.log('[Stellantis Parse] Target departments:', targetDepts);
+        console.log('[Stellantis Parse] Sample codes from file:', Object.keys(codeValues).slice(0, 20));
         
         for (const deptName of targetDepts) {
           metrics[deptName] = {};
           subMetrics[deptName] = [];
           
-          // Extract main metrics using formatted cell codes
+          // First, try to extract main metrics using data dump code patterns (new method)
+          const deptDataDumpCodes = MAIN_METRIC_CODES_DATA_DUMP[deptName];
+          if (deptDataDumpCodes) {
+            for (const [metricKey, codePatternsArray] of Object.entries(deptDataDumpCodes)) {
+              let foundValue: number | null = null;
+              let matchedCode: string | null = null;
+              
+              // Try each code pattern until we find a match
+              for (const codePattern of codePatternsArray) {
+                // Try with M suffix (monthly), Y suffix (YTD), and without suffix
+                const codesToTry = [
+                  codePattern + 'M',
+                  codePattern,
+                  codePattern + 'Y',
+                ];
+                
+                for (const code of codesToTry) {
+                  if (codeValues[code] !== undefined) {
+                    foundValue = codeValues[code];
+                    matchedCode = code;
+                    break;
+                  }
+                }
+                if (foundValue !== null) break;
+              }
+              
+              if (foundValue !== null && matchedCode) {
+                // Sales/revenue are typically negative in data dumps (credits), so negate them
+                const adjustedValue = matchedCode.startsWith('SALES') ? -foundValue : foundValue;
+                metrics[deptName][metricKey] = adjustedValue;
+                console.log(`[Stellantis Parse] ${deptName} - ${metricKey}: ${matchedCode} = ${foundValue} → ${adjustedValue}`);
+              }
+            }
+          }
+          
+          // Fallback: try legacy formatted cell code patterns if no data dump codes matched
           const deptMainCodes = MAIN_METRIC_CODES[deptName];
           if (deptMainCodes) {
             for (const [code, metricKey] of Object.entries(deptMainCodes)) {
+              // Skip if we already found this metric via data dump codes
+              if (metrics[deptName][metricKey] !== undefined) continue;
+              
               // Try the code with M suffix for monthly
               const monthlyCode = code + 'M';
               const value = codeValues[monthlyCode] ?? codeValues[code] ?? null;
@@ -252,7 +339,7 @@ export const parseStellantisExcel = (
                 // Sales are typically negative in the data dump (credits), so negate them
                 const adjustedValue = code.startsWith('SALES') ? -value : value;
                 metrics[deptName][metricKey] = adjustedValue;
-                console.log(`[Stellantis Parse] ${deptName} - ${metricKey}: ${code} = ${value} → ${adjustedValue}`);
+                console.log(`[Stellantis Parse] ${deptName} - ${metricKey} (legacy): ${code} = ${value} → ${adjustedValue}`);
               }
             }
           }
