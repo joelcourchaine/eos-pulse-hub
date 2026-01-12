@@ -124,6 +124,12 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
   }, [fetchSubMetrics]);
 
   // Live-update whenever sub-metrics are imported/changed
+  // Track the months we're watching for realtime updates
+  const watchedMonthsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    watchedMonthsRef.current = new Set(stableMonthIds.split(',').filter(Boolean));
+  }, [stableMonthIds]);
+
   useEffect(() => {
     if (!departmentId) return;
 
@@ -145,6 +151,10 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
 
           if (payload.eventType === 'DELETE') {
             if (!rowOld?.metric_name?.startsWith('sub:')) return;
+            // Only process deletes for months we're currently watching
+            // This prevents stale events from other import operations affecting our view
+            if (!watchedMonthsRef.current.has(rowOld.month)) return;
+            
             const parts = rowOld.metric_name.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
@@ -156,6 +166,9 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
             );
           } else {
             if (!rowNew?.metric_name?.startsWith('sub:')) return;
+            // Only process inserts/updates for months we're currently watching
+            if (!watchedMonthsRef.current.has(rowNew.month)) return;
+            
             const parts = rowNew.metric_name.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
