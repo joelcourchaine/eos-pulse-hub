@@ -201,11 +201,13 @@ const handler = async (req: Request): Promise<Response> => {
     // ============ 3. FINANCIAL SUMMARY ============
     console.log("Fetching financial data...");
     
+    // Filter out sub-metrics (which start with 'sub:') to avoid hitting the 1000 row limit
     const { data: financialEntries } = await supabaseClient
       .from("financial_entries")
       .select("*")
       .eq("department_id", departmentId)
-      .in("month", monthIdentifiers);
+      .in("month", monthIdentifiers)
+      .not("metric_name", "like", "sub:%");
 
     // For yearly view, get all quarters' targets; for quarterly, just the selected quarter
     let financialTargets: any[] = [];
