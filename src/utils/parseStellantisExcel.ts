@@ -226,9 +226,18 @@ export const parseStellantisExcel = (
         
         console.log('[Stellantis Parse] Available sheets:', workbook.SheetNames);
         
-        // Get first sheet (data dump is typically on first sheet)
-        const sheetName = workbook.SheetNames[0];
+        // Look for the data dump sheet - prefer "dload" or "Data", fallback to first sheet
+        let sheetName = workbook.SheetNames[0];
+        const preferredDataDumpSheets = ['dload', 'Data'];
+        for (const preferred of preferredDataDumpSheets) {
+          if (workbook.SheetNames.includes(preferred)) {
+            sheetName = preferred;
+            break;
+          }
+        }
+        
         const sheet = workbook.Sheets[sheetName];
+        console.log('[Stellantis Parse] Using sheet:', sheetName);
         
         if (!sheet) {
           reject(new Error('No sheets found in workbook'));
@@ -238,7 +247,7 @@ export const parseStellantisExcel = (
         // Convert sheet to array of arrays for easier parsing
         const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
         
-        console.log('[Stellantis Parse] Total rows:', rows.length);
+        console.log('[Stellantis Parse] Total rows in data dump sheet:', rows.length);
         
         // Build a map of account codes to values
         // Data dump format: |value|code|...
@@ -415,6 +424,10 @@ export const parseStellantisExcel = (
 /**
  * Check if a file appears to be a Stellantis data dump format
  * (vs traditional formatted statement with standard cell references)
+ * 
+ * IMPORTANT: Some files are "hybrid" - they have Chrysler sheets (templates) 
+ * AND a data dump sheet (dload/Data). In these cases, we should check if
+ * the data dump sheet has actual data, as the Chrysler sheets may have stale values.
  */
 export const isStellantisDataDump = (file: File): Promise<boolean> => {
   return new Promise((resolve, reject) => {
@@ -424,17 +437,34 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
       try {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'binary' });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
         
-        if (!sheet) {
+        // Check for data dump sheet (usually "dload" or first sheet in pure data dumps)
+        const dataDumpSheetNames = ['dload', 'Data'];
+        let dataDumpSheet = null;
+        let dataDumpSheetName = '';
+        
+        for (const name of dataDumpSheetNames) {
+          if (workbook.Sheets[name]) {
+            dataDumpSheet = workbook.Sheets[name];
+            dataDumpSheetName = name;
+            break;
+          }
+        }
+        
+        // If no specific data dump sheet, try first sheet
+        if (!dataDumpSheet) {
+          dataDumpSheet = workbook.Sheets[workbook.SheetNames[0]];
+          dataDumpSheetName = workbook.SheetNames[0];
+        }
+        
+        if (!dataDumpSheet) {
           resolve(false);
           return;
         }
         
-        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const rows: any[][] = XLSX.utils.sheet_to_json(dataDumpSheet, { header: 1 });
         
-        // Check first 50 rows for Stellantis code patterns
-        // These are very specific data dump codes like "EXPN37M", "EXPS38M"
+        // Check for Stellantis data dump code patterns
         let stellantisCodeCount = 0;
         const matchedCodes: string[] = [];
         const stellantisPatterns = [
@@ -445,31 +475,40 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
           /^LIAB\d+M$/i,        // LIAB11M, etc.
         ];
         
-        // Also check if this looks like a standard formatted Excel (with sheet names like Chrysler1, Chrysler2, etc.)
-        const hasStandardSheetNames = workbook.SheetNames.some(name => 
-          /^Chrysler\d+$/i.test(name) || /^Data$/i.test(name) || /^Stats$/i.test(name)
-        );
-        
-        if (hasStandardSheetNames) {
-          console.log('[Stellantis Check] File has standard Chrysler sheet names - NOT a data dump');
-          resolve(false);
-          return;
-        }
-        
-        for (let i = 0; i < Math.min(50, rows.length); i++) {
+        for (let i = 0; i < Math.min(100, rows.length); i++) {
           const row = rows[i];
           if (row && row[1] && typeof row[1] === 'string') {
             const code = row[1].trim().toUpperCase();
             if (stellantisPatterns.some(pattern => pattern.test(code))) {
               stellantisCodeCount++;
-              matchedCodes.push(code);
+              if (matchedCodes.length < 10) matchedCodes.push(code);
             }
           }
         }
         
-        console.log('[Stellantis Check] Found', stellantisCodeCount, 'Stellantis codes in first 50 rows:', matchedCodes);
-        // Require more matches and ensure they look like actual data dump codes
-        resolve(stellantisCodeCount >= 10);
+        console.log(`[Stellantis Check] Sheet "${dataDumpSheetName}": Found ${stellantisCodeCount} data dump codes:`, matchedCodes);
+        
+        // If we found data dump codes, this IS a data dump (even if it has Chrysler sheets)
+        if (stellantisCodeCount >= 10) {
+          console.log('[Stellantis Check] File contains data dump format - using data dump parser');
+          resolve(true);
+          return;
+        }
+        
+        // Check if this has Chrysler sheets (standard formatted Excel)
+        const hasStandardSheetNames = workbook.SheetNames.some(name => 
+          /^Chrysler\d+$/i.test(name)
+        );
+        
+        if (hasStandardSheetNames) {
+          console.log('[Stellantis Check] File has Chrysler sheets and no data dump - using cell mappings');
+          resolve(false);
+          return;
+        }
+        
+        // Default to not a data dump if we can't determine
+        console.log('[Stellantis Check] Could not determine format, defaulting to cell mappings');
+        resolve(false);
       } catch (error) {
         console.error('[Stellantis Check] Error:', error);
         resolve(false);
