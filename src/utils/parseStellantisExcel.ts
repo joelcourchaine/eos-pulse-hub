@@ -268,12 +268,12 @@ export const parseStellantisExcel = (
               
               if (value !== null && subMetricName) {
                 subMetrics[deptName].push({
-                  parentMetricKey: 'fixed_expense',
+                  parentMetricKey: 'total_fixed_expense',
                   name: subMetricName,
                   value: value,
                   orderIndex: orderIndex++,
                 });
-                console.log(`[Stellantis Parse] ${deptName} - fixed_expense sub: ${subMetricName} = ${value}`);
+                console.log(`[Stellantis Parse] ${deptName} - total_fixed_expense sub: ${subMetricName} = ${value}`);
               }
             }
           }
@@ -297,12 +297,12 @@ export const parseStellantisExcel = (
               
               if (value !== null) {
                 subMetrics[deptName].push({
-                  parentMetricKey: 'fixed_expense',
+                  parentMetricKey: 'total_fixed_expense',
                   name: subMetricName,
                   value: value,
                   orderIndex: orderIndex++,
                 });
-                console.log(`[Stellantis Parse] ${deptName} - fixed_expense sub (alt): ${subMetricName} = ${value} (code: ${code})`);
+                console.log(`[Stellantis Parse] ${deptName} - total_fixed_expense sub (alt): ${subMetricName} = ${value} (code: ${code})`);
               }
             }
           }
