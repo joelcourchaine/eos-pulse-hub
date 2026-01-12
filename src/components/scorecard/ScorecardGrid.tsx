@@ -3230,8 +3230,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                       
                       return (
                         <React.Fragment key={`pq-${pq.year}-${pq.quarter}`}>
-                          {/* Quarter target column */}
-                          <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted/70 border-x-2 border-muted-foreground/30 sticky top-0 z-10">
+                          {/* Quarter target column - sticky horizontally */}
+                          <TableHead 
+                            className="text-center font-bold min-w-[100px] py-[7.2px] bg-muted border-x-2 border-muted-foreground/30 sticky top-0 z-20"
+                            style={{ 
+                              position: 'sticky', 
+                              left: 200 + pqIndex * 100, 
+                              zIndex: 20 - pqIndex,
+                              boxShadow: '2px 0 4px rgba(0,0,0,0.05)'
+                            }}
+                          >
                             <div className="flex flex-col items-center">
                               <div className="text-xs">Q{pq.quarter} Target</div>
                               <div className="text-xs font-normal text-muted-foreground">{pq.year}</div>
@@ -3254,11 +3262,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         </React.Fragment>
                       );
                     })}
-                    {/* Current quarter target column */}
-                    <TableHead className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                    {/* Current quarter target column - sticky horizontally */}
+                    <TableHead 
+                      className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary border-x-2 border-primary/30 sticky top-0 z-20 text-primary-foreground"
+                      style={{ 
+                        position: 'sticky', 
+                        left: 200 + loadedPreviousQuarters.length * 100, 
+                        zIndex: 19,
+                        boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
+                      }}
+                    >
                       <div className="flex flex-col items-center">
                         <div>Q{quarter} Target</div>
-                        <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                        <div className="text-xs font-normal opacity-70">{year}</div>
                       </div>
                     </TableHead>
                   </>
@@ -3506,7 +3522,49 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <span className="font-semibold text-sm">{ownerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (viewMode === "weekly" ? (weeks.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getWeekDates({ year: pq.year, quarter: pq.quarter }).length + 1, 0) + (isLoadingMore ? 1 : 0)) : (1 + previousYearMonths.length + 1 + 1 + months.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getMonthsForQuarter(pq.quarter, pq.year).length + 1, 0) + (isLoadingMore ? 1 : 0)))} className="bg-muted/50 py-1" />
+                    {/* For weekly view, render sticky target cells in owner header */}
+                    {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
+                      <>
+                        {isLoadingMore && (
+                          <TableCell className="bg-muted/50 py-1 min-w-[50px]" />
+                        )}
+                        {loadedPreviousQuarters.map((pq, pqIndex) => {
+                          const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
+                          return (
+                            <React.Fragment key={`owner-pq-${pq.year}-${pq.quarter}`}>
+                              <TableCell 
+                                className="bg-muted py-1 min-w-[100px] border-x-2 border-muted-foreground/30"
+                                style={{ 
+                                  position: 'sticky', 
+                                  left: 200 + pqIndex * 100, 
+                                  zIndex: 10 - pqIndex,
+                                  boxShadow: '2px 0 4px rgba(0,0,0,0.05)'
+                                }}
+                              />
+                              {pqWeeks.map((week) => (
+                                <TableCell key={`owner-week-${week.label}`} className="bg-muted/50 py-1 min-w-[125px]" />
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
+                        <TableCell 
+                          className="bg-primary py-1 min-w-[100px] border-x-2 border-primary/30"
+                          style={{ 
+                            position: 'sticky', 
+                            left: 200 + loadedPreviousQuarters.length * 100, 
+                            zIndex: 9,
+                            boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
+                          }}
+                        />
+                        {weeks.map((week) => (
+                          <TableCell key={`owner-curr-week-${week.label}`} className="bg-muted/50 py-1 min-w-[125px]" />
+                        ))}
+                      </>
+                    )}
+                    {/* For non-weekly views, use colspan as before */}
+                    {(isMonthlyTrendMode || isQuarterTrendMode || viewMode !== "weekly") && (
+                      <TableCell colSpan={isMonthlyTrendMode ? (2 + monthlyTrendPeriods.length) : isQuarterTrendMode ? quarterTrendPeriods.length : (1 + previousYearMonths.length + 1 + 1 + months.length + 1 + loadedPreviousQuarters.reduce((sum, pq) => sum + getMonthsForQuarter(pq.quarter, pq.year).length + 1, 0) + (isLoadingMore ? 1 : 0))} className="bg-muted/50 py-1" />
+                    )}
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
@@ -3524,15 +3582,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         </TableCell>
                       )}
                       {/* Previous quarters' target cells and week cells */}
-                      {loadedPreviousQuarters.map((pq) => {
+                      {loadedPreviousQuarters.map((pq, pqIndex) => {
                         const pqWeeks = getWeekDates({ year: pq.year, quarter: pq.quarter });
                         const pqTargetKey = `${kpi.id}-Q${pq.quarter}-${pq.year}`;
                         const pqTargetValue = previousQuarterTargets[pqTargetKey] ?? kpi.target_value;
                         
                         return (
                           <React.Fragment key={`pq-cells-${pq.year}-${pq.quarter}`}>
-                            {/* Previous quarter target cell */}
-                            <TableCell className="text-center py-0.5 min-w-[100px] bg-muted/70 border-x-2 border-muted-foreground/30 font-medium text-muted-foreground">
+                            {/* Previous quarter target cell - sticky horizontally */}
+                            <TableCell 
+                              className="text-center py-0.5 min-w-[100px] bg-muted border-x-2 border-muted-foreground/30 font-medium text-muted-foreground"
+                              style={{ 
+                                position: 'sticky', 
+                                left: 200 + pqIndex * 100, 
+                                zIndex: 10 - pqIndex,
+                                boxShadow: '2px 0 4px rgba(0,0,0,0.05)'
+                              }}
+                            >
                               {formatTarget(pqTargetValue, kpi.metric_type, kpi.name)}
                             </TableCell>
                             {/* Previous quarter week cells */}
@@ -3573,8 +3639,16 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           </React.Fragment>
                         );
                       })}
-                      {/* Current quarter target cell */}
-                      <TableCell className="text-center py-0.5 min-w-[100px] bg-primary/10 border-x-2 border-primary/30 font-medium">
+                      {/* Current quarter target cell - sticky horizontally */}
+                      <TableCell 
+                        className="text-center py-0.5 min-w-[100px] bg-primary border-x-2 border-primary/30 font-medium text-primary-foreground"
+                        style={{ 
+                          position: 'sticky', 
+                          left: 200 + loadedPreviousQuarters.length * 100, 
+                          zIndex: 9,
+                          boxShadow: '2px 0 4px rgba(0,0,0,0.1)'
+                        }}
+                      >
                         {canEditTargets() && editingTarget === kpi.id ? (
                           <div className="flex items-center justify-center gap-1">
                             <Input
@@ -3586,14 +3660,14 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                                 if (e.key === 'Enter') handleTargetSave(kpi.id);
                                 if (e.key === 'Escape') setEditingTarget(null);
                               }}
-                              className="w-20 h-7 text-center"
+                              className="w-20 h-7 text-center text-foreground"
                               autoFocus
                             />
                             <Button
                               size="sm"
                               variant="ghost"
                               onClick={() => handleTargetSave(kpi.id)}
-                              className="h-7 px-2"
+                              className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20"
                             >
                               ✓
                             </Button>
@@ -3601,8 +3675,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         ) : (
                           <span
                             className={cn(
-                              "text-muted-foreground",
-                              canEditTargets() && "cursor-pointer hover:text-foreground"
+                              canEditTargets() && "cursor-pointer hover:opacity-80"
                             )}
                             onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
                           >
