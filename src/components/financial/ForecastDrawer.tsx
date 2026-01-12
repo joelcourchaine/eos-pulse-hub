@@ -155,12 +155,15 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     queryFn: async () => {
       if (!departmentId) return [];
 
+      // Only fetch main metrics (not sub-metrics) - sub-metrics are loaded separately via useSubMetrics.
+      // This avoids hitting the Supabase 1000 row limit which would silently truncate later months.
       const { data, error } = await supabase
         .from('financial_entries')
         .select('month, metric_name, value')
         .eq('department_id', departmentId)
         .gte('month', `${priorYear}-01`)
-        .lte('month', `${priorYear}-12`);
+        .lte('month', `${priorYear}-12`)
+        .not('metric_name', 'like', 'sub:%');
 
       if (error) throw error;
       return data;
