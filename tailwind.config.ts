@@ -138,6 +138,33 @@ export default {
           "50%": { transform: "scale(1.5)", opacity: "0.8" },
           "100%": { transform: "scale(0)", opacity: "0" },
         },
+        "celebration-particle": {
+          "0%": { 
+            transform: "translate(0, 0) rotate(0deg) scale(1)", 
+            opacity: "1" 
+          },
+          "70%": {
+            opacity: "1"
+          },
+          "100%": { 
+            transform: "translate(var(--particle-x), var(--particle-y)) rotate(var(--particle-rotation)) scale(0)", 
+            opacity: "0" 
+          },
+        },
+        "celebration-center": {
+          "0%": { transform: "translate(-50%, -50%) scale(0)", opacity: "1" },
+          "30%": { transform: "translate(-50%, -50%) scale(1.8)", opacity: "1" },
+          "100%": { transform: "translate(-50%, -50%) scale(0)", opacity: "0" },
+        },
+        "celebration-ring": {
+          "0%": { transform: "translate(-50%, -50%) scale(0)", opacity: "1" },
+          "100%": { transform: "translate(-50%, -50%) scale(3)", opacity: "0" },
+        },
+        "celebration-ring-delayed": {
+          "0%": { transform: "translate(-50%, -50%) scale(0)", opacity: "0" },
+          "20%": { transform: "translate(-50%, -50%) scale(0)", opacity: "1" },
+          "100%": { transform: "translate(-50%, -50%) scale(2.5)", opacity: "0" },
+        },
       },
       animation: {
         "marquee": "marquee 25s linear infinite",
@@ -147,6 +174,10 @@ export default {
         "firework-center": "firework-center 0.6s ease-out forwards",
         "mini-confetti": "mini-confetti 0.4s ease-out forwards",
         "confetti-center": "confetti-center 0.3s ease-out forwards",
+        "celebration-particle": "celebration-particle 0.8s ease-out forwards",
+        "celebration-center": "celebration-center 0.5s ease-out forwards",
+        "celebration-ring": "celebration-ring 0.6s ease-out forwards",
+        "celebration-ring-delayed": "celebration-ring-delayed 0.7s ease-out forwards",
       },
     },
   },
