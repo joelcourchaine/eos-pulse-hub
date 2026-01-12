@@ -525,40 +525,49 @@ export const importFinancialData = async (
     }
   }
 
-  // Delete existing sub-metrics for all affected departments (parallel)
-  if (deptIdsWithSubMetrics.size > 0) {
-    const deletePromises = Array.from(deptIdsWithSubMetrics).map((deptId) =>
-      supabase
+  // Only delete and insert sub-metrics for departments that have NEW entries to insert
+  // This prevents data loss when parsing fails to find sub-metrics in the Excel file
+  if (subMetricEntries.length > 0) {
+    // Group entries by department
+    const entriesByDept = new Map<string, typeof subMetricEntries>();
+    for (const entry of subMetricEntries) {
+      if (!entriesByDept.has(entry.department_id)) {
+        entriesByDept.set(entry.department_id, []);
+      }
+      entriesByDept.get(entry.department_id)!.push(entry);
+    }
+
+    // For each department with new entries, delete old and insert new atomically
+    for (const [deptId, entries] of entriesByDept) {
+      // Delete existing sub-metrics for this dept/month
+      const { error: deleteError } = await supabase
         .from('financial_entries')
         .delete()
         .eq('department_id', deptId)
         .eq('month', monthIdentifier)
-        .like('metric_name', 'sub:%')
-    );
+        .like('metric_name', 'sub:%');
 
-    const deleteResults = await Promise.all(deletePromises);
-    deleteResults.forEach((result) => {
-      if (result.error) {
-        console.error('Error deleting sub-metric entries:', result.error);
-        errors.push(`Sub-metric delete failed: ${result.error.message}`);
+      if (deleteError) {
+        console.error('Error deleting sub-metrics for dept:', deptId, deleteError);
+        errors.push(`Sub-metric delete failed for dept ${deptId}: ${deleteError.message}`);
+        continue;
       }
-    });
-  }
 
-  // Batch upsert sub-metrics (single DB call)
-  if (subMetricEntries.length > 0) {
-    const { error } = await supabase
-      .from('financial_entries')
-      .upsert(subMetricEntries, {
-        onConflict: 'department_id,month,metric_name',
-      });
+      // Insert new sub-metrics for this department
+      const { error: insertError } = await supabase
+        .from('financial_entries')
+        .insert(entries);
 
-    if (error) {
-      console.error('Error batch upserting sub-metric entries:', error);
-      errors.push(`Sub-metrics upsert failed: ${error.message}`);
-    } else {
-      importedCount += subMetricEntries.length;
+      if (insertError) {
+        console.error('Error inserting sub-metrics for dept:', deptId, insertError);
+        errors.push(`Sub-metrics insert failed for dept ${deptId}: ${insertError.message}`);
+      } else {
+        importedCount += entries.length;
+      }
     }
+  } else {
+    // No sub-metrics parsed - preserve existing data (don't delete anything)
+    console.log('[Excel Import] No sub-metrics parsed from Excel - existing sub-metric data preserved');
   }
 
   if (errors.length > 0) {
