@@ -252,6 +252,7 @@ export const parseStellantisExcel = (
         // Build a map of account codes to values
         // Data dump format: |value|code|...
         const codeValues: Record<string, number> = {};
+        const errorCells: Record<string, string> = {}; // Track cells with errors
         
         for (const row of rows) {
           if (!row || row.length < 2) continue;
@@ -266,7 +267,16 @@ export const parseStellantisExcel = (
             if (typeof value === 'number') {
               numValue = value;
             } else if (typeof value === 'string') {
-              const cleaned = value.replace(/[,$%\s]/g, '');
+              const valueStr = value.trim();
+              // Check for Excel error values
+              if (valueStr.startsWith('#')) {
+                errorCells[cleanCode] = valueStr;
+                console.warn(`[Stellantis Parse] Cell error for ${cleanCode}: ${valueStr}`);
+                // Skip error cells - they don't have usable data
+                continue;
+              }
+              
+              const cleaned = valueStr.replace(/[,$%\s]/g, '');
               if (cleaned) {
                 const parsed = parseFloat(cleaned);
                 if (!isNaN(parsed)) numValue = parsed;
@@ -277,6 +287,11 @@ export const parseStellantisExcel = (
               codeValues[cleanCode] = numValue;
             }
           }
+        }
+        
+        // Log error summary
+        if (Object.keys(errorCells).length > 0) {
+          console.warn(`[Stellantis Parse] Found ${Object.keys(errorCells).length} cells with errors:`, errorCells);
         }
         
         console.log('[Stellantis Parse] Found', Object.keys(codeValues).length, 'code-value pairs');
@@ -404,9 +419,22 @@ export const parseStellantisExcel = (
           }
         }
         
-        // Log summary
+        // Log detailed summary including missing metrics
+        const expectedMainMetrics = ['total_sales', 'gp_net', 'sales_expense', 'total_fixed_expense', 'department_profit', 'net'];
         for (const [deptName, deptMetrics] of Object.entries(metrics)) {
-          console.log(`[Stellantis Parse] ${deptName}: ${Object.keys(deptMetrics).length} metrics, ${subMetrics[deptName]?.length || 0} sub-metrics`);
+          const foundMetrics = Object.keys(deptMetrics);
+          const missingMetrics = expectedMainMetrics.filter(m => !foundMetrics.includes(m));
+          
+          console.log(`[Stellantis Parse] ${deptName}: ${foundMetrics.length} metrics found: [${foundMetrics.join(', ')}]`);
+          if (missingMetrics.length > 0) {
+            console.warn(`[Stellantis Parse] ${deptName}: MISSING metrics: [${missingMetrics.join(', ')}]`);
+          }
+          console.log(`[Stellantis Parse] ${deptName}: ${subMetrics[deptName]?.length || 0} sub-metrics`);
+        }
+        
+        // Log any error cells that might be causing missing data
+        if (Object.keys(errorCells).length > 0) {
+          console.warn(`[Stellantis Parse] Some cells had Excel errors - these values could not be imported:`, Object.keys(errorCells).slice(0, 20));
         }
         
         resolve({ metrics, subMetrics });
