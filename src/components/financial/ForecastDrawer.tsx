@@ -669,23 +669,68 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         updated = [...updated, { subMetricKey, parentKey, overriddenAnnualValue: newAnnualValue }];
       }
       
+      // Extract sub-metric name for matching
+      const parts = subMetricKey.split(':');
+      const subMetricNameRaw = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
+      const normalizeName = (name: string) => name.trim().toLowerCase();
+      const subMetricName = normalizeName(subMetricNameRaw);
+      
       // When editing GP Net, remove any existing GP% override for the same sub-metric name
       // This allows GP% to be derived from the new GP Net value
-       if (parentKey === 'gp_net') {
-         // Extract sub-metric name from key (format: sub:gp_net:XXX:Name)
-         const parts = subMetricKey.split(':');
-         const subMetricNameRaw = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
-         const normalizeName = (name: string) => name.trim().toLowerCase();
-         const subMetricName = normalizeName(subMetricNameRaw);
-         
-         // Find and remove any GP% override with matching name
-         updated = updated.filter(o => {
-           if (o.parentKey !== 'gp_percent') return true;
-           const gpParts = o.subMetricKey.split(':');
-           const gpNameRaw = gpParts.length >= 4 ? gpParts.slice(3).join(':') : gpParts.slice(2).join(':');
-           return normalizeName(gpNameRaw) !== subMetricName;
-         });
-       }
+      if (parentKey === 'gp_net') {
+        updated = updated.filter(o => {
+          if (o.parentKey !== 'gp_percent') return true;
+          const gpParts = o.subMetricKey.split(':');
+          const gpNameRaw = gpParts.length >= 4 ? gpParts.slice(3).join(':') : gpParts.slice(2).join(':');
+          return normalizeName(gpNameRaw) !== subMetricName;
+        });
+      }
+      
+      // When editing GP%, calculate the new GP Net for the same sub-metric
+      // GP Net = Total Sales × (GP% / 100)
+      if (parentKey === 'gp_percent') {
+        // Find the matching total_sales sub-metric to calculate GP Net
+        const gpNetSubMetrics = subMetricForecasts?.get('gp_net') || [];
+        const totalSalesSubMetrics = subMetricForecasts?.get('total_sales') || [];
+        
+        // Find matching GP Net and Total Sales sub-metrics by name
+        const matchingGpNet = gpNetSubMetrics.find(sm => {
+          const smParts = sm.key.split(':');
+          const smName = smParts.length >= 4 ? smParts.slice(3).join(':') : smParts.slice(2).join(':');
+          return normalizeName(smName) === subMetricName;
+        });
+        
+        const matchingTotalSales = totalSalesSubMetrics.find(sm => {
+          const smParts = sm.key.split(':');
+          const smName = smParts.length >= 4 ? smParts.slice(3).join(':') : smParts.slice(2).join(':');
+          return normalizeName(smName) === subMetricName;
+        });
+        
+        if (matchingGpNet && matchingTotalSales) {
+          // Get the current or overridden Total Sales value
+          const totalSalesOverride = updated.find(o => o.subMetricKey === matchingTotalSales.key);
+          const totalSalesValue = totalSalesOverride?.overriddenAnnualValue ?? matchingTotalSales.annualValue;
+          
+          // Calculate new GP Net = Total Sales × (new GP% / 100)
+          const newGpNetValue = totalSalesValue * (newAnnualValue / 100);
+          
+          // Add/update GP Net override
+          const gpNetOverrideIndex = updated.findIndex(o => o.subMetricKey === matchingGpNet.key);
+          if (gpNetOverrideIndex >= 0) {
+            updated[gpNetOverrideIndex] = { 
+              subMetricKey: matchingGpNet.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newGpNetValue 
+            };
+          } else {
+            updated.push({ 
+              subMetricKey: matchingGpNet.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newGpNetValue 
+            });
+          }
+        }
+      }
       
       return updated;
     });
@@ -695,12 +740,108 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Handle main metric annual value edit (for metrics without sub-metrics)
   // Distribute the annual value across months using the current weight distribution
   // For percentage metrics, set the same value for all months
+  // Special handling for GP%: recalculate GP Net and scale sub-metrics proportionally
   const handleMainMetricAnnualEdit = (metricKey: string, newAnnualValue: number) => {
     if (!weights || weights.length === 0) return;
     
     // Find the metric definition to check if it's a percentage
     const metricDef = metricDefinitions.find(m => m.key === metricKey);
     const isPercent = metricDef?.type === 'percent';
+    
+    // Special handling for GP%: recalculate GP Net based on new GP%
+    if (metricKey === 'gp_percent') {
+      // Get current Total Sales from annual values
+      const totalSalesData = annualValues.get('total_sales');
+      const currentTotalSales = totalSalesData?.value ?? 0;
+      
+      // Calculate new GP Net = Total Sales × (new GP% / 100)
+      const newGpNet = currentTotalSales * (newAnnualValue / 100);
+      
+      // Get current GP Net to calculate scale factor
+      const currentGpNetData = annualValues.get('gp_net');
+      const currentGpNet = currentGpNetData?.value ?? 0;
+      const scaleFactor = currentGpNet > 0 ? newGpNet / currentGpNet : 1;
+      
+      // Scale all GP Net sub-metrics proportionally
+      const gpNetSubMetrics = subMetricForecasts?.get('gp_net') || [];
+      
+      setSubMetricOverrides(prev => {
+        let updated = [...prev];
+        
+        for (const sm of gpNetSubMetrics) {
+          const existingOverride = updated.find(o => o.subMetricKey === sm.key);
+          const currentSubMetricValue = existingOverride?.overriddenAnnualValue ?? sm.annualValue;
+          const newSubMetricValue = currentSubMetricValue * scaleFactor;
+          
+          const overrideIndex = updated.findIndex(o => o.subMetricKey === sm.key);
+          if (overrideIndex >= 0) {
+            updated[overrideIndex] = { 
+              subMetricKey: sm.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newSubMetricValue 
+            };
+          } else {
+            updated.push({ 
+              subMetricKey: sm.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newSubMetricValue 
+            });
+          }
+        }
+        
+        // Remove any GP% sub-metric overrides since they should now derive from GP Net
+        updated = updated.filter(o => o.parentKey !== 'gp_percent');
+        
+        return updated;
+      });
+      
+      markDirty();
+      return;
+    }
+    
+    // Special handling for GP Net: scale sub-metrics proportionally and let GP% derive from new ratio
+    if (metricKey === 'gp_net') {
+      // Get current GP Net to calculate scale factor
+      const currentGpNetData = annualValues.get('gp_net');
+      const currentGpNet = currentGpNetData?.value ?? 0;
+      const scaleFactor = currentGpNet > 0 ? newAnnualValue / currentGpNet : 1;
+      
+      // Scale all GP Net sub-metrics proportionally
+      const gpNetSubMetrics = subMetricForecasts?.get('gp_net') || [];
+      
+      setSubMetricOverrides(prev => {
+        let updated = [...prev];
+        
+        for (const sm of gpNetSubMetrics) {
+          const existingOverride = updated.find(o => o.subMetricKey === sm.key);
+          const currentSubMetricValue = existingOverride?.overriddenAnnualValue ?? sm.annualValue;
+          const newSubMetricValue = currentSubMetricValue * scaleFactor;
+          
+          const overrideIndex = updated.findIndex(o => o.subMetricKey === sm.key);
+          if (overrideIndex >= 0) {
+            updated[overrideIndex] = { 
+              subMetricKey: sm.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newSubMetricValue 
+            };
+          } else {
+            updated.push({ 
+              subMetricKey: sm.key, 
+              parentKey: 'gp_net', 
+              overriddenAnnualValue: newSubMetricValue 
+            });
+          }
+        }
+        
+        // Remove any GP% sub-metric overrides since GP% will derive from the new GP Net
+        updated = updated.filter(o => o.parentKey !== 'gp_percent');
+        
+        return updated;
+      });
+      
+      markDirty();
+      return;
+    }
     
     // Calculate total weight
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
