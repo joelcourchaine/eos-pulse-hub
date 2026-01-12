@@ -612,9 +612,10 @@ export function ForecastResultsGrid({
         ) : (
           <td className={cn(
             "text-right py-2 px-2 font-medium bg-muted/50",
-            !hasChildren && !metric.isDerived && "cursor-pointer"
+            // GP% and GP Net are specially editable even with children (to enable bidirectional editing)
+            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net') && "cursor-pointer"
           )}>
-            {/* Editable annual cell for main metrics without sub-metrics (non-derived) */}
+            {/* Editable annual cell for main metrics without sub-metrics (non-derived), or GP%/GP Net (special case) */}
             {editingAnnualMainMetric === metric.key ? (
               <Input
                 type="number"
@@ -626,7 +627,8 @@ export function ForecastResultsGrid({
                 autoFocus
               />
             ) : annualValue !== undefined ? (
-              !hasChildren && !metric.isDerived && onMainMetricAnnualEdit ? (
+              // Allow editing for: metrics without children and not derived, OR gp_percent/gp_net (bidirectional)
+              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net') && onMainMetricAnnualEdit ? (
                 view === 'annual' ? (
                   // Annual view: show full values directly
                   <span 
@@ -651,7 +653,13 @@ export function ForecastResultsGrid({
                         {metric.type === 'currency' && Math.abs(annualValue) >= 1000 && (
                           <p className="font-mono text-sm">{formatFullValue(annualValue, metric.type)}</p>
                         )}
-                        <p className="text-xs">Click to edit annual total</p>
+                        <p className="text-xs">
+                          {metric.key === 'gp_percent' 
+                            ? 'Click to edit GP% (will scale GP Net sub-metrics)' 
+                            : metric.key === 'gp_net'
+                            ? 'Click to edit GP Net (will scale sub-metrics)'
+                            : 'Click to edit annual total'}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
