@@ -203,17 +203,44 @@ export function useForecastCalculations({
     return map;
   }, [weights]);
 
-  // Calculate annual baseline from prior year data
+  // Calculate annual baseline from prior year data, filling in missing main metrics from sub-metrics
   const annualBaseline = useMemo(() => {
     const totals: Record<string, number> = {};
     let sawPartsTransfer = false;
 
+    // First, sum up main metrics from baselineData
     baselineData.forEach((metrics) => {
       metrics.forEach((value, metricName) => {
         if (metricName === 'parts_transfer') sawPartsTransfer = true;
         totals[metricName] = (totals[metricName] || 0) + value;
       });
     });
+
+    // If main metrics are missing but sub-metrics exist, derive totals from sub-metrics.
+    // This handles cases where only sub-metrics were imported (no parent totals stored).
+    if (subMetricBaselines && subMetricBaselines.length > 0) {
+      const subMetricTotalsByParent: Record<string, number> = {};
+      
+      for (const subMetric of subMetricBaselines) {
+        // Sum all monthly values for this sub-metric
+        let subMetricAnnualTotal = 0;
+        subMetric.monthlyValues.forEach((value) => {
+          subMetricAnnualTotal += value;
+        });
+        
+        // Accumulate into parent metric total
+        subMetricTotalsByParent[subMetric.parentKey] = 
+          (subMetricTotalsByParent[subMetric.parentKey] || 0) + subMetricAnnualTotal;
+      }
+      
+      // Fill in missing main metrics from sub-metric sums
+      // Only override if the main metric is missing or zero
+      for (const [parentKey, subTotal] of Object.entries(subMetricTotalsByParent)) {
+        if (!totals[parentKey] || totals[parentKey] === 0) {
+          totals[parentKey] = subTotal;
+        }
+      }
+    }
 
     // Some brands don't store parts_transfer directly; derive it from adjusted_selling_gross when present.
     // Only do this when parts_transfer is truly missing (not when it's legitimately zero).
@@ -225,7 +252,7 @@ export function useForecastCalculations({
     }
 
     return totals;
-  }, [baselineData]);
+  }, [baselineData, subMetricBaselines]);
 
   // Calculate forecasted values for each month and metric
   const calculateMonthlyValues = useCallback((): Map<string, Map<string, CalculationResult>> => {
@@ -280,15 +307,35 @@ export function useForecastCalculations({
       const baselineMonthData = baselineData.get(priorYearMonth);
       const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
 
+      // Calculate sub-metric sums for this month to fill in missing main metrics
+      const subMetricSumsForMonth: Record<string, number> = {};
+      if (subMetricBaselines && subMetricBaselines.length > 0) {
+        for (const subMetric of subMetricBaselines) {
+          const monthValue = subMetric.monthlyValues.get(priorYearMonth) ?? 0;
+          subMetricSumsForMonth[subMetric.parentKey] = 
+            (subMetricSumsForMonth[subMetric.parentKey] || 0) + monthValue;
+        }
+      }
+
+      // Helper to get baseline value: prefer stored main metric, fall back to sub-metric sum
+      const getBaselineValue = (metricKey: string): number => {
+        const storedValue = baselineMonthData?.get(metricKey);
+        if (storedValue !== undefined && storedValue !== null && storedValue !== 0) {
+          return storedValue;
+        }
+        // Fall back to sub-metric sum if available
+        return subMetricSumsForMonth[metricKey] ?? 0;
+      };
+
       const baselineInputs = {
-        total_sales: baselineMonthData?.get('total_sales') ?? 0,
-        gp_net: baselineMonthData?.get('gp_net') ?? 0,
-        sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
-        total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+        total_sales: getBaselineValue('total_sales'),
+        gp_net: getBaselineValue('gp_net'),
+        sales_expense: getBaselineValue('sales_expense'),
+        total_fixed_expense: getBaselineValue('total_fixed_expense'),
         adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
         parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
         total_direct_expenses: baselineMonthData?.get('total_direct_expenses') ?? 0,
-        semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
+        semi_fixed_expense: getBaselineValue('semi_fixed_expense'),
         dealer_salary: baselineMonthData?.get('dealer_salary') ?? 0,
       };
 
