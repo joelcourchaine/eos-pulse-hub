@@ -3463,32 +3463,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </TableHeader>
         <TableBody>
           {[...filteredKpis].sort((a, b) => {
-            // Sort by owner: regular users first, then department manager (like totals), then unassigned
-            // Check if assigned user is the department manager OR has department_manager role (fallback)
-            const ownerA = a.assigned_to ? profiles[a.assigned_to] : null;
-            const ownerB = b.assigned_to ? profiles[b.assigned_to] : null;
-            const isManagerA = a.assigned_to === departmentManagerId || ownerA?.role === 'department_manager';
-            const isManagerB = b.assigned_to === departmentManagerId || ownerB?.role === 'department_manager';
-            const isUnassignedA = !a.assigned_to;
-            const isUnassignedB = !b.assigned_to;
-            
-            // Unassigned goes to the very bottom
-            if (isUnassignedA && !isUnassignedB) return 1;
-            if (!isUnassignedA && isUnassignedB) return -1;
-            
-            // Department manager goes just before unassigned (bottom)
-            if (isManagerA && !isManagerB && !isUnassignedB) return 1;
-            if (!isManagerA && isManagerB && !isUnassignedA) return -1;
-            
-            // If both are the same category (both manager, both regular, both unassigned), sort by display_order
-            if (isManagerA === isManagerB && isUnassignedA === isUnassignedB) {
-              if (a.assigned_to === b.assigned_to) {
-                return a.display_order - b.display_order;
-              }
-              return (a.assigned_to || '').localeCompare(b.assigned_to || '');
-            }
-            
-            return 0;
+            // Primary sort: by display_order to respect user-defined owner ordering
+            // This ensures drag-and-drop owner reordering works correctly
+            return a.display_order - b.display_order;
           }).map((kpi, index, sortedKpis) => {
             const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
             const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
