@@ -352,7 +352,7 @@ export function Top10ListCard({
                 </p>
               ) : (
                 <>
-                  <div className="border rounded-md overflow-hidden">
+                  <div className="border rounded-md overflow-visible">
                     <Table>
                       <TableHeader>
                         <TableRow>

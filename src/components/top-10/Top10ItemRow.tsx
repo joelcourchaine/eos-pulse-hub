@@ -103,72 +103,81 @@ export function Top10ItemRow({
   };
 
   return (
-    <>
-      <TableRow
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="group"
-      >
-        <TableCell className="w-12 text-center font-medium text-muted-foreground">
-          {rank}
-        </TableCell>
-        {columns.map((col) => (
-          <ContextMenu key={col.key}>
-            <ContextMenuTrigger asChild>
-              <TableCell className="p-1">
-                {canEdit ? (
-                  <Input
-                    value={localData[col.key] || ""}
-                    onChange={(e) => handleChange(col.key, e.target.value)}
-                    className="h-8 text-sm"
-                    placeholder={col.label}
-                  />
-                ) : (
-                  <span className="text-sm">{localData[col.key] || "-"}</span>
-                )}
-              </TableCell>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem
-                onClick={() => handleCreateIssue(localData[col.key] || getRowSummary())}
-              >
-                Create Issue from this
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        ))}
-        {canEdit && (
-          <TableCell className="w-10 p-1 relative">
-            <div className="relative">
-              <Button
-                ref={deleteButtonRef}
-                variant="ghost"
-                size="icon"
-                className={`h-7 w-7 text-destructive opacity-0 transition-opacity ${
-                  isHovered ? "opacity-100" : ""
-                }`}
-                onClick={handleDeleteClick}
-                disabled={isDeleting}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-              {isDeleting && (
-                <MiniConfetti onComplete={handleConfettiComplete} />
+    <TableRow
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="group relative"
+    >
+      <TableCell className="w-12 text-center font-medium text-muted-foreground">
+        {rank}
+      </TableCell>
+      {columns.map((col) => (
+        <ContextMenu key={col.key}>
+          <ContextMenuTrigger asChild>
+            <TableCell className="p-1">
+              {canEdit ? (
+                <Input
+                  value={localData[col.key] || ""}
+                  onChange={(e) => handleChange(col.key, e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder={col.label}
+                />
+              ) : (
+                <span className="text-sm">{localData[col.key] || "-"}</span>
               )}
-            </div>
-          </TableCell>
-        )}
-      </TableRow>
-
-      <IssueManagementDialog
-        departmentId={departmentId}
-        onIssueAdded={handleIssueAdded}
-        initialTitle={selectedCellContent}
-        initialDescription={`From Top 10 List: ${listTitle}`}
-        open={issueDialogOpen}
-        onOpenChange={setIssueDialogOpen}
-        trigger={<span className="hidden" />}
-      />
-    </>
+            </TableCell>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => handleCreateIssue(localData[col.key] || getRowSummary())}
+            >
+              Create Issue from this
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      ))}
+      {canEdit && (
+        <TableCell className="w-10 p-1 relative overflow-visible">
+          <div className="relative flex items-center justify-center">
+            <Button
+              ref={deleteButtonRef}
+              variant="ghost"
+              size="icon"
+              className={`h-7 w-7 text-destructive opacity-0 transition-opacity ${
+                isHovered ? "opacity-100" : ""
+              }`}
+              onClick={handleDeleteClick}
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            {isDeleting && (
+              <MiniConfetti onComplete={handleConfettiComplete} />
+            )}
+          </div>
+          {/* Portal the dialog outside of table structure */}
+          <IssueManagementDialog
+            departmentId={departmentId}
+            onIssueAdded={handleIssueAdded}
+            initialTitle={selectedCellContent}
+            initialDescription={`From Top 10 List: ${listTitle}`}
+            open={issueDialogOpen}
+            onOpenChange={setIssueDialogOpen}
+            trigger={<span className="hidden" />}
+          />
+        </TableCell>
+      )}
+      {!canEdit && (
+        <IssueManagementDialog
+          departmentId={departmentId}
+          onIssueAdded={handleIssueAdded}
+          initialTitle={selectedCellContent}
+          initialDescription={`From Top 10 List: ${listTitle}`}
+          open={issueDialogOpen}
+          onOpenChange={setIssueDialogOpen}
+          trigger={<span className="hidden" />}
+        />
+      )}
+    </TableRow>
   );
 }
