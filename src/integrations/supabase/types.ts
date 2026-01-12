@@ -1998,6 +1998,7 @@ export type Database = {
           display_order: number
           id: string
           is_active: boolean
+          last_item_activity: string | null
           title: string
           updated_at: string
         }
@@ -2009,6 +2010,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          last_item_activity?: string | null
           title: string
           updated_at?: string
         }
@@ -2020,6 +2022,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean
+          last_item_activity?: string | null
           title?: string
           updated_at?: string
         }
