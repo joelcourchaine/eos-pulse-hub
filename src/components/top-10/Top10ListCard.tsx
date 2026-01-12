@@ -154,41 +154,46 @@ export function Top10ListCard({
 
   const handleDeleteItem = async (itemId: string, rank: number) => {
     try {
-      // Optimistically update UI first for instant feedback
-      const remainingItems = items.filter((item) => item.id !== itemId);
+      // Sort remaining items by their current rank and calculate new ranks
+      const remainingItems = items
+        .filter((item) => item.id !== itemId)
+        .sort((a, b) => a.rank - b.rank);
+      
+      // Create reranked items with sequential ranks 1-9
       const rerankedItems = remainingItems.map((item, index) => ({
         ...item,
         rank: index + 1,
       }));
-      // Add placeholder for new row at rank 10
+      
+      // Optimistically update UI - show 9 reranked items + new empty row at rank 10
       setItems([...rerankedItems, { id: 'temp-' + Date.now(), rank: 10, data: {} }]);
 
-      // Delete the item and insert new row in parallel
-      const [deleteResult, insertResult] = await Promise.all([
-        supabase.from("top_10_items").delete().eq("id", itemId),
-        supabase.from("top_10_items").insert({
-          list_id: list.id,
-          rank: 10,
-          data: {},
-        }),
-      ]);
+      // Delete the item first
+      const { error: deleteError } = await supabase
+        .from("top_10_items")
+        .delete()
+        .eq("id", itemId);
 
-      if (deleteResult.error) throw deleteResult.error;
-      if (insertResult.error) throw insertResult.error;
+      if (deleteError) throw deleteError;
 
-      // Re-rank items that need updating (only those with rank > deleted rank)
-      const updatePromises = remainingItems
-        .filter((item) => item.rank > rank)
+      // Update all remaining items to their new sequential ranks (1-9)
+      const updatePromises = rerankedItems
+        .filter((item, index) => remainingItems[index].rank !== item.rank)
         .map((item) =>
           supabase
             .from("top_10_items")
-            .update({ rank: item.rank - 1 })
+            .update({ rank: item.rank })
             .eq("id", item.id)
         );
 
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
-      }
+      // Insert new empty row at rank 10
+      const insertPromise = supabase.from("top_10_items").insert({
+        list_id: list.id,
+        rank: 10,
+        data: {},
+      });
+
+      await Promise.all([...updatePromises, insertPromise]);
 
       loadItems();
     } catch (error: any) {
