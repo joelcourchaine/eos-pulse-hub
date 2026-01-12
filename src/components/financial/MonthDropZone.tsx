@@ -33,10 +33,7 @@ import {
   type ValidationResult,
   type ParsedFinancialData,
 } from "@/utils/parseFinancialExcel";
-import {
-  parseStellantisExcel,
-  isStellantisDataDump,
-} from "@/utils/parseStellantisExcel";
+import { parseStellantisExcel } from "@/utils/parseStellantisExcel";
 
 interface Attachment {
   id: string;
@@ -224,80 +221,52 @@ export const MonthDropZone = ({
     let parsedData: ParsedFinancialData;
 
     if (isStellantisFile) {
-      // Check if this is a Stellantis data dump file
-      const isDataDump = await isStellantisDataDump(file);
-      
-      // Always fetch cell mappings as a fallback
+      // Always fetch cell mappings
       const mappings = await fetchCellMappings(brand);
       
-      if (isDataDump) {
-        console.log('[Excel Import] Detected Stellantis data dump format, using specialized parser');
+      // Get department names for parsing
+      const deptNames = storeDepartments.map(d => d.name);
+      
+      // For Stellantis, ALWAYS try the data dump parser first (reads from dload/Data sheet)
+      // This ensures we get the freshest data even if Chrysler sheets exist
+      console.log('[Excel Import] Stellantis file detected - trying data dump parser first');
+      
+      // Parse using specialized Stellantis parser (it looks for dload/Data sheet)
+      const dataDumpResult = await parseStellantisExcel(file, deptNames);
+      
+      // Also add mappings for the Stellantis parser's department names
+      const stellantisDeptNames = [
+        'New Vehicle Department',
+        'Used Vehicle Department',
+        'Service Department',
+        'Parts Department',
+        'Body Shop Department'
+      ];
+      
+      for (const stellantisDeptName of stellantisDeptNames) {
+        if (departmentsByName[stellantisDeptName]) continue;
         
-        // Get department names for parsing
-        const deptNames = storeDepartments.map(d => d.name);
-        
-        // Parse using specialized Stellantis parser
-        parsedData = await parseStellantisExcel(file, deptNames);
-        
-        // Also add mappings for the Stellantis parser's department names
-        const stellantisDeptNames = [
-          'New Vehicle Department',
-          'Used Vehicle Department',
-          'Service Department',
-          'Parts Department',
-          'Body Shop Department'
-        ];
-        
-        for (const stellantisDeptName of stellantisDeptNames) {
-          if (departmentsByName[stellantisDeptName]) continue;
-          
-          const normalized = normalizeDeptName(stellantisDeptName);
-          const match = departmentsByNormalized.get(normalized);
-          if (match) {
-            departmentsByName[stellantisDeptName] = match.id;
-          }
+        const normalized = normalizeDeptName(stellantisDeptName);
+        const match = departmentsByNormalized.get(normalized);
+        if (match) {
+          departmentsByName[stellantisDeptName] = match.id;
         }
-        
-        // If the data dump parser is missing main metrics, try to fill them from cell mappings
-        if (mappings.length > 0) {
-          console.log('[Excel Import] Attempting to fill missing metrics from cell mappings');
-          const fallbackData = await parseFinancialExcel(file, mappings);
-          
-          // Add mapping-department aliases
-          const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
-          for (const mappingDeptName of mappingDeptNames) {
-            if (departmentsByName[mappingDeptName]) continue;
-            const normalized = normalizeDeptName(mappingDeptName);
-            const match = departmentsByNormalized.get(normalized);
-            if (match) {
-              departmentsByName[mappingDeptName] = match.id;
-            }
-          }
-          
-          // Merge fallback metrics into parsed data (only for missing metrics)
-          for (const [deptName, deptMetrics] of Object.entries(fallbackData.metrics)) {
-            if (!parsedData.metrics[deptName]) {
-              parsedData.metrics[deptName] = deptMetrics;
-            } else {
-              // Only add metrics that are missing or null
-              for (const [metricKey, value] of Object.entries(deptMetrics)) {
-                if (parsedData.metrics[deptName][metricKey] === undefined || 
-                    parsedData.metrics[deptName][metricKey] === null) {
-                  parsedData.metrics[deptName][metricKey] = value;
-                  console.log(`[Excel Import] Filled ${deptName}.${metricKey} from cell mappings: ${value}`);
-                }
-              }
-            }
-          }
-          
-          // Don't merge sub-metrics from fallback - data dump sub-metrics are more accurate
-        }
-      } else {
-        // Fall back to standard parser with mappings
-        if (mappings.length === 0) {
-          console.log(`No cell mappings found for ${brand}`);
-          return;
-        }
+      }
+      
+      // Count how many main metrics we got from the data dump
+      let dataDumpMetricCount = 0;
+      for (const deptMetrics of Object.values(dataDumpResult.metrics)) {
+        dataDumpMetricCount += Object.keys(deptMetrics).length;
+      }
+      console.log(`[Excel Import] Data dump parser found ${dataDumpMetricCount} main metrics`);
+      
+      // Start with data dump results
+      parsedData = dataDumpResult;
+      
+      // If we have cell mappings, try to fill in any missing metrics from Chrysler sheets
+      if (mappings.length > 0) {
+        console.log('[Excel Import] Attempting to fill missing metrics from cell mappings');
+        const fallbackData = await parseFinancialExcel(file, mappings);
         
         // Add mapping-department aliases
         const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
@@ -310,7 +279,30 @@ export const MonthDropZone = ({
           }
         }
         
-        parsedData = await parseFinancialExcel(file, mappings);
+        // Merge fallback metrics into parsed data (only for missing metrics)
+        for (const [deptName, deptMetrics] of Object.entries(fallbackData.metrics)) {
+          if (!parsedData.metrics[deptName]) {
+            parsedData.metrics[deptName] = deptMetrics;
+            console.log(`[Excel Import] Added all metrics for ${deptName} from cell mappings`);
+          } else {
+            // Only add metrics that are missing or null
+            for (const [metricKey, value] of Object.entries(deptMetrics)) {
+              if (parsedData.metrics[deptName][metricKey] === undefined || 
+                  parsedData.metrics[deptName][metricKey] === null) {
+                parsedData.metrics[deptName][metricKey] = value;
+                console.log(`[Excel Import] Filled ${deptName}.${metricKey} from cell mappings: ${value}`);
+              }
+            }
+          }
+        }
+        
+        // Also merge sub-metrics from cell mappings if data dump didn't provide any
+        for (const [deptName, subMetricList] of Object.entries(fallbackData.subMetrics)) {
+          if (!parsedData.subMetrics[deptName] || parsedData.subMetrics[deptName].length === 0) {
+            parsedData.subMetrics[deptName] = subMetricList;
+            console.log(`[Excel Import] Added ${subMetricList.length} sub-metrics for ${deptName} from cell mappings`);
+          }
+        }
       }
     } else {
       // Standard flow for other brands - fetch cell mappings
