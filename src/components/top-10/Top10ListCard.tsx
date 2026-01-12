@@ -356,7 +356,7 @@ export function Top10ListCard({
 
               {list.last_item_activity && (
                 <span className="text-xs text-destructive opacity-70">
-                  {format(new Date(list.last_item_activity), 'MMM d, yyyy')}
+                  Last Updated: {format(new Date(list.last_item_activity), 'MMM d, yyyy')}
                 </span>
               )}
 
