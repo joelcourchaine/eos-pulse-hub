@@ -67,10 +67,11 @@ interface MonthDropZoneProps {
   copiedFrom?: { sourceLabel: string; copiedAt: string } | null;
 }
 
-const ACCEPTED_TYPES = {
+const ACCEPTED_TYPES: Record<string, "excel" | "csv" | "pdf"> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "excel",
   "application/vnd.ms-excel": "excel",
   "application/vnd.ms-excel.sheet.macroEnabled.12": "excel", // .xlsm files
+  "application/vnd.ms-excel.sheet.macroenabled.12": "excel", // .xlsm files (lowercase variant)
   "text/csv": "csv",
   "application/pdf": "pdf",
 };
@@ -500,18 +501,19 @@ export const MonthDropZone = ({
 
       const file = files[0];
 
-      // Some browsers/providers (and some .xlsm files) may come through with a generic/empty MIME type,
-      // so we fall back to checking the file extension.
+      // Check extension FIRST since MIME types for .xlsm files are unreliable across browsers/OS
       const getFileType = (f: File) => {
-        const byMime = ACCEPTED_TYPES[f.type as keyof typeof ACCEPTED_TYPES];
-        if (byMime) return byMime;
-
         const ext = f.name.split(".").pop()?.toLowerCase();
-        if (!ext) return null;
-
-        if (["xlsx", "xls", "xlsm"].includes(ext)) return "excel" as const;
+        
+        // Extension-based check first (more reliable, especially for .xlsm)
+        if (ext && ["xlsx", "xls", "xlsm"].includes(ext)) return "excel" as const;
         if (ext === "csv") return "csv" as const;
         if (ext === "pdf") return "pdf" as const;
+        
+        // Fall back to MIME type check
+        const byMime = ACCEPTED_TYPES[f.type as keyof typeof ACCEPTED_TYPES];
+        if (byMime) return byMime;
+        
         return null;
       };
 
