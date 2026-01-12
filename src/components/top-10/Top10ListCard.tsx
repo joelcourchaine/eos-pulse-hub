@@ -95,19 +95,82 @@ export function Top10ListCard({
         .order("rank", { ascending: true });
 
       if (error) throw error;
-      
-      // Cast the data properly
-      const typedData = (data || []).map(item => ({
+
+      const fetched = (data || []).map((item) => ({
         id: item.id,
         rank: item.rank,
-        data: (item.data as Record<string, string>) || {}
+        data: (item.data as Record<string, string>) || {},
       }));
-      
-      setItems(typedData);
+
+      const sorted = [...fetched].sort(
+        (a, b) => a.rank - b.rank || a.id.localeCompare(b.id)
+      );
+      const ranks = sorted.map((i) => i.rank);
+      const hasGap = ranks.some((r, idx) => (idx === 0 ? r !== 1 : r !== ranks[idx - 1] + 1));
+      const hasDuplicate = new Set(ranks).size !== ranks.length;
+      const needsTenRows = sorted.length < maxItems;
+
+      // Self-heal gaps/duplicates by reassigning sequential ranks.
+      // We do it in TWO PHASES to avoid any (list_id, rank) uniqueness collisions.
+      if (hasGap || hasDuplicate || needsTenRows) {
+        const normalized = sorted.map((item, index) => ({ ...item, rank: index + 1 }));
+
+        // Phase 1: move all existing items to a safe temporary rank range.
+        const tempPromises = normalized.map((item) =>
+          supabase
+            .from("top_10_items")
+            .update({ rank: 100 + item.rank })
+            .eq("id", item.id)
+        );
+        await Promise.all(tempPromises);
+
+        // Phase 2: set final sequential ranks.
+        const finalPromises = normalized.map((item) =>
+          supabase
+            .from("top_10_items")
+            .update({ rank: item.rank })
+            .eq("id", item.id)
+        );
+        await Promise.all(finalPromises);
+
+        // Ensure we have exactly 10 rows by inserting missing ranks at the end.
+        const missingRanks: number[] = [];
+        for (let r = normalized.length + 1; r <= maxItems; r++) missingRanks.push(r);
+
+        if (missingRanks.length) {
+          const { error: insertError } = await supabase.from("top_10_items").insert(
+            missingRanks.map((rank) => ({
+              list_id: list.id,
+              rank,
+              data: {},
+            }))
+          );
+          if (insertError) throw insertError;
+        }
+
+        // Re-fetch once after healing.
+        const { data: healed, error: healedError } = await supabase
+          .from("top_10_items")
+          .select("id, rank, data")
+          .eq("list_id", list.id)
+          .order("rank", { ascending: true });
+
+        if (healedError) throw healedError;
+        setItems(
+          (healed || []).map((item) => ({
+            id: item.id,
+            rank: item.rank,
+            data: (item.data as Record<string, string>) || {},
+          }))
+        );
+        return;
+      }
+
+      setItems(sorted);
     } catch (error) {
       console.error("Error loading items:", error);
     }
-  }, [list.id]);
+  }, [list.id, maxItems]);
 
   useEffect(() => {
     if (isOpen) {
@@ -121,7 +184,16 @@ export function Top10ListCard({
       return;
     }
 
-    const nextRank = items.length + 1;
+    // Fill the first missing rank instead of using items.length + 1 (which breaks when ranks have gaps)
+    const existingRanks = new Set(items.map((i) => i.rank));
+    const nextRank = Array.from({ length: maxItems }, (_, i) => i + 1).find(
+      (r) => !existingRanks.has(r)
+    );
+
+    if (!nextRank) {
+      toast.error("No available rank slot");
+      return;
+    }
 
     try {
       const { error } = await supabase.from("top_10_items").insert({
@@ -152,54 +224,53 @@ export function Top10ListCard({
     }
   };
 
-  const handleDeleteItem = async (itemId: string, rank: number) => {
+  const handleDeleteItem = async (itemId: string, _rank: number) => {
     try {
-      // Sort remaining items by their current rank and calculate new ranks
       const remainingItems = items
         .filter((item) => item.id !== itemId)
-        .sort((a, b) => a.rank - b.rank);
-      
-      // Create reranked items with sequential ranks 1-9
+        .sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id));
+
       const rerankedItems = remainingItems.map((item, index) => ({
         ...item,
         rank: index + 1,
       }));
-      
-      // Optimistically update UI - show 9 reranked items + new empty row at rank 10
-      setItems([...rerankedItems, { id: 'temp-' + Date.now(), rank: 10, data: {} }]);
 
-      // Delete the item first
+      // Optimistic UI: show 1..9 + new row at 10
+      setItems([...rerankedItems, { id: "temp-" + Date.now(), rank: 10, data: {} }]);
+
+      // Delete first
       const { error: deleteError } = await supabase
         .from("top_10_items")
         .delete()
         .eq("id", itemId);
-
       if (deleteError) throw deleteError;
 
-      // Update all remaining items to their new sequential ranks (1-9)
-      const updatePromises = rerankedItems
-        .filter((item, index) => remainingItems[index].rank !== item.rank)
-        .map((item) =>
-          supabase
-            .from("top_10_items")
-            .update({ rank: item.rank })
-            .eq("id", item.id)
-        );
+      // Two-phase rank update to avoid collisions.
+      const tempPromises = rerankedItems.map((item) =>
+        supabase
+          .from("top_10_items")
+          .update({ rank: 100 + item.rank })
+          .eq("id", item.id)
+      );
+      await Promise.all(tempPromises);
 
-      // Insert new empty row at rank 10
-      const insertPromise = supabase.from("top_10_items").insert({
+      const finalPromises = rerankedItems.map((item) =>
+        supabase.from("top_10_items").update({ rank: item.rank }).eq("id", item.id)
+      );
+      await Promise.all(finalPromises);
+
+      // Ensure there is a rank 10 row (if it already exists due to another client, insert may fail; loadItems will heal)
+      await supabase.from("top_10_items").insert({
         list_id: list.id,
         rank: 10,
         data: {},
       });
 
-      await Promise.all([...updatePromises, insertPromise]);
-
       loadItems();
     } catch (error: any) {
       console.error("Error deleting item:", error);
       toast.error(error.message || "Failed to delete item");
-      loadItems(); // Reload to restore correct state on error
+      loadItems();
     }
   };
 
