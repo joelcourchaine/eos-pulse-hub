@@ -289,6 +289,8 @@ export function useForecastCalculations({
       department_profit: annualGpNet - annualSalesExp - fixedExpense,
       parts_transfer: annualPartsTransfer,
       net_operating_profit: (annualGpNet - annualSalesExp - fixedExpense) + annualPartsTransfer,
+      // Also store as 'net' for GMC brand compatibility
+      net: (annualGpNet - annualSalesExp - fixedExpense) + annualPartsTransfer,
       return_on_gross: annualGpNet > 0 ? ((annualGpNet - annualSalesExp - fixedExpense) / annualGpNet) * 100 : 0,
     };
 
@@ -375,6 +377,9 @@ export function useForecastCalculations({
         parts_transfer: derivedPartsTransfer,
         dealer_salary: baselineInputs.dealer_salary,
         net_operating_profit:
+          (baselineNetSellingGross - baselineInputs.total_fixed_expense) + derivedPartsTransfer - baselineInputs.dealer_salary,
+        // Also store as 'net' for GMC brand compatibility (GMC uses 'net' as the key)
+        net:
           (baselineNetSellingGross - baselineInputs.total_fixed_expense) + derivedPartsTransfer - baselineInputs.dealer_salary,
         return_on_gross:
           baselineInputs.gp_net > 0
@@ -1711,10 +1716,11 @@ export function useForecastCalculations({
         });
       }
       
-      // Update net_operating_profit
-      const netOpCurrent = adjustedMetrics.get('net_operating_profit');
+      // Update net_operating_profit (or 'net' for GMC brand)
+      const netOpCurrent = adjustedMetrics.get('net_operating_profit') || adjustedMetrics.get('net');
+      const netOpKey = adjustedMetrics.has('net_operating_profit') ? 'net_operating_profit' : 'net';
       if (netOpCurrent) {
-        adjustedMetrics.set('net_operating_profit', {
+        adjustedMetrics.set(netOpKey, {
           ...netOpCurrent,
           value: deptProfit + partsTransfer,
         });
