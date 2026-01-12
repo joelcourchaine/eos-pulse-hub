@@ -105,50 +105,28 @@ export function Top10ListCard({
       const sorted = [...fetched].sort(
         (a, b) => a.rank - b.rank || a.id.localeCompare(b.id)
       );
-      const ranks = sorted.map((i) => i.rank);
-      const hasGap = ranks.some((r, idx) => (idx === 0 ? r !== 1 : r !== ranks[idx - 1] + 1));
-      const hasDuplicate = new Set(ranks).size !== ranks.length;
-      const needsTenRows = sorted.length < maxItems;
 
-      // Self-heal gaps/duplicates by reassigning sequential ranks.
-      // We do it in TWO PHASES to avoid any (list_id, rank) uniqueness collisions.
-      if (hasGap || hasDuplicate || needsTenRows) {
-        const normalized = sorted.map((item, index) => ({ ...item, rank: index + 1 }));
+      // Check for gaps in ranks
+      const existingRanks = new Set(sorted.map((i) => i.rank));
+      const missingRanks: number[] = [];
+      for (let r = 1; r <= maxItems; r++) {
+        if (!existingRanks.has(r)) missingRanks.push(r);
+      }
 
-        // Phase 1: move all existing items to a safe temporary rank range.
-        const tempPromises = normalized.map((item) =>
-          supabase
-            .from("top_10_items")
-            .update({ rank: 100 + item.rank })
-            .eq("id", item.id)
+      // Insert any missing ranks to always have 10 rows
+      if (missingRanks.length > 0) {
+        const { error: insertError } = await supabase.from("top_10_items").insert(
+          missingRanks.map((rank) => ({
+            list_id: list.id,
+            rank,
+            data: {},
+          }))
         );
-        await Promise.all(tempPromises);
-
-        // Phase 2: set final sequential ranks.
-        const finalPromises = normalized.map((item) =>
-          supabase
-            .from("top_10_items")
-            .update({ rank: item.rank })
-            .eq("id", item.id)
-        );
-        await Promise.all(finalPromises);
-
-        // Ensure we have exactly 10 rows by inserting missing ranks at the end.
-        const missingRanks: number[] = [];
-        for (let r = normalized.length + 1; r <= maxItems; r++) missingRanks.push(r);
-
-        if (missingRanks.length) {
-          const { error: insertError } = await supabase.from("top_10_items").insert(
-            missingRanks.map((rank) => ({
-              list_id: list.id,
-              rank,
-              data: {},
-            }))
-          );
-          if (insertError) throw insertError;
+        if (insertError) {
+          console.error("Error inserting missing ranks:", insertError);
         }
 
-        // Re-fetch once after healing.
+        // Re-fetch after inserting
         const { data: healed, error: healedError } = await supabase
           .from("top_10_items")
           .select("id, rank, data")
@@ -184,7 +162,6 @@ export function Top10ListCard({
       return;
     }
 
-    // Fill the first missing rank instead of using items.length + 1 (which breaks when ranks have gaps)
     const existingRanks = new Set(items.map((i) => i.rank));
     const nextRank = Array.from({ length: maxItems }, (_, i) => i + 1).find(
       (r) => !existingRanks.has(r)
@@ -224,47 +201,48 @@ export function Top10ListCard({
     }
   };
 
-  const handleDeleteItem = async (itemId: string, _rank: number) => {
+  const handleDeleteItem = async (itemId: string, deletedRank: number) => {
     try {
+      // Optimistic UI: shift ranks up and add new row at 10
       const remainingItems = items
         .filter((item) => item.id !== itemId)
-        .sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id));
+        .sort((a, b) => a.rank - b.rank);
 
-      const rerankedItems = remainingItems.map((item, index) => ({
+      const rerankedItems = remainingItems.map((item) => ({
         ...item,
-        rank: index + 1,
+        rank: item.rank > deletedRank ? item.rank - 1 : item.rank,
       }));
 
-      // Optimistic UI: show 1..9 + new row at 10
       setItems([...rerankedItems, { id: "temp-" + Date.now(), rank: 10, data: {} }]);
 
-      // Delete first
+      // Delete the item first (this frees up its rank)
       const { error: deleteError } = await supabase
         .from("top_10_items")
         .delete()
         .eq("id", itemId);
       if (deleteError) throw deleteError;
 
-      // Two-phase rank update to avoid collisions.
-      const tempPromises = rerankedItems.map((item) =>
-        supabase
+      // Update ranks sequentially from highest to lowest to avoid collisions
+      // When shifting down (e.g., rank 5 -> 4), we need to update in descending order
+      const itemsToUpdate = remainingItems
+        .filter((item) => item.rank > deletedRank)
+        .sort((a, b) => a.rank - b.rank); // ascending order for shifting down
+
+      for (const item of itemsToUpdate) {
+        const { error: updateError } = await supabase
           .from("top_10_items")
-          .update({ rank: 100 + item.rank })
-          .eq("id", item.id)
-      );
-      await Promise.all(tempPromises);
+          .update({ rank: item.rank - 1 })
+          .eq("id", item.id);
+        if (updateError) throw updateError;
+      }
 
-      const finalPromises = rerankedItems.map((item) =>
-        supabase.from("top_10_items").update({ rank: item.rank }).eq("id", item.id)
-      );
-      await Promise.all(finalPromises);
-
-      // Ensure there is a rank 10 row (if it already exists due to another client, insert may fail; loadItems will heal)
-      await supabase.from("top_10_items").insert({
+      // Insert new empty row at rank 10
+      const { error: insertError } = await supabase.from("top_10_items").insert({
         list_id: list.id,
         rank: 10,
         data: {},
       });
+      if (insertError) throw insertError;
 
       loadItems();
     } catch (error: any) {
