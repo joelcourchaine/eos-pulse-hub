@@ -123,6 +123,21 @@ export default {
             opacity: "0",
           },
         },
+        "mini-confetti": {
+          "0%": { 
+            transform: "translate(0, 0) rotate(0deg) scale(1)", 
+            opacity: "1" 
+          },
+          "100%": { 
+            transform: "translate(var(--particle-x), var(--particle-y)) rotate(var(--particle-rotation)) scale(0)", 
+            opacity: "0" 
+          },
+        },
+        "confetti-center": {
+          "0%": { transform: "scale(0)", opacity: "1" },
+          "50%": { transform: "scale(1.5)", opacity: "0.8" },
+          "100%": { transform: "scale(0)", opacity: "0" },
+        },
       },
       animation: {
         "marquee": "marquee 25s linear infinite",
@@ -130,6 +145,8 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "firework-particle": "firework-particle 1s ease-out forwards",
         "firework-center": "firework-center 0.6s ease-out forwards",
+        "mini-confetti": "mini-confetti 0.4s ease-out forwards",
+        "confetti-center": "confetti-center 0.3s ease-out forwards",
       },
     },
   },
