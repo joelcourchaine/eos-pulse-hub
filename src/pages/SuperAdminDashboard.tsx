@@ -10,7 +10,8 @@ import { AdminUsersTab } from "@/components/admin/AdminUsersTab";
 import { AdminStoreGroupsTab } from "@/components/admin/AdminStoreGroupsTab";
 import { AdminSystemTab } from "@/components/admin/AdminSystemTab";
 import { AdminTicketsTab } from "@/components/admin/AdminTicketsTab";
-import { Ticket } from "lucide-react";
+import { AdminTop10Tab } from "@/components/admin/AdminTop10Tab";
+import { Ticket, ListOrdered } from "lucide-react";
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -72,6 +73,10 @@ const SuperAdminDashboard = () => {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="store-groups">Store Groups</TabsTrigger>
+            <TabsTrigger value="top10" className="flex items-center gap-1.5">
+              <ListOrdered className="h-4 w-4" />
+              Top 10 Templates
+            </TabsTrigger>
             <TabsTrigger value="tickets" className="flex items-center gap-1.5">
               <Ticket className="h-4 w-4" />
               Tickets
@@ -89,6 +94,10 @@ const SuperAdminDashboard = () => {
 
           <TabsContent value="store-groups">
             <AdminStoreGroupsTab />
+          </TabsContent>
+
+          <TabsContent value="top10">
+            <AdminTop10Tab />
           </TabsContent>
 
           <TabsContent value="tickets">
