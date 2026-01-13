@@ -1989,6 +1989,47 @@ export type Database = {
           },
         ]
       }
+      top_10_list_templates: {
+        Row: {
+          columns: Json
+          created_at: string
+          created_by: string | null
+          department_type_id: string | null
+          description: string | null
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "top_10_list_templates_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       top_10_lists: {
         Row: {
           columns: Json
