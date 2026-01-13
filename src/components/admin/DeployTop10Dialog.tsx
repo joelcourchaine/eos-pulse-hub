@@ -89,24 +89,33 @@ export const DeployTop10Dialog = ({
         throw new Error("No matching departments found in this store group");
       }
 
-      // Check for existing lists with same title to avoid duplicates
-      const departmentIds = departments.map((d) => d.id);
-      const { data: existingLists } = await supabase
-        .from("top_10_lists")
-        .select("department_id")
-        .in("department_id", departmentIds)
-        .eq("title", template.title);
+      let created = 0;
+      let updated = 0;
 
-      const existingDeptIds = new Set(existingLists?.map((l) => l.department_id) || []);
-      const eligibleDepartments = departments.filter((d) => !existingDeptIds.has(d.id));
+      // Process each department - update existing or create new
+      for (const dept of departments) {
+        // Check if a list with this title already exists for this department
+        const { data: existing } = await supabase
+          .from("top_10_lists")
+          .select("id")
+          .eq("department_id", dept.id)
+          .eq("title", template.title)
+          .maybeSingle();
 
-      if (eligibleDepartments.length === 0) {
-        throw new Error("All matching departments already have a list with this title");
-      }
+        if (existing) {
+          // Update existing list's structure (columns, description)
+          const { error: updateError } = await supabase
+            .from("top_10_lists")
+            .update({
+              description: template.description,
+              columns: template.columns as unknown as Json,
+            })
+            .eq("id", existing.id);
 
-      // Get max display_order for each department
-      const listsToCreate = await Promise.all(
-        eligibleDepartments.map(async (dept) => {
+          if (updateError) throw updateError;
+          updated++;
+        } else {
+          // Get max display_order for new list
           const { data: maxOrderData } = await supabase
             .from("top_10_lists")
             .select("display_order")
@@ -116,34 +125,33 @@ export const DeployTop10Dialog = ({
 
           const maxOrder = maxOrderData?.[0]?.display_order || 0;
 
-          return {
-            department_id: dept.id,
-            title: template.title,
-            description: template.description,
-            columns: template.columns as unknown as Json,
-            display_order: maxOrder + 1,
-            is_active: true,
-          };
-        })
-      );
+          // Create new list
+          const { error: insertError } = await supabase
+            .from("top_10_lists")
+            .insert({
+              department_id: dept.id,
+              title: template.title,
+              description: template.description,
+              columns: template.columns as unknown as Json,
+              display_order: maxOrder + 1,
+              is_active: true,
+            });
 
-      const { error: insertError } = await supabase
-        .from("top_10_lists")
-        .insert(listsToCreate);
-
-      if (insertError) throw insertError;
-
-      return {
-        deployed: eligibleDepartments.length,
-        skipped: existingDeptIds.size,
-      };
-    },
-    onSuccess: (result) => {
-      let message = `Deployed "${template.title}" to ${result.deployed} departments`;
-      if (result.skipped > 0) {
-        message += ` (${result.skipped} skipped - already exist)`;
+          if (insertError) throw insertError;
+          created++;
+        }
       }
-      toast.success(message);
+
+      return { created, updated, total: departments.length };
+    },
+    onSuccess: ({ created, updated }) => {
+      if (updated > 0 && created > 0) {
+        toast.success(`Updated ${updated} and created ${created} lists`);
+      } else if (updated > 0) {
+        toast.success(`Updated ${updated} existing lists`);
+      } else {
+        toast.success(`Created ${created} new lists`);
+      }
       onOpenChange(false);
     },
     onError: (error: Error) => {
@@ -188,13 +196,10 @@ export const DeployTop10Dialog = ({
             </Select>
           </div>
 
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              This will create a new Top 10 list in each matching department.
-              Departments that already have a list with this title will be skipped.
-            </AlertDescription>
-          </Alert>
+          <div className="text-sm text-muted-foreground">
+            Existing lists with matching titles will be updated.
+            New lists will be created for departments without one.
+          </div>
         </div>
 
         <DialogFooter>
