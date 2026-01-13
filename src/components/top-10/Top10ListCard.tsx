@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { Top10ItemRow } from "./Top10ItemRow";
 import { Top10ListManagementDialog } from "./Top10ListManagementDialog";
 import { CopyListToGroupDialog } from "./CopyListToGroupDialog";
+import { ImportTop10Dialog } from "./ImportTop10Dialog";
 
 interface ColumnDefinition {
   key: string;
@@ -362,6 +363,11 @@ export function Top10ListCard({
 
               {canEdit && (
                 <div className="flex items-center gap-1">
+                  <ImportTop10Dialog
+                    listId={list.id}
+                    columns={list.columns}
+                    onImportComplete={loadItems}
+                  />
                   {isSuperAdmin && (
                     <CopyListToGroupDialog
                       list={list}

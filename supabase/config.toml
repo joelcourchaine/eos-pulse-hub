@@ -68,3 +68,6 @@ verify_jwt = true
 
 [functions.send-ticket-reply]
 verify_jwt = true
+
+[functions.parse-top10-import]
+verify_jwt = true
