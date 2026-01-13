@@ -94,10 +94,31 @@ export function Top10ItemRow({
   const roDateColKey = findColumnKey(columns, ["ro date", "date opened", "open date"]);
   const daysColKey = findColumnKey(columns, ["# of days", "days", "age", "days open"]);
 
-  // Sync local data when props change
+  // Sync local data when props change AND auto-calculate days if missing
   useEffect(() => {
-    setLocalData(data);
-  }, [data]);
+    let newData = { ...data };
+    
+    // Auto-calculate "# of Days" if RO Date exists but days is empty
+    if (roDateColKey && daysColKey) {
+      const roDateValue = data[roDateColKey];
+      const daysValue = data[daysColKey];
+      
+      if (roDateValue && (!daysValue || daysValue === "# of Days")) {
+        const roDate = parseDate(roDateValue);
+        if (roDate) {
+          const today = new Date();
+          const daysDiff = differenceInDays(today, roDate);
+          if (daysDiff >= 0) {
+            newData[daysColKey] = String(daysDiff);
+            // Save the calculated value
+            onUpdate(newData);
+          }
+        }
+      }
+    }
+    
+    setLocalData(newData);
+  }, [data, roDateColKey, daysColKey]);
 
   const handleChange = useCallback(
     (key: string, value: string) => {
