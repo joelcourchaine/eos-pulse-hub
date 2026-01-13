@@ -3479,9 +3479,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </TableHeader>
         <TableBody>
           {[...filteredKpis].sort((a, b) => {
-            // Primary sort: by display_order to respect user-defined owner ordering
-            // This ensures drag-and-drop owner reordering works correctly
-            return a.display_order - b.display_order;
+            // Group KPIs by owner, then sort by display_order within each owner group
+            // First, get the minimum display_order for each owner to determine owner group order
+            const getOwnerMinOrder = (ownerId: string | null) => {
+              const ownerKpis = filteredKpis.filter(k => k.assigned_to === ownerId);
+              return Math.min(...ownerKpis.map(k => k.display_order));
+            };
+            
+            const aOwnerId = a.assigned_to || 'unassigned';
+            const bOwnerId = b.assigned_to || 'unassigned';
+            
+            // If same owner, sort by display_order within the group
+            if (aOwnerId === bOwnerId) {
+              return a.display_order - b.display_order;
+            }
+            
+            // Different owners: sort by the minimum display_order of the owner group
+            return getOwnerMinOrder(a.assigned_to) - getOwnerMinOrder(b.assigned_to);
           }).map((kpi, index, sortedKpis) => {
             const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
             const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
