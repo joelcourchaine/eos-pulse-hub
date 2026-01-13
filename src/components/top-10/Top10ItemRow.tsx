@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/context-menu";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { MiniConfetti } from "@/components/ui/mini-confetti";
+import { differenceInDays, parse, isValid } from "date-fns";
 
 interface ColumnDefinition {
   key: string;
@@ -28,6 +29,47 @@ interface Top10ItemRowProps {
   listTitle: string;
   onIssueCreated?: () => void;
 }
+
+// Helper to find column key by label pattern
+const findColumnKey = (columns: ColumnDefinition[], patterns: string[]): string | null => {
+  for (const col of columns) {
+    const label = col.label.toLowerCase();
+    if (patterns.some(p => label.includes(p))) {
+      return col.key;
+    }
+  }
+  return null;
+};
+
+// Helper to parse various date formats
+const parseDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  
+  // Try common date formats
+  const formats = [
+    "MM/dd/yyyy",
+    "M/d/yyyy",
+    "MM-dd-yyyy",
+    "yyyy-MM-dd",
+    "MM/dd/yy",
+    "M/d/yy",
+  ];
+  
+  for (const fmt of formats) {
+    const parsed = parse(dateStr, fmt, new Date());
+    if (isValid(parsed)) {
+      return parsed;
+    }
+  }
+  
+  // Try native Date parsing as fallback
+  const nativeDate = new Date(dateStr);
+  if (isValid(nativeDate)) {
+    return nativeDate;
+  }
+  
+  return null;
+};
 
 export function Top10ItemRow({
   rank,
@@ -48,6 +90,10 @@ export function Top10ItemRow({
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Find date and days columns for auto-calculation
+  const roDateColKey = findColumnKey(columns, ["ro date", "date opened", "open date"]);
+  const daysColKey = findColumnKey(columns, ["# of days", "days", "age", "days open"]);
+
   // Sync local data when props change
   useEffect(() => {
     setLocalData(data);
@@ -55,7 +101,18 @@ export function Top10ItemRow({
 
   const handleChange = useCallback(
     (key: string, value: string) => {
-      const newData = { ...localData, [key]: value };
+      let newData = { ...localData, [key]: value };
+
+      // Auto-calculate "# of days" when RO Date changes
+      if (key === roDateColKey && daysColKey) {
+        const roDate = parseDate(value);
+        if (roDate) {
+          const today = new Date();
+          const daysDiff = differenceInDays(today, roDate);
+          newData[daysColKey] = daysDiff >= 0 ? String(daysDiff) : "";
+        }
+      }
+
       setLocalData(newData);
 
       // Debounced auto-save
@@ -66,7 +123,7 @@ export function Top10ItemRow({
         onUpdate(newData);
       }, 500);
     },
-    [localData, onUpdate]
+    [localData, onUpdate, roDateColKey, daysColKey]
   );
 
   // Cleanup timeout on unmount
