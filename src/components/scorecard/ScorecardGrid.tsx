@@ -3479,8 +3479,18 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </TableHeader>
         <TableBody>
           {[...filteredKpis].sort((a, b) => {
-            // Group KPIs by owner, then sort by display_order within each owner group
-            // First, get the minimum display_order for each owner to determine owner group order
+            // Group KPIs by owner, with department managers at the bottom
+            // First, get the role priority (department managers go last)
+            const getRolePriority = (ownerId: string | null) => {
+              if (!ownerId) return 999; // Unassigned at the very end
+              const ownerRole = profiles[ownerId]?.role;
+              if (ownerRole === 'department_manager' || ownerRole === 'fixed_ops_manager') {
+                return 100; // Department managers near the end
+              }
+              return 0; // All other roles (technicians, service advisors, etc.) first
+            };
+            
+            // Get the minimum display_order for each owner to determine owner group order
             const getOwnerMinOrder = (ownerId: string | null) => {
               const ownerKpis = filteredKpis.filter(k => k.assigned_to === ownerId);
               return Math.min(...ownerKpis.map(k => k.display_order));
@@ -3494,7 +3504,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               return a.display_order - b.display_order;
             }
             
-            // Different owners: sort by the minimum display_order of the owner group
+            // Different owners: first sort by role priority, then by display_order
+            const aRolePriority = getRolePriority(a.assigned_to);
+            const bRolePriority = getRolePriority(b.assigned_to);
+            
+            if (aRolePriority !== bRolePriority) {
+              return aRolePriority - bRolePriority;
+            }
+            
+            // Same role priority: sort by the minimum display_order of the owner group
             return getOwnerMinOrder(a.assigned_to) - getOwnerMinOrder(b.assigned_to);
           }).map((kpi, index, sortedKpis) => {
             const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
