@@ -433,14 +433,31 @@ const Dashboard = () => {
       }
 
       if (storeAccessData && storeAccessData.length > 0) {
-        // User has explicit multi-store access
-        const accessibleStores = storeAccessData
-          .map(access => access.stores)
-          .filter(Boolean)
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
-        
+        // User has explicit multi-store access via user_store_access.
+        // IMPORTANT: user_store_access stores do NOT include the user's primary store (profile.store_id),
+        // so we must include it here to avoid "missing" the primary store in the store picker.
+        const additionalStores = storeAccessData
+          .map((access) => access.stores)
+          .filter(Boolean) as any[];
+
+        let accessibleStores = additionalStores;
+
+        if (profile?.store_id && !additionalStores.some((s) => s.id === profile.store_id)) {
+          const { data: primaryStore } = await supabase
+            .from("stores")
+            .select("*")
+            .eq("id", profile.store_id)
+            .maybeSingle();
+
+          if (primaryStore) {
+            accessibleStores = [primaryStore, ...additionalStores];
+          }
+        }
+
+        accessibleStores = accessibleStores.sort((a: any, b: any) => a.name.localeCompare(b.name));
+
         setStores(accessibleStores);
-        
+
         // Validate and restore selected store from localStorage
         const savedStore = localStorage.getItem('selectedStore');
         if (savedStore && accessibleStores.find((s: any) => s.id === savedStore)) {
