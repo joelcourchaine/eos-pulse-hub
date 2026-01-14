@@ -8,7 +8,6 @@ import { ThemeProvider } from "next-themes";
 import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanner";
 import { FloatingSupportButton } from "@/components/support/FloatingSupportButton";
 import Index from "./pages/Index";
-import MurrayIndex from "./pages/MurrayIndex";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Enterprise from "./pages/Enterprise";
@@ -32,7 +31,7 @@ const queryClient = new QueryClient();
 // Home route component with hostname detection
 const HomeRoute = () => {
   const hostname = window.location.hostname;
-  const isMurrayDomain = hostname === 'murraygrowth.ca' || hostname === 'www.murraygrowth.ca';
+  const isMurrayDomain = hostname === "murraygrowth.ca" || hostname === "www.murraygrowth.ca";
   return isMurrayDomain ? <MurrayIndex /> : <Index />;
 };
 
@@ -45,7 +44,7 @@ const App = () => (
         <BrowserRouter>
           <AnnouncementBanner />
           <Routes>
-            <Route path="/" element={<HomeRoute />} />
+            <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/set-password" element={<SetPassword />} />
