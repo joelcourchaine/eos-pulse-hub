@@ -314,6 +314,16 @@ Deno.serve(async (req) => {
       );
 
       console.log('Password reset email sent successfully to:', realEmail);
+      
+      // Update invited_at timestamp in profiles
+      const { error: invitedAtError } = await supabaseAdmin
+        .from('profiles')
+        .update({ invited_at: new Date().toISOString() })
+        .eq('id', user_id);
+      
+      if (invitedAtError) {
+        console.error('Error updating invited_at:', invitedAtError);
+      }
     } else {
       // User hasn't confirmed yet, try to generate invitation link
       console.log('User not confirmed, attempting to generate invitation link for:', realEmail);
@@ -367,6 +377,16 @@ Deno.serve(async (req) => {
       );
 
       console.log(`${linkType} email sent successfully to:`, realEmail);
+      
+      // Update invited_at timestamp in profiles
+      const { error: invitedAtError } = await supabaseAdmin
+        .from('profiles')
+        .update({ invited_at: new Date().toISOString() })
+        .eq('id', user_id);
+      
+      if (invitedAtError) {
+        console.error('Error updating invited_at:', invitedAtError);
+      }
     }
 
     return new Response(

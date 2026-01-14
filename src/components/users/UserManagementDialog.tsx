@@ -30,6 +30,7 @@ interface Profile {
   store_group_id: string | null;
   last_sign_in_at: string | null;
   created_at: string;
+  invited_at: string | null;
   user_role?: string; // Role from user_roles table
 }
 
@@ -431,6 +432,9 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         title: "Success",
         description: "Invitation email sent successfully",
       });
+      
+      // Reload profiles to show updated invited_at date
+      await loadProfiles();
     } catch (error: any) {
       console.error('Error resending invitation:', error);
       toast({
@@ -524,6 +528,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                   <TableHead className="min-w-[90px]">Start Mo</TableHead>
                   <TableHead className="min-w-[70px]">Start Yr</TableHead>
                   <TableHead className="min-w-[110px]">Reports To</TableHead>
+                  <TableHead className="min-w-[90px]">Invited</TableHead>
                   <TableHead className="min-w-[100px]">Last Login</TableHead>
                   <TableHead className="text-right min-w-[140px]">Actions</TableHead>
                 </TableRow>
@@ -686,6 +691,11 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                             ))}
                         </SelectContent>
                       </Select>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {profile.invited_at
+                        ? format(new Date(profile.invited_at), "MMM d, yyyy")
+                        : "-"}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {hasActuallyLoggedIn(profile)

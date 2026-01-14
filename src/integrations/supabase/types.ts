@@ -1367,6 +1367,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          invited_at: string | null
           is_system_user: boolean
           last_sign_in_at: string | null
           reports_to: string | null
@@ -1384,6 +1385,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          invited_at?: string | null
           is_system_user?: boolean
           last_sign_in_at?: string | null
           reports_to?: string | null
@@ -1401,6 +1403,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          invited_at?: string | null
           is_system_user?: boolean
           last_sign_in_at?: string | null
           reports_to?: string | null
