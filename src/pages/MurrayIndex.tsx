@@ -1,7 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Target, Users, Mail, Gauge, Calendar, CheckSquare, PartyPopper, AlertTriangle, DollarSign, Download, X } from "lucide-react";
+import {
+  BarChart3,
+  Target,
+  Users,
+  Mail,
+  Gauge,
+  Calendar,
+  CheckSquare,
+  PartyPopper,
+  AlertTriangle,
+  DollarSign,
+  Download,
+  X,
+} from "lucide-react";
 import murrayLogo from "@/assets/murray-logo.jpg";
 import murrayBadge from "@/assets/murray-100-badge.jpg";
 import featureGauges from "@/assets/feature-gauges.png";
@@ -18,9 +31,9 @@ const MurrayIndex = () => {
 
   useEffect(() => {
     // Check if on mobile and not already installed as PWA
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const bannerDismissed = sessionStorage.getItem('installBannerDismissed');
+    const bannerDismissed = sessionStorage.getItem("installBannerDismissed");
 
     if (isMobile && !isStandalone && !bannerDismissed) {
       setShowInstallBanner(true);
@@ -28,61 +41,69 @@ const MurrayIndex = () => {
   }, []);
 
   const dismissBanner = () => {
-    sessionStorage.setItem('installBannerDismissed', 'true');
+    sessionStorage.setItem("installBannerDismissed", "true");
     setShowInstallBanner(false);
   };
 
   const handleRequestAccess = () => {
-    window.location.href = "mailto:info@dealergrowth.solutions?subject=Murray Auto Group - Request Access to GO Scorecard Platform&body=Hi, I'm from Murray Auto Group and interested in getting access to the GO Scorecard Platform.%0A%0ADealership Name:%0AContact Name:%0APhone:%0A";
+    window.location.href =
+      "mailto:info@dealergrowth.solutions?subject=Murray Auto Group - Request Access to GO Scorecard Platform&body=Hi, I'm from Murray Auto Group and interested in getting access to the GO Scorecard Platform.%0A%0ADealership Name:%0AContact Name:%0APhone:%0A";
   };
 
   const features = [
     {
       icon: Gauge,
       title: "Real-Time KPI Gauges",
-      description: "See your department's performance at a glance with color-coded gauges showing On Track, At Risk, and Off Track metrics. Know exactly where you stand before every meeting.",
+      description:
+        "See your department's performance at a glance with color-coded gauges showing On Track, At Risk, and Off Track metrics. Know exactly where you stand before every meeting.",
       image: featureGauges,
       imageAlt: "KPI performance gauges showing on track, at risk, and off track metrics",
     },
     {
       icon: Calendar,
       title: "GO Meeting Framework",
-      description: "Run structured 60-minute weekly meetings with built-in timer and guided sections: Segue, Scorecard Review, Rock Review, Headlines, Issues & To-Dos, and Conclude. Keep your team aligned and accountable.",
+      description:
+        "Run structured 60-minute weekly meetings with built-in timer and guided sections: Segue, Scorecard Review, Rock Review, Headlines, Issues & To-Dos, and Conclude. Keep your team aligned and accountable.",
       image: featureMeeting,
       imageAlt: "GO Meeting Framework interface with tabs and timer",
     },
     {
       icon: BarChart3,
       title: "Weekly & Monthly Scorecards",
-      description: "Track KPIs with auto-calculated variances and color-coded status indicators. Weekly data rolls up to monthly, quarterly, and yearly views. Assign ownership and set targets by quarter.",
+      description:
+        "Track KPIs with auto-calculated variances and color-coded status indicators. Weekly data rolls up to monthly, quarterly, and yearly views. Assign ownership and set targets by quarter.",
       image: featureScorecard,
       imageAlt: "Scorecard grid showing KPIs with targets and actual values",
     },
     {
       icon: Target,
       title: "Quarterly Rocks Review",
-      description: "Manage 3-5 quarterly priorities per department with progress tracking, status updates (On Track, At Risk, Complete), and accountability assignments. Celebrate goal achievements with visual celebrations.",
+      description:
+        "Manage 3-5 quarterly priorities per department with progress tracking, status updates (On Track, At Risk, Complete), and accountability assignments. Celebrate goal achievements with visual celebrations.",
       image: featureRocks,
       imageAlt: "Rocks review panel showing quarterly goals with progress bars",
     },
     {
       icon: PartyPopper,
       title: "Headlines & Celebrations",
-      description: "Automatically surface birthdays and work anniversaries to celebrate your team. Share wins and good news during the Headlines portion of your weekly meetings.",
+      description:
+        "Automatically surface birthdays and work anniversaries to celebrate your team. Share wins and good news during the Headlines portion of your weekly meetings.",
       image: featureCelebrations,
       imageAlt: "Celebrations panel showing birthdays and work anniversaries",
     },
     {
       icon: AlertTriangle,
       title: "Issues & To-Dos Management",
-      description: "Right-click on any scorecard or financial metric cell to instantly create an issue. Track issues by severity, link to-dos, and use IDS (Identify, Discuss, Solve) to work through blockers.",
+      description:
+        "Right-click on any scorecard or financial metric cell to instantly create an issue. Track issues by severity, link to-dos, and use IDS (Identify, Discuss, Solve) to work through blockers.",
       image: featureIssues,
       imageAlt: "Issues and To-Dos panel with context menu for creating issues",
     },
     {
       icon: DollarSign,
       title: "Financial Summary & Trends",
-      description: "View monthly financial performance with year-over-year comparisons, sparkline trends, and brand-specific metrics. Track Total Sales, Gross Profit, Department Profit, and ROI across all departments.",
+      description:
+        "View monthly financial performance with year-over-year comparisons, sparkline trends, and brand-specific metrics. Track Total Sales, Gross Profit, Department Profit, and ROI across all departments.",
       image: featureFinancial,
       imageAlt: "Financial summary dashboard with monthly data and trends",
     },
@@ -99,11 +120,7 @@ const MurrayIndex = () => {
               <span className="text-sm font-medium">Install app for the best experience</span>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => navigate("/install")}
-              >
+              <Button size="sm" variant="secondary" onClick={() => navigate("/install")}>
                 Install
               </Button>
               <Button size="sm" variant="ghost" onClick={dismissBanner}>
@@ -114,29 +131,23 @@ const MurrayIndex = () => {
         </div>
       )}
 
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16 ${showInstallBanner ? 'pt-20' : ''}`}>
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-16 ${showInstallBanner ? "pt-20" : ""}`}>
         {/* Header */}
         <div className="text-center mb-16">
           {/* Murray Logo and Badge */}
           <div className="flex items-center justify-center gap-4 mb-8">
-            <img 
-              src={murrayLogo} 
-              alt="Murray Auto Group" 
-              className="h-16 sm:h-20 object-contain"
-            />
-            <img 
-              src={murrayBadge} 
-              alt="Murray 100 Years - Est. 1926" 
-              className="h-16 sm:h-20 object-contain"
+            <img src={murrayLogo} alt="Murray Auto Group" className="h-16 sm:h-20 object-contain rounded-xl" />
+            <img
+              src={murrayBadge}
+              alt="Murray 100 Years - Est. 1926"
+              className="h-16 sm:h-20 object-contain rounded-xl"
             />
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">
-            GO Scorecard Platform
-          </h1>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">GO Scorecard Platform</h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
-            Transform your dealership performance with data-driven accountability.
-            Track KPIs, manage quarterly rocks, and run effective GO meetings—all in one place.
+            Transform your dealership performance with data-driven accountability. Track KPIs, manage quarterly rocks,
+            and run effective GO meetings—all in one place.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" onClick={handleRequestAccess}>
@@ -195,18 +206,14 @@ const MurrayIndex = () => {
 
           <div className="space-y-16">
             {features.map((feature, index) => (
-              <div 
+              <div
                 key={feature.title}
-                className={`flex flex-col ${index % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-8 items-center`}
+                className={`flex flex-col ${index % 2 === 0 ? "lg:flex-row" : "lg:flex-row-reverse"} gap-8 items-center`}
               >
                 {/* Image */}
                 <div className="flex-1 w-full">
                   <div className="rounded-xl overflow-hidden border border-border shadow-lg bg-card">
-                    <img 
-                      src={feature.image} 
-                      alt={feature.imageAlt}
-                      className="w-full h-auto"
-                    />
+                    <img src={feature.image} alt={feature.imageAlt} className="w-full h-auto" />
                   </div>
                 </div>
 
@@ -216,9 +223,7 @@ const MurrayIndex = () => {
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="text-2xl font-bold mb-4">{feature.title}</h3>
-                  <p className="text-muted-foreground text-lg">
-                    {feature.description}
-                  </p>
+                  <p className="text-muted-foreground text-lg">{feature.description}</p>
                 </div>
               </div>
             ))}
@@ -227,11 +232,10 @@ const MurrayIndex = () => {
 
         {/* CTA Section - Murray Blue Theme */}
         <div className="text-center py-12 px-8 rounded-2xl bg-[#003366] text-white mb-8">
-          <h2 className="text-3xl font-bold mb-4">
-            Ready to Transform Your Meetings?
-          </h2>
+          <h2 className="text-3xl font-bold mb-4">Ready to Transform Your Meetings?</h2>
           <p className="text-lg opacity-90 max-w-2xl mx-auto mb-8">
-            Join Murray Auto Group dealerships using our platform to drive accountability, track performance, and achieve quarterly goals.
+            Join Murray Auto Group dealerships using our platform to drive accountability, track performance, and
+            achieve quarterly goals.
           </p>
           <Button size="lg" variant="secondary" onClick={handleRequestAccess}>
             <Mail className="mr-2 h-5 w-5" />
@@ -242,17 +246,11 @@ const MurrayIndex = () => {
         {/* Footer with Murray branding */}
         <div className="text-center text-sm text-muted-foreground pt-8 border-t border-border">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img 
-              src={murrayLogo} 
-              alt="Murray Auto Group" 
-              className="h-6 object-contain"
-            />
+            <img src={murrayLogo} alt="Murray Auto Group" className="h-6 object-contain rounded-md" />
             <span>×</span>
             <span>Dealer Growth Solutions</span>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">
-            v2.4.0
-          </span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-xs">v2.4.0</span>
         </div>
       </div>
     </div>
