@@ -512,6 +512,9 @@ const Dashboard = () => {
   };
 
   const fetchDepartments = async () => {
+    // We treat "store switching" as complete once we either:
+    // - successfully choose a valid department, OR
+    // - determine there are no departments / access for this store.
     try {
       // For department managers, only fetch departments they have access to
       if (isDepartmentManager && !isSuperAdmin && !isStoreGM) {
@@ -523,15 +526,17 @@ const Dashboard = () => {
 
         if (accessError) throw accessError;
 
-        const accessibleDeptIds = accessData?.map(a => a.department_id) || [];
+        const accessibleDeptIds = accessData?.map((a) => a.department_id) || [];
 
         if (accessibleDeptIds.length === 0) {
           // User has no department access
           setDepartments([]);
           setSelectedDepartment("");
-          localStorage.removeItem('selectedDepartment');
+          localStorage.removeItem("selectedDepartment");
           setKpis([]);
           setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+          setDepartmentsLoaded(true);
+          setIsStoreSwitching(false);
           return;
         }
 
@@ -546,35 +551,43 @@ const Dashboard = () => {
 
         setDepartments(data || []);
         if (data && data.length > 0) {
-          const savedDept = localStorage.getItem('selectedDepartment');
+          const savedDept = localStorage.getItem("selectedDepartment");
           // Validate saved department belongs to this store's accessible departments
-          const foundDept = data.find(d => d.id === savedDept);
+          const foundDept = data.find((d) => d.id === savedDept);
           if (savedDept && foundDept) {
             setSelectedDepartment(savedDept);
           } else {
             // Prioritize Service Department, otherwise use first department
-            const serviceDept = data.find(d => d.name.toLowerCase().includes('service'));
+            const serviceDept = data.find((d) => d.name.toLowerCase().includes("service"));
             const defaultDept = serviceDept ? serviceDept.id : data[0].id;
             setSelectedDepartment(defaultDept);
-            localStorage.setItem('selectedDepartment', defaultDept);
+            localStorage.setItem("selectedDepartment", defaultDept);
             if (savedDept) {
-              console.warn('Cleared invalid department from localStorage:', savedDept);
+              console.warn("Cleared invalid department from localStorage:", savedDept);
             }
           }
+        } else {
+          setSelectedDepartment("");
+          localStorage.removeItem("selectedDepartment");
+          setKpis([]);
+          setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+          // No departments -> finish switching
+          setIsStoreSwitching(false);
         }
+
         setDepartmentsLoaded(true);
         return;
       }
 
       // For super admins, require selectedStore to be set before fetching
       if (isSuperAdmin && !selectedStore) {
-        console.log('Super admin: waiting for store selection before fetching departments');
+        console.log("Super admin: waiting for store selection before fetching departments");
         return;
       }
 
       // For users with multi-store access, require selectedStore to be set
       if (stores.length > 1 && !selectedStore) {
-        console.log('Multi-store user: waiting for store selection before fetching departments');
+        console.log("Multi-store user: waiting for store selection before fetching departments");
         return;
       }
 
@@ -595,40 +608,56 @@ const Dashboard = () => {
 
       if (error) throw error;
       setDepartments(data || []);
+
       if (data && data.length > 0) {
-        const savedDept = localStorage.getItem('selectedDepartment');
+        const savedDept = localStorage.getItem("selectedDepartment");
         // CRITICAL: Validate saved department belongs to this store's departments
-        // For super admins, use selectedStore; for others, use profile.store_id or skip for dept managers
-        const effectiveStoreId = isSuperAdmin ? selectedStore : (profile?.store_id || null);
+        const effectiveStoreIdForValidation = isSuperAdmin ? selectedStore : profile?.store_id || null;
         const shouldValidateStore = isSuperAdmin || isStoreGM;
-        
-        const foundDept = data.find(d => d.id === savedDept);
-        // For department managers, they already have filtered departments via user_department_access
-        // so we just need to check if the saved dept is in the list
-        const isValidDept = foundDept && (!shouldValidateStore || !effectiveStoreId || foundDept.store_id === effectiveStoreId);
-        
+
+        const foundDept = data.find((d) => d.id === savedDept);
+        const isValidDept =
+          foundDept &&
+          (!shouldValidateStore || !effectiveStoreIdForValidation || foundDept.store_id === effectiveStoreIdForValidation);
+
         if (savedDept && isValidDept) {
           setSelectedDepartment(savedDept);
         } else {
           // Prioritize Service Department, otherwise use first department
-          const serviceDept = data.find(d => d.name.toLowerCase().includes('service'));
+          const serviceDept = data.find((d) => d.name.toLowerCase().includes("service"));
           const defaultDept = serviceDept ? serviceDept.id : data[0].id;
           setSelectedDepartment(defaultDept);
-          localStorage.setItem('selectedDepartment', defaultDept);
+          localStorage.setItem("selectedDepartment", defaultDept);
           if (savedDept) {
-            console.warn('Cleared invalid department from localStorage - did not belong to current store:', savedDept, 'store:', selectedStore);
+            console.warn(
+              "Cleared invalid department from localStorage - did not belong to current store:",
+              savedDept,
+              "store:",
+              selectedStore
+            );
           }
         }
       } else {
         // No departments in this store - clear everything
         setSelectedDepartment("");
-        localStorage.removeItem('selectedDepartment');
+        localStorage.removeItem("selectedDepartment");
         setKpis([]);
         setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
+        // Nothing to load -> finish switching
+        setIsStoreSwitching(false);
       }
+
       setDepartmentsLoaded(true);
     } catch (error: any) {
       console.error("Error fetching departments:", error);
+      toast({
+        variant: "destructive",
+        title: "Error loading store data",
+        description: error?.message || "Please try again or contact support.",
+      });
+      // Prevent infinite spinner if this fails
+      setDepartmentsLoaded(true);
+      setIsStoreSwitching(false);
     }
   };
 
