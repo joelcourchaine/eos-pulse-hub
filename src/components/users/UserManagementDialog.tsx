@@ -599,6 +599,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         userId={profile.id}
                         stores={stores}
                         onUpdate={loadProfiles}
+                        hasGroupAccess={!!profile.store_group_id && !profile.store_id}
                       />
                     </TableCell>
                     <TableCell>

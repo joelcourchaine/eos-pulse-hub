@@ -15,9 +15,10 @@ interface ManagedStoresSelectProps {
   userId: string;
   stores: Store[];
   onUpdate: () => void;
+  hasGroupAccess?: boolean;
 }
 
-export const ManagedStoresSelect = ({ userId, stores, onUpdate }: ManagedStoresSelectProps) => {
+export const ManagedStoresSelect = ({ userId, stores, onUpdate, hasGroupAccess }: ManagedStoresSelectProps) => {
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -147,6 +148,15 @@ export const ManagedStoresSelect = ({ userId, stores, onUpdate }: ManagedStoresS
     }
     return `${selectedStores.length} stores`;
   };
+
+  // If user has group-level access, show that instead of store selector
+  if (hasGroupAccess) {
+    return (
+      <div className="text-xs text-muted-foreground italic px-2 py-1">
+        All (via Group)
+      </div>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
