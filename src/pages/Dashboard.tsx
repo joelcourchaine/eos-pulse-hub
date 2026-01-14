@@ -385,6 +385,38 @@ const Dashboard = () => {
 
   const fetchUserStoreAccess = async () => {
     try {
+      // First check if user has group-level access (store_group_id set, store_id null)
+      if (profile?.store_group_id && !profile?.store_id) {
+        // User has access to all stores in their group
+        const { data: groupStores, error: groupError } = await supabase
+          .from("stores")
+          .select("*")
+          .eq("group_id", profile.store_group_id)
+          .order("name");
+        
+        if (groupError) {
+          console.error("Error fetching group stores:", groupError);
+        }
+        
+        if (groupStores && groupStores.length > 0) {
+          setStores(groupStores);
+          
+          // Validate and restore selected store from localStorage
+          const savedStore = localStorage.getItem('selectedStore');
+          if (savedStore && groupStores.find((s: any) => s.id === savedStore)) {
+            setSelectedStore(savedStore);
+          } else {
+            const firstStore = groupStores[0]?.id;
+            if (firstStore) {
+              setSelectedStore(firstStore);
+              localStorage.setItem('selectedStore', firstStore);
+            }
+          }
+          setStoresLoaded(true);
+          return;
+        }
+      }
+
       // Check if user has multi-store access via user_store_access table
       const { data: storeAccessData, error: accessError } = await supabase
         .from("user_store_access")
@@ -986,7 +1018,7 @@ const Dashboard = () => {
             
             {/* Store and Department Selectors - full width on mobile */}
             <div className="flex flex-col gap-2 w-full md:flex-row md:w-auto md:items-center md:gap-3">
-              {isSuperAdmin && stores.length > 0 && (
+              {(isSuperAdmin || (isStoreGM && stores.length > 1)) && stores.length > 0 && (
                 <Select value={selectedStore} onValueChange={setSelectedStore}>
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Select Store" />
