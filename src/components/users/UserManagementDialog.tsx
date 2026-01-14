@@ -167,6 +167,15 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     let userIds: string[] = [];
     
     if (currentStoreId) {
+      // Get the store's group_id first
+      const { data: storeData } = await supabase
+        .from("stores")
+        .select("group_id")
+        .eq("id", currentStoreId)
+        .single();
+      
+      const storeGroupId = storeData?.group_id;
+      
       // Get users directly assigned to this store
       const { data: storeUsers } = await supabase
         .from("profiles")
@@ -183,6 +192,18 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       
       const storeAccessUserIds = storeAccessUsers?.map(u => u.user_id) || [];
       userIds = [...userIds, ...storeAccessUserIds];
+      
+      // Get users with group-level access (store_gm with store_group_id matching this store's group)
+      if (storeGroupId) {
+        const { data: groupUsers } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("store_group_id", storeGroupId)
+          .is("store_id", null);
+        
+        const groupUserIds = groupUsers?.map(u => u.id) || [];
+        userIds = [...userIds, ...groupUserIds];
+      }
       
       // Get users who are assigned to KPIs in this store's departments
       const { data: departments } = await supabase
