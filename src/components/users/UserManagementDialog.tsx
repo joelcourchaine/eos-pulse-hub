@@ -518,8 +518,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                   <TableHead className="sticky left-0 z-10 bg-background min-w-[140px]">Name</TableHead>
                   <TableHead className="min-w-[220px]">Email</TableHead>
                   <TableHead className="min-w-[110px]">Role</TableHead>
-                  <TableHead className="min-w-[100px]">Store/Group</TableHead>
-                  <TableHead className="min-w-[100px]">Store Access</TableHead>
+                  <TableHead className="min-w-[140px]">Store Access</TableHead>
                   <TableHead className="min-w-[110px]">Manages Dept</TableHead>
                   <TableHead className="min-w-[90px]">BD Month</TableHead>
                   <TableHead className="min-w-[70px]">BD Day</TableHead>
@@ -581,61 +580,15 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <Select
-                        value={profile.store_group_id && !profile.store_id ? `group:${profile.store_group_id}` : profile.store_id || "none"}
-                        onValueChange={async (value) => {
-                          let updates: { store_id: string | null; store_group_id: string | null } = { store_id: null, store_group_id: null };
-                          
-                          if (value === "none") {
-                            // Clear both
-                          } else if (value.startsWith("group:")) {
-                            // Set group access (clears store_id)
-                            updates.store_group_id = value.replace("group:", "");
-                            updates.store_id = null;
-                          } else {
-                            // Set specific store (clears store_group_id)
-                            updates.store_id = value;
-                            updates.store_group_id = null;
-                          }
-                          
-                          const { error } = await supabase
-                            .from("profiles")
-                            .update(updates)
-                            .eq("id", profile.id);
-                          
-                          if (error) {
-                            toast({ title: "Error", description: "Failed to update store/group", variant: "destructive" });
-                          } else {
-                            toast({ title: "Success", description: "Store/Group updated" });
-                            loadProfiles();
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs min-w-[120px]">
-                          <SelectValue placeholder="Select..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {storeGroups.map(group => (
-                            <SelectItem key={`group:${group.id}`} value={`group:${group.id}`}>
-                              Group: {group.name}
-                            </SelectItem>
-                          ))}
-                          {stores.map(store => (
-                            <SelectItem key={store.id} value={store.id}>
-                              {store.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
                     <TableCell>
                       <ManagedStoresSelect
                         userId={profile.id}
                         stores={stores}
+                        storeGroups={storeGroups}
+                        userStoreGroupId={profile.store_group_id}
+                        userStoreId={profile.store_id}
                         onUpdate={loadProfiles}
-                        hasGroupAccess={!!profile.store_group_id && !profile.store_id}
+                        isSuperAdmin={isSuperAdmin}
                       />
                     </TableCell>
                     <TableCell>
