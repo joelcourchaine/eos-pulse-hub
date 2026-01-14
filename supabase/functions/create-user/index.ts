@@ -217,8 +217,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // SECURITY: Validate role
-    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor'];
+    // SECURITY: Validate role and enforce role creation restrictions
+    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor', 'fixed_ops_manager'];
     if (!validRoles.includes(role)) {
       return new Response(
         JSON.stringify({ 
@@ -226,6 +226,28 @@ Deno.serve(async (req) => {
           error: `Invalid role. Must be one of: ${validRoles.join(', ')}` 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    // Only super admins can create super_admin users
+    if (role === 'super_admin' && callerRole !== 'super_admin') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Forbidden: Only super admins can create super admin users' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
+
+    // Only super admins can create store_gm users
+    if (role === 'store_gm' && callerRole !== 'super_admin') {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Forbidden: Only super admins can create store GM users' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
 

@@ -33,6 +33,7 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
   const [startMonth, setStartMonth] = useState<string>("");
   const [startYear, setStartYear] = useState<string>("");
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isStoreGM, setIsStoreGM] = useState(false);
   const [currentUserGroupId, setCurrentUserGroupId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -49,24 +50,30 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if super admin
+      // Check user roles
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .maybeSingle();
+        .eq("user_id", user.id);
       
-      setIsSuperAdmin(!!roleData);
+      const roles = roleData?.map(r => r.role) || [];
+      setIsSuperAdmin(roles.includes("super_admin"));
+      setIsStoreGM(roles.includes("store_gm"));
 
       // Get current user's store group
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("store_group_id")
+        .select("store_group_id, store_id")
         .eq("id", user.id)
         .single();
       
       setCurrentUserGroupId(profileData?.store_group_id || null);
+      
+      // For non-super-admins, auto-set the store to their store
+      if (!roles.includes("super_admin") && profileData?.store_id) {
+        setStoreId(profileData.store_id);
+        loadDepartments(profileData.store_id);
+      }
     };
 
     if (open) {
@@ -285,7 +292,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
               <SelectContent>
                 {/* Only super admins can create other super admins */}
                 {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
-                <SelectItem value="store_gm">Store GM</SelectItem>
+                {/* Only super admins and store GMs can create store GMs */}
+                {(isSuperAdmin || isStoreGM) && <SelectItem value="store_gm">Store GM</SelectItem>}
                 <SelectItem value="department_manager">Department Manager</SelectItem>
                 <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
