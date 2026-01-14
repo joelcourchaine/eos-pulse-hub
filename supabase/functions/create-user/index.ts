@@ -281,6 +281,16 @@ Deno.serve(async (req) => {
       // Note: We continue even if email fails - user is created, admin can resend later
     } else {
       console.log('Invite email sent successfully to:', email);
+      
+      // Update invited_at timestamp in profiles
+      const { error: invitedAtError } = await supabaseAdmin
+        .from('profiles')
+        .update({ invited_at: new Date().toISOString() })
+        .eq('id', userId);
+      
+      if (invitedAtError) {
+        console.error('Error updating invited_at:', invitedAtError);
+      }
     }
 
     // Insert into user_roles table (primary source of truth for roles)
