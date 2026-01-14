@@ -25,6 +25,7 @@ interface SetKPITargetsDialogProps {
   currentYear: number;
   currentQuarter: number;
   onTargetsChange: () => void;
+  viewMode?: "weekly" | "monthly";
 }
 
 export const SetKPITargetsDialog = ({ 
@@ -32,15 +33,24 @@ export const SetKPITargetsDialog = ({
   kpis, 
   currentYear, 
   currentQuarter,
-  onTargetsChange 
+  onTargetsChange,
+  viewMode = "monthly"
 }: SetKPITargetsDialogProps) => {
   const [open, setOpen] = useState(false);
   const [targetYear, setTargetYear] = useState(currentYear);
-  const [targetType, setTargetType] = useState<"weekly" | "monthly">("weekly");
+  // Initialize targetType from parent's viewMode to ensure consistency
+  const [targetType, setTargetType] = useState<"weekly" | "monthly">(viewMode);
   const [editTargets, setEditTargets] = useState<{ [quarter: number]: { [kpiId: string]: string } }>({ 
     1: {}, 2: {}, 3: {}, 4: {} 
   });
   const { toast } = useToast();
+
+  // Keep targetType in sync with parent's viewMode when dialog opens
+  useEffect(() => {
+    if (open) {
+      setTargetType(viewMode);
+    }
+  }, [open, viewMode]);
 
   useEffect(() => {
     if (open) {
