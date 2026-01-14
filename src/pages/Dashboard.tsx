@@ -1018,7 +1018,7 @@ const Dashboard = () => {
             
             {/* Store and Department Selectors - full width on mobile */}
             <div className="flex flex-col gap-2 w-full md:flex-row md:w-auto md:items-center md:gap-3">
-              {(isSuperAdmin || (isStoreGM && stores.length > 1)) && stores.length > 0 && (
+              {stores.length > 1 && (
                 <Select value={selectedStore} onValueChange={setSelectedStore}>
                   <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Select Store" />
