@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.parse-top10-import]
 verify_jwt = true
+
+[functions.send-test-email]
+verify_jwt = false
