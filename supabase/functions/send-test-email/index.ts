@@ -7,14 +7,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function getInviteEmailHtml(continueLink: string): string {
+function getPasswordResetEmailHtml(continueLink: string): string {
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to Dealer Growth Solutions</title>
+  <title>Password Reset Request</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -24,7 +24,7 @@ function getInviteEmailHtml(continueLink: string): string {
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 20px 40px; text-align: center; background-color: #1e3a5f; border-radius: 8px 8px 0 0;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Welcome to Dealer Growth Solutions</h1>
+              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Password Reset Request</h1>
             </td>
           </tr>
           
@@ -32,17 +32,17 @@ function getInviteEmailHtml(continueLink: string): string {
           <tr>
             <td style="padding: 40px;">
               <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 1.6;">
-                Hello Test User,
+                Hello,
               </p>
               <p style="margin: 0 0 20px 0; color: #333333; font-size: 16px; line-height: 1.6;">
-                You've been invited to join <strong>Dealer Growth Solutions</strong>. Click the button below to set your password and access your account.
+                We received a request to reset your password for your <strong>Dealer Growth Solutions</strong> account. Click the button below to set a new password.
               </p>
               
               <!-- CTA Button -->
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td align="center" style="padding: 20px 0;">
-                    <a href="${continueLink}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 6px;">Set Your Password</a>
+                    <a href="${continueLink}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 6px;">Reset Password</a>
                   </td>
                 </tr>
               </table>
@@ -55,7 +55,7 @@ function getInviteEmailHtml(continueLink: string): string {
               </p>
               
               <p style="margin: 20px 0 0 0; color: #999999; font-size: 13px; line-height: 1.6;">
-                This invitation link will expire in 24 hours.
+                This password reset link will expire in 1 hour.
               </p>
             </td>
           </tr>
@@ -65,7 +65,7 @@ function getInviteEmailHtml(continueLink: string): string {
             <td style="padding: 20px 40px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; border-top: 1px solid #e9ecef;">
               <p style="margin: 0; color: #666666; font-size: 13px; text-align: center;">
                 Dealer Growth Solutions<br>
-                <span style="color: #999999;">If you didn't expect this invitation, you can safely ignore this email.</span>
+                <span style="color: #999999;">If you didn't request a password reset, you can safely ignore this email.</span>
               </p>
             </td>
           </tr>
@@ -94,11 +94,11 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Sending test invitation email to: ${email}`);
+    console.log(`Sending test password reset email to: ${email}`);
 
     // Use a placeholder link for the test email
-    const testLink = "https://eos-pulse-hub.lovable.app/set-password?token=example-test-token";
-    const emailHtml = getInviteEmailHtml(testLink);
+    const testLink = "https://eos-pulse-hub.lovable.app/reset-password?token=example-test-token";
+    const emailHtml = getPasswordResetEmailHtml(testLink);
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -109,7 +109,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "Dealer Growth Solutions <onboarding@resend.dev>",
         to: [email],
-        subject: "You're Invited to Dealer Growth Solutions",
+        subject: "Password Reset Request",
         html: emailHtml,
       }),
     });
