@@ -167,71 +167,48 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     let userIds: string[] = [];
     
     if (currentStoreId) {
-      // Get the store's group_id first
-      const { data: storeData } = await supabase
-        .from("stores")
-        .select("group_id")
-        .eq("id", currentStoreId)
-        .single();
+      // Run all queries in parallel for better performance
+      const [
+        storeResult,
+        storeUsersResult,
+        storeAccessResult,
+        departmentsResult,
+        superAdminsResult
+      ] = await Promise.all([
+        supabase.from("stores").select("group_id").eq("id", currentStoreId).single(),
+        supabase.from("profiles").select("id").eq("store_id", currentStoreId),
+        supabase.from("user_store_access").select("user_id").eq("store_id", currentStoreId),
+        supabase.from("departments").select("id").eq("store_id", currentStoreId),
+        supabase.from("user_roles").select("user_id").eq("role", "super_admin")
+      ]);
       
-      const storeGroupId = storeData?.group_id;
+      const storeGroupId = storeResult.data?.group_id;
       
-      // Get users directly assigned to this store
-      const { data: storeUsers } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("store_id", currentStoreId);
+      // Collect user IDs from parallel results
+      userIds = storeUsersResult.data?.map(u => u.id) || [];
+      userIds = [...userIds, ...(storeAccessResult.data?.map(u => u.user_id) || [])];
+      userIds = [...userIds, ...(superAdminsResult.data?.map(sa => sa.user_id) || [])];
       
-      userIds = storeUsers?.map(u => u.id) || [];
+      // Secondary parallel queries that depend on first results
+      const departmentIds = departmentsResult.data?.map(d => d.id) || [];
       
-      // Get users with multi-store access to this store
-      const { data: storeAccessUsers } = await supabase
-        .from("user_store_access")
-        .select("user_id")
-        .eq("store_id", currentStoreId);
+      const [groupUsersResult, kpiOwnersResult] = await Promise.all([
+        storeGroupId 
+          ? supabase.from("profiles").select("id").eq("store_group_id", storeGroupId).is("store_id", null)
+          : Promise.resolve({ data: null }),
+        departmentIds.length > 0
+          ? supabase.from("kpi_definitions").select("assigned_to").in("department_id", departmentIds).not("assigned_to", "is", null)
+          : Promise.resolve({ data: null })
+      ]);
       
-      const storeAccessUserIds = storeAccessUsers?.map(u => u.user_id) || [];
-      userIds = [...userIds, ...storeAccessUserIds];
-      
-      // Get users with group-level access (store_gm with store_group_id matching this store's group)
-      if (storeGroupId) {
-        const { data: groupUsers } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("store_group_id", storeGroupId)
-          .is("store_id", null);
-        
-        const groupUserIds = groupUsers?.map(u => u.id) || [];
-        userIds = [...userIds, ...groupUserIds];
+      if (groupUsersResult.data) {
+        userIds = [...userIds, ...groupUsersResult.data.map(u => u.id)];
       }
       
-      // Get users who are assigned to KPIs in this store's departments
-      const { data: departments } = await supabase
-        .from("departments")
-        .select("id")
-        .eq("store_id", currentStoreId);
-      
-      const departmentIds = departments?.map(d => d.id) || [];
-      
-      if (departmentIds.length > 0) {
-        const { data: kpiOwners } = await supabase
-          .from("kpi_definitions")
-          .select("assigned_to")
-          .in("department_id", departmentIds)
-          .not("assigned_to", "is", null);
-        
-        const kpiOwnerIds = kpiOwners?.map(k => k.assigned_to).filter(Boolean) as string[] || [];
+      if (kpiOwnersResult.data) {
+        const kpiOwnerIds = kpiOwnersResult.data.map(k => k.assigned_to).filter(Boolean) as string[];
         userIds = [...userIds, ...kpiOwnerIds];
       }
-      
-      // Always include super-admins (they can manage all stores)
-      const { data: superAdmins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "super_admin");
-      
-      const superAdminIds = superAdmins?.map(sa => sa.user_id) || [];
-      userIds = [...userIds, ...superAdminIds];
       
       // Remove duplicates
       userIds = [...new Set(userIds)];
