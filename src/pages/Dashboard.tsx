@@ -1114,7 +1114,7 @@ const Dashboard = () => {
                   Announcements
                 </Button>
               )}
-              {(isSuperAdmin || isStoreGM) && (
+              {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
                 <Button variant="outline" size="sm" onClick={() => setShowUsers(true)} className="w-full md:w-auto">
                   <Users className="mr-2 h-4 w-4" />
                   Users

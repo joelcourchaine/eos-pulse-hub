@@ -281,6 +281,15 @@ export const ManagedStoresSelect = ({
     return stores.filter(s => s.group_id === groupId);
   };
 
+  // For non-super-admins, show read-only display
+  if (!isSuperAdmin) {
+    return (
+      <div className="h-7 text-xs flex items-center px-2 text-muted-foreground">
+        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : getDisplayText()}
+      </div>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -296,7 +305,7 @@ export const ManagedStoresSelect = ({
         ) : (
           <>
             {/* Group Access Options - Only for super admins */}
-            {isSuperAdmin && storeGroups.length > 0 && (
+            {storeGroups.length > 0 && (
               <>
                 <div className="text-xs font-medium text-muted-foreground mb-2">Group Access</div>
                 <div className="space-y-2 mb-3">
