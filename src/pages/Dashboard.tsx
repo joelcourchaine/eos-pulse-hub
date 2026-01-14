@@ -153,29 +153,34 @@ const Dashboard = () => {
   }, [selectedStore, profile, storesLoaded]);
 
   useEffect(() => {
-      // Only fetch data if departments and stores have been loaded and validated
+    // Only fetch data if departments and stores have been loaded and validated
     if (selectedDepartment && departmentsLoaded && storesLoaded) {
       // CRITICAL: Verify department belongs to current store before fetching data
-      const dept = departments.find(d => d.id === selectedDepartment);
-      // For super admins, use selectedStore; for others, use profile.store_id or skip check for dept managers with access
-      const effectiveStoreId = isSuperAdmin ? selectedStore : (profile?.store_id || null);
-      
-      // For department managers, they may have access to departments via user_department_access
-      // so we only validate store ownership for super admins and store GMs
+      const dept = departments.find((d) => d.id === selectedDepartment);
+
+      // For users who can switch stores (super admins + store GMs + multi-store users), validate against selectedStore.
+      // profile.store_id may be a "home" store and should not block switching.
+      const canSwitchStores = isSuperAdmin || isStoreGM || stores.length > 1;
+      const effectiveStoreId = canSwitchStores ? selectedStore : profile?.store_id || null;
+
+      // For department managers, they may have access via user_department_access,
+      // so we only validate store ownership for users who can switch stores.
       const shouldValidateStore = isSuperAdmin || isStoreGM;
-      
+
       if (!dept || (shouldValidateStore && effectiveStoreId && dept.store_id !== effectiveStoreId)) {
-        console.error('Department does not belong to current store!', {
+        console.error("Department does not belong to current store!", {
           selectedDepartment,
           effectiveStoreId,
-          deptStoreId: dept?.store_id
+          deptStoreId: dept?.store_id,
         });
         // Clear invalid selection
         setSelectedDepartment("");
-        localStorage.removeItem('selectedDepartment');
+        localStorage.removeItem("selectedDepartment");
+        // Prevent infinite spinner if we invalidated the selection mid-switch
+        setIsStoreSwitching(false);
         return;
       }
-      
+
       // Clear all department-specific data immediately when department changes
       setKpis([]);
       setKpiStatusCounts({ green: 0, yellow: 0, red: 0, missing: 0 });
