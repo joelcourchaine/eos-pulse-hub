@@ -3079,6 +3079,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 kpis={kpis}
                 currentYear={year}
                 currentQuarter={quarter}
+                viewMode={viewMode}
                 onTargetsChange={async () => {
                   await recalculateAllEntryStatuses();
                   // Fetch fresh targets to pass to loadScorecardData
