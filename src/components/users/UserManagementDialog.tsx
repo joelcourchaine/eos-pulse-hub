@@ -582,17 +582,53 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </Select>
                     </TableCell>
                     <TableCell className="text-xs">
-                      {profile.store_id ? (
-                        <span className="px-2 py-1 bg-muted text-foreground rounded">
-                          {stores.find(s => s.id === profile.store_id)?.name || 'Unknown'}
-                        </span>
-                      ) : profile.store_group_id ? (
-                        <span className="px-2 py-1 bg-primary/10 text-primary rounded">
-                          Group: {storeGroups.find(g => g.id === profile.store_group_id)?.name || 'Unknown'}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      <Select
+                        value={profile.store_group_id && !profile.store_id ? `group:${profile.store_group_id}` : profile.store_id || "none"}
+                        onValueChange={async (value) => {
+                          let updates: { store_id: string | null; store_group_id: string | null } = { store_id: null, store_group_id: null };
+                          
+                          if (value === "none") {
+                            // Clear both
+                          } else if (value.startsWith("group:")) {
+                            // Set group access (clears store_id)
+                            updates.store_group_id = value.replace("group:", "");
+                            updates.store_id = null;
+                          } else {
+                            // Set specific store (clears store_group_id)
+                            updates.store_id = value;
+                            updates.store_group_id = null;
+                          }
+                          
+                          const { error } = await supabase
+                            .from("profiles")
+                            .update(updates)
+                            .eq("id", profile.id);
+                          
+                          if (error) {
+                            toast({ title: "Error", description: "Failed to update store/group", variant: "destructive" });
+                          } else {
+                            toast({ title: "Success", description: "Store/Group updated" });
+                            loadProfiles();
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-xs min-w-[120px]">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {storeGroups.map(group => (
+                            <SelectItem key={`group:${group.id}`} value={`group:${group.id}`}>
+                              Group: {group.name}
+                            </SelectItem>
+                          ))}
+                          {stores.map(store => (
+                            <SelectItem key={store.id} value={store.id}>
+                              {store.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </TableCell>
                     <TableCell>
                       <ManagedStoresSelect
