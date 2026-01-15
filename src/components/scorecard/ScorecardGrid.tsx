@@ -3824,7 +3824,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             const yearMonthlyValues: number[] = [];
                             for (let m = 0; m < 12; m++) {
                               const mKey = `${kpi.id}-M${m + 1}-${summaryYear}`;
-                              const val = precedingQuartersData[mKey];
+                              // Also check entries with the format kpi_id-month-YYYY-MM
+                              const monthIdentifier = `${summaryYear}-${String(m + 1).padStart(2, '0')}`;
+                              const entryKey = `${kpi.id}-month-${monthIdentifier}`;
+                              const entryVal = entries[entryKey]?.actual_value;
+                              const precedingVal = precedingQuartersData[mKey];
+                              // Prefer entry value, fall back to precedingQuartersData
+                              const val = entryVal ?? precedingVal;
                               if (val !== null && val !== undefined) {
                                 yearMonthlyValues.push(val);
                               }
