@@ -3047,7 +3047,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           "sticky left-0 z-30 py-[7.2px] w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]",
                           isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background",
                           isNetSellingGross && "bg-muted border-y border-muted-foreground/20",
-                          metricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+                          metricHasRock && "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-900/40"
                         )}>
                           <TooltipProvider>
                             <Tooltip>
