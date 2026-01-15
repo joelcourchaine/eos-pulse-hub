@@ -11,7 +11,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, ChevronUp, ChevronRight, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronRight, DollarSign, Loader2, Settings, StickyNote, Copy, Upload, ClipboardPaste, Trophy, AlertCircle, Flag, Download, TrendingUp, Mountain } from "lucide-react";
 import * as XLSX from "xlsx";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ import { useSubMetrics } from "@/hooks/useSubMetrics";
 import { useSubMetricTargets } from "@/hooks/useSubMetricTargets";
 import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
 import { ForecastDrawer } from "./ForecastDrawer";
+import { useRockTargets } from "@/hooks/useRockTargets";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -381,6 +382,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     getSubMetricTarget,
     saveSubMetricTarget,
   } = useSubMetricTargets(departmentId);
+  
+  // Fetch rock targets for visual emphasis
+  const {
+    hasRockForMetric,
+    hasRockForSubMetric,
+    getRockForMetric,
+    getRockForSubMetric,
+  } = useRockTargets(departmentId, quarter > 0 ? quarter : currentQuarter, year);
   
   // Toggle metric expansion
   const toggleMetricExpansion = useCallback((metricKey: string) => {
@@ -3014,6 +3023,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(metric.key);
                     const isMetricExpanded = expandedMetrics.has(metric.key);
                     const subMetricNames = metricHasSubMetrics ? getSubMetricNames(metric.key) : [];
+                    const metricHasRock = hasRockForMetric(metric.key);
+                    const metricRock = metricHasRock ? getRockForMetric(metric.key) : null;
                     
                     // Determine which months to show sub-metrics for
                     const displayMonthIds = isMonthlyTrendMode 
@@ -3028,25 +3039,45 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         className={cn(
                           "hover:bg-muted/30",
                           isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5",
-                          isNetSellingGross && "border-y border-muted-foreground/20 bg-muted/30"
+                          isNetSellingGross && "border-y border-muted-foreground/20 bg-muted/30",
+                          metricHasRock && "bg-amber-50/50 dark:bg-amber-950/20"
                         )}
                       >
                         <TableCell className={cn(
                           "sticky left-0 z-30 py-[7.2px] w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]",
                           isDepartmentProfit ? "bg-background border-y-2 border-primary/40" : "bg-background",
-                          isNetSellingGross && "bg-muted border-y border-muted-foreground/20"
+                          isNetSellingGross && "bg-muted border-y border-muted-foreground/20",
+                          metricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
                         )}>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <ExpandableMetricName
-                                  metricName={metric.name}
-                                  hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
-                                  isExpanded={expandedMetrics.has(metric.key)}
-                                  onToggle={() => toggleMetricExpansion(metric.key)}
-                                  isDepartmentProfit={isDepartmentProfit}
-                                  isNetSellingGross={isNetSellingGross}
-                                />
+                                <div className="flex items-center gap-1.5">
+                                  {metricHasRock && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Mountain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="max-w-[250px]">
+                                          <p className="font-medium text-sm">Rock Target</p>
+                                          <p className="text-xs text-muted-foreground">{metricRock?.title}</p>
+                                          <p className="text-xs mt-1">
+                                            Direction: {metricRock?.target_direction === 'above' ? 'Above' : 'Below'} target
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                  <ExpandableMetricName
+                                    metricName={metric.name}
+                                    hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
+                                    isExpanded={expandedMetrics.has(metric.key)}
+                                    onToggle={() => toggleMetricExpansion(metric.key)}
+                                    isDepartmentProfit={isDepartmentProfit}
+                                    isNetSellingGross={isNetSellingGross}
+                                  />
+                                </div>
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-[350px] max-h-[500px] overflow-y-auto">
                                 <p className="font-medium">{metric.name}</p>
@@ -4290,6 +4321,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           );
                         }}
                         cellIssues={cellIssues}
+                        hasRockForSubMetric={hasRockForSubMetric}
+                        getRockForSubMetric={getRockForSubMetric}
                       />
                       </React.Fragment>
                     );

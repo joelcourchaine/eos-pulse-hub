@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Target, AlertCircle, Flag } from "lucide-react";
+import { ChevronDown, ChevronRight, Target, AlertCircle, Flag, Mountain } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useSubMetricQuestions } from "@/hooks/useSubMetricQuestions";
@@ -76,6 +76,14 @@ interface SubMetricsRowProps {
   ) => void;
   // Set of cell keys that have issues (for flag indicator)
   cellIssues?: Set<string>;
+  // Rock target functions for visual emphasis
+  hasRockForSubMetric?: (parentKey: string, subMetricName: string) => boolean;
+  getRockForSubMetric?: (parentKey: string, subMetricName: string) => {
+    id: string;
+    title: string;
+    target_direction: "above" | "below";
+    monthly_targets: { month: string; target_value: number }[];
+  } | null;
 }
 
 // Helper to calculate average from values
@@ -133,6 +141,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   departmentId,
   onCreateIssue,
   cellIssues,
+  hasRockForSubMetric,
+  getRockForSubMetric,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -313,24 +323,55 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   if (periods && periods.length > 0) {
     return (
       <>
-        {subMetrics.map((subMetric, idx) => (
+        {subMetrics.map((subMetric, idx) => {
+          const subMetricHasRock = hasRockForSubMetric && parentMetricKey 
+            ? hasRockForSubMetric(parentMetricKey, subMetric.name) 
+            : false;
+          const subMetricRock = subMetricHasRock && getRockForSubMetric && parentMetricKey
+            ? getRockForSubMetric(parentMetricKey, subMetric.name)
+            : null;
+          
+          return (
           <TableRow 
             key={`sub-${subMetric.name}-${idx}`}
-            className="bg-muted/20 hover:bg-muted/30"
+            className={cn(
+              "bg-muted/20 hover:bg-muted/30",
+              subMetricHasRock && "bg-amber-50/50 dark:bg-amber-950/20"
+            )}
           >
-            <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+            <TableCell className={cn(
+              "sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]",
+              subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+            )}>
               <div className="flex items-center gap-1.5">
-                <svg 
-                  width="12" 
-                  height="12" 
-                  viewBox="0 0 12 12" 
-                  className="text-muted-foreground/60 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                {subMetricHasRock ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Mountain className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-[250px]">
+                        <p className="font-medium text-sm">Rock Target</p>
+                        <p className="text-xs text-muted-foreground">{subMetricRock?.title}</p>
+                        <p className="text-xs mt-1">
+                          Direction: {subMetricRock?.target_direction === 'above' ? 'Above' : 'Below'} target
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <svg 
+                    width="12" 
+                    height="12" 
+                    viewBox="0 0 12 12" 
+                    className="text-muted-foreground/60 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
                 {hasQuestionsForSubMetric(subMetric.name) ? (
                   <SubMetricQuestionTooltip
                     subMetricName={subMetric.name}
@@ -514,7 +555,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               );
             })}
           </TableRow>
-        ))}
+          );
+        })}
       </>
     );
   }
@@ -611,24 +653,55 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   // Default rendering for non-monthly-trend modes
   return (
     <>
-      {subMetrics.map((subMetric, idx) => (
+      {subMetrics.map((subMetric, idx) => {
+        const subMetricHasRock = hasRockForSubMetric && parentMetricKey 
+          ? hasRockForSubMetric(parentMetricKey, subMetric.name) 
+          : false;
+        const subMetricRock = subMetricHasRock && getRockForSubMetric && parentMetricKey
+          ? getRockForSubMetric(parentMetricKey, subMetric.name)
+          : null;
+        
+        return (
         <TableRow 
           key={`sub-${subMetric.name}-${idx}`}
-          className="bg-muted/20 hover:bg-muted/30"
+          className={cn(
+            "bg-muted/20 hover:bg-muted/30",
+            subMetricHasRock && "bg-amber-50/50 dark:bg-amber-950/20"
+          )}
         >
-          <TableCell className="sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+          <TableCell className={cn(
+            "sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]",
+            subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+          )}>
             <div className="flex items-center gap-1.5">
-              <svg 
-                width="12" 
-                height="12" 
-                viewBox="0 0 12 12" 
-                className="text-muted-foreground/60 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              {subMetricHasRock ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Mountain className="h-3 w-3 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-[250px]">
+                      <p className="font-medium text-sm">Rock Target</p>
+                      <p className="text-xs text-muted-foreground">{subMetricRock?.title}</p>
+                      <p className="text-xs mt-1">
+                        Direction: {subMetricRock?.target_direction === 'above' ? 'Above' : 'Below'} target
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <svg 
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 12 12" 
+                  className="text-muted-foreground/60 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path d="M2 0 L2 6 L10 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
               {hasQuestionsForSubMetric(subMetric.name) ? (
                 <SubMetricQuestionTooltip
                   subMetricName={subMetric.name}
@@ -739,7 +812,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             );
           })}
         </TableRow>
-      ))}
+        );
+      })}
     </>
   );
 };
