@@ -164,18 +164,16 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
 
   const loadExistingSubMetrics = async () => {
     // Fetch existing sub-metrics for this department to populate the sub-metric dropdown
-    const quarterMonthIds = quarterMonths.map(m => m.identifier);
-    
+    // Use a wider date range to find all sub-metrics that have ever been entered
     const { data } = await supabase
       .from("financial_entries")
       .select("metric_name")
       .eq("department_id", departmentId)
-      .in("month", quarterMonthIds)
       .like("metric_name", "sub:%");
     
+    const subMetricsByParent: { [parentKey: string]: Set<string> } = {};
+    
     if (data) {
-      const subMetricsByParent: { [parentKey: string]: Set<string> } = {};
-      
       data.forEach(entry => {
         // Parse sub-metric format: sub:parent_key:name
         const parts = entry.metric_name.split(":");
@@ -189,14 +187,14 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
           subMetricsByParent[parentKey].add(name);
         }
       });
-      
-      const result: { [parentKey: string]: string[] } = {};
-      Object.entries(subMetricsByParent).forEach(([key, names]) => {
-        result[key] = Array.from(names).sort();
-      });
-      
-      setExistingSubMetrics(result);
     }
+    
+    const result: { [parentKey: string]: string[] } = {};
+    Object.entries(subMetricsByParent).forEach(([key, names]) => {
+      result[key] = Array.from(names).sort();
+    });
+    
+    setExistingSubMetrics(result);
   };
 
   const loadProfiles = async () => {
@@ -567,14 +565,14 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
                           <SelectValue placeholder="Choose parent metric" />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.keys(existingSubMetrics).map((parentKey) => {
-                            const parentMetric = FINANCIAL_METRICS.find(m => m.key === parentKey);
-                            return (
-                              <SelectItem key={parentKey} value={parentKey}>
-                                {parentMetric?.name || parentKey}
+                          {/* Show all dollar-type metrics as potential parent metrics for sub-metrics */}
+                          {FINANCIAL_METRICS
+                            .filter(m => m.type === "dollar")
+                            .map((metric) => (
+                              <SelectItem key={metric.key} value={metric.key}>
+                                {metric.name}
                               </SelectItem>
-                            );
-                          })}
+                            ))}
                         </SelectContent>
                       </Select>
                     </div>
