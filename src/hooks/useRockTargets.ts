@@ -128,6 +128,12 @@ export function useRockTargets(
     fetchRocksWithTargets();
   }, [fetchRocksWithTargets]);
 
+  const normalizeSubMetricName = useCallback((name: string) => {
+    // Stored sub-metrics in financial_entries are typically "Name" (no numeric prefix)
+    // while rocks may store "008:Name". Normalize to match either format.
+    return name.replace(/^\d{3}:/, "").trim();
+  }, []);
+
   // Check if a metric has a linked rock
   const hasRockForMetric = useCallback(
     (metricKey: string): boolean => {
@@ -141,14 +147,17 @@ export function useRockTargets(
   // Check if a sub-metric has a linked rock
   const hasRockForSubMetric = useCallback(
     (parentKey: string, subMetricName: string): boolean => {
-      return rocksWithMetrics.some(
-        (r) =>
-          r.linked_metric_type === "submetric" &&
-          r.linked_parent_metric_key === parentKey &&
-          r.linked_submetric_name === subMetricName
-      );
+      const normalizedRequested = normalizeSubMetricName(subMetricName);
+
+      return rocksWithMetrics.some((r) => {
+        if (r.linked_metric_type !== "submetric") return false;
+        if (r.linked_parent_metric_key !== parentKey) return false;
+        if (!r.linked_submetric_name) return false;
+
+        return normalizeSubMetricName(r.linked_submetric_name) === normalizedRequested;
+      });
     },
-    [rocksWithMetrics]
+    [rocksWithMetrics, normalizeSubMetricName]
   );
 
   // Get rock for a specific metric
@@ -166,16 +175,19 @@ export function useRockTargets(
   // Get rock for a specific sub-metric
   const getRockForSubMetric = useCallback(
     (parentKey: string, subMetricName: string): RockWithTargets | null => {
+      const normalizedRequested = normalizeSubMetricName(subMetricName);
+
       return (
-        rocksWithMetrics.find(
-          (r) =>
-            r.linked_metric_type === "submetric" &&
-            r.linked_parent_metric_key === parentKey &&
-            r.linked_submetric_name === subMetricName
-        ) || null
+        rocksWithMetrics.find((r) => {
+          if (r.linked_metric_type !== "submetric") return false;
+          if (r.linked_parent_metric_key !== parentKey) return false;
+          if (!r.linked_submetric_name) return false;
+
+          return normalizeSubMetricName(r.linked_submetric_name) === normalizedRequested;
+        }) || null
       );
     },
-    [rocksWithMetrics]
+    [rocksWithMetrics, normalizeSubMetricName]
   );
 
   // Get target value for a specific metric and month
