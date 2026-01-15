@@ -315,6 +315,8 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
 
     // Save monthly targets if metric is linked
     if (formData.linkToMetric && rockId) {
+      const targetErrors: string[] = [];
+      
       for (const target of monthlyTargets) {
         const targetValue = parseFloat(target.targetValue);
         
@@ -323,27 +325,49 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
           
           if (existingId) {
             // Update existing target
-            await supabase
+            const { error: updateError } = await supabase
               .from("rock_monthly_targets")
               .update({ target_value: targetValue })
               .eq("id", existingId);
+            
+            if (updateError) {
+              console.error("Error updating target:", updateError);
+              targetErrors.push(`Failed to update target for ${target.month}`);
+            }
           } else {
             // Insert new target
-            await supabase
+            const { error: insertError } = await supabase
               .from("rock_monthly_targets")
               .insert({
                 rock_id: rockId,
                 month: target.month,
                 target_value: targetValue,
               });
+            
+            if (insertError) {
+              console.error("Error inserting target:", insertError);
+              targetErrors.push(`Failed to save target for ${target.month}`);
+            }
           }
         } else if (existingTargetIds[target.month]) {
           // Delete target if value is cleared
-          await supabase
+          const { error: deleteError } = await supabase
             .from("rock_monthly_targets")
             .delete()
             .eq("id", existingTargetIds[target.month]);
+          
+          if (deleteError) {
+            console.error("Error deleting target:", deleteError);
+          }
         }
+      }
+      
+      if (targetErrors.length > 0) {
+        toast({ 
+          title: "Warning", 
+          description: "Rock saved but some targets failed to save. Please try editing again.", 
+          variant: "destructive" 
+        });
       }
     }
 
