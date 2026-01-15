@@ -1546,6 +1546,41 @@ export type Database = {
           },
         ]
       }
+      rock_monthly_targets: {
+        Row: {
+          created_at: string | null
+          id: string
+          month: string
+          rock_id: string
+          target_value: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          month: string
+          rock_id: string
+          target_value: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          month?: string
+          rock_id?: string
+          target_value?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rock_monthly_targets_rock_id_fkey"
+            columns: ["rock_id"]
+            isOneToOne: false
+            referencedRelation: "rocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rocks: {
         Row: {
           assigned_to: string | null
@@ -1554,9 +1589,14 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_metric_key: string | null
+          linked_metric_type: string | null
+          linked_parent_metric_key: string | null
+          linked_submetric_name: string | null
           progress_percentage: number | null
           quarter: number
           status: string | null
+          target_direction: string | null
           title: string
           updated_at: string
           year: number
@@ -1568,9 +1608,14 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          linked_metric_key?: string | null
+          linked_metric_type?: string | null
+          linked_parent_metric_key?: string | null
+          linked_submetric_name?: string | null
           progress_percentage?: number | null
           quarter: number
           status?: string | null
+          target_direction?: string | null
           title: string
           updated_at?: string
           year: number
@@ -1582,9 +1627,14 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          linked_metric_key?: string | null
+          linked_metric_type?: string | null
+          linked_parent_metric_key?: string | null
+          linked_submetric_name?: string | null
           progress_percentage?: number | null
           quarter?: number
           status?: string | null
+          target_direction?: string | null
           title?: string
           updated_at?: string
           year?: number
