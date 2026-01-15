@@ -247,8 +247,13 @@ export const RockManagementDialog = ({ departmentId, year, quarter, onRocksChang
       return;
     }
 
-    if (formData.linkToMetric && !formData.linkedMetricKey) {
+    if (formData.linkToMetric && formData.linkedMetricType === "metric" && !formData.linkedMetricKey) {
       toast({ title: "Error", description: "Please select a metric to link", variant: "destructive" });
+      return;
+    }
+
+    if (formData.linkToMetric && formData.linkedMetricType === "submetric" && !formData.linkedParentMetricKey) {
+      toast({ title: "Error", description: "Please select a parent metric", variant: "destructive" });
       return;
     }
 
