@@ -341,7 +341,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           >
             <TableCell className={cn(
               "sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]",
-              subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+              subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-900/40"
             )}>
               <div className="flex items-center gap-1.5">
                 {subMetricHasRock ? (
@@ -671,7 +671,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
         >
           <TableCell className={cn(
             "sticky left-0 z-30 py-1 pl-6 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]",
-            subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20"
+            subMetricHasRock && "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-900/40"
           )}>
             <div className="flex items-center gap-1.5">
               {subMetricHasRock ? (
