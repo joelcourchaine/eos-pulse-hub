@@ -136,11 +136,11 @@ const MurrayIndex = () => {
         <div className="text-center mb-16">
           {/* Murray Logo and Badge */}
           <div className="flex items-center justify-center gap-4 mb-8">
-            <img src={murrayLogo} alt="Murray Auto Group" className="h-16 sm:h-20 object-contain rounded-xl" />
+            <img src={murrayLogo} alt="Murray Auto Group" className="h-16 sm:h-20 object-contain rounded-xl bg-white/90 p-2" />
             <img
               src={murrayBadge}
               alt="Murray 100 Years - Est. 1926"
-              className="h-16 sm:h-20 object-contain rounded-xl"
+              className="h-16 sm:h-20 object-contain rounded-xl bg-white/90 p-2"
             />
           </div>
 
@@ -246,7 +246,7 @@ const MurrayIndex = () => {
         {/* Footer with Murray branding */}
         <div className="text-center text-sm text-muted-foreground pt-8 border-t border-border">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img src={murrayLogo} alt="Murray Auto Group" className="h-6 object-contain rounded-md" />
+            <img src={murrayLogo} alt="Murray Auto Group" className="h-6 object-contain rounded-xl bg-white/90 p-1" />
             <span>×</span>
             <span>Dealer Growth Solutions</span>
           </div>
