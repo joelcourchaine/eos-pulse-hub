@@ -383,13 +383,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     saveSubMetricTarget,
   } = useSubMetricTargets(departmentId);
   
-  // Fetch rock targets for visual emphasis
+  // Fetch rock targets for visual emphasis - use all quarters to show rocks in monthly trend view
   const {
     hasRockForMetric,
     hasRockForSubMetric,
     getRockForMetric,
     getRockForSubMetric,
-  } = useRockTargets(departmentId, quarter > 0 ? quarter : currentQuarter, year);
+  } = useRockTargets(departmentId, quarter > 0 ? quarter : currentQuarter, year, true);
   
   // Toggle metric expansion
   const toggleMetricExpansion = useCallback((metricKey: string) => {

@@ -32,7 +32,12 @@ interface RockTargetStatus {
   status: "met" | "missed" | "pending" | "close";
 }
 
-export function useRockTargets(departmentId: string | undefined, quarter: number, year: number) {
+export function useRockTargets(
+  departmentId: string | undefined, 
+  quarter: number, 
+  year: number,
+  allQuarters: boolean = false
+) {
   const [rocksWithMetrics, setRocksWithMetrics] = useState<RockWithTargets[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,14 +51,20 @@ export function useRockTargets(departmentId: string | undefined, quarter: number
     setLoading(true);
 
     try {
-      // Fetch rocks with linked metrics for this quarter/year
-      const { data: rocks, error: rocksError } = await supabase
+      // Fetch rocks with linked metrics for this quarter/year (or all quarters in the year)
+      let query = supabase
         .from("rocks")
         .select("*")
         .eq("department_id", departmentId)
-        .eq("quarter", quarter)
         .eq("year", year)
         .not("linked_metric_key", "is", null);
+      
+      // Only filter by quarter if not fetching all quarters
+      if (!allQuarters) {
+        query = query.eq("quarter", quarter);
+      }
+      
+      const { data: rocks, error: rocksError } = await query;
 
       if (rocksError) {
         console.error("Error fetching rocks:", rocksError);
@@ -111,7 +122,7 @@ export function useRockTargets(departmentId: string | undefined, quarter: number
     } finally {
       setLoading(false);
     }
-  }, [departmentId, quarter, year]);
+  }, [departmentId, quarter, year, allQuarters]);
 
   useEffect(() => {
     fetchRocksWithTargets();
