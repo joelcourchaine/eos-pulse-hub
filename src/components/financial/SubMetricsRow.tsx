@@ -411,61 +411,103 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             {/* Render cells for each period, matching parent row structure */}
             {periods.map((period) => {
               // Get target for this sub-metric (for the current quarter/year context)
-              const targetValue = getSubMetricTarget && quarter && currentYear
+              const quarterlyTargetValue = getSubMetricTarget && quarter && currentYear
                 ? getSubMetricTarget(subMetric.name, quarter, currentYear)
                 : null;
+              
+              // Check for rock monthly target for this specific period
+              const rockMonthlyTarget = subMetricRock?.monthly_targets?.find(
+                t => t.month === period.identifier
+              );
+              const rockTargetValue = rockMonthlyTarget?.target_value ?? null;
+              const rockDirection = subMetricRock?.target_direction ?? 'above';
               
               if (period.type === 'month') {
                 const value = getSubMetricValue(subMetric.name, period.identifier);
                 // Only apply variance coloring for current year months
                 const periodYear = parseInt(period.identifier.split('-')[0]);
                 const isCurrentYear = periodYear === currentYear;
-                const status = isCurrentYear && targetValue !== null 
-                  ? getVarianceStatus(value, targetValue, 'above') 
+                
+                // Use rock target if available, otherwise fall back to quarterly target
+                const effectiveTarget = rockTargetValue ?? quarterlyTargetValue;
+                const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+                
+                const status = isCurrentYear && effectiveTarget !== null 
+                  ? getVarianceStatus(value, effectiveTarget, effectiveDirection) 
                   : null;
                 
                 const valueKey = `${subMetric.name}-${period.identifier}`;
                 const isEditingThisValue = editingValue === valueKey;
                 const orderIndex = subMetric.orderIndex ?? idx;
                 
+                const cellContent = (
+                  <TableCell 
+                    className={cn(
+                      "text-center py-1 text-xs min-w-[125px] max-w-[125px] relative",
+                      status === 'success' && "bg-success/10",
+                      status === 'warning' && "bg-warning/10",
+                      status === 'destructive' && "bg-destructive/10",
+                      !status && "text-muted-foreground",
+                      canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40",
+                      // Add subtle indicator for rock target cells
+                      rockTargetValue !== null && "ring-1 ring-inset ring-amber-400/50"
+                    )}
+                    onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, period.identifier, value)}
+                  >
+                    {isEditingThisValue ? (
+                      <Input
+                        type="text"
+                        value={valueEditValue}
+                        onChange={(e) => setValueEditValue(e.target.value)}
+                        onBlur={() => handleValueSave(subMetric.name, orderIndex, period.identifier)}
+                        onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, period.identifier)}
+                        className="h-6 text-xs text-center w-full"
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className={cn(
+                        status === 'success' && "text-success font-medium",
+                        status === 'warning' && "text-warning font-medium",
+                        status === 'destructive' && "text-destructive font-medium"
+                      )}>
+                        {value !== null ? formatValue(value) : "-"}
+                      </span>
+                    )}
+                    {hasCellIssue(subMetric.name, period.identifier) && (
+                      <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                    )}
+                  </TableCell>
+                );
+
                 return (
                   <ContextMenu key={period.identifier}>
                     <ContextMenuTrigger asChild>
-                      <TableCell 
-                        className={cn(
-                          "text-center py-1 text-xs min-w-[125px] max-w-[125px] relative",
-                          status === 'success' && "bg-success/10",
-                          status === 'warning' && "bg-warning/10",
-                          status === 'destructive' && "bg-destructive/10",
-                          !status && "text-muted-foreground",
-                          canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40"
-                        )}
-                        onClick={() => !isEditingThisValue && handleValueClick(subMetric.name, period.identifier, value)}
-                      >
-                        {isEditingThisValue ? (
-                          <Input
-                            type="text"
-                            value={valueEditValue}
-                            onChange={(e) => setValueEditValue(e.target.value)}
-                            onBlur={() => handleValueSave(subMetric.name, orderIndex, period.identifier)}
-                            onKeyDown={(e) => handleValueKeyDown(e, subMetric.name, orderIndex, period.identifier)}
-                            className="h-6 text-xs text-center w-full"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <span className={cn(
-                            status === 'success' && "text-success font-medium",
-                            status === 'warning' && "text-warning font-medium",
-                            status === 'destructive' && "text-destructive font-medium"
-                          )}>
-                            {value !== null ? formatValue(value) : "-"}
-                          </span>
-                        )}
-                        {hasCellIssue(subMetric.name, period.identifier) && (
-                          <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
-                        )}
-                      </TableCell>
+                      {rockTargetValue !== null ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {cellContent}
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[200px]">
+                              <p className="text-xs font-medium">Rock Target: {formatValue(rockTargetValue)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {effectiveDirection === 'above' ? 'Above' : 'Below'} target
+                              </p>
+                              {value !== null && (
+                                <p className="text-xs mt-1">
+                                  Actual: {formatValue(value)} 
+                                  {status === 'success' && ' ✓'}
+                                  {status === 'warning' && ' (close)'}
+                                  {status === 'destructive' && ' ✗'}
+                                </p>
+                              )}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        cellContent
+                      )}
                     </ContextMenuTrigger>
                     <ContextMenuContent className="bg-background z-50">
                       <ContextMenuItem 
@@ -497,7 +539,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                       "text-center py-1 text-xs text-muted-foreground min-w-[100px] max-w-[100px]",
                       "bg-primary/5 border-x-2 border-primary/30 cursor-pointer hover:bg-primary/10"
                     )}
-                    onClick={() => !isEditing && handleTargetClick(subMetric.name, targetValue)}
+                    onClick={() => !isEditing && handleTargetClick(subMetric.name, quarterlyTargetValue)}
                   >
                     {isEditing ? (
                       <Input
@@ -511,7 +553,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      targetValue !== null ? formatValue(targetValue) : "-"
+                      quarterlyTargetValue !== null ? formatValue(quarterlyTargetValue) : "-"
                     )}
                   </TableCell>
                 );
@@ -736,14 +778,27 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
           </TableCell>
           {monthIdentifiers.map((monthId) => {
             const value = getSubMetricValue(subMetric.name, monthId);
-            const targetValue = getSubMetricTarget && quarter && currentYear
+            const quarterlyTargetValue = getSubMetricTarget && quarter && currentYear
               ? getSubMetricTarget(subMetric.name, quarter, currentYear)
               : null;
+              
+            // Check for rock monthly target for this specific month
+            const rockMonthlyTarget = subMetricRock?.monthly_targets?.find(
+              t => t.month === monthId
+            );
+            const rockTargetValue = rockMonthlyTarget?.target_value ?? null;
+            const rockDirection = subMetricRock?.target_direction ?? 'above';
+            
             // Only apply variance coloring for current year months
             const periodYear = parseInt(monthId.split('-')[0]);
             const isCurrentYear = periodYear === currentYear;
-            const status = isCurrentYear && targetValue !== null 
-              ? getVarianceStatus(value, targetValue, 'above') 
+            
+            // Use rock target if available, otherwise fall back to quarterly target
+            const effectiveTarget = rockTargetValue ?? quarterlyTargetValue;
+            const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+            
+            const status = isCurrentYear && effectiveTarget !== null 
+              ? getVarianceStatus(value, effectiveTarget, effectiveDirection) 
               : null;
             
             const valueKey = `${subMetric.name}-${monthId}`;
