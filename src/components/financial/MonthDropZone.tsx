@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -65,6 +65,8 @@ interface MonthDropZoneProps {
   isCopying?: boolean;
   /** If this month's data was copied from another source */
   copiedFrom?: { sourceLabel: string; copiedAt: string } | null;
+  /** Callback to clear all data for this month */
+  onClearMonthData?: () => void;
 }
 
 const ACCEPTED_TYPES: Record<string, "excel" | "csv" | "pdf"> = {
@@ -89,6 +91,7 @@ export const MonthDropZone = ({
   onCopyFromSource,
   isCopying = false,
   copiedFrom,
+  onClearMonthData,
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -717,6 +720,7 @@ export const MonthDropZone = ({
   };
 
   const hasCopyOptions = copySourceOptions.length > 0 && onCopyFromSource;
+  const hasContextMenuOptions = hasCopyOptions || onClearMonthData;
   
   // Separate average and month options
   const averageOptions = copySourceOptions.filter(opt => opt.isAverage);
@@ -853,8 +857,8 @@ export const MonthDropZone = ({
     </div>
   );
 
-  // If no copy options, just render the content without context menu
-  if (!hasCopyOptions) {
+  // If no context menu options, just render the content without context menu
+  if (!hasContextMenuOptions) {
     return content;
   }
 
@@ -865,50 +869,69 @@ export const MonthDropZone = ({
       </ContextMenuTrigger>
       
       <ContextMenuContent className="w-56">
-        {/* Average option (YTD) first */}
-        {averageOptions.map((option) => (
-          <ContextMenuItem 
-            key={option.identifier}
-            onClick={() => handleCopyFrom(option.identifier)}
-            className="font-medium"
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            Copy from {option.label}
-          </ContextMenuItem>
-        ))}
-        
-        {averageOptions.length > 0 && monthOptions.length > 0 && (
-          <ContextMenuSeparator />
-        )}
-        
-        {/* Month options in a submenu if there are many */}
-        {monthOptions.length > 6 ? (
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy from month...
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-48 max-h-[300px] overflow-y-auto">
-              {monthOptions.map((option) => (
+        {/* Copy options */}
+        {hasCopyOptions && (
+          <>
+            {/* Average option (YTD) first */}
+            {averageOptions.map((option) => (
+              <ContextMenuItem 
+                key={option.identifier}
+                onClick={() => handleCopyFrom(option.identifier)}
+                className="font-medium"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy from {option.label}
+              </ContextMenuItem>
+            ))}
+            
+            {averageOptions.length > 0 && monthOptions.length > 0 && (
+              <ContextMenuSeparator />
+            )}
+            
+            {/* Month options in a submenu if there are many */}
+            {monthOptions.length > 6 ? (
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy from month...
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="w-48 max-h-[300px] overflow-y-auto">
+                  {monthOptions.map((option) => (
+                    <ContextMenuItem 
+                      key={option.identifier}
+                      onClick={() => handleCopyFrom(option.identifier)}
+                    >
+                      {option.label}
+                    </ContextMenuItem>
+                  ))}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
+            ) : (
+              monthOptions.map((option) => (
                 <ContextMenuItem 
                   key={option.identifier}
                   onClick={() => handleCopyFrom(option.identifier)}
                 >
-                  {option.label}
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy from {option.label}
                 </ContextMenuItem>
-              ))}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-        ) : (
-          monthOptions.map((option) => (
+              ))
+            )}
+          </>
+        )}
+        
+        {/* Clear month data option */}
+        {onClearMonthData && (
+          <>
+            {hasCopyOptions && <ContextMenuSeparator />}
             <ContextMenuItem 
-              key={option.identifier}
-              onClick={() => handleCopyFrom(option.identifier)}
+              onClick={onClearMonthData}
+              className="text-destructive focus:text-destructive"
             >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy from {option.label}
+              <Trash2 className="h-4 w-4 mr-2" />
+              Clear Month Data
             </ContextMenuItem>
-          ))
+          </>
         )}
       </ContextMenuContent>
     </ContextMenu>

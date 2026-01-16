@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -254,6 +255,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
   const [copyMetadata, setCopyMetadata] = useState<{ [monthId: string]: { sourceLabel: string; copiedAt: string } }>({});
   const [forecastDrawerOpen, setForecastDrawerOpen] = useState(false);
+  const [clearMonthDialogOpen, setClearMonthDialogOpen] = useState(false);
+  const [clearMonthTarget, setClearMonthTarget] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -2637,6 +2640,91 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     }
   }, [departmentId, FINANCIAL_METRICS, precedingQuartersData, allSubMetrics, toast, loadFinancialData, loadPrecedingQuartersData, refetchSubMetrics, currentYear, fetchCopyMetadata]);
 
+  // Handle clearing all financial data for a month
+  const handleClearMonthData = useCallback(async (monthIdentifier: string) => {
+    if (!departmentId) return;
+    
+    try {
+      // Delete all financial entries for this month and department
+      const { error: entriesError } = await supabase
+        .from('financial_entries')
+        .delete()
+        .eq('department_id', departmentId)
+        .eq('month', monthIdentifier);
+      
+      if (entriesError) {
+        console.error('Error deleting financial entries:', entriesError);
+        toast({
+          title: "Error",
+          description: "Failed to clear financial entries",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Delete attachment record for this month
+      const { error: attachmentError } = await supabase
+        .from('financial_attachments')
+        .delete()
+        .eq('department_id', departmentId)
+        .eq('month_identifier', monthIdentifier);
+      
+      if (attachmentError) {
+        console.error('Error deleting attachment:', attachmentError);
+        // Don't fail if attachment deletion fails - it might not exist
+      }
+      
+      // Delete copy metadata for this month
+      await supabase
+        .from('financial_copy_metadata')
+        .delete()
+        .eq('department_id', departmentId)
+        .eq('target_month', monthIdentifier);
+      
+      // Reload data
+      await loadFinancialData();
+      await loadPrecedingQuartersData();
+      await refetchSubMetrics();
+      await fetchAttachments();
+      await fetchCopyMetadata();
+      
+      // Format month label for toast
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                         'July', 'August', 'September', 'October', 'November', 'December'];
+      const [yearStr, monthStr] = monthIdentifier.split('-');
+      const monthIndex = parseInt(monthStr) - 1;
+      const monthLabel = `${monthNames[monthIndex]} ${yearStr}`;
+      
+      toast({
+        title: "Month data cleared",
+        description: `Cleared all financial data for ${monthLabel}`,
+      });
+      
+    } catch (err) {
+      console.error('Error in handleClearMonthData:', err);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    }
+  }, [departmentId, toast, loadFinancialData, loadPrecedingQuartersData, refetchSubMetrics, fetchAttachments, fetchCopyMetadata]);
+
+  // Open clear confirmation dialog
+  const openClearMonthDialog = useCallback((monthIdentifier: string) => {
+    setClearMonthTarget(monthIdentifier);
+    setClearMonthDialogOpen(true);
+  }, []);
+
+  // Confirm and execute clear
+  const confirmClearMonth = useCallback(async () => {
+    if (clearMonthTarget) {
+      await handleClearMonthData(clearMonthTarget);
+    }
+    setClearMonthDialogOpen(false);
+    setClearMonthTarget(null);
+  }, [clearMonthTarget, handleClearMonthData]);
+
   if (loading) {
     return (
       <Card>
@@ -2889,6 +2977,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   onCopyFromSource={(sourceId) => handleCopyFromSource(period.identifier, sourceId)}
                                   isCopying={copyingMonth === period.identifier}
                                   copiedFrom={copyMetadata[period.identifier]}
+                                  onClearMonthData={() => openClearMonthDialog(period.identifier)}
                                 >
                                   <div className="flex flex-col items-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -2945,6 +3034,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
                               isCopying={copyingMonth === month.identifier}
                               copiedFrom={copyMetadata[month.identifier]}
+                              onClearMonthData={() => openClearMonthDialog(month.identifier)}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -2980,6 +3070,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               onCopyFromSource={(sourceId) => handleCopyFromSource(month.identifier, sourceId)}
                               isCopying={copyingMonth === month.identifier}
                               copiedFrom={copyMetadata[month.identifier]}
+                              onClearMonthData={() => openClearMonthDialog(month.identifier)}
                             >
                               <div className="flex flex-col items-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -4549,6 +4640,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         departmentId={departmentId}
         departmentName={departmentName || 'Department'}
       />
+
+      {/* Clear Month Data Confirmation Dialog */}
+      <AlertDialog open={clearMonthDialogOpen} onOpenChange={setClearMonthDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Month Data</AlertDialogTitle>
+            <AlertDialogDescription>
+              {clearMonthTarget && (() => {
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+                const [yearStr, monthStr] = clearMonthTarget.split('-');
+                const monthIndex = parseInt(monthStr) - 1;
+                return `This will permanently delete all financial data for ${monthNames[monthIndex]} ${yearStr}. This action cannot be undone.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClearMonthTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmClearMonth}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear Data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };
