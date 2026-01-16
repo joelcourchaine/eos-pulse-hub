@@ -392,6 +392,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     hasRockForSubMetric,
     getRockForMetric,
     getRockForSubMetric,
+    refetch: refetchRocks,
   } = useRockTargets(departmentId, quarter > 0 ? quarter : currentQuarter, year, true);
   
   // Toggle metric expansion
