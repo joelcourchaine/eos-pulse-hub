@@ -20,10 +20,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, Pencil, Trash2, Rocket, ListOrdered } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Rocket, ListOrdered, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Top10TemplateDialog } from "./Top10TemplateDialog";
 import { DeployTop10Dialog } from "./DeployTop10Dialog";
+import { ImportTop10TemplatesDialog } from "./ImportTop10TemplatesDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +54,7 @@ interface Template {
 
 export const AdminTop10Tab = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<Template | null>(null);
   const [deployTemplate, setDeployTemplate] = useState<Template | null>(null);
   const [deleteTemplate, setDeleteTemplate] = useState<Template | null>(null);
@@ -112,10 +114,16 @@ export const AdminTop10Tab = () => {
               Create templates and deploy them to store groups
             </CardDescription>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Template
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+              <Download className="h-4 w-4 mr-2" />
+              Import from Existing
+            </Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Template
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -212,6 +220,15 @@ export const AdminTop10Tab = () => {
           queryClient.invalidateQueries({ queryKey: ["admin-top10-templates"] });
           setCreateDialogOpen(false);
           setEditTemplate(null);
+        }}
+      />
+
+      <ImportTop10TemplatesDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-top10-templates"] });
+          setImportDialogOpen(false);
         }}
       />
 
