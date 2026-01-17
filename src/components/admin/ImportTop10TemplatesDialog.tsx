@@ -83,6 +83,16 @@ export const ImportTop10TemplatesDialog = ({
         .select("title");
       if (templatesError) throw templatesError;
 
+      // Get Service Department type ID
+      const { data: serviceDept } = await supabase
+        .from("department_types")
+        .select("id")
+        .ilike("name", "%service%")
+        .limit(1)
+        .single();
+
+      const serviceDeptId = serviceDept?.id || null;
+
       const existingTemplateTitles = new Set(
         existingTemplates?.map((t) => t.title.toLowerCase()) || []
       );
@@ -95,7 +105,7 @@ export const ImportTop10TemplatesDialog = ({
           seen.set(key, {
             title: list.title,
             columns: (list.columns as unknown as Column[]) || [],
-            selectedDepartmentTypeId: null,
+            selectedDepartmentTypeId: serviceDeptId,
             selected: true,
           });
         }
