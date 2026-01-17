@@ -15,12 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, KeyRound, Loader2 } from "lucide-react";
+import { Search, KeyRound, Loader2, Clock, Mail } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const AdminUsersTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active">("all");
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -47,7 +48,7 @@ export const AdminUsersTab = () => {
     queryFn: async () => {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email, store_group_id, last_sign_in_at")
+        .select("id, full_name, email, store_group_id, last_sign_in_at, invited_at")
         .eq("is_system_user", false)
         .order("full_name");
 
@@ -71,13 +72,24 @@ export const AdminUsersTab = () => {
     },
   });
 
+  const pendingCount = users?.filter(u => u.invited_at && !u.last_sign_in_at).length || 0;
+  const activeCount = users?.filter(u => u.last_sign_in_at).length || 0;
+
   const filteredUsers = users?.filter((user) => {
     const search = searchTerm.toLowerCase();
     const matchesSearch =
       user.full_name?.toLowerCase().includes(search) ||
       user.email?.toLowerCase().includes(search);
     const matchesRole = !roleFilter || user.role === roleFilter;
-    return matchesSearch && matchesRole;
+    
+    const isPending = user.invited_at && !user.last_sign_in_at;
+    const isActive = !!user.last_sign_in_at;
+    const matchesStatus = 
+      statusFilter === "all" || 
+      (statusFilter === "pending" && isPending) ||
+      (statusFilter === "active" && isActive);
+    
+    return matchesSearch && matchesRole && matchesStatus;
   }).slice(0, 50);
 
   const handleResetPassword = async (userId: string, userEmail: string) => {
@@ -152,6 +164,38 @@ export const AdminUsersTab = () => {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Status Filter</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Badge
+              variant="secondary"
+              className={`cursor-pointer transition-all ${statusFilter === "all" ? "ring-2 ring-primary ring-offset-2" : ""}`}
+              onClick={() => setStatusFilter("all")}
+            >
+              All: {users?.length || 0}
+            </Badge>
+            <Badge
+              variant="secondary"
+              className={`cursor-pointer transition-all bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 ${statusFilter === "pending" ? "ring-2 ring-primary ring-offset-2" : ""}`}
+              onClick={() => setStatusFilter("pending")}
+            >
+              <Clock className="h-3 w-3 mr-1" />
+              Pending Invites: {pendingCount}
+            </Badge>
+            <Badge
+              variant="secondary"
+              className={`cursor-pointer transition-all bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 ${statusFilter === "active" ? "ring-2 ring-primary ring-offset-2" : ""}`}
+              onClick={() => setStatusFilter("active")}
+            >
+              Active: {activeCount}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>User Management</CardTitle>
           <div className="relative w-64">
@@ -199,11 +243,18 @@ export const AdminUsersTab = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {user.last_sign_in_at
-                          ? formatDistanceToNow(new Date(user.last_sign_in_at), {
-                              addSuffix: true,
-                            })
-                          : "Never"}
+                        {user.last_sign_in_at ? (
+                          formatDistanceToNow(new Date(user.last_sign_in_at), {
+                            addSuffix: true,
+                          })
+                        ) : user.invited_at ? (
+                          <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                            <Clock className="h-3 w-3" />
+                            Invited {formatDistanceToNow(new Date(user.invited_at), { addSuffix: true })}
+                          </span>
+                        ) : (
+                          "Never"
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -211,13 +262,16 @@ export const AdminUsersTab = () => {
                           size="sm"
                           onClick={() => handleResetPassword(user.id, user.email || "")}
                           disabled={resettingUserId === user.id}
+                          title={user.invited_at && !user.last_sign_in_at ? "Resend invite" : "Reset password"}
                         >
                           {resettingUserId === user.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : user.invited_at && !user.last_sign_in_at ? (
+                            <Mail className="h-4 w-4 mr-1" />
                           ) : (
                             <KeyRound className="h-4 w-4 mr-1" />
                           )}
-                          Reset Password
+                          {user.invited_at && !user.last_sign_in_at ? "Resend Invite" : "Reset Password"}
                         </Button>
                       </TableCell>
                     </TableRow>
