@@ -11,7 +11,13 @@ export const AdminStatsCards = () => {
       const now = new Date();
       const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-      const [usersResult, activeResult, storeGroupsResult, storesResult] = await Promise.all([
+      const [
+        usersResult,
+        activeResult,
+        pendingInvitesResult,
+        storeGroupsResult,
+        storesResult,
+      ] = await Promise.all([
         supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
@@ -21,6 +27,12 @@ export const AdminStatsCards = () => {
           .select("id", { count: "exact", head: true })
           .eq("is_system_user", false)
           .gte("last_sign_in_at", twentyFourHoursAgo),
+        supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("is_system_user", false)
+          .not("invited_at", "is", null)
+          .is("last_sign_in_at", null),
         supabase.from("store_groups").select("id", { count: "exact", head: true }),
         supabase.from("stores").select("id", { count: "exact", head: true }),
       ]);
@@ -28,7 +40,7 @@ export const AdminStatsCards = () => {
       return {
         totalUsers: usersResult.count ?? 0,
         activeToday: activeResult.count ?? 0,
-        pendingInvites: "—", // Placeholder - requires auth admin
+        pendingInvites: pendingInvitesResult.count ?? 0,
         storeGroups: storeGroupsResult.count ?? 0,
         totalStores: storesResult.count ?? 0,
       };
