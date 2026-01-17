@@ -104,11 +104,32 @@ export const Top10TemplateDialog = ({
       };
 
       if (isEditMode && template) {
+        const oldTitle = template.title;
+        const newTitle = title.trim();
+
+        // Update the template
         const { error } = await supabase
           .from("top_10_list_templates")
           .update(payload)
           .eq("id", template.id);
         if (error) throw error;
+
+        // If title changed, update all deployed lists with the old title
+        if (oldTitle !== newTitle) {
+          const { error: syncError } = await supabase
+            .from("top_10_lists")
+            .update({ 
+              title: newTitle,
+              description: payload.description,
+              columns: payload.columns,
+            })
+            .eq("title", oldTitle);
+          
+          if (syncError) {
+            console.error("Failed to sync deployed lists:", syncError);
+            // Don't throw - template update succeeded
+          }
+        }
       } else {
         const { error } = await supabase
           .from("top_10_list_templates")
@@ -117,7 +138,7 @@ export const Top10TemplateDialog = ({
       }
     },
     onSuccess: () => {
-      toast.success(isEditMode ? "Template updated" : "Template created");
+      toast.success(isEditMode ? "Template updated (synced to all stores)" : "Template created");
       onSuccess();
     },
     onError: (error: Error) => {
