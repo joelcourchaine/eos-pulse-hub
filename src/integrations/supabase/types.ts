@@ -114,6 +114,91 @@ export type Database = {
         }
         Relationships: []
       }
+      consulting_calls: {
+        Row: {
+          call_date: string
+          call_time: string | null
+          client_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          status: string | null
+        }
+        Insert: {
+          call_date: string
+          call_time?: string | null
+          client_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          status?: string | null
+        }
+        Update: {
+          call_date?: string
+          call_time?: string | null
+          client_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consulting_calls_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "consulting_clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consulting_clients: {
+        Row: {
+          call_value: number | null
+          contact_names: string | null
+          created_at: string
+          created_by: string | null
+          department_name: string | null
+          id: string
+          is_active: boolean | null
+          is_adhoc: boolean | null
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          call_value?: number | null
+          contact_names?: string | null
+          created_at?: string
+          created_by?: string | null
+          department_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_adhoc?: boolean | null
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          call_value?: number | null
+          contact_names?: string | null
+          created_at?: string
+          created_by?: string | null
+          department_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_adhoc?: boolean | null
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consulting_clients_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       department_answer_history: {
         Row: {
           answer_id: string

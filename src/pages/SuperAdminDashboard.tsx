@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/use-user-role";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { AdminStatsCards } from "@/components/admin/AdminStatsCards";
 import { AdminOverviewTab } from "@/components/admin/AdminOverviewTab";
 import { AdminUsersTab } from "@/components/admin/AdminUsersTab";
@@ -11,7 +12,8 @@ import { AdminStoreGroupsTab } from "@/components/admin/AdminStoreGroupsTab";
 import { AdminSystemTab } from "@/components/admin/AdminSystemTab";
 import { AdminTicketsTab } from "@/components/admin/AdminTicketsTab";
 import { AdminTop10Tab } from "@/components/admin/AdminTop10Tab";
-import { Ticket, ListOrdered } from "lucide-react";
+import { Ticket, ListOrdered, Calendar } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
@@ -61,9 +63,17 @@ const SuperAdminDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Super Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">System-wide management and monitoring</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Super Admin Dashboard</h1>
+            <p className="text-muted-foreground mt-1">System-wide management and monitoring</p>
+          </div>
+          <Link to="/admin/consulting">
+            <Button variant="outline" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Consulting Scheduler
+            </Button>
+          </Link>
         </div>
 
         <AdminStatsCards />
