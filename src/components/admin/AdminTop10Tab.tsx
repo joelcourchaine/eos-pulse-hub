@@ -20,11 +20,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, Pencil, Trash2, Rocket, ListOrdered, Download } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Rocket, ListOrdered, Download, Eye } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Top10TemplateDialog } from "./Top10TemplateDialog";
 import { DeployTop10Dialog } from "./DeployTop10Dialog";
 import { ImportTop10TemplatesDialog } from "./ImportTop10TemplatesDialog";
+import { Top10DeploymentOverview } from "./Top10DeploymentOverview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +58,7 @@ export const AdminTop10Tab = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<Template | null>(null);
   const [deployTemplate, setDeployTemplate] = useState<Template | null>(null);
+  const [viewDeployments, setViewDeployments] = useState<Template | null>(null);
   const [deleteTemplate, setDeleteTemplate] = useState<Template | null>(null);
   const queryClient = useQueryClient();
 
@@ -181,6 +183,10 @@ export const AdminTop10Tab = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setViewDeployments(template)}>
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Deployments
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setDeployTemplate(template)}>
                             <Rocket className="h-4 w-4 mr-2" />
                             Deploy to Group
@@ -231,6 +237,14 @@ export const AdminTop10Tab = () => {
           setImportDialogOpen(false);
         }}
       />
+
+      {viewDeployments && (
+        <Top10DeploymentOverview
+          open={!!viewDeployments}
+          onOpenChange={(open) => !open && setViewDeployments(null)}
+          template={viewDeployments}
+        />
+      )}
 
       {deployTemplate && (
         <DeployTop10Dialog
