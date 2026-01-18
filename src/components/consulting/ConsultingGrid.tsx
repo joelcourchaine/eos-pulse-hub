@@ -801,15 +801,14 @@ function MonthCell({
                 className={cn(
                   "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
                   "hover:bg-muted/50",
-                  !call && "text-muted-foreground",
-                  isCallInPast && "opacity-50"
+                  !call && "text-muted-foreground"
                 )}
               >
                 {call && (
                   <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
                 )}
-                <CalendarIcon className="h-3 w-3 shrink-0" />
-                <span className="truncate">
+                <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
+                <span className={cn("truncate", isCallInPast && "opacity-50")}>
                   {displayText || "Date / Time"}
                 </span>
               </Button>
