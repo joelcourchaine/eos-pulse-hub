@@ -927,20 +927,17 @@ function MonthCell({
               {/* Recurrence options - only for new calls */}
               {!call && selectedDate && (
                 <div className="p-3 border-t space-y-3">
-                  <div className="flex items-center space-x-2">
+                  <label className="flex items-center space-x-2 cursor-pointer select-none">
                     <Checkbox 
                       id="recurring" 
                       checked={isRecurring}
-                      onCheckedChange={(checked) => setIsRecurring(checked === true)}
+                      onCheckedChange={(checked) => setIsRecurring(Boolean(checked))}
                     />
-                    <Label 
-                      htmlFor="recurring" 
-                      className="text-sm font-medium flex items-center gap-2 cursor-pointer"
-                    >
+                    <span className="text-sm font-medium flex items-center gap-2">
                       <Repeat className="h-3 w-3" />
                       Recurring weekly
-                    </Label>
-                  </div>
+                    </span>
+                  </label>
 
                   <Button 
                     size="sm" 
