@@ -598,7 +598,7 @@ function DisplayRowComponent({
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
-  onCreateCall: (clientId: string, date: Date, time?: string) => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, recurrence?: 'none' | 'weekly', duration?: '4' | '8' | '12' | 'eoy') => void;
   onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
