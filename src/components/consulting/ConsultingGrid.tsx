@@ -3,13 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FormattedCurrency } from "@/components/ui/formatted-currency";
-import { format, startOfMonth, addMonths } from "date-fns";
+import { format, startOfMonth, addMonths, parseISO } from "date-fns";
 import { useState } from "react";
 import { ScheduleCallDialog } from "./ScheduleCallDialog";
 import { AddClientDialog } from "./AddClientDialog";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, Phone, CheckCircle, XCircle, Clock } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Phone, CheckCircle, XCircle, Clock, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,14 @@ interface ConsultingCall {
   call_time: string | null;
   status: string;
   notes: string | null;
+}
+
+interface DisplayRow {
+  type: 'client' | 'call';
+  client: ConsultingClient;
+  call?: ConsultingCall;
+  isFirstForClient: boolean;
+  clientRowCount: number;
 }
 
 export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
@@ -81,21 +89,65 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
         .from('consulting_calls')
         .select('*')
         .gte('call_date', format(currentMonth, 'yyyy-MM-dd'))
-        .lt('call_date', format(endMonth, 'yyyy-MM-dd'));
+        .lt('call_date', format(endMonth, 'yyyy-MM-dd'))
+        .order('call_date', { ascending: true });
 
       if (error) throw error;
       return data as ConsultingCall[];
     },
   });
 
-  const handleCellClick = (client: ConsultingClient, month: Date, existingCalls: ConsultingCall[]) => {
+  // Build display rows: one row per call, plus one row for clients without calls
+  const buildDisplayRows = (): DisplayRow[] => {
+    if (!clients) return [];
+
+    const rows: DisplayRow[] = [];
+
+    clients.forEach(client => {
+      const clientCalls = calls?.filter(c => c.client_id === client.id) || [];
+      
+      if (clientCalls.length === 0) {
+        // Client with no calls - show one empty row
+        rows.push({
+          type: 'client',
+          client,
+          isFirstForClient: true,
+          clientRowCount: 1,
+        });
+      } else {
+        // One row per call, sorted by date
+        const sortedCalls = [...clientCalls].sort((a, b) => 
+          a.call_date.localeCompare(b.call_date)
+        );
+        
+        sortedCalls.forEach((call, index) => {
+          rows.push({
+            type: 'call',
+            client,
+            call,
+            isFirstForClient: index === 0,
+            clientRowCount: sortedCalls.length,
+          });
+        });
+      }
+    });
+
+    return rows;
+  };
+
+  const displayRows = buildDisplayRows();
+
+  const handleAddCall = (client: ConsultingClient) => {
     setSelectedClient(client);
-    setSelectedMonth(month);
-    if (existingCalls.length === 1) {
-      setSelectedCall(existingCalls[0]);
-    } else {
-      setSelectedCall(null);
-    }
+    setSelectedMonth(currentMonth);
+    setSelectedCall(null);
+    setScheduleDialogOpen(true);
+  };
+
+  const handleEditCall = (client: ConsultingClient, call: ConsultingCall) => {
+    setSelectedClient(client);
+    setSelectedMonth(parseISO(call.call_date));
+    setSelectedCall(call);
     setScheduleDialogOpen(true);
   };
 
@@ -124,23 +176,43 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
   };
 
-  const getCallsForClientMonth = (clientId: string, month: Date): ConsultingCall[] => {
-    if (!calls) return [];
-    const monthStr = format(month, 'yyyy-MM');
-    return calls.filter(call => 
-      call.client_id === clientId && 
-      call.call_date.startsWith(monthStr)
-    );
+  const handleDeleteCall = async (call: ConsultingCall) => {
+    if (!confirm("Delete this call?")) return;
+
+    const { error } = await supabase
+      .from('consulting_calls')
+      .delete()
+      .eq('id', call.id);
+
+    if (error) {
+      toast.error("Failed to delete call");
+      return;
+    }
+
+    toast.success("Call deleted");
+    queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
+    queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="h-3 w-3 text-green-600" />;
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
       case 'cancelled':
-        return <XCircle className="h-3 w-3 text-red-600" />;
+        return <XCircle className="h-4 w-4 text-red-600" />;
       default:
-        return <Clock className="h-3 w-3 text-blue-600" />;
+        return <Clock className="h-4 w-4 text-blue-600" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Completed</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">Cancelled</Badge>;
+      default:
+        return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Scheduled</Badge>;
     }
   };
 
@@ -176,105 +248,155 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
               <TableRow className="bg-muted/50">
                 <TableHead className="w-[50px] sticky left-0 bg-muted/50 z-20"></TableHead>
                 <TableHead className="min-w-[180px] sticky left-[50px] bg-muted/50 z-20">Dealership</TableHead>
-                <TableHead className="min-w-[200px] sticky left-[230px] bg-muted/50 z-20">Dept - Contact</TableHead>
-                <TableHead className="min-w-[100px] sticky left-[430px] bg-muted/50 z-20 text-right">Value</TableHead>
-                {months.map((month) => (
-                  <TableHead key={month.toISOString()} className="min-w-[120px] text-center">
-                    {format(month, 'MMM yyyy')}
-                  </TableHead>
-                ))}
+                <TableHead className="min-w-[180px] sticky left-[230px] bg-muted/50 z-20">Dept - Contact</TableHead>
+                <TableHead className="min-w-[90px] sticky left-[410px] bg-muted/50 z-20 text-right">Value</TableHead>
+                <TableHead className="min-w-[110px]">Date</TableHead>
+                <TableHead className="min-w-[80px]">Time</TableHead>
+                <TableHead className="min-w-[100px]">Status</TableHead>
+                <TableHead className="min-w-[200px]">Notes</TableHead>
+                <TableHead className="w-[80px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.id} className={cn(client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20")}>
+              {displayRows.map((row, index) => (
+                <TableRow 
+                  key={row.call?.id || `${row.client.id}-empty`} 
+                  className={cn(
+                    row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20",
+                    !row.isFirstForClient && "border-t-0"
+                  )}
+                >
+                  {/* Actions column */}
                   <TableCell className="sticky left-0 bg-background z-10">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuItem onClick={() => handleEditClient(client)}>
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteClient(client)} className="text-destructive">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {row.isFirstForClient && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          <DropdownMenuItem onClick={() => handleAddCall(row.client)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Call
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditClient(row.client)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit Client
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDeleteClient(row.client)} className="text-destructive">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Client
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </TableCell>
+
+                  {/* Dealership - only show on first row for client */}
                   <TableCell className="font-medium sticky left-[50px] bg-background z-10">
-                    <div className="flex items-center gap-2">
-                      {client.name}
-                      {client.is_adhoc && (
-                        <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
-                          Ad-Hoc
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="sticky left-[230px] bg-background z-10">
-                    <div className="text-sm">
-                      {client.department_name && (
-                        <span className="font-medium">{client.department_name}</span>
-                      )}
-                      {client.contact_names && (
-                        <span className="text-muted-foreground">
-                          {client.department_name ? ' - ' : ''}{client.contact_names}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-medium sticky left-[430px] bg-background z-10">
-                    <FormattedCurrency value={client.call_value} />
-                  </TableCell>
-                  {months.map((month) => {
-                    const monthCalls = getCallsForClientMonth(client.id, month);
-                    return (
-                      <TableCell 
-                        key={month.toISOString()} 
-                        className="text-center cursor-pointer hover:bg-muted/50 transition-colors p-1"
-                        onClick={() => handleCellClick(client, month, monthCalls)}
-                      >
-                        {monthCalls.length === 0 ? (
-                          <div className="h-8 flex items-center justify-center text-muted-foreground text-xs">
-                            —
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            {monthCalls.slice(0, 2).map((call) => (
-                              <div 
-                                key={call.id} 
-                                className={cn(
-                                  "text-xs px-2 py-1 rounded flex items-center justify-center gap-1",
-                                  call.status === 'completed' && "bg-green-100 dark:bg-green-900/30",
-                                  call.status === 'cancelled' && "bg-red-100 dark:bg-red-900/30",
-                                  call.status === 'scheduled' && "bg-blue-100 dark:bg-blue-900/30"
-                                )}
-                              >
-                                {getStatusIcon(call.status)}
-                                <span>{format(new Date(call.call_date), 'MMM d')}</span>
-                                {call.call_time && (
-                                  <span className="text-muted-foreground">
-                                    {call.call_time.slice(0, 5)}
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                            {monthCalls.length > 2 && (
-                              <div className="text-xs text-muted-foreground">
-                                +{monthCalls.length - 2} more
-                              </div>
-                            )}
-                          </div>
+                    {row.isFirstForClient ? (
+                      <div className="flex items-center gap-2">
+                        {row.client.name}
+                        {row.client.is_adhoc && (
+                          <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
+                            Ad-Hoc
+                          </Badge>
                         )}
-                      </TableCell>
-                    );
-                  })}
+                        {row.clientRowCount > 1 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {row.clientRowCount} calls
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">↳</span>
+                    )}
+                  </TableCell>
+
+                  {/* Dept - Contact */}
+                  <TableCell className="sticky left-[230px] bg-background z-10">
+                    {row.isFirstForClient && (
+                      <div className="text-sm">
+                        {row.client.department_name && (
+                          <span className="font-medium">{row.client.department_name}</span>
+                        )}
+                        {row.client.contact_names && (
+                          <span className="text-muted-foreground">
+                            {row.client.department_name ? ' - ' : ''}{row.client.contact_names}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
+
+                  {/* Value */}
+                  <TableCell className="text-right font-medium sticky left-[410px] bg-background z-10">
+                    {row.isFirstForClient && (
+                      <FormattedCurrency value={row.client.call_value} />
+                    )}
+                  </TableCell>
+
+                  {/* Date */}
+                  <TableCell>
+                    {row.call ? (
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(row.call.status)}
+                        <span className="font-medium">
+                          {format(parseISO(row.call.call_date), 'MMM d, yyyy')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">No calls scheduled</span>
+                    )}
+                  </TableCell>
+
+                  {/* Time */}
+                  <TableCell>
+                    {row.call?.call_time ? (
+                      <span>{row.call.call_time.slice(0, 5)}</span>
+                    ) : row.call ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : null}
+                  </TableCell>
+
+                  {/* Status */}
+                  <TableCell>
+                    {row.call && getStatusBadge(row.call.status)}
+                  </TableCell>
+
+                  {/* Notes */}
+                  <TableCell>
+                    {row.call?.notes && (
+                      <span className="text-sm text-muted-foreground line-clamp-1">
+                        {row.call.notes}
+                      </span>
+                    )}
+                  </TableCell>
+
+                  {/* Row Actions */}
+                  <TableCell>
+                    {row.call && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditCall(row.client, row.call!)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteCall(row.call!)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
