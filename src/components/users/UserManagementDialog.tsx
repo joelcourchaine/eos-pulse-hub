@@ -569,6 +569,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         </SelectTrigger>
                         <SelectContent>
                           {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                          {isSuperAdmin && <SelectItem value="consulting_scheduler">Consulting Scheduler</SelectItem>}
                           <SelectItem value="store_gm">Store GM</SelectItem>
                           <SelectItem value="department_manager">Dept Manager</SelectItem>
                           <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
