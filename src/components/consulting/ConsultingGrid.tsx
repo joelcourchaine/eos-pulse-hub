@@ -802,7 +802,7 @@ function MonthCell({
                   "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
                   "hover:bg-muted/50",
                   !call && "text-muted-foreground",
-                  isCallInPast && call?.status !== 'completed' && "opacity-50"
+                  isCallInPast && "opacity-50"
                 )}
               >
                 {call && (
