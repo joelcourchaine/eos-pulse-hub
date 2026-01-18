@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, isPast, isToday } from "date-fns";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -777,6 +777,19 @@ function MonthCell({
     ? `${format(parseISO(call.call_date), 'MMM d')}${call.call_time ? ` ${call.call_time.slice(0, 5)}` : ''}`
     : null;
 
+  // Check if the call date/time is in the past
+  const isCallInPast = call ? (() => {
+    const callDate = parseISO(call.call_date);
+    if (call.call_time) {
+      const [hours, minutes] = call.call_time.split(':').map(Number);
+      callDate.setHours(hours, minutes, 0, 0);
+    } else {
+      // If no time specified, consider it past if the whole day is past
+      callDate.setHours(23, 59, 59, 999);
+    }
+    return callDate < new Date();
+  })() : false;
+
   return (
     <TableCell className="text-center">
       <ContextMenu>
@@ -788,7 +801,8 @@ function MonthCell({
                 className={cn(
                   "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
                   "hover:bg-muted/50",
-                  !call && "text-muted-foreground"
+                  !call && "text-muted-foreground",
+                  isCallInPast && call?.status !== 'completed' && "opacity-50"
                 )}
               >
                 {call && (
