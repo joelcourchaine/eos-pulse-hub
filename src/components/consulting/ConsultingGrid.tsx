@@ -492,7 +492,6 @@ function DisplayRowComponent({
   const [editingContact, setEditingContact] = useState(false);
   const [tempContact, setTempContact] = useState(row.client.contact_names || '');
 
-  const isFirstRow = row.rowIndex === 0;
   const currentDepts = row.store_id 
     ? allDepartments.filter(d => d.store_id === row.store_id) 
     : [];
@@ -527,115 +526,104 @@ function DisplayRowComponent({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <TableRow className={cn(
-          row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20",
-          !isFirstRow && "border-t-0"
+          row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20"
         )}>
-          {/* Dealership - show on first row only */}
+          {/* Dealership */}
           <TableCell className="sticky left-0 bg-background z-10">
-            {isFirstRow ? (
-              row.client.is_adhoc ? (
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{row.client.name}</span>
-                  <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
-                    Ad-Hoc
-                  </Badge>
-                </div>
-              ) : (
-                <Select value={row.store_id || ''} onValueChange={handleDealershipChange}>
-                  <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
-                    <SelectValue placeholder="Select dealership" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
+            {row.client.is_adhoc ? (
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{row.client.name}</span>
+                <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
+                  Ad-Hoc
+                </Badge>
+              </div>
             ) : (
-              <span className="text-muted-foreground text-sm pl-4">↳</span>
+              <Select value={row.store_id || ''} onValueChange={handleDealershipChange}>
+                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                  <SelectValue placeholder="Select dealership" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
           </TableCell>
 
-          {/* Department - show on first row only */}
+          {/* Department */}
           <TableCell>
-            {isFirstRow ? (
-              row.client.is_adhoc ? (
-                <span className="text-sm text-muted-foreground">{row.client.department_name || '—'}</span>
-              ) : (
-                <Select 
-                  value={row.department_id || ''} 
-                  onValueChange={handleDepartmentChange}
-                  disabled={!row.store_id}
-                >
-                  <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentDepts.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )
-            ) : null}
+            {row.client.is_adhoc ? (
+              <span className="text-sm text-muted-foreground">{row.client.department_name || '—'}</span>
+            ) : (
+              <Select 
+                value={row.department_id || ''} 
+                onValueChange={handleDepartmentChange}
+                disabled={!row.store_id}
+              >
+                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {currentDepts.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </TableCell>
 
-          {/* Contact - show on first row only */}
+          {/* Contact */}
           <TableCell>
-            {isFirstRow ? (
-              editingContact ? (
-                <Input
-                  value={tempContact}
-                  onChange={(e) => setTempContact(e.target.value)}
-                  onBlur={handleSaveContact}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
-                  autoFocus
-                  className="h-8"
-                />
-              ) : (
-                <span 
-                  className="cursor-text hover:bg-muted/50 px-2 py-1 rounded -mx-2 block truncate"
-                  onClick={() => {
-                    setTempContact(row.client.contact_names || '');
-                    setEditingContact(true);
-                  }}
-                >
-                  {row.client.contact_names || <span className="text-muted-foreground">—</span>}
-                </span>
-              )
-            ) : null}
+            {editingContact ? (
+              <Input
+                value={tempContact}
+                onChange={(e) => setTempContact(e.target.value)}
+                onBlur={handleSaveContact}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
+                autoFocus
+                className="h-8"
+              />
+            ) : (
+              <span 
+                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded -mx-2 block truncate"
+                onClick={() => {
+                  setTempContact(row.client.contact_names || '');
+                  setEditingContact(true);
+                }}
+              >
+                {row.client.contact_names || <span className="text-muted-foreground">—</span>}
+              </span>
+            )}
           </TableCell>
 
-          {/* Value - show on first row only */}
+          {/* Value */}
           <TableCell className="text-right">
-            {isFirstRow ? (
-              editingValue ? (
-                <Input
-                  type="number"
-                  value={tempValue}
-                  onChange={(e) => setTempValue(e.target.value)}
-                  onBlur={handleSaveValue}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSaveValue()}
-                  autoFocus
-                  className="h-8 w-16 text-right ml-auto"
-                />
-              ) : (
-                <span 
-                  className="cursor-text hover:bg-muted/50 px-2 py-1 rounded font-medium"
-                  onClick={() => {
-                    setTempValue(row.client.call_value?.toString() || '0');
-                    setEditingValue(true);
-                  }}
-                >
-                  ${row.client.call_value?.toFixed(0) || '0'}
-                </span>
-              )
-            ) : null}
+            {editingValue ? (
+              <Input
+                type="number"
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                onBlur={handleSaveValue}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveValue()}
+                autoFocus
+                className="h-8 w-16 text-right ml-auto"
+              />
+            ) : (
+              <span 
+                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded font-medium"
+                onClick={() => {
+                  setTempValue(row.client.call_value?.toString() || '0');
+                  setEditingValue(true);
+                }}
+              >
+                ${row.client.call_value?.toFixed(0) || '0'}
+              </span>
+            )}
           </TableCell>
 
           {/* Month columns */}
@@ -652,18 +640,16 @@ function DisplayRowComponent({
             />
           ))}
 
-          {/* Delete - only on first row */}
+          {/* Delete */}
           <TableCell>
-            {isFirstRow && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                onClick={() => onDeleteClient(row.client.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              onClick={() => onDeleteClient(row.client.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </TableCell>
         </TableRow>
       </ContextMenuTrigger>
