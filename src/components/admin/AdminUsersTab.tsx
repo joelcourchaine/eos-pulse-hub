@@ -15,8 +15,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, KeyRound, Loader2, Clock, Mail, Plus } from "lucide-react";
+import { Search, KeyRound, Loader2, Clock, Mail, Plus, Pencil } from "lucide-react";
 import { AddUserDialog } from "@/components/users/AddUserDialog";
+import { UserManagementDialog } from "@/components/users/UserManagementDialog";
+
 import { formatDistanceToNow } from "date-fns";
 
 export const AdminUsersTab = () => {
@@ -25,6 +27,7 @@ export const AdminUsersTab = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active">("all");
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [manageUsersOpen, setManageUsersOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: roleBreakdown, isLoading: rolesLoading } = useQuery({
@@ -125,6 +128,7 @@ export const AdminUsersTab = () => {
     store_gm: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
     department_manager: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
     fixed_ops_manager: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+    consulting_scheduler: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
     user: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
   };
 
@@ -214,6 +218,10 @@ export const AdminUsersTab = () => {
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
+            <Button variant="outline" onClick={() => setManageUsersOpen(true)}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Manage Users
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -302,6 +310,17 @@ export const AdminUsersTab = () => {
         onUserCreated={() => {
           queryClient.invalidateQueries({ queryKey: ["admin-all-users"] });
           queryClient.invalidateQueries({ queryKey: ["admin-user-role-counts"] });
+        }}
+      />
+
+      <UserManagementDialog
+        open={manageUsersOpen}
+        onOpenChange={(open) => {
+          setManageUsersOpen(open);
+          if (!open) {
+            queryClient.invalidateQueries({ queryKey: ["admin-all-users"] });
+            queryClient.invalidateQueries({ queryKey: ["admin-user-role-counts"] });
+          }
         }}
       />
     </div>
