@@ -441,7 +441,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[200px] sticky left-0 bg-muted/50 z-10">Dealership</TableHead>
+                <TableHead className="w-[280px] min-w-[280px] sticky left-0 bg-muted/50 z-10">Dealership</TableHead>
                 <TableHead className="w-[120px]">Department</TableHead>
                 <TableHead className="w-[120px]">Contact</TableHead>
                 <TableHead className="w-[80px] text-right">Value</TableHead>
