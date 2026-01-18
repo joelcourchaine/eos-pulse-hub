@@ -219,6 +219,45 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
       }
     });
 
+    // Sort rows by earliest call date/time (later dates appear lower)
+    rows.sort((a, b) => {
+      // Find the earliest call for each row
+      const getEarliestCall = (row: DisplayRow): { date: string; time: string } | null => {
+        let earliest: { date: string; time: string } | null = null;
+        row.calls.forEach((call) => {
+          if (call) {
+            const callDateTime = { date: call.call_date, time: call.call_time || '00:00' };
+            if (!earliest) {
+              earliest = callDateTime;
+            } else {
+              const currentSort = `${callDateTime.date}T${callDateTime.time}`;
+              const earliestSort = `${earliest.date}T${earliest.time}`;
+              if (currentSort < earliestSort) {
+                earliest = callDateTime;
+              }
+            }
+          }
+        });
+        return earliest;
+      };
+
+      const earliestA = getEarliestCall(a);
+      const earliestB = getEarliestCall(b);
+
+      // Rows without calls go to the bottom
+      if (!earliestA && !earliestB) {
+        return a.client.name.localeCompare(b.client.name);
+      }
+      if (!earliestA) return 1;
+      if (!earliestB) return -1;
+
+      // Sort by date and time (earlier dates/times first, later ones lower in list)
+      const sortKeyA = `${earliestA.date}T${earliestA.time}`;
+      const sortKeyB = `${earliestB.date}T${earliestB.time}`;
+      
+      return sortKeyA.localeCompare(sortKeyB);
+    });
+
     return rows;
   }, [clients, calls, stores, allDepartments, months]);
 
