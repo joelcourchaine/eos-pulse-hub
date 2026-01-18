@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth, isPast, isToday, addWeeks } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, addWeeks } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -366,18 +366,43 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     clientId: string, 
     date: Date, 
     time?: string,
-    isRecurring?: boolean
+    recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly'
   ) => {
     try {
-      if (isRecurring) {
-        // Generate weekly calls for 2 years ahead (indefinite)
-        const weeksCount = 104; // ~2 years
+      if (recurrenceType) {
+        // Calculate number of occurrences based on frequency
+        let occurrences: number;
+        let addInterval: (date: Date, count: number) => Date;
+        let label: string;
+        
+        switch (recurrenceType) {
+          case 'weekly':
+            occurrences = 104; // ~2 years
+            addInterval = (d, c) => addWeeks(d, c);
+            label = 'Weekly';
+            break;
+          case 'bi-weekly':
+            occurrences = 52; // ~2 years
+            addInterval = (d, c) => addWeeks(d, c * 2);
+            label = 'Bi-weekly';
+            break;
+          case 'monthly':
+            occurrences = 24; // 2 years
+            addInterval = (d, c) => addMonths(d, c);
+            label = 'Monthly';
+            break;
+          case 'quarterly':
+            occurrences = 8; // 2 years
+            addInterval = (d, c) => addMonths(d, c * 3);
+            label = 'Quarterly';
+            break;
+        }
         
         const recurrenceGroupId = crypto.randomUUID();
         
         const callsToInsert = [];
-        for (let i = 0; i < weeksCount; i++) {
-          const callDate = addWeeks(date, i);
+        for (let i = 0; i < occurrences; i++) {
+          const callDate = addInterval(date, i);
           callsToInsert.push({
             client_id: clientId,
             call_date: format(callDate, 'yyyy-MM-dd'),
@@ -392,7 +417,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           .insert(callsToInsert);
 
         if (error) throw error;
-        toast.success(`Weekly recurring calls scheduled`);
+        toast.success(`${label} recurring calls scheduled`);
       } else {
         // Single call
         const { error } = await supabase
@@ -454,15 +479,33 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     }
   };
 
-  const handleDeleteRecurringSeries = async (recurrenceGroupId: string) => {
+  const handleDeleteRecurringSeries = async (recurrenceGroupId: string, keepCallId?: string) => {
     try {
-      const { error } = await supabase
+      let query = supabase
         .from('consulting_calls')
         .delete()
         .eq('recurrence_group_id', recurrenceGroupId);
+      
+      // If keepCallId is provided, exclude that call from deletion
+      if (keepCallId) {
+        query = query.neq('id', keepCallId);
+      }
+
+      const { error } = await query;
 
       if (error) throw error;
-      toast.success("Recurring series deleted");
+      
+      // If we kept a call, also clear its recurrence_group_id
+      if (keepCallId) {
+        await supabase
+          .from('consulting_calls')
+          .update({ recurrence_group_id: null })
+          .eq('id', keepCallId);
+        toast.success("Recurring series removed, original call kept");
+      } else {
+        toast.success("Recurring series deleted");
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
       queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
     } catch (error: any) {
@@ -596,11 +639,11 @@ function DisplayRowComponent({
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
-  onCreateCall: (clientId: string, date: Date, time?: string, isRecurring?: boolean) => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly') => void;
   onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
-  onDeleteRecurringSeries: (recurrenceGroupId: string) => void;
+  onDeleteRecurringSeries: (recurrenceGroupId: string, keepCallId?: string) => void;
   onCancelRecurringSeries: (recurrenceGroupId: string) => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
@@ -805,10 +848,10 @@ function MonthCell({
   monthKey: string;
   monthDate: Date;
   call: ConsultingCall | null;
-  onCreateCall: (clientId: string, date: Date, time?: string, isRecurring?: boolean) => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly') => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
-  onDeleteRecurringSeries: (recurrenceGroupId: string) => void;
+  onDeleteRecurringSeries: (recurrenceGroupId: string, keepCallId?: string) => void;
   onCancelRecurringSeries: (recurrenceGroupId: string) => void;
 }) {
   const [dateOpen, setDateOpen] = useState(false);
@@ -816,7 +859,7 @@ function MonthCell({
     call?.call_date ? parseISO(call.call_date) : undefined
   );
   const [time, setTime] = useState(call?.call_time?.slice(0, 5) || '');
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceType, setRecurrenceType] = useState<'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'none'>('none');
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
@@ -842,10 +885,10 @@ function MonthCell({
 
   const handleCreateNewCall = () => {
     if (!selectedDate) return;
-    onCreateCall(clientId, selectedDate, time || undefined, isRecurring);
+    onCreateCall(clientId, selectedDate, time || undefined, recurrenceType !== 'none' ? recurrenceType : undefined);
     setDateOpen(false);
     // Reset for next time
-    setIsRecurring(false);
+    setRecurrenceType('none');
   };
 
   const handleTimeChange = (newTime: string) => {
@@ -927,17 +970,24 @@ function MonthCell({
               {/* Recurrence options - only for new calls */}
               {!call && selectedDate && (
                 <div className="p-3 border-t space-y-3">
-                  <label className="flex items-center space-x-2 cursor-pointer select-none">
-                    <Checkbox 
-                      id="recurring" 
-                      checked={isRecurring}
-                      onCheckedChange={(checked) => setIsRecurring(Boolean(checked))}
-                    />
-                    <span className="text-sm font-medium flex items-center gap-2">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
                       <Repeat className="h-3 w-3" />
-                      Recurring weekly
-                    </span>
-                  </label>
+                      Recurrence
+                    </Label>
+                    <Select value={recurrenceType} onValueChange={(v) => setRecurrenceType(v as typeof recurrenceType)}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="No recurrence" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No recurrence</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <Button 
                     size="sm" 
@@ -945,36 +995,63 @@ function MonthCell({
                     onClick={handleCreateNewCall}
                   >
                     <Plus className="h-3 w-3 mr-2" />
-                    {isRecurring ? 'Create Recurring Calls' : 'Schedule Call'}
+                    {recurrenceType !== 'none' ? 'Create Recurring Calls' : 'Schedule Call'}
                   </Button>
                 </div>
               )}
               
               {call && (
                 <div className="p-3 border-t space-y-3">
-                  <label className="flex items-center space-x-2 cursor-pointer select-none">
-                    <Checkbox 
-                      checked={!!call.recurrence_group_id}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          // Convert single call to recurring
-                          const callDate = parseISO(call.call_date);
-                          onDeleteCall(call.id);
-                          onCreateCall(clientId, callDate, call.call_time || undefined, true);
-                        } else {
-                          // Remove all recurring calls in series
-                          if (call.recurrence_group_id) {
-                            onDeleteRecurringSeries(call.recurrence_group_id);
+                  {call.recurrence_group_id ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium flex items-center gap-2">
+                          <Repeat className="h-3 w-3" />
+                          Recurring call
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Keep this call but remove all others in the series
+                            onDeleteRecurringSeries(call.recurrence_group_id!, call.id);
+                            setDateOpen(false);
+                          }}
+                        >
+                          Stop recurring
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Repeat className="h-3 w-3" />
+                        Make recurring
+                      </Label>
+                      <Select 
+                        value="none" 
+                        onValueChange={(v) => {
+                          if (v !== 'none') {
+                            const callDate = parseISO(call.call_date);
+                            onDeleteCall(call.id);
+                            onCreateCall(clientId, callDate, call.call_time || undefined, v as 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly');
+                            setDateOpen(false);
                           }
-                        }
-                        setDateOpen(false);
-                      }}
-                    />
-                    <span className="text-sm font-medium flex items-center gap-2">
-                      <Repeat className="h-3 w-3" />
-                      Recurring weekly
-                    </span>
-                  </label>
+                        }}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue placeholder="Select frequency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not recurring</SelectItem>
+                          <SelectItem value="weekly">Weekly</SelectItem>
+                          <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
