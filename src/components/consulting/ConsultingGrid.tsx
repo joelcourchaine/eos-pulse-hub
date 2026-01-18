@@ -951,7 +951,31 @@ function MonthCell({
               )}
               
               {call && (
-                <div className="p-3 border-t space-y-2">
+                <div className="p-3 border-t space-y-3">
+                  {/* Option to convert single call to recurring */}
+                  {!call.recurrence_group_id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        // Delete this single call and create a recurring series starting from its date
+                        const callDate = parseISO(call.call_date);
+                        onDeleteCall(call.id);
+                        onCreateCall(clientId, callDate, call.call_time || undefined, true);
+                        setDateOpen(false);
+                      }}
+                    >
+                      <Repeat className="h-3 w-3 mr-2" />
+                      Make Recurring Weekly
+                    </Button>
+                  )}
+                  {call.recurrence_group_id && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Repeat className="h-3 w-3" />
+                      Part of recurring series
+                    </p>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
