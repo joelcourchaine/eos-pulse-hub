@@ -976,7 +976,12 @@ function MonthCell({
               )}
               
               {call && (
-                <div className="p-3 border-t">
+                <div className="p-3 border-t space-y-2">
+                  {!call.recurrence_group_id && (
+                    <p className="text-xs text-muted-foreground">
+                      Right-click for more options including recurring series
+                    </p>
+                  )}
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1007,9 +1012,23 @@ function MonthCell({
             <XCircle className="h-4 w-4 mr-2 text-red-500" />
             Mark as Cancelled
           </ContextMenuItem>
+          <ContextMenuSeparator />
+          {!call?.recurrence_group_id && (
+            <ContextMenuItem 
+              onClick={() => {
+                if (call) {
+                  // Create weekly recurring series starting from this call's date
+                  const startDate = parseISO(call.call_date);
+                  onCreateCall(clientId, addWeeks(startDate, 1), call.call_time || undefined, 'weekly', '4');
+                }
+              }}
+            >
+              <Repeat className="h-4 w-4 mr-2" />
+              Add 4 Weeks After This
+            </ContextMenuItem>
+          )}
           {call?.recurrence_group_id && (
             <>
-              <ContextMenuSeparator />
               <ContextMenuItem 
                 onClick={() => onCancelRecurringSeries(call.recurrence_group_id!)}
                 className="text-amber-600"
