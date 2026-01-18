@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/context-menu";
 import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -1014,18 +1014,27 @@ function MonthCell({
           </ContextMenuItem>
           <ContextMenuSeparator />
           {!call?.recurrence_group_id && (
-            <ContextMenuItem 
-              onClick={() => {
-                if (call) {
-                  // Create weekly recurring series starting from this call's date
-                  const startDate = parseISO(call.call_date);
-                  onCreateCall(clientId, addWeeks(startDate, 1), call.call_time || undefined, 'weekly', '4');
-                }
-              }}
-            >
-              <Repeat className="h-4 w-4 mr-2" />
-              Add 4 Weeks After This
-            </ContextMenuItem>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <Repeat className="h-4 w-4 mr-2" />
+                Add Weekly Series After This
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {(['4', '8', '12', 'eoy'] as const).map((duration) => (
+                  <ContextMenuItem
+                    key={duration}
+                    onClick={() => {
+                      if (call) {
+                        const startDate = parseISO(call.call_date);
+                        onCreateCall(clientId, addWeeks(startDate, 1), call.call_time || undefined, 'weekly', duration);
+                      }
+                    }}
+                  >
+                    {duration === 'eoy' ? 'Until end of year' : `${duration} weeks`}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
           )}
           {call?.recurrence_group_id && (
             <>
