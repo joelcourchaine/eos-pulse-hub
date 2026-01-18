@@ -388,6 +388,13 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={handleAddRow} disabled={!!newRow}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Client
+        </Button>
+      </div>
+
       <div className="border rounded-lg overflow-hidden">
         <ScrollArea className="w-full">
           <Table>
