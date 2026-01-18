@@ -16,10 +16,12 @@ import { startOfMonth, addMonths, format } from "date-fns";
 const ConsultingScheduler = () => {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | undefined>(undefined);
-  const { isSuperAdmin, loading: roleLoading } = useUserRole(userId);
+  const { isSuperAdmin, isConsultingScheduler, loading: roleLoading } = useUserRole(userId);
   const [authLoading, setAuthLoading] = useState(true);
   const [showAdhoc, setShowAdhoc] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
+  
+  const canAccessScheduler = isSuperAdmin || isConsultingScheduler;
 
   useEffect(() => {
     const getUser = async () => {
@@ -34,11 +36,11 @@ const ConsultingScheduler = () => {
     if (!authLoading && !roleLoading) {
       if (!userId) {
         navigate("/auth");
-      } else if (!isSuperAdmin) {
+      } else if (!canAccessScheduler) {
         navigate("/dashboard");
       }
     }
-  }, [userId, isSuperAdmin, authLoading, roleLoading, navigate]);
+  }, [userId, canAccessScheduler, authLoading, roleLoading, navigate]);
 
   // Calculate current month stats
   const currentMonthStart = startOfMonth(new Date());
@@ -56,7 +58,7 @@ const ConsultingScheduler = () => {
           client_id,
           consulting_clients!inner(call_value, is_adhoc)
         `)
-        .gte('call_date', format(currentMonthStart, 'yyyy-MM-dd'))
+      .gte('call_date', format(currentMonthStart, 'yyyy-MM-dd'))
         .lt('call_date', format(currentMonthEnd, 'yyyy-MM-dd'));
 
       if (error) throw error;
@@ -81,7 +83,7 @@ const ConsultingScheduler = () => {
         completedValue,
       };
     },
-    enabled: isSuperAdmin,
+    enabled: canAccessScheduler,
   });
 
   if (authLoading || roleLoading) {
@@ -95,7 +97,7 @@ const ConsultingScheduler = () => {
     );
   }
 
-  if (!isSuperAdmin) {
+  if (!canAccessScheduler) {
     return null;
   }
 
