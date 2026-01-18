@@ -234,10 +234,12 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     });
   };
 
-  const handleSaveNewRow = async () => {
+  const handleSaveNewRow = async (overrideStoreId?: string) => {
     if (!newRow) return;
 
-    if (!newRow.store_id && !newRow.adhoc_name) {
+    const storeId = overrideStoreId || newRow.store_id;
+
+    if (!storeId && !newRow.adhoc_name) {
       toast.error("Please select a dealership or enter ad-hoc name");
       return;
     }
@@ -248,8 +250,8 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
       let clientName = newRow.adhoc_name;
       let deptName = newRow.adhoc_dept;
 
-      if (newRow.store_id) {
-        const store = stores?.find(s => s.id === newRow.store_id);
+      if (storeId) {
+        const store = stores?.find(s => s.id === storeId);
         clientName = store?.name || '';
       }
       if (newRow.department_id) {
@@ -263,7 +265,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
         .select('id')
         .eq('name', clientName)
         .eq('department_name', deptName || '')
-        .single();
+        .maybeSingle();
 
       if (existingClient) {
         toast.error("This dealership/department combination already exists");
@@ -421,7 +423,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   stores={stores || []}
                   allDepartments={allDepartments || []}
                   months={months}
-                  onSave={handleSaveNewRow}
+                  onSaveWithStoreId={handleSaveNewRow}
                   onCancel={() => setNewRow(null)}
                 />
               )}
@@ -822,7 +824,7 @@ function NewClientRow({
   stores,
   allDepartments,
   months,
-  onSave,
+  onSaveWithStoreId,
   onCancel,
 }: {
   row: {
@@ -838,14 +840,15 @@ function NewClientRow({
   stores: Store[];
   allDepartments: Department[];
   months: { key: string; label: string; shortLabel: string; date: Date }[];
-  onSave: () => void;
+  onSaveWithStoreId: (storeId?: string) => void;
   onCancel: () => void;
 }) {
   const handleStoreChange = (storeId: string) => {
     if (storeId === 'adhoc') {
       setRow({ ...row, store_id: null, department_id: null, is_adhoc: true });
     } else {
-      setRow({ ...row, store_id: storeId, department_id: null, is_adhoc: false });
+      // Auto-save when a dealership is selected
+      onSaveWithStoreId(storeId);
     }
   };
 
@@ -952,9 +955,11 @@ function NewClientRow({
       {/* Actions */}
       <TableCell>
         <div className="flex items-center gap-1">
-          <Button size="sm" className="h-7 px-2" onClick={onSave}>
-            Save
-          </Button>
+          {row.is_adhoc && (
+            <Button size="sm" className="h-7 px-2" onClick={() => onSaveWithStoreId()}>
+              Save
+            </Button>
+          )}
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onCancel}>
             ×
           </Button>
