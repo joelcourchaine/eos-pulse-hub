@@ -917,8 +917,19 @@ function NewClientRow({
             <Input
               value={row.adhoc_name}
               onChange={(e) => setRow({ ...row, adhoc_name: e.target.value })}
+              onBlur={() => {
+                if (row.adhoc_name.trim()) {
+                  onSaveWithStoreId();
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && row.adhoc_name.trim()) {
+                  onSaveWithStoreId();
+                }
+              }}
               placeholder="Ad-hoc name"
               className="h-8"
+              autoFocus
             />
             <Button 
               variant="ghost" 
