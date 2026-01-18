@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/context-menu";
-import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle } from "lucide-react";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
+import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -51,11 +51,14 @@ interface Department {
   store_id: string;
 }
 
-interface ClientRow {
+// Each display row represents a single "slot" for calls across months
+interface DisplayRow {
+  rowId: string; // unique identifier for this row
   client: ConsultingClient;
   store_id: string | null;
   department_id: string | null;
-  calls: Map<string, ConsultingCall[]>; // month key -> array of calls
+  rowIndex: number; // 0 = first row for this client, 1 = second, etc.
+  calls: Map<string, ConsultingCall | null>; // month key -> single call (or null)
 }
 
 export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
@@ -149,11 +152,13 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     },
   });
 
-  // Build client rows with calls mapped to months (supporting multiple calls per month)
-  const clientRows = useMemo(() => {
+  // Build display rows - each client gets N rows where N = max calls in any single month
+  const displayRows = useMemo(() => {
     if (!clients) return [];
 
-    const rows: ClientRow[] = clients.map(client => {
+    const rows: DisplayRow[] = [];
+
+    clients.forEach(client => {
       // Find matching store/department
       let store_id: string | null = null;
       let department_id: string | null = null;
@@ -171,22 +176,47 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
         }
       }
 
-      // Map calls to months (array per month for multiple calls)
-      const callsMap = new Map<string, ConsultingCall[]>();
-      months.forEach(m => callsMap.set(m.key, []));
+      // Group calls by month for this client
+      const callsByMonth = new Map<string, ConsultingCall[]>();
+      months.forEach(m => callsByMonth.set(m.key, []));
 
       if (calls) {
         calls
           .filter(c => c.client_id === client.id)
           .forEach(call => {
             const monthKey = call.call_date.substring(0, 7);
-            if (callsMap.has(monthKey)) {
-              callsMap.get(monthKey)!.push(call);
+            if (callsByMonth.has(monthKey)) {
+              callsByMonth.get(monthKey)!.push(call);
             }
           });
       }
 
-      return { client, store_id, department_id, calls: callsMap };
+      // Determine how many rows needed for this client (max calls in any month, minimum 1)
+      let maxCallsInMonth = 1;
+      callsByMonth.forEach(monthCalls => {
+        if (monthCalls.length > maxCallsInMonth) {
+          maxCallsInMonth = monthCalls.length;
+        }
+      });
+
+      // Create rows for this client
+      for (let rowIndex = 0; rowIndex < maxCallsInMonth; rowIndex++) {
+        const rowCalls = new Map<string, ConsultingCall | null>();
+        
+        months.forEach(m => {
+          const monthCalls = callsByMonth.get(m.key) || [];
+          rowCalls.set(m.key, monthCalls[rowIndex] || null);
+        });
+
+        rows.push({
+          rowId: `${client.id}-${rowIndex}`,
+          client,
+          store_id,
+          department_id,
+          rowIndex,
+          calls: rowCalls,
+        });
+      }
     });
 
     return rows;
@@ -277,17 +307,8 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
 
   const handleDeleteClient = async (clientId: string) => {
     try {
-      // First delete all calls
-      await supabase
-        .from('consulting_calls')
-        .delete()
-        .eq('client_id', clientId);
-
-      const { error } = await supabase
-        .from('consulting_clients')
-        .delete()
-        .eq('id', clientId);
-
+      await supabase.from('consulting_calls').delete().eq('client_id', clientId);
+      const { error } = await supabase.from('consulting_clients').delete().eq('id', clientId);
       if (error) throw error;
       toast.success("Client deleted");
       queryClient.invalidateQueries({ queryKey: ['consulting-clients'] });
@@ -297,7 +318,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     }
   };
 
-  const handleCreateCall = async (clientId: string, monthKey: string, date: Date, time?: string) => {
+  const handleCreateCall = async (clientId: string, date: Date, time?: string) => {
     try {
       const { error } = await supabase
         .from('consulting_calls')
@@ -316,11 +337,14 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     }
   };
 
-  const handleAddCallToMonth = async (clientId: string, monthDate: Date) => {
-    // Add a call on the 15th of the month by default
-    const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), 15);
-    await handleCreateCall(clientId, format(date, 'yyyy-MM'), date);
-    toast.success("Call added");
+  // Add a new row for this client (creates an empty call slot)
+  const handleAddRowForClient = async (clientId: string) => {
+    // We just need to create a call to trigger a new row
+    // The new row will appear automatically when there's a call
+    // For now, we'll create a placeholder call in the current month
+    const today = new Date();
+    await handleCreateCall(clientId, today);
+    toast.success("New row added");
   };
 
   const handleUpdateCall = async (callId: string, field: string, value: any) => {
@@ -402,10 +426,10 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                 />
               )}
 
-              {/* Existing clients */}
-              {clientRows.map((row) => (
-                <ClientRowComponent
-                  key={row.client.id}
+              {/* Existing rows */}
+              {displayRows.map((row) => (
+                <DisplayRowComponent
+                  key={row.rowId}
                   row={row}
                   stores={stores || []}
                   allDepartments={allDepartments || []}
@@ -413,13 +437,13 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   onUpdateClient={handleUpdateClient}
                   onDeleteClient={handleDeleteClient}
                   onCreateCall={handleCreateCall}
-                  onAddCallToMonth={handleAddCallToMonth}
+                  onAddRowForClient={handleAddRowForClient}
                   onUpdateCall={handleUpdateCall}
                   onDeleteCall={handleDeleteCall}
                 />
               ))}
 
-              {!clientRows.length && !newRow && (
+              {!displayRows.length && !newRow && (
                 <TableRow>
                   <TableCell colSpan={5 + months.length} className="text-center py-12">
                     <Phone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -439,8 +463,8 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
   );
 }
 
-// Client row component with right-click to add calls
-function ClientRowComponent({
+// Display row component
+function DisplayRowComponent({
   row,
   stores,
   allDepartments,
@@ -448,18 +472,18 @@ function ClientRowComponent({
   onUpdateClient,
   onDeleteClient,
   onCreateCall,
-  onAddCallToMonth,
+  onAddRowForClient,
   onUpdateCall,
   onDeleteCall,
 }: {
-  row: ClientRow;
+  row: DisplayRow;
   stores: Store[];
   allDepartments: Department[];
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
-  onCreateCall: (clientId: string, monthKey: string, date: Date, time?: string) => void;
-  onAddCallToMonth: (clientId: string, monthDate: Date) => void;
+  onCreateCall: (clientId: string, date: Date, time?: string) => void;
+  onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
 }) {
@@ -468,6 +492,7 @@ function ClientRowComponent({
   const [editingContact, setEditingContact] = useState(false);
   const [tempContact, setTempContact] = useState(row.client.contact_names || '');
 
+  const isFirstRow = row.rowIndex === 0;
   const currentDepts = row.store_id 
     ? allDepartments.filter(d => d.store_id === row.store_id) 
     : [];
@@ -501,103 +526,116 @@ function ClientRowComponent({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <TableRow className={cn(row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20")}>
-          {/* Dealership */}
+        <TableRow className={cn(
+          row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20",
+          !isFirstRow && "border-t-0"
+        )}>
+          {/* Dealership - show on first row only */}
           <TableCell className="sticky left-0 bg-background z-10">
-            {row.client.is_adhoc ? (
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{row.client.name}</span>
-                <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
-                  Ad-Hoc
-                </Badge>
-              </div>
+            {isFirstRow ? (
+              row.client.is_adhoc ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{row.client.name}</span>
+                  <Badge variant="outline" className="text-xs bg-amber-100 dark:bg-amber-900/50">
+                    Ad-Hoc
+                  </Badge>
+                </div>
+              ) : (
+                <Select value={row.store_id || ''} onValueChange={handleDealershipChange}>
+                  <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                    <SelectValue placeholder="Select dealership" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
             ) : (
-              <Select value={row.store_id || ''} onValueChange={handleDealershipChange}>
-                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
-                  <SelectValue placeholder="Select dealership" />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((store) => (
-                    <SelectItem key={store.id} value={store.id}>
-                      {store.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <span className="text-muted-foreground text-sm pl-4">↳</span>
             )}
           </TableCell>
 
-          {/* Department */}
+          {/* Department - show on first row only */}
           <TableCell>
-            {row.client.is_adhoc ? (
-              <span className="text-sm text-muted-foreground">{row.client.department_name || '—'}</span>
-            ) : (
-              <Select 
-                value={row.department_id || ''} 
-                onValueChange={handleDepartmentChange}
-                disabled={!row.store_id}
-              >
-                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {currentDepts.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            {isFirstRow ? (
+              row.client.is_adhoc ? (
+                <span className="text-sm text-muted-foreground">{row.client.department_name || '—'}</span>
+              ) : (
+                <Select 
+                  value={row.department_id || ''} 
+                  onValueChange={handleDepartmentChange}
+                  disabled={!row.store_id}
+                >
+                  <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currentDepts.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )
+            ) : null}
           </TableCell>
 
-          {/* Contact */}
+          {/* Contact - show on first row only */}
           <TableCell>
-            {editingContact ? (
-              <Input
-                value={tempContact}
-                onChange={(e) => setTempContact(e.target.value)}
-                onBlur={handleSaveContact}
-                onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
-                autoFocus
-                className="h-8"
-              />
-            ) : (
-              <span 
-                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded -mx-2 block truncate"
-                onClick={() => {
-                  setTempContact(row.client.contact_names || '');
-                  setEditingContact(true);
-                }}
-              >
-                {row.client.contact_names || <span className="text-muted-foreground">—</span>}
-              </span>
-            )}
+            {isFirstRow ? (
+              editingContact ? (
+                <Input
+                  value={tempContact}
+                  onChange={(e) => setTempContact(e.target.value)}
+                  onBlur={handleSaveContact}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
+                  autoFocus
+                  className="h-8"
+                />
+              ) : (
+                <span 
+                  className="cursor-text hover:bg-muted/50 px-2 py-1 rounded -mx-2 block truncate"
+                  onClick={() => {
+                    setTempContact(row.client.contact_names || '');
+                    setEditingContact(true);
+                  }}
+                >
+                  {row.client.contact_names || <span className="text-muted-foreground">—</span>}
+                </span>
+              )
+            ) : null}
           </TableCell>
 
-          {/* Value */}
+          {/* Value - show on first row only */}
           <TableCell className="text-right">
-            {editingValue ? (
-              <Input
-                type="number"
-                value={tempValue}
-                onChange={(e) => setTempValue(e.target.value)}
-                onBlur={handleSaveValue}
-                onKeyDown={(e) => e.key === 'Enter' && handleSaveValue()}
-                autoFocus
-                className="h-8 w-16 text-right ml-auto"
-              />
-            ) : (
-              <span 
-                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded font-medium"
-                onClick={() => {
-                  setTempValue(row.client.call_value?.toString() || '0');
-                  setEditingValue(true);
-                }}
-              >
-                ${row.client.call_value?.toFixed(0) || '0'}
-              </span>
-            )}
+            {isFirstRow ? (
+              editingValue ? (
+                <Input
+                  type="number"
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                  onBlur={handleSaveValue}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveValue()}
+                  autoFocus
+                  className="h-8 w-16 text-right ml-auto"
+                />
+              ) : (
+                <span 
+                  className="cursor-text hover:bg-muted/50 px-2 py-1 rounded font-medium"
+                  onClick={() => {
+                    setTempValue(row.client.call_value?.toString() || '0');
+                    setEditingValue(true);
+                  }}
+                >
+                  ${row.client.call_value?.toFixed(0) || '0'}
+                </span>
+              )
+            ) : null}
           </TableCell>
 
           {/* Month columns */}
@@ -607,44 +645,33 @@ function ClientRowComponent({
               clientId={row.client.id}
               monthKey={month.key}
               monthDate={month.date}
-              calls={row.calls.get(month.key) || []}
+              call={row.calls.get(month.key) || null}
               onCreateCall={onCreateCall}
-              onAddCallToMonth={onAddCallToMonth}
               onUpdateCall={onUpdateCall}
               onDeleteCall={onDeleteCall}
             />
           ))}
 
-          {/* Delete */}
+          {/* Delete - only on first row */}
           <TableCell>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              onClick={() => onDeleteClient(row.client.id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {isFirstRow && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => onDeleteClient(row.client.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </TableCell>
         </TableRow>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Call to Month
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-48">
-            {months.map(month => (
-              <ContextMenuItem
-                key={month.key}
-                onClick={() => onAddCallToMonth(row.client.id, month.date)}
-              >
-                {month.label}
-              </ContextMenuItem>
-            ))}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        <ContextMenuItem onClick={() => onAddRowForClient(row.client.id)}>
+          <Copy className="h-4 w-4 mr-2" />
+          Add Another Row
+        </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem 
           className="text-destructive"
@@ -658,76 +685,8 @@ function ClientRowComponent({
   );
 }
 
-// Month cell component for scheduling calls (supports multiple calls)
+// Month cell component
 function MonthCell({
-  clientId,
-  monthKey,
-  monthDate,
-  calls,
-  onCreateCall,
-  onAddCallToMonth,
-  onUpdateCall,
-  onDeleteCall,
-}: {
-  clientId: string;
-  monthKey: string;
-  monthDate: Date;
-  calls: ConsultingCall[];
-  onCreateCall: (clientId: string, monthKey: string, date: Date, time?: string) => void;
-  onAddCallToMonth: (clientId: string, monthDate: Date) => void;
-  onUpdateCall: (callId: string, field: string, value: any) => void;
-  onDeleteCall: (callId: string) => void;
-}) {
-  const getStatusColor = (status: string | null) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-500';
-      case 'cancelled':
-        return 'bg-red-500';
-      default:
-        return 'bg-blue-500';
-    }
-  };
-
-  if (calls.length === 0) {
-    return (
-      <TableCell className="text-center">
-        <SingleCallPicker
-          clientId={clientId}
-          monthKey={monthKey}
-          monthDate={monthDate}
-          call={null}
-          onCreateCall={onCreateCall}
-          onUpdateCall={onUpdateCall}
-          onDeleteCall={onDeleteCall}
-        />
-      </TableCell>
-    );
-  }
-
-  return (
-    <TableCell className="text-center">
-      <div className="flex flex-col gap-1">
-        {calls.map((call, idx) => (
-          <SingleCallPicker
-            key={call.id}
-            clientId={clientId}
-            monthKey={monthKey}
-            monthDate={monthDate}
-            call={call}
-            onCreateCall={onCreateCall}
-            onUpdateCall={onUpdateCall}
-            onDeleteCall={onDeleteCall}
-            isSecondary={idx > 0}
-          />
-        ))}
-      </div>
-    </TableCell>
-  );
-}
-
-// Single call picker component
-function SingleCallPicker({
   clientId,
   monthKey,
   monthDate,
@@ -735,16 +694,14 @@ function SingleCallPicker({
   onCreateCall,
   onUpdateCall,
   onDeleteCall,
-  isSecondary = false,
 }: {
   clientId: string;
   monthKey: string;
   monthDate: Date;
   call: ConsultingCall | null;
-  onCreateCall: (clientId: string, monthKey: string, date: Date, time?: string) => void;
+  onCreateCall: (clientId: string, date: Date, time?: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
-  isSecondary?: boolean;
 }) {
   const [dateOpen, setDateOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -770,7 +727,7 @@ function SingleCallPicker({
     if (call) {
       onUpdateCall(call.id, 'call_date', format(date, 'yyyy-MM-dd'));
     } else {
-      onCreateCall(clientId, monthKey, date, time || undefined);
+      onCreateCall(clientId, date, time || undefined);
     }
     setDateOpen(false);
   };
@@ -794,80 +751,81 @@ function SingleCallPicker({
     : null;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger disabled={!call}>
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cn(
-                "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
-                "hover:bg-muted/50",
-                !call && "text-muted-foreground",
-                isSecondary && "border-t border-dashed"
-              )}
-            >
-              {call && (
-                <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
-              )}
-              <CalendarIcon className="h-3 w-3 shrink-0" />
-              <span className="truncate">
-                {displayText || "Date / Time"}
-              </span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="center">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleDateSelect}
-              defaultMonth={monthDate}
-              initialFocus
-              className="p-3 pointer-events-auto"
-            />
-            <div className="p-3 border-t">
-              <label className="text-sm font-medium">Time (optional)</label>
-              <Input
-                type="time"
-                value={time}
-                onChange={(e) => handleTimeChange(e.target.value)}
-                className="mt-1"
+    <TableCell className="text-center">
+      <ContextMenu>
+        <ContextMenuTrigger disabled={!call}>
+          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                className={cn(
+                  "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
+                  "hover:bg-muted/50",
+                  !call && "text-muted-foreground"
+                )}
+              >
+                {call && (
+                  <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
+                )}
+                <CalendarIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {displayText || "Date / Time"}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                defaultMonth={monthDate}
+                initialFocus
+                className="p-3 pointer-events-auto"
               />
-            </div>
-            {call && (
               <div className="p-3 border-t">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => {
-                    onDeleteCall(call.id);
-                    setDateOpen(false);
-                  }}
-                >
-                  <Trash2 className="h-3 w-3 mr-2" />
-                  Remove Call
-                </Button>
+                <label className="text-sm font-medium">Time (optional)</label>
+                <Input
+                  type="time"
+                  value={time}
+                  onChange={(e) => handleTimeChange(e.target.value)}
+                  className="mt-1"
+                />
               </div>
-            )}
-          </PopoverContent>
-        </Popover>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => handleStatusChange('scheduled')}>
-          <Clock className="h-4 w-4 mr-2 text-blue-500" />
-          Mark as Scheduled
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => handleStatusChange('completed')}>
-          <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-          Mark as Completed
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => handleStatusChange('cancelled')}>
-          <XCircle className="h-4 w-4 mr-2 text-red-500" />
-          Mark as Cancelled
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+              {call && (
+                <div className="p-3 border-t">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      onDeleteCall(call.id);
+                      setDateOpen(false);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 mr-2" />
+                    Remove Call
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => handleStatusChange('scheduled')}>
+            <Clock className="h-4 w-4 mr-2 text-blue-500" />
+            Mark as Scheduled
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => handleStatusChange('completed')}>
+            <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+            Mark as Completed
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => handleStatusChange('cancelled')}>
+            <XCircle className="h-4 w-4 mr-2 text-red-500" />
+            Mark as Cancelled
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    </TableCell>
   );
 }
 
