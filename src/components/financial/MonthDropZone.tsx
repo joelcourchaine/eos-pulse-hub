@@ -100,7 +100,7 @@ export const MonthDropZone = ({
   const { toast } = useToast();
 
   // Supported brands for Excel processing
-  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC', 'Stellantis'];
+  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC', 'Stellantis', 'Mazda'];
   const isSupportedBrand = storeBrand && SUPPORTED_BRANDS.includes(storeBrand);
   const isStellantis = storeBrand?.toLowerCase() === 'stellantis';
 
