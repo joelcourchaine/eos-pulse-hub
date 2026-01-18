@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Search, KeyRound, Loader2, Clock, Mail } from "lucide-react";
+import { Search, KeyRound, Loader2, Clock, Mail, Plus } from "lucide-react";
+import { AddUserDialog } from "@/components/users/AddUserDialog";
 import { formatDistanceToNow } from "date-fns";
 
 export const AdminUsersTab = () => {
@@ -23,6 +24,7 @@ export const AdminUsersTab = () => {
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "active">("all");
   const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [addUserOpen, setAddUserOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: roleBreakdown, isLoading: rolesLoading } = useQuery({
@@ -198,14 +200,20 @@ export const AdminUsersTab = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>User Management</CardTitle>
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center gap-3">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button onClick={() => setAddUserOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -287,6 +295,15 @@ export const AdminUsersTab = () => {
           )}
         </CardContent>
       </Card>
+
+      <AddUserDialog
+        open={addUserOpen}
+        onOpenChange={setAddUserOpen}
+        onUserCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-all-users"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-user-role-counts"] });
+        }}
+      />
     </div>
   );
 };
