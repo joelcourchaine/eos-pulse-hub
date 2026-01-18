@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth, addWeeks } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat } from "lucide-react";
+import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getHolidayName, getHolidaysForYears } from "@/utils/canadianHolidays";
 
 interface ConsultingGridProps {
   showAdhoc: boolean;
@@ -861,6 +863,14 @@ function MonthCell({
   const [time, setTime] = useState(call?.call_time?.slice(0, 5) || '');
   const [recurrenceType, setRecurrenceType] = useState<'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'none'>('none');
 
+  // Get holidays for calendar display (current year +/- 1)
+  const currentYear = getYear(new Date());
+  const holidayMap = useMemo(() => getHolidaysForYears(currentYear - 1, currentYear + 2), [currentYear]);
+
+  // Check if call date is a holiday
+  const holidayName = call?.call_date ? getHolidayName(call.call_date) : null;
+  const isHolidayCall = !!holidayName;
+
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'completed':
@@ -922,31 +932,58 @@ function MonthCell({
     return callDate < new Date();
   })() : false;
 
+  // Calendar modifiers for holidays
+  const holidayModifier = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return holidayMap.has(dateStr);
+  };
+
+  const buttonContent = (
+    <Button
+      variant="ghost"
+      className={cn(
+        "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
+        "hover:bg-muted/50",
+        !call && "text-muted-foreground",
+        isHolidayCall && "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700"
+      )}
+    >
+      {call && (
+        <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
+      )}
+      {call?.recurrence_group_id && (
+        <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />
+      )}
+      {isHolidayCall && (
+        <span className="shrink-0 text-amber-600 dark:text-amber-400" title={holidayName!}>🍁</span>
+      )}
+      <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
+      <span className={cn("truncate", isCallInPast && "opacity-50")}>
+        {displayText || "Date / Time"}
+      </span>
+    </Button>
+  );
+
   return (
     <TableCell className="text-center">
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
             <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
-                  "hover:bg-muted/50",
-                  !call && "text-muted-foreground"
-                )}
-              >
-                {call && (
-                  <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
-                )}
-                {call?.recurrence_group_id && (
-                  <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />
-                )}
-                <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
-                <span className={cn("truncate", isCallInPast && "opacity-50")}>
-                  {displayText || "Date / Time"}
-                </span>
-              </Button>
+              {isHolidayCall ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {buttonContent}
+                    </TooltipTrigger>
+                    <TooltipContent className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <span className="font-medium text-amber-800 dark:text-amber-200">{holidayName}</span>
+                      <span className="text-amber-600 dark:text-amber-400 text-xs">- Consider rescheduling</span>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : buttonContent}
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="center">
               <Calendar
@@ -956,6 +993,41 @@ function MonthCell({
                 defaultMonth={monthDate}
                 initialFocus
                 className="p-3 pointer-events-auto"
+                modifiers={{
+                  holiday: holidayModifier
+                }}
+                modifiersStyles={{
+                  holiday: {
+                    backgroundColor: 'rgb(254 243 199)',
+                    color: 'rgb(180 83 9)',
+                    fontWeight: 'bold'
+                  }
+                }}
+                components={{
+                  DayContent: ({ date }) => {
+                    const dateStr = format(date, 'yyyy-MM-dd');
+                    const holiday = holidayMap.get(dateStr);
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="w-full h-full flex items-center justify-center">
+                              {date.getDate()}
+                            </span>
+                          </TooltipTrigger>
+                          {holiday && (
+                            <TooltipContent side="top" className="bg-amber-50 dark:bg-amber-950 border-amber-200">
+                              <div className="flex items-center gap-2">
+                                <span>🍁</span>
+                                <span className="font-medium text-amber-800 dark:text-amber-200">{holiday}</span>
+                              </div>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  }
+                }}
               />
               <div className="p-3 border-t">
                 <Label className="text-sm font-medium">Time (optional)</Label>
@@ -970,6 +1042,21 @@ function MonthCell({
               {/* Recurrence options - only for new calls */}
               {!call && selectedDate && (
                 <div className="p-3 border-t space-y-3">
+                  {/* Show holiday warning if selected date is a holiday */}
+                  {(() => {
+                    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+                    const selectedHoliday = holidayMap.get(selectedDateStr);
+                    if (selectedHoliday) {
+                      return (
+                        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/50 rounded-md border border-amber-200 dark:border-amber-800">
+                          <span>🍁</span>
+                          <span className="text-sm text-amber-800 dark:text-amber-200 font-medium">{selectedHoliday}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
                   <div className="space-y-2">
                     <Label className="text-sm font-medium flex items-center gap-2">
                       <Repeat className="h-3 w-3" />
@@ -1002,6 +1089,15 @@ function MonthCell({
               
               {call && (
                 <div className="p-3 border-t space-y-3">
+                  {/* Show holiday warning if this call is on a holiday */}
+                  {isHolidayCall && (
+                    <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/50 rounded-md border border-amber-200 dark:border-amber-800">
+                      <span>🍁</span>
+                      <span className="text-sm text-amber-800 dark:text-amber-200 font-medium">{holidayName}</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400">- Consider rescheduling</span>
+                    </div>
+                  )}
+                  
                   {call.recurrence_group_id ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
