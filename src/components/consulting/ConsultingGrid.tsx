@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
-import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy } from "lucide-react";
+import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ interface ConsultingCall {
   call_time: string | null;
   status: string | null;
   notes: string | null;
+  recurrence_group_id: string | null;
 }
 
 interface Store {
@@ -418,6 +419,39 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     }
   };
 
+  const handleDeleteRecurringSeries = async (recurrenceGroupId: string) => {
+    try {
+      const { error } = await supabase
+        .from('consulting_calls')
+        .delete()
+        .eq('recurrence_group_id', recurrenceGroupId);
+
+      if (error) throw error;
+      toast.success("Recurring series deleted");
+      queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
+      queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
+    } catch (error: any) {
+      toast.error("Failed to delete series");
+    }
+  };
+
+  const handleCancelRecurringSeries = async (recurrenceGroupId: string) => {
+    try {
+      const { error } = await supabase
+        .from('consulting_calls')
+        .update({ status: 'cancelled' })
+        .eq('recurrence_group_id', recurrenceGroupId)
+        .eq('status', 'scheduled');
+
+      if (error) throw error;
+      toast.success("Recurring series cancelled");
+      queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
+      queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
+    } catch (error: any) {
+      toast.error("Failed to cancel series");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -481,6 +515,8 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   onAddRowForClient={handleAddRowForClient}
                   onUpdateCall={handleUpdateCall}
                   onDeleteCall={handleDeleteCall}
+                  onDeleteRecurringSeries={handleDeleteRecurringSeries}
+                  onCancelRecurringSeries={handleCancelRecurringSeries}
                 />
               ))}
 
@@ -516,6 +552,8 @@ function DisplayRowComponent({
   onAddRowForClient,
   onUpdateCall,
   onDeleteCall,
+  onDeleteRecurringSeries,
+  onCancelRecurringSeries,
 }: {
   row: DisplayRow;
   stores: Store[];
@@ -527,6 +565,8 @@ function DisplayRowComponent({
   onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
+  onDeleteRecurringSeries: (recurrenceGroupId: string) => void;
+  onCancelRecurringSeries: (recurrenceGroupId: string) => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [tempValue, setTempValue] = useState(row.client.call_value?.toString() || '0');
@@ -678,6 +718,8 @@ function DisplayRowComponent({
               onCreateCall={onCreateCall}
               onUpdateCall={onUpdateCall}
               onDeleteCall={onDeleteCall}
+              onDeleteRecurringSeries={onDeleteRecurringSeries}
+              onCancelRecurringSeries={onCancelRecurringSeries}
             />
           ))}
 
@@ -721,6 +763,8 @@ function MonthCell({
   onCreateCall,
   onUpdateCall,
   onDeleteCall,
+  onDeleteRecurringSeries,
+  onCancelRecurringSeries,
 }: {
   clientId: string;
   monthKey: string;
@@ -729,6 +773,8 @@ function MonthCell({
   onCreateCall: (clientId: string, date: Date, time?: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
+  onDeleteRecurringSeries: (recurrenceGroupId: string) => void;
+  onCancelRecurringSeries: (recurrenceGroupId: string) => void;
 }) {
   const [dateOpen, setDateOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -807,6 +853,9 @@ function MonthCell({
                 {call && (
                   <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
                 )}
+                {call?.recurrence_group_id && (
+                  <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />
+                )}
                 <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
                 <span className={cn("truncate", isCallInPast && "opacity-50")}>
                   {displayText || "Date / Time"}
@@ -863,6 +912,25 @@ function MonthCell({
             <XCircle className="h-4 w-4 mr-2 text-red-500" />
             Mark as Cancelled
           </ContextMenuItem>
+          {call?.recurrence_group_id && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem 
+                onClick={() => onCancelRecurringSeries(call.recurrence_group_id!)}
+                className="text-amber-600"
+              >
+                <XCircle className="h-4 w-4 mr-2" />
+                Cancel All in Series
+              </ContextMenuItem>
+              <ContextMenuItem 
+                onClick={() => onDeleteRecurringSeries(call.recurrence_group_id!)}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete All in Series
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
     </TableCell>

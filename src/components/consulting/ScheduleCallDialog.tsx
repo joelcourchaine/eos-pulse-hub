@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth } from "date-fns";
-import { CalendarIcon, Trash2, Plus } from "lucide-react";
+import { format, startOfMonth, endOfMonth, addWeeks, endOfYear, differenceInWeeks } from "date-fns";
+import { CalendarIcon, Trash2, Plus, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -31,6 +31,7 @@ interface ConsultingCall {
   call_time: string | null;
   status: string;
   notes: string | null;
+  recurrence_group_id?: string | null;
 }
 
 interface ScheduleCallDialogProps {
@@ -40,6 +41,9 @@ interface ScheduleCallDialogProps {
   month: Date | null;
   existingCall?: ConsultingCall | null;
 }
+
+type RecurrenceType = 'none' | 'weekly';
+type DurationType = '4' | '8' | '12' | 'eoy';
 
 export function ScheduleCallDialog({ 
   open, 
@@ -54,6 +58,8 @@ export function ScheduleCallDialog({
   const [time, setTime] = useState('');
   const [status, setStatus] = useState('scheduled');
   const [notes, setNotes] = useState('');
+  const [recurrence, setRecurrence] = useState<RecurrenceType>('none');
+  const [duration, setDuration] = useState<DurationType>('4');
 
   // Fetch all calls for this client/month when dialog opens
   const { data: monthCalls, refetch: refetchMonthCalls } = useQuery({
@@ -99,6 +105,16 @@ export function ScheduleCallDialog({
     setTime('');
     setStatus('scheduled');
     setNotes('');
+    setRecurrence('none');
+    setDuration('4');
+  };
+
+  const calculateWeeksCount = (startDate: Date, durationType: DurationType): number => {
+    if (durationType === 'eoy') {
+      const yearEnd = endOfYear(startDate);
+      return Math.max(1, differenceInWeeks(yearEnd, startDate));
+    }
+    return parseInt(durationType);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -111,16 +127,17 @@ export function ScheduleCallDialog({
 
     setLoading(true);
 
-    const callData = {
-      client_id: client.id,
-      call_date: format(date, 'yyyy-MM-dd'),
-      call_time: time || null,
-      status,
-      notes: notes.trim() || null,
-    };
-
     try {
       if (existingCall) {
+        // Update existing call (no recurrence changes for edits)
+        const callData = {
+          client_id: client.id,
+          call_date: format(date, 'yyyy-MM-dd'),
+          call_time: time || null,
+          status,
+          notes: notes.trim() || null,
+        };
+        
         const { error } = await supabase
           .from('consulting_calls')
           .update(callData)
@@ -129,12 +146,46 @@ export function ScheduleCallDialog({
         if (error) throw error;
         toast.success("Call updated");
       } else {
-        const { error } = await supabase
-          .from('consulting_calls')
-          .insert(callData);
+        // Create new call(s)
+        if (recurrence === 'weekly') {
+          // Generate multiple calls for weekly recurrence
+          const weeksCount = calculateWeeksCount(date, duration);
+          const recurrenceGroupId = crypto.randomUUID();
+          
+          const callsToInsert = [];
+          for (let i = 0; i < weeksCount; i++) {
+            const callDate = addWeeks(date, i);
+            callsToInsert.push({
+              client_id: client.id,
+              call_date: format(callDate, 'yyyy-MM-dd'),
+              call_time: time || null,
+              status: 'scheduled',
+              notes: i === 0 ? (notes.trim() || null) : null,
+              recurrence_group_id: recurrenceGroupId,
+            });
+          }
+          
+          const { error } = await supabase
+            .from('consulting_calls')
+            .insert(callsToInsert);
 
-        if (error) throw error;
-        toast.success("Call scheduled");
+          if (error) throw error;
+          toast.success(`${callsToInsert.length} recurring calls scheduled`);
+        } else {
+          // Single call
+          const { error } = await supabase
+            .from('consulting_calls')
+            .insert({
+              client_id: client.id,
+              call_date: format(date, 'yyyy-MM-dd'),
+              call_time: time || null,
+              status,
+              notes: notes.trim() || null,
+            });
+
+          if (error) throw error;
+          toast.success("Call scheduled");
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
@@ -175,6 +226,27 @@ export function ScheduleCallDialog({
     }
   };
 
+  const handleDeleteRecurringSeries = async (recurrenceGroupId: string) => {
+    if (!confirm("Delete all calls in this recurring series?")) return;
+
+    try {
+      const { error } = await supabase
+        .from('consulting_calls')
+        .delete()
+        .eq('recurrence_group_id', recurrenceGroupId);
+
+      if (error) throw error;
+      
+      toast.success("Recurring series deleted");
+      queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
+      queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
+      refetchMonthCalls();
+      onOpenChange(false);
+    } catch (error: any) {
+      toast.error("Failed to delete series");
+    }
+  };
+
   if (!client || !month) return null;
 
   return (
@@ -206,6 +278,9 @@ export function ScheduleCallDialog({
                       )}
                     >
                       <div className="flex items-center gap-2">
+                        {(call as ConsultingCall).recurrence_group_id && (
+                          <Repeat className="h-3 w-3 text-muted-foreground" />
+                        )}
                         <span className="font-medium">{format(new Date(call.call_date), 'MMM d')}</span>
                         {call.call_time && <span className="text-muted-foreground">{call.call_time.slice(0, 5)}</span>}
                         <span className="capitalize text-muted-foreground">({call.status})</span>
@@ -263,6 +338,44 @@ export function ScheduleCallDialog({
                 />
               </div>
             </div>
+
+            {/* Recurrence options - only show for new calls */}
+            {!existingCall && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Repeat className="h-4 w-4" />
+                    Recurrence
+                  </Label>
+                  <Select value={recurrence} onValueChange={(v) => setRecurrence(v as RecurrenceType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {recurrence === 'weekly' && (
+                  <div className="space-y-2">
+                    <Label>Duration</Label>
+                    <Select value={duration} onValueChange={(v) => setDuration(v as DurationType)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="4">4 weeks</SelectItem>
+                        <SelectItem value="8">8 weeks</SelectItem>
+                        <SelectItem value="12">12 weeks</SelectItem>
+                        <SelectItem value="eoy">Until end of year</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Status</Label>
