@@ -138,12 +138,6 @@ const ConsultingScheduler = () => {
               />
               <Label htmlFor="show-adhoc" className="text-sm">Show Ad-Hoc</Label>
             </div>
-
-            {/* Add Client Button */}
-            <Button onClick={() => setAddClientOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Client
-            </Button>
           </div>
         </div>
 
