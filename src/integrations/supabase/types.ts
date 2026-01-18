@@ -2397,6 +2397,7 @@ export type Database = {
         | "parts_advisor"
         | "technician"
         | "fixed_ops_manager"
+        | "consulting_scheduler"
       signature_status: "pending" | "viewed" | "signed" | "expired"
       ticket_category: "bug_report" | "feature_request" | "question" | "other"
       ticket_priority: "low" | "normal" | "urgent"
@@ -2539,6 +2540,7 @@ export const Constants = {
         "parts_advisor",
         "technician",
         "fixed_ops_manager",
+        "consulting_scheduler",
       ],
       signature_status: ["pending", "viewed", "signed", "expired"],
       ticket_category: ["bug_report", "feature_request", "question", "other"],
