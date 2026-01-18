@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
+import { Loader2, Save, UserPlus, Trash2, Mail } from "lucide-react";
 import { format } from "date-fns";
 import { DepartmentAccessDialog } from "./DepartmentAccessDialog";
 import { ManagedDepartmentsSelect } from "./ManagedDepartmentsSelect";
@@ -15,6 +15,43 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AddUserDialog } from "./AddUserDialog";
+
+// Debounced input component to prevent lag during typing
+const DebouncedInput = memo(({ 
+  defaultValue, 
+  onDebouncedChange, 
+  className,
+  type = "text"
+}: { 
+  defaultValue: string; 
+  onDebouncedChange: (value: string) => void; 
+  className?: string;
+  type?: string;
+}) => {
+  const [value, setValue] = useState(defaultValue);
+  
+  useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue]);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (value !== defaultValue) {
+        onDebouncedChange(value);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [value, defaultValue, onDebouncedChange]);
+  
+  return (
+    <Input
+      type={type}
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      className={className}
+    />
+  );
+});
 
 interface Profile {
   id: string;
@@ -282,11 +319,11 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
     setSaving(null);
   };
 
-  const updateProfileField = (profileId: string, field: keyof Profile, value: string | number | null) => {
-    setProfiles(profiles.map(p => 
+  const updateProfileField = useCallback((profileId: string, field: keyof Profile, value: string | number | null) => {
+    setProfiles(prev => prev.map(p => 
       p.id === profileId ? { ...p, [field]: value } : p
     ));
-  };
+  }, []);
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
@@ -543,18 +580,18 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                             {getInitials(profile.full_name)}
                           </AvatarFallback>
                         </Avatar>
-                        <Input
-                          value={profile.full_name}
-                          onChange={(e) => updateProfileField(profile.id, "full_name", e.target.value)}
+                        <DebouncedInput
+                          defaultValue={profile.full_name}
+                          onDebouncedChange={(value) => updateProfileField(profile.id, "full_name", value)}
                           className="h-7 text-xs"
                         />
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Input
+                      <DebouncedInput
                         type="email"
-                        value={profile.email}
-                        onChange={(e) => updateProfileField(profile.id, "email", e.target.value)}
+                        defaultValue={profile.email}
+                        onDebouncedChange={(value) => updateProfileField(profile.id, "email", value)}
                         className="h-7 text-xs"
                       />
                     </TableCell>
