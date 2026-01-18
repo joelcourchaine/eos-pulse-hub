@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth, isPast, isToday, addWeeks, endOfYear, differenceInWeeks } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, isPast, isToday, addWeeks } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator, ContextMenuSub, ContextMenuSubTrigger, ContextMenuSubContent } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -365,15 +366,12 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     clientId: string, 
     date: Date, 
     time?: string,
-    recurrence?: 'none' | 'weekly',
-    duration?: '4' | '8' | '12' | 'eoy'
+    isRecurring?: boolean
   ) => {
     try {
-      if (recurrence === 'weekly' && duration) {
-        // Generate multiple calls for weekly recurrence
-        const weeksCount = duration === 'eoy' 
-          ? Math.max(1, differenceInWeeks(endOfYear(date), date))
-          : parseInt(duration);
+      if (isRecurring) {
+        // Generate weekly calls for 2 years ahead (indefinite)
+        const weeksCount = 104; // ~2 years
         
         const recurrenceGroupId = crypto.randomUUID();
         
@@ -394,7 +392,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           .insert(callsToInsert);
 
         if (error) throw error;
-        toast.success(`${callsToInsert.length} recurring calls scheduled`);
+        toast.success(`Weekly recurring calls scheduled`);
       } else {
         // Single call
         const { error } = await supabase
@@ -598,7 +596,7 @@ function DisplayRowComponent({
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
-  onCreateCall: (clientId: string, date: Date, time?: string, recurrence?: 'none' | 'weekly', duration?: '4' | '8' | '12' | 'eoy') => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, isRecurring?: boolean) => void;
   onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
@@ -807,7 +805,7 @@ function MonthCell({
   monthKey: string;
   monthDate: Date;
   call: ConsultingCall | null;
-  onCreateCall: (clientId: string, date: Date, time?: string, recurrence?: 'none' | 'weekly', duration?: '4' | '8' | '12' | 'eoy') => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, isRecurring?: boolean) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
   onDeleteRecurringSeries: (recurrenceGroupId: string) => void;
@@ -818,8 +816,7 @@ function MonthCell({
     call?.call_date ? parseISO(call.call_date) : undefined
   );
   const [time, setTime] = useState(call?.call_time?.slice(0, 5) || '');
-  const [recurrence, setRecurrence] = useState<'none' | 'weekly'>('none');
-  const [duration, setDuration] = useState<'4' | '8' | '12' | 'eoy'>('4');
+  const [isRecurring, setIsRecurring] = useState(false);
 
   const getStatusColor = (status: string | null) => {
     switch (status) {
@@ -845,11 +842,10 @@ function MonthCell({
 
   const handleCreateNewCall = () => {
     if (!selectedDate) return;
-    onCreateCall(clientId, selectedDate, time || undefined, recurrence, recurrence === 'weekly' ? duration : undefined);
+    onCreateCall(clientId, selectedDate, time || undefined, isRecurring);
     setDateOpen(false);
     // Reset for next time
-    setRecurrence('none');
-    setDuration('4');
+    setIsRecurring(false);
   };
 
   const handleTimeChange = (newTime: string) => {
@@ -931,38 +927,20 @@ function MonthCell({
               {/* Recurrence options - only for new calls */}
               {!call && selectedDate && (
                 <div className="p-3 border-t space-y-3">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="recurring" 
+                      checked={isRecurring}
+                      onCheckedChange={(checked) => setIsRecurring(checked === true)}
+                    />
+                    <Label 
+                      htmlFor="recurring" 
+                      className="text-sm font-medium flex items-center gap-2 cursor-pointer"
+                    >
                       <Repeat className="h-3 w-3" />
-                      Recurrence
+                      Recurring weekly
                     </Label>
-                    <Select value={recurrence} onValueChange={(v) => setRecurrence(v as 'none' | 'weekly')}>
-                      <SelectTrigger className="h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None (single call)</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
-
-                  {recurrence === 'weekly' && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Duration</Label>
-                      <Select value={duration} onValueChange={(v) => setDuration(v as '4' | '8' | '12' | 'eoy')}>
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="4">4 weeks</SelectItem>
-                          <SelectItem value="8">8 weeks</SelectItem>
-                          <SelectItem value="12">12 weeks</SelectItem>
-                          <SelectItem value="eoy">Until end of year</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
 
                   <Button 
                     size="sm" 
@@ -970,18 +948,13 @@ function MonthCell({
                     onClick={handleCreateNewCall}
                   >
                     <Plus className="h-3 w-3 mr-2" />
-                    {recurrence === 'weekly' ? 'Create Recurring Calls' : 'Schedule Call'}
+                    {isRecurring ? 'Create Recurring Calls' : 'Schedule Call'}
                   </Button>
                 </div>
               )}
               
               {call && (
                 <div className="p-3 border-t space-y-2">
-                  {!call.recurrence_group_id && (
-                    <p className="text-xs text-muted-foreground">
-                      Right-click for more options including recurring series
-                    </p>
-                  )}
                   <Button
                     variant="destructive"
                     size="sm"
@@ -1012,32 +985,9 @@ function MonthCell({
             <XCircle className="h-4 w-4 mr-2 text-red-500" />
             Mark as Cancelled
           </ContextMenuItem>
-          <ContextMenuSeparator />
-          {!call?.recurrence_group_id && (
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <Repeat className="h-4 w-4 mr-2" />
-                Add Weekly Series After This
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {(['4', '8', '12', 'eoy'] as const).map((duration) => (
-                  <ContextMenuItem
-                    key={duration}
-                    onClick={() => {
-                      if (call) {
-                        const startDate = parseISO(call.call_date);
-                        onCreateCall(clientId, addWeeks(startDate, 1), call.call_time || undefined, 'weekly', duration);
-                      }
-                    }}
-                  >
-                    {duration === 'eoy' ? 'Until end of year' : `${duration} weeks`}
-                  </ContextMenuItem>
-                ))}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          )}
           {call?.recurrence_group_id && (
             <>
+              <ContextMenuSeparator />
               <ContextMenuItem 
                 onClick={() => onCancelRecurringSeries(call.recurrence_group_id!)}
                 className="text-amber-600"
