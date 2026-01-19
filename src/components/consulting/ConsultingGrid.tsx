@@ -1092,19 +1092,23 @@ function MonthCell({
           <ContextMenuTrigger disabled={!call} asChild>
             <PopoverTrigger asChild>
               {isHolidayCall ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {buttonContent}
-                    </TooltipTrigger>
-                    <TooltipContent className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <span className="font-medium text-amber-800 dark:text-amber-200">{holidayName}</span>
-                      <span className="text-amber-600 dark:text-amber-400 text-xs">- Consider rescheduling</span>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : buttonContent}
+                <span className="block">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        {buttonContent}
+                      </TooltipTrigger>
+                      <TooltipContent className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        <span className="font-medium text-amber-800 dark:text-amber-200">{holidayName}</span>
+                        <span className="text-amber-600 dark:text-amber-400 text-xs">- Consider rescheduling</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </span>
+              ) : (
+                buttonContent
+              )}
             </PopoverTrigger>
           </ContextMenuTrigger>
             <PopoverContent className="w-auto p-0" align="center">
