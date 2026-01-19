@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import React from "react";
+import { createPortal } from "react-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -365,6 +366,7 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const tryLoadPreviousRef = useRef<null | (() => void)>(null);
   const [scrollLeftDebug, setScrollLeftDebug] = useState(0);
   const [tableWidth, setTableWidth] = useState(0);
+  const [scrollbarRect, setScrollbarRect] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
   const [scrollWidthDebug, setScrollWidthDebug] = useState(0);
   const [scrollClientWidthDebug, setScrollClientWidthDebug] = useState(0);
   
@@ -522,15 +524,19 @@ const loadData = async () => {
     return () => clearTimeout(timeout);
   }, [loading, viewMode]);
 
-  // Track table width for fixed (viewport) scrollbar
+  // Track table width + on-screen rect for fixed (viewport) scrollbar
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const updateWidth = () => {
+    const updateMetrics = () => {
       const sw = container.scrollWidth;
       const cw = container.clientWidth;
+      const rect = container.getBoundingClientRect();
+
       setTableWidth(sw);
+      setScrollbarRect({ left: rect.left, width: rect.width });
+
       // Reuse the existing debug values so we can also drive visibility logic.
       setScrollWidthDebug(sw);
       setScrollClientWidthDebug(cw);
@@ -541,13 +547,17 @@ const loadData = async () => {
       }
     };
 
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    updateMetrics();
+    const observer = new ResizeObserver(updateMetrics);
     observer.observe(container);
-    return () => observer.disconnect();
+    window.addEventListener("resize", updateMetrics);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateMetrics);
+    };
   }, [kpis, entries, viewMode, year, quarter, loadedPreviousQuarters]);
 
-  // Scroll synchronization handlers for sticky scrollbar
+  // Scroll synchronization handlers for fixed scrollbar
   const handleStickyScroll = useCallback(() => {
     if (stickyScrollRef.current && scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
@@ -4677,21 +4687,26 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             </div>
           </div>
 
-          {/* Fixed horizontal scrollbar (sticks to viewport) */}
-          {tableWidth > scrollClientWidthDebug + 1 && (
-            <div className="fixed left-0 right-0 bottom-0 z-50 pointer-events-none">
-              <div className="mx-auto max-w-[calc(100vw-2rem)] px-4 pb-2 pointer-events-auto">
-                <div
-                  ref={stickyScrollRef}
-                  className="overflow-x-auto bg-muted/50 border rounded-lg"
-                  style={{ height: '16px' }}
-                  onScroll={handleStickyScroll}
-                >
-                  <div style={{ width: tableWidth, height: '1px' }} />
+          {/* Fixed horizontal scrollbar (portal to body to avoid layout/overflow issues) */}
+          {tableWidth > scrollClientWidthDebug + 1 &&
+            createPortal(
+              <div
+                className="pointer-events-none"
+                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, bottom: 8, zIndex: 9999 }}
+              >
+                <div className="pointer-events-auto">
+                  <div
+                    ref={stickyScrollRef}
+                    className="overflow-x-auto bg-muted/50 border rounded-lg"
+                    style={{ height: "16px" }}
+                    onScroll={handleStickyScroll}
+                  >
+                    <div style={{ width: tableWidth, height: "1px" }} />
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
         </>
       )}
 
