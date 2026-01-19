@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear, getDaysInMonth } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,13 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
       };
     });
   }, []);
+
+  // Calculate today's position for the "Today" marker
+  const today = new Date();
+  const currentMonthKey = format(today, 'yyyy-MM');
+  const currentDay = today.getDate();
+  const daysInCurrentMonth = getDaysInMonth(today);
+  const todayPositionPercent = ((currentDay - 0.5) / daysInCurrentMonth) * 100;
 
   // Fetch stores
   const { data: stores } = useQuery({
@@ -590,11 +597,38 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                 <TableHead className="w-[120px] py-1 text-xs">Department</TableHead>
                 <TableHead className="w-[120px] py-1 text-xs">Contact</TableHead>
                 <TableHead className="w-[80px] text-right py-1 text-xs">Value</TableHead>
-                {months.map(m => (
-                  <TableHead key={m.key} className="w-[130px] text-center min-w-[130px] py-1 text-xs">
-                    {m.label}
-                  </TableHead>
-                ))}
+                {months.map(m => {
+                  const isCurrentMonth = m.key === currentMonthKey;
+                  return (
+                    <TableHead 
+                      key={m.key} 
+                      className={cn(
+                        "w-[130px] text-center min-w-[130px] py-1 text-xs relative",
+                        isCurrentMonth && "bg-destructive/10"
+                      )}
+                    >
+                      <span className={cn(isCurrentMonth && "font-semibold text-destructive")}>
+                        {m.label}
+                      </span>
+                      {isCurrentMonth && (
+                        <>
+                          {/* Horizontal "Today" line */}
+                          <div 
+                            className="absolute left-0 right-0 h-0.5 bg-destructive z-20 pointer-events-none"
+                            style={{ top: `${todayPositionPercent}%` }}
+                          />
+                          {/* Small date label */}
+                          <div 
+                            className="absolute right-1 text-[9px] font-medium text-destructive whitespace-nowrap z-20"
+                            style={{ top: `${todayPositionPercent}%`, transform: 'translateY(-50%)' }}
+                          >
+                            {format(today, 'd')}
+                          </div>
+                        </>
+                      )}
+                    </TableHead>
+                  );
+                })}
                 <TableHead className="w-[50px] py-1"></TableHead>
               </TableRow>
             </TableHeader>
