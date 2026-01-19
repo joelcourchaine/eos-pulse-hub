@@ -1020,7 +1020,7 @@ function MonthCell({
   };
 
   const displayText = call
-    ? `${format(parseISO(call.call_date), 'MMM d')}${call.call_time ? ` ${call.call_time.slice(0, 5)}` : ''}`
+    ? `${format(parseISO(call.call_date), 'EEE MMM d')}${call.call_time ? ` ${call.call_time.slice(0, 5)}` : ''}`
     : null;
 
   // Check if the call date/time is in the past
