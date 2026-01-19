@@ -18,7 +18,7 @@ const ConsultingScheduler = () => {
   const [userId, setUserId] = useState<string | undefined>(undefined);
   const { isSuperAdmin, isConsultingScheduler, loading: roleLoading } = useUserRole(userId);
   const [authLoading, setAuthLoading] = useState(true);
-  const [showAdhoc, setShowAdhoc] = useState(false);
+  const [showAdhoc, setShowAdhoc] = useState(true);
   const [addClientOpen, setAddClientOpen] = useState(false);
   
   const canAccessScheduler = isSuperAdmin || isConsultingScheduler;
