@@ -301,18 +301,10 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 <SelectItem value="department_manager">Department Manager</SelectItem>
                 <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
-                {departments.some(d => d.department_types?.name?.toLowerCase().includes('service')) && (
-                  <>
-                    <SelectItem value="service_advisor">Service Advisor</SelectItem>
-                    <SelectItem value="technician">Technician</SelectItem>
-                  </>
-                )}
-                {departments.some(d => d.department_types?.name?.toLowerCase().includes('parts')) && (
-                  <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
-                )}
-                {departments.some(d => d.department_types?.name?.toLowerCase().includes('sales')) && (
-                  <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
-                )}
+                <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
+                <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                <SelectItem value="technician">Technician</SelectItem>
+                <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
               </SelectContent>
             </Select>
           </div>
