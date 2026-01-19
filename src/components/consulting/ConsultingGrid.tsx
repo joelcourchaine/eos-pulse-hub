@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear } from "date-fns";
 import { Label } from "@/components/ui/label";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -966,6 +966,12 @@ function MonthCell({
   );
   const [time, setTime] = useState(call?.call_time?.slice(0, 5) || '');
   const [recurrenceType, setRecurrenceType] = useState<'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly' | 'none'>('none');
+
+  // Sync local state when call prop changes (e.g., after individual edit)
+  useEffect(() => {
+    setSelectedDate(call?.call_date ? parseISO(call.call_date) : undefined);
+    setTime(call?.call_time?.slice(0, 5) || '');
+  }, [call?.call_date, call?.call_time]);
 
   // Get holidays for calendar display (current year +/- 1)
   const currentYear = getYear(new Date());
