@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear, getDaysInMonth } from "date-fns";
+import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -92,12 +92,9 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     });
   }, []);
 
-  // Calculate today's position for the "Today" marker
+  // Calculate today for the "Today" marker
   const today = new Date();
   const currentMonthKey = format(today, 'yyyy-MM');
-  const currentDay = today.getDate();
-  const daysInCurrentMonth = getDaysInMonth(today);
-  const todayPositionPercent = ((currentDay - 0.5) / daysInCurrentMonth) * 100;
 
   // Fetch stores
   const { data: stores } = useQuery({
@@ -272,6 +269,34 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
 
     return rows;
   }, [clients, calls, stores, allDepartments, months]);
+
+  // Find the next upcoming call in the current month (for the "next appointment" line)
+  const nextUpcomingCallRowId = useMemo(() => {
+    const now = new Date();
+    let nextCall: { rowId: string; dateTime: Date } | null = null;
+
+    for (const row of displayRows) {
+      const call = row.calls.get(currentMonthKey);
+      if (call && call.status !== 'completed' && call.status !== 'cancelled') {
+        const callDate = parseISO(call.call_date);
+        if (call.call_time) {
+          const [hours, minutes] = call.call_time.split(':').map(Number);
+          callDate.setHours(hours, minutes, 0, 0);
+        } else {
+          callDate.setHours(0, 0, 0, 0);
+        }
+        
+        // Only consider future calls
+        if (callDate >= now) {
+          if (!nextCall || callDate < nextCall.dateTime) {
+            nextCall = { rowId: row.rowId, dateTime: callDate };
+          }
+        }
+      }
+    }
+
+    return nextCall?.rowId || null;
+  }, [displayRows, currentMonthKey]);
 
   const handleAddRow = () => {
     setNewRow({
@@ -639,7 +664,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   allDepartments={allDepartments || []}
                   months={months}
                   currentMonthKey={currentMonthKey}
-                  todayPositionPercent={todayPositionPercent}
+                  isNextUpcoming={row.rowId === nextUpcomingCallRowId}
                   onUpdateClient={handleUpdateClient}
                   onDeleteClient={handleDeleteClient}
                   onCreateCall={handleCreateCall}
@@ -679,7 +704,7 @@ function DisplayRowComponent({
   allDepartments,
   months,
   currentMonthKey,
-  todayPositionPercent,
+  isNextUpcoming,
   onUpdateClient,
   onDeleteClient,
   onCreateCall,
@@ -695,7 +720,7 @@ function DisplayRowComponent({
   allDepartments: Department[];
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   currentMonthKey: string;
-  todayPositionPercent: number;
+  isNextUpcoming: boolean;
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
   onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
@@ -855,7 +880,7 @@ function DisplayRowComponent({
               monthDate={month.date}
               call={row.calls.get(month.key) || null}
               isCurrentMonth={month.key === currentMonthKey}
-              todayPositionPercent={todayPositionPercent}
+              showNextLine={isNextUpcoming && month.key === currentMonthKey}
               onCreateCall={onCreateCall}
               onUpdateCall={onUpdateCall}
               onDeleteCall={onDeleteCall}
@@ -916,7 +941,7 @@ function MonthCell({
   monthDate,
   call,
   isCurrentMonth,
-  todayPositionPercent,
+  showNextLine,
   onCreateCall,
   onUpdateCall,
   onDeleteCall,
@@ -928,7 +953,7 @@ function MonthCell({
   monthDate: Date;
   call: ConsultingCall | null;
   isCurrentMonth: boolean;
-  todayPositionPercent: number;
+  showNextLine: boolean;
   onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
@@ -1052,12 +1077,9 @@ function MonthCell({
 
   return (
     <TableCell className={cn("text-center py-0.5 relative", isCurrentMonth && "bg-destructive/5")}>
-      {/* Today marker line through all rows */}
-      {isCurrentMonth && (
-        <div 
-          className="absolute left-0 right-0 h-0.5 bg-destructive z-10 pointer-events-none"
-          style={{ top: `${todayPositionPercent}%` }}
-        />
+      {/* "Next appointment" line - only shown on the row with the next upcoming call */}
+      {showNextLine && (
+        <div className="absolute left-0 right-0 top-0 h-0.5 bg-destructive z-10 pointer-events-none" />
       )}
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
