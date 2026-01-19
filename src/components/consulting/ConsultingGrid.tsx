@@ -603,29 +603,13 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                     <TableHead 
                       key={m.key} 
                       className={cn(
-                        "w-[130px] text-center min-w-[130px] py-1 text-xs relative",
+                        "w-[130px] text-center min-w-[130px] py-1 text-xs",
                         isCurrentMonth && "bg-destructive/10"
                       )}
                     >
                       <span className={cn(isCurrentMonth && "font-semibold text-destructive")}>
                         {m.label}
                       </span>
-                      {isCurrentMonth && (
-                        <>
-                          {/* Horizontal "Today" line */}
-                          <div 
-                            className="absolute left-0 right-0 h-0.5 bg-destructive z-20 pointer-events-none"
-                            style={{ top: `${todayPositionPercent}%` }}
-                          />
-                          {/* Small date label */}
-                          <div 
-                            className="absolute right-1 text-[9px] font-medium text-destructive whitespace-nowrap z-20"
-                            style={{ top: `${todayPositionPercent}%`, transform: 'translateY(-50%)' }}
-                          >
-                            {format(today, 'd')}
-                          </div>
-                        </>
-                      )}
                     </TableHead>
                   );
                 })}
@@ -1067,7 +1051,14 @@ function MonthCell({
   );
 
   return (
-    <TableCell className={cn("text-center py-0.5", isCurrentMonth && "bg-destructive/5")}>
+    <TableCell className={cn("text-center py-0.5 relative", isCurrentMonth && "bg-destructive/5")}>
+      {/* Today marker line through all rows */}
+      {isCurrentMonth && (
+        <div 
+          className="absolute left-0 right-0 h-0.5 bg-destructive z-10 pointer-events-none"
+          style={{ top: `${todayPositionPercent}%` }}
+        />
+      )}
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
