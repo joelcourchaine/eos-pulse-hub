@@ -554,17 +554,17 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
         <ScrollArea className="w-full">
           <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead className="w-[280px] min-w-[280px] sticky left-0 bg-muted/50 z-10">Dealership</TableHead>
-                <TableHead className="w-[120px]">Department</TableHead>
-                <TableHead className="w-[120px]">Contact</TableHead>
-                <TableHead className="w-[80px] text-right">Value</TableHead>
+              <TableRow className="bg-muted/50 h-8">
+                <TableHead className="w-[280px] min-w-[280px] sticky left-0 bg-muted/50 z-10 py-1 text-xs">Dealership</TableHead>
+                <TableHead className="w-[120px] py-1 text-xs">Department</TableHead>
+                <TableHead className="w-[120px] py-1 text-xs">Contact</TableHead>
+                <TableHead className="w-[80px] text-right py-1 text-xs">Value</TableHead>
                 {months.map(m => (
-                  <TableHead key={m.key} className="w-[130px] text-center min-w-[130px]">
+                  <TableHead key={m.key} className="w-[130px] text-center min-w-[130px] py-1 text-xs">
                     {m.label}
                   </TableHead>
                 ))}
-                <TableHead className="w-[50px]"></TableHead>
+                <TableHead className="w-[50px] py-1"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -687,10 +687,11 @@ function DisplayRowComponent({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <TableRow className={cn(
+          "h-8",
           row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20"
         )}>
           {/* Dealership */}
-          <TableCell className="sticky left-0 bg-background z-10">
+          <TableCell className="sticky left-0 bg-background z-10 py-0.5">
             {row.client.is_adhoc ? (
               <div className="flex items-center gap-2">
                 <span className="font-medium">{row.client.name}</span>
@@ -700,7 +701,7 @@ function DisplayRowComponent({
               </div>
             ) : (
               <Select value={row.store_id || ''} onValueChange={handleDealershipChange}>
-                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                <SelectTrigger className="h-6 border-0 shadow-none hover:bg-muted/50 text-xs">
                   <SelectValue placeholder="Select dealership" />
                 </SelectTrigger>
                 <SelectContent>
@@ -715,7 +716,7 @@ function DisplayRowComponent({
           </TableCell>
 
           {/* Department */}
-          <TableCell>
+          <TableCell className="py-0.5">
             {row.client.is_adhoc ? (
               <span className="text-sm text-muted-foreground">{row.client.department_name || '—'}</span>
             ) : (
@@ -724,7 +725,7 @@ function DisplayRowComponent({
                 onValueChange={handleDepartmentChange}
                 disabled={!row.store_id}
               >
-                <SelectTrigger className="h-8 border-0 shadow-none hover:bg-muted/50">
+                <SelectTrigger className="h-6 border-0 shadow-none hover:bg-muted/50 text-xs">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
@@ -739,7 +740,7 @@ function DisplayRowComponent({
           </TableCell>
 
           {/* Contact */}
-          <TableCell>
+          <TableCell className="py-0.5">
             {editingContact ? (
               <Input
                 value={tempContact}
@@ -747,11 +748,11 @@ function DisplayRowComponent({
                 onBlur={handleSaveContact}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
                 autoFocus
-                className="h-8"
+                className="h-6 text-xs"
               />
             ) : (
               <span 
-                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded -mx-2 block truncate"
+                className="cursor-text hover:bg-muted/50 px-1 py-0.5 rounded -mx-1 block truncate text-xs"
                 onClick={() => {
                   setTempContact(row.client.contact_names || '');
                   setEditingContact(true);
@@ -763,7 +764,7 @@ function DisplayRowComponent({
           </TableCell>
 
           {/* Value */}
-          <TableCell className="text-right">
+          <TableCell className="text-right py-0.5">
             {editingValue ? (
               <Input
                 type="number"
@@ -772,11 +773,11 @@ function DisplayRowComponent({
                 onBlur={handleSaveValue}
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveValue()}
                 autoFocus
-                className="h-8 w-16 text-right ml-auto"
+                className="h-6 w-14 text-right ml-auto text-xs"
               />
             ) : (
               <span 
-                className="cursor-text hover:bg-muted/50 px-2 py-1 rounded font-medium"
+                className="cursor-text hover:bg-muted/50 px-1 py-0.5 rounded font-medium text-xs"
                 onClick={() => {
                   setTempValue(row.client.call_value?.toString() || '0');
                   setEditingValue(true);
@@ -804,11 +805,11 @@ function DisplayRowComponent({
           ))}
 
           {/* Delete */}
-          <TableCell>
+          <TableCell className="py-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="h-5 w-5 text-muted-foreground hover:text-destructive"
               onClick={() => onDeleteClient(row.client.id)}
             >
               <Trash2 className="h-4 w-4" />
@@ -942,7 +943,7 @@ function MonthCell({
     <Button
       variant="ghost"
       className={cn(
-        "h-7 justify-center text-left font-normal px-2 gap-1.5 w-full text-xs",
+        "h-6 justify-center text-left font-normal px-1.5 gap-1 w-full text-xs",
         "hover:bg-muted/50",
         !call && "text-muted-foreground",
         isHolidayCall && "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700"
@@ -965,7 +966,7 @@ function MonthCell({
   );
 
   return (
-    <TableCell className="text-center">
+    <TableCell className="text-center py-0.5">
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
