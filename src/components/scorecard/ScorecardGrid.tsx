@@ -3282,6 +3282,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               )}
             </div>
           )}
+          {/* Sticky horizontal scrollbar at bottom of viewport */}
+          <div 
+            ref={stickyScrollRef}
+            className="sticky bottom-0 overflow-x-auto bg-muted/50 border rounded-lg z-40 mb-2"
+            style={{ height: '16px' }}
+            onScroll={handleStickyScroll}
+          >
+            <div style={{ width: tableWidth, height: '1px' }} />
+          </div>
           <div className="relative">
             {/* Loading overlay - prevents flash by covering stale content during transitions */}
             {loading && (
@@ -3291,7 +3300,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             )}
             <div 
               ref={scrollContainerRef}
-              className="overflow-x-auto border rounded-t-lg"
+              className="overflow-x-auto border rounded-lg"
               onScroll={handleMainScroll}
             >
             <Table>
@@ -4664,15 +4673,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           })}
         </TableBody>
       </Table>
-            </div>
-            {/* Sticky horizontal scrollbar at bottom of viewport */}
-            <div 
-              ref={stickyScrollRef}
-              className="sticky bottom-0 overflow-x-auto bg-muted/50 border border-t-0 rounded-b-lg z-20"
-              style={{ height: '16px' }}
-              onScroll={handleStickyScroll}
-            >
-              <div style={{ width: tableWidth, height: '1px' }} />
             </div>
           </div>
         </>
