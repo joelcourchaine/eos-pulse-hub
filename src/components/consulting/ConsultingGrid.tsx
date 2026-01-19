@@ -537,6 +537,32 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     }
   };
 
+  const handleDeleteRow = async (row: DisplayRow) => {
+    const callIds: string[] = [];
+    row.calls.forEach((call) => {
+      if (call) callIds.push(call.id);
+    });
+    
+    if (callIds.length === 0) {
+      toast.info("No calls to delete in this row");
+      return;
+    }
+    
+    const { error } = await supabase
+      .from('consulting_calls')
+      .delete()
+      .in('id', callIds);
+      
+    if (error) {
+      toast.error('Failed to delete row calls');
+      return;
+    }
+    
+    toast.success(`Deleted ${callIds.length} call(s) from this row`);
+    queryClient.invalidateQueries({ queryKey: ['consulting-calls'] });
+    queryClient.invalidateQueries({ queryKey: ['consulting-monthly-stats'] });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -602,6 +628,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   onDeleteCall={handleDeleteCall}
                   onDeleteRecurringSeries={handleDeleteRecurringSeries}
                   onCancelRecurringSeries={handleCancelRecurringSeries}
+                  onDeleteRow={handleDeleteRow}
                 />
               ))}
 
@@ -639,6 +666,7 @@ function DisplayRowComponent({
   onDeleteCall,
   onDeleteRecurringSeries,
   onCancelRecurringSeries,
+  onDeleteRow,
 }: {
   row: DisplayRow;
   stores: Store[];
@@ -652,6 +680,7 @@ function DisplayRowComponent({
   onDeleteCall: (callId: string) => void;
   onDeleteRecurringSeries: (recurrenceGroupId: string, keepCallId?: string) => void;
   onCancelRecurringSeries: (recurrenceGroupId: string) => void;
+  onDeleteRow: (row: DisplayRow) => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [tempValue, setTempValue] = useState(row.client.call_value?.toString() || '0');
@@ -828,6 +857,20 @@ function DisplayRowComponent({
           Add Another Row
         </ContextMenuItem>
         <ContextMenuSeparator />
+        {(() => {
+          let callCount = 0;
+          row.calls.forEach((call) => { if (call) callCount++; });
+          return (
+            <ContextMenuItem 
+              className="text-destructive"
+              onClick={() => onDeleteRow(row)}
+              disabled={callCount === 0}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Row ({callCount} calls)
+            </ContextMenuItem>
+          );
+        })()}
         <ContextMenuItem 
           className="text-destructive"
           onClick={() => onDeleteClient(row.client.id)}
