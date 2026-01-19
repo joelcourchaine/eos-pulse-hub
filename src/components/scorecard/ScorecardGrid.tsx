@@ -1665,9 +1665,9 @@ setStoreUsers(data || []);
     // Use the updated entries if provided, otherwise use state
     const currentEntries = updatedEntries || entries;
 
-    // Define calculation rules
+    // Define calculation rules (empty - no auto-calculated KPIs currently)
     const calculationRules: { [key: string]: { numerator: string, denominator: string } } = {
-      "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" },
+      // "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" }, - removed to allow manual entry
     };
 
     // Find KPIs that need to be calculated based on the changed KPI
@@ -2344,8 +2344,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   // Check if a KPI is automatically calculated
   const isCalculatedKPI = (kpiName: string): boolean => {
-    const calculatedKPIs = [
-      "CP Labour Sales Per RO",
+    const calculatedKPIs: string[] = [
+      // "CP Labour Sales Per RO" - removed to allow manual entry/paste
     ];
     return calculatedKPIs.includes(kpiName);
   };
