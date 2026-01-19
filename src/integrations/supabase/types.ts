@@ -2388,6 +2388,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_controller: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       announcement_priority: "info" | "warning" | "urgent"
@@ -2402,6 +2403,7 @@ export type Database = {
         | "technician"
         | "fixed_ops_manager"
         | "consulting_scheduler"
+        | "controller"
       signature_status: "pending" | "viewed" | "signed" | "expired"
       ticket_category: "bug_report" | "feature_request" | "question" | "other"
       ticket_priority: "low" | "normal" | "urgent"
@@ -2545,6 +2547,7 @@ export const Constants = {
         "technician",
         "fixed_ops_manager",
         "consulting_scheduler",
+        "controller",
       ],
       signature_status: ["pending", "viewed", "signed", "expired"],
       ticket_category: ["bug_report", "feature_request", "question", "other"],
