@@ -1087,9 +1087,9 @@ function MonthCell({
       {showNextLine && (
         <div className="absolute left-0 right-0 top-0 h-0.5 bg-destructive z-10 pointer-events-none" />
       )}
-      <ContextMenu>
-        <ContextMenuTrigger disabled={!call}>
-          <Popover open={dateOpen} onOpenChange={setDateOpen}>
+      <Popover open={dateOpen} onOpenChange={setDateOpen}>
+        <ContextMenu>
+          <ContextMenuTrigger disabled={!call} asChild>
             <PopoverTrigger asChild>
               {isHolidayCall ? (
                 <TooltipProvider>
@@ -1106,6 +1106,7 @@ function MonthCell({
                 </TooltipProvider>
               ) : buttonContent}
             </PopoverTrigger>
+          </ContextMenuTrigger>
             <PopoverContent className="w-auto p-0" align="center">
               <Calendar
                 mode="single"
@@ -1286,42 +1287,41 @@ function MonthCell({
                 </div>
               )}
             </PopoverContent>
-          </Popover>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem onClick={() => handleStatusChange('scheduled')}>
-            <Clock className="h-4 w-4 mr-2 text-blue-500" />
-            Mark as Scheduled
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => handleStatusChange('completed')}>
-            <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-            Mark as Completed
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => handleStatusChange('cancelled')}>
-            <XCircle className="h-4 w-4 mr-2 text-red-500" />
-            Mark as Cancelled
-          </ContextMenuItem>
-          {call?.recurrence_group_id && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem 
-                onClick={() => onCancelRecurringSeries(call.recurrence_group_id!)}
-                className="text-amber-600"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Cancel All in Series
-              </ContextMenuItem>
-              <ContextMenuItem 
-                onClick={() => onDeleteRecurringSeries(call.recurrence_group_id!)}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete All in Series
-              </ContextMenuItem>
-            </>
-          )}
-        </ContextMenuContent>
-      </ContextMenu>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => handleStatusChange('scheduled')}>
+              <Clock className="h-4 w-4 mr-2 text-blue-500" />
+              Mark as Scheduled
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => handleStatusChange('completed')}>
+              <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+              Mark as Completed
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => handleStatusChange('cancelled')}>
+              <XCircle className="h-4 w-4 mr-2 text-red-500" />
+              Mark as Cancelled
+            </ContextMenuItem>
+            {call?.recurrence_group_id && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem 
+                  onClick={() => onCancelRecurringSeries(call.recurrence_group_id!)}
+                  className="text-amber-600"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel All in Series
+                </ContextMenuItem>
+                <ContextMenuItem 
+                  onClick={() => onDeleteRecurringSeries(call.recurrence_group_id!)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete All in Series
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+        </ContextMenu>
+      </Popover>
     </TableCell>
   );
 }
