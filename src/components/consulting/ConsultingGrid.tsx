@@ -654,6 +654,8 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   stores={stores || []}
                   allDepartments={allDepartments || []}
                   months={months}
+                  currentMonthKey={currentMonthKey}
+                  todayPositionPercent={todayPositionPercent}
                   onUpdateClient={handleUpdateClient}
                   onDeleteClient={handleDeleteClient}
                   onCreateCall={handleCreateCall}
@@ -692,6 +694,8 @@ function DisplayRowComponent({
   stores,
   allDepartments,
   months,
+  currentMonthKey,
+  todayPositionPercent,
   onUpdateClient,
   onDeleteClient,
   onCreateCall,
@@ -706,6 +710,8 @@ function DisplayRowComponent({
   stores: Store[];
   allDepartments: Department[];
   months: { key: string; label: string; shortLabel: string; date: Date }[];
+  currentMonthKey: string;
+  todayPositionPercent: number;
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
   onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
@@ -864,6 +870,8 @@ function DisplayRowComponent({
               monthKey={month.key}
               monthDate={month.date}
               call={row.calls.get(month.key) || null}
+              isCurrentMonth={month.key === currentMonthKey}
+              todayPositionPercent={todayPositionPercent}
               onCreateCall={onCreateCall}
               onUpdateCall={onUpdateCall}
               onDeleteCall={onDeleteCall}
@@ -923,6 +931,8 @@ function MonthCell({
   monthKey,
   monthDate,
   call,
+  isCurrentMonth,
+  todayPositionPercent,
   onCreateCall,
   onUpdateCall,
   onDeleteCall,
@@ -933,6 +943,8 @@ function MonthCell({
   monthKey: string;
   monthDate: Date;
   call: ConsultingCall | null;
+  isCurrentMonth: boolean;
+  todayPositionPercent: number;
   onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
@@ -1055,7 +1067,14 @@ function MonthCell({
   );
 
   return (
-    <TableCell className="text-center py-0.5">
+    <TableCell className={cn("text-center py-0.5 relative", isCurrentMonth && "bg-destructive/5")}>
+      {/* Today marker line extending through data rows */}
+      {isCurrentMonth && (
+        <div 
+          className="absolute left-0 right-0 h-0.5 bg-destructive z-10 pointer-events-none"
+          style={{ top: `${todayPositionPercent}%` }}
+        />
+      )}
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
