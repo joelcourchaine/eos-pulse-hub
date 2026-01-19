@@ -522,16 +522,26 @@ const loadData = async () => {
     return () => clearTimeout(timeout);
   }, [loading, viewMode]);
 
-  // Track table width for sticky scrollbar
+  // Track table width for fixed (viewport) scrollbar
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    
+
     const updateWidth = () => {
-      setTableWidth(container.scrollWidth);
+      const sw = container.scrollWidth;
+      const cw = container.clientWidth;
+      setTableWidth(sw);
+      // Reuse the existing debug values so we can also drive visibility logic.
+      setScrollWidthDebug(sw);
+      setScrollClientWidthDebug(cw);
+
+      // Keep the fixed scrollbar aligned if it already exists
+      if (stickyScrollRef.current) {
+        stickyScrollRef.current.scrollLeft = container.scrollLeft;
+      }
     };
+
     updateWidth();
-    
     const observer = new ResizeObserver(updateWidth);
     observer.observe(container);
     return () => observer.disconnect();
@@ -3282,15 +3292,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               )}
             </div>
           )}
-          {/* Sticky horizontal scrollbar at bottom of viewport */}
-          <div 
-            ref={stickyScrollRef}
-            className="sticky bottom-0 overflow-x-auto bg-muted/50 border rounded-lg z-40 mb-2"
-            style={{ height: '16px' }}
-            onScroll={handleStickyScroll}
-          >
-            <div style={{ width: tableWidth, height: '1px' }} />
-          </div>
           <div className="relative">
             {/* Loading overlay - prevents flash by covering stale content during transitions */}
             {loading && (
@@ -4675,6 +4676,22 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       </Table>
             </div>
           </div>
+
+          {/* Fixed horizontal scrollbar (sticks to viewport) */}
+          {tableWidth > scrollClientWidthDebug + 1 && (
+            <div className="fixed left-0 right-0 bottom-0 z-50 pointer-events-none">
+              <div className="mx-auto max-w-[calc(100vw-2rem)] px-4 pb-2 pointer-events-auto">
+                <div
+                  ref={stickyScrollRef}
+                  className="overflow-x-auto bg-muted/50 border rounded-lg"
+                  style={{ height: '16px' }}
+                  onScroll={handleStickyScroll}
+                >
+                  <div style={{ width: tableWidth, height: '1px' }} />
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
