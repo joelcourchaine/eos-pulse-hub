@@ -9,7 +9,7 @@ const corsHeaders = {
 interface CreateUserRequest {
   email: string;
   full_name: string;
-  role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor';
+  role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor' | 'fixed_ops_manager' | 'controller' | 'consulting_scheduler';
   store_id?: string;
   store_ids?: string[]; // New multi-store support
   store_group_id?: string;
@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
     }
 
     // SECURITY: Validate role and enforce role creation restrictions
-    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor', 'fixed_ops_manager'];
+    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor', 'fixed_ops_manager', 'controller', 'consulting_scheduler'];
     if (!validRoles.includes(role)) {
       return new Response(
         JSON.stringify({ 
@@ -229,27 +229,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Only super admins can create super_admin users
-    if (role === 'super_admin' && callerRole !== 'super_admin') {
+    // Only super admins can create super_admin or consulting_scheduler users
+    if ((role === 'super_admin' || role === 'consulting_scheduler') && callerRole !== 'super_admin') {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Forbidden: Only super admins can create super admin users' 
+          error: 'Forbidden: Only super admins can create super admin or consulting scheduler users' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
 
-    // Only super admins can create store_gm users
-    if (role === 'store_gm' && callerRole !== 'super_admin') {
+    // Only super admins and store GMs can create store_gm or controller users
+    if ((role === 'store_gm' || role === 'controller') && callerRole !== 'super_admin' && callerRole !== 'store_gm') {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Forbidden: Only super admins can create store GM users' 
+          error: 'Forbidden: Only super admins and store GMs can create store GM or controller users' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
       );
     }
+
 
     // Auto-generate email if not provided
     if (!email || email.trim() === '') {
