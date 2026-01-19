@@ -336,6 +336,7 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
+  const [pasteOwnerFilter, setPasteOwnerFilter] = useState<string>("all");
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
   const [parsedPasteData, setParsedPasteData] = useState<{ period: string; value: number }[]>([]);
@@ -2689,6 +2690,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       setPasteKpi("");
       setParsedPasteData([]);
       setPasteMonth("01");
+      setPasteOwnerFilter("all");
     } catch (error: any) {
       console.error('Error saving pasted data:', error);
       toast({
@@ -4647,6 +4649,45 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Owner filter for easier KPI selection */}
+            <div className="space-y-2">
+              <Label htmlFor="paste-owner-filter">Filter by Owner</Label>
+              <Select value={pasteOwnerFilter} onValueChange={(value) => {
+                setPasteOwnerFilter(value);
+                // Clear KPI selection when owner filter changes
+                setPasteKpi("");
+                setParsedPasteData([]);
+              }}>
+                <SelectTrigger id="paste-owner-filter">
+                  <SelectValue placeholder="All Owners" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Owners</SelectItem>
+                  {(() => {
+                    // Get unique owners from KPIs
+                    const ownerIds = new Set<string>();
+                    kpis.filter(k => !isCalculatedKPI(k.name)).forEach(kpi => {
+                      if (kpi.assigned_to) {
+                        ownerIds.add(kpi.assigned_to);
+                      }
+                    });
+                    
+                    return Array.from(ownerIds)
+                      .map(ownerId => ({
+                        id: ownerId,
+                        name: profiles[ownerId]?.full_name || "Unknown"
+                      }))
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(owner => (
+                        <SelectItem key={owner.id} value={owner.id}>
+                          {owner.name}
+                        </SelectItem>
+                      ));
+                  })()}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="paste-kpi">Select KPI</Label>
               <Select value={pasteKpi} onValueChange={(value) => {
@@ -4657,18 +4698,23 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   <SelectValue placeholder="Choose a KPI..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {kpis.filter(k => !isCalculatedKPI(k.name)).map((kpi) => {
-                    const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
-                    const ownerName = owner ? owner.full_name : "Unassigned";
-                    return (
-                      <SelectItem key={kpi.id} value={kpi.id}>
-                        <div className="flex items-center justify-between w-full gap-3">
-                          <span>{kpi.name}</span>
-                          <span className="text-xs text-muted-foreground">({ownerName})</span>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  {kpis
+                    .filter(k => !isCalculatedKPI(k.name))
+                    .filter(k => pasteOwnerFilter === "all" || k.assigned_to === pasteOwnerFilter)
+                    .map((kpi) => {
+                      const owner = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+                      const ownerName = owner ? owner.full_name : "Unassigned";
+                      return (
+                        <SelectItem key={kpi.id} value={kpi.id}>
+                          <div className="flex items-center justify-between w-full gap-3">
+                            <span>{kpi.name}</span>
+                            {pasteOwnerFilter === "all" && (
+                              <span className="text-xs text-muted-foreground">({ownerName})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
               {pasteKpi && (() => {
