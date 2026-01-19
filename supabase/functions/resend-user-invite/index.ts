@@ -40,7 +40,7 @@ function getInviteEmailHtml(continueLink: string): string {
               <a href="${continueLink}" class="button">Accept Invitation</a>
             </div>
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 24 hours for security reasons.
+              This link will expire in 1 hour for security reasons. If it expires, ask your admin to resend the invite.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you weren't expecting this invitation, you can safely ignore this email.
