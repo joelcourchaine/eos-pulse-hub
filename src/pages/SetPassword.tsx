@@ -242,7 +242,7 @@ const SetPassword = () => {
             
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Invitation links expire after 24 hours and can only be used once. If you've already clicked the link,
+                Invitation links expire after 1 hour and can only be used once. If you've already clicked the link,
                 try using the "Forgot password" option on the login page.
               </p>
 
