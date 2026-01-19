@@ -70,6 +70,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [selectedKpiIds, setSelectedKpiIds] = useState<Set<string>>(new Set());
   const [bulkAssignRole, setBulkAssignRole] = useState<"department_manager" | "sales_advisor" | "service_advisor" | "parts_advisor" | "technician" | "read_only" | "">("");
   const [isBulkAssigning, setIsBulkAssigning] = useState(false);
+  const [copyToUserId, setCopyToUserId] = useState<string>("");
+  const [isCopyingToOwner, setIsCopyingToOwner] = useState(false);
   const { toast } = useToast();
   
   const { isSuperAdmin, isStoreGM, isDepartmentManager } = useUserRole(userId);
@@ -604,6 +606,58 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     }
   };
 
+  const handleCopyKPIsToOwner = async () => {
+    if (!copyToUserId || selectedKpiIds.size === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one KPI and a target owner",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCopyingToOwner(true);
+
+    try {
+      const selectedKpis = kpis.filter(k => selectedKpiIds.has(k.id));
+      const targetOwner = profiles.find(p => p.id === copyToUserId);
+      
+      const insertions = selectedKpis.map((kpi, index) => ({
+        name: kpi.name,
+        metric_type: kpi.metric_type,
+        target_value: kpi.target_value,
+        target_direction: kpi.target_direction,
+        aggregation_type: kpi.aggregation_type,
+        department_id: departmentId,
+        assigned_to: copyToUserId,
+        display_order: kpis.length + index + 1
+      }));
+
+      const { error: insertError } = await supabase
+        .from("kpi_definitions")
+        .insert(insertions);
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: "Success",
+        description: `Copied ${selectedKpiIds.size} KPI(s) to ${targetOwner?.full_name || "selected owner"}`
+      });
+
+      setSelectedKpiIds(new Set());
+      setCopyToUserId("");
+      onKPIsChange();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsCopyingToOwner(false);
+    }
+  };
+
 
   return (
     <>
@@ -805,7 +859,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
 
             {/* Bulk Assignment Section */}
             {canBulkAssign && kpis.length > 0 && (
-              <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+              <div className="border rounded-lg p-4 space-y-6 bg-muted/20">
                 <div>
                   <h3 className="font-semibold text-sm">Bulk Assignment by Role</h3>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -845,6 +899,43 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     >
                       Assign All KPIs to Role
                     </Button>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <div className="mb-3">
+                    <h4 className="font-medium text-sm">Copy to Specific Owner</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Copy selected KPIs to a single user
+                    </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1">
+                      <Label htmlFor="copy-owner">Select Owner</Label>
+                      <Select value={copyToUserId} onValueChange={setCopyToUserId}>
+                        <SelectTrigger id="copy-owner">
+                          <SelectValue placeholder="Choose a user..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {profiles.filter(p => p.id && p.id.trim() !== "").map((profile) => (
+                            <SelectItem key={profile.id} value={profile.id}>
+                              {profile.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="md:col-span-2 flex items-end">
+                      <Button
+                        onClick={handleCopyKPIsToOwner}
+                        disabled={!copyToUserId || selectedKpiIds.size === 0 || isCopyingToOwner}
+                        variant="secondary"
+                      >
+                        Copy Selected KPIs ({selectedKpiIds.size}) to Owner
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
