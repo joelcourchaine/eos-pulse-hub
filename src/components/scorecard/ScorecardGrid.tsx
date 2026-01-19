@@ -9,7 +9,17 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -340,6 +350,7 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
     sourcePeriod?: string;
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
+  const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
   const [loadedPreviousQuarters, setLoadedPreviousQuarters] = useState<{ year: number; quarter: number }[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [previousQuarterWeeklyEntries, setPreviousQuarterWeeklyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
@@ -2774,6 +2785,22 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
 
   const canManageKPIs = userRole === "super_admin" || userRole === "store_gm" || userRole === "department_manager";
 
+  const handleDeleteKPI = async (id: string) => {
+    const { error } = await supabase
+      .from("kpi_definitions")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    toast({ title: "Success", description: "KPI deleted successfully" });
+    setDeleteKpiId(null);
+    onKPIsChange();
+  };
+
   // Get unique KPI names for filter
   const uniqueKpiNames = Array.from(new Set(kpis.map(k => k.name))).sort();
   
@@ -3627,11 +3654,26 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                   </TableRow>
                 )}
                 <TableRow className="hover:bg-muted/30">
-                  <TableCell 
-                    className="sticky left-0 bg-background z-10 w-[200px] min-w-[200px] max-w-[200px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
-                  >
-                    {kpi.name}
-                  </TableCell>
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <TableCell 
+                        className="sticky left-0 bg-background z-10 w-[200px] min-w-[200px] max-w-[200px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] cursor-context-menu"
+                      >
+                        {kpi.name}
+                      </TableCell>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="bg-background z-50">
+                      {canManageKPIs && (
+                        <ContextMenuItem 
+                          onClick={() => setDeleteKpiId(kpi.id)}
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete KPI
+                        </ContextMenuItem>
+                      )}
+                    </ContextMenuContent>
+                  </ContextMenu>
                   {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
                     <>
                       {/* Loading indicator cell */}
@@ -4783,6 +4825,28 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         sourceKpiId={issueContext?.sourceKpiId}
         sourcePeriod={issueContext?.sourcePeriod}
       />
+
+      {/* Delete KPI Confirmation Dialog */}
+      <AlertDialog open={!!deleteKpiId} onOpenChange={(open) => !open && setDeleteKpiId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete KPI?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this KPI and all associated scorecard data. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteKpiId && handleDeleteKPI(deleteKpiId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
