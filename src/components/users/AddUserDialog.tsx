@@ -296,6 +296,8 @@ export const AddUserDialog = ({ open, onOpenChange, onUserCreated, currentStoreI
                 {(isSuperAdmin || isStoreGM) && <SelectItem value="store_gm">Store GM</SelectItem>}
                 {/* Only super admins can create consulting scheduler users */}
                 {isSuperAdmin && <SelectItem value="consulting_scheduler">Consulting Scheduler</SelectItem>}
+                {/* Controller has view-only access across all departments */}
+                {(isSuperAdmin || isStoreGM) && <SelectItem value="controller">Controller</SelectItem>}
                 <SelectItem value="department_manager">Department Manager</SelectItem>
                 <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                 <SelectItem value="read_only">Read Only</SelectItem>
