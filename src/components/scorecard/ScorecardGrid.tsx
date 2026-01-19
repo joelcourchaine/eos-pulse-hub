@@ -314,11 +314,12 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
   const [trendTargetEditValue, setTrendTargetEditValue] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [showAddKPI, setShowAddKPI] = useState(false);
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
+const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [newKPIName, setNewKPIName] = useState("");
   const [newKPIType, setNewKPIType] = useState<"dollar" | "percentage" | "unit">("dollar");
   const [newKPIDirection, setNewKPIDirection] = useState<"above" | "below">("above");
   const [storeUsers, setStoreUsers] = useState<Profile[]>([]);
+  const [dynamicPresetKpis, setDynamicPresetKpis] = useState<{ id: string; name: string; metric_type: string; target_direction: string; aggregation_type: string }[]>([]);
   const [draggedOwnerId, setDraggedOwnerId] = useState<string | null>(null);
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
   const [departmentManagerId, setDepartmentManagerId] = useState<string | null>(null);
@@ -465,10 +466,11 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
     setYearlyAverages({});
     
     // Load data in correct sequence - targets must be loaded before scorecard data
-    const loadData = async () => {
+const loadData = async () => {
       loadUserRole();
       fetchProfiles();
       loadStoreUsers();
+      loadDynamicPresetKpis();
 
       // Load targets first and pass them directly to scorecard data to avoid stale state
       const freshTargets = await loadKPITargets();
@@ -1096,7 +1098,21 @@ const ScorecardGrid = ({ departmentId, kpis, onKPIsChange, year, quarter, onYear
       return;
     }
 
-    setStoreUsers(data || []);
+setStoreUsers(data || []);
+  };
+
+  const loadDynamicPresetKpis = async () => {
+    const { data, error } = await supabase
+      .from("preset_kpis")
+      .select("id, name, metric_type, target_direction, aggregation_type")
+      .order("display_order");
+
+    if (error) {
+      console.error("Error fetching preset KPIs:", error);
+      return;
+    }
+
+    setDynamicPresetKpis(data || []);
   };
 
   const loadKPITargets = async () => {
@@ -2329,12 +2345,22 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       setNewKPIType("dollar");
       setNewKPIDirection("above");
     } else {
-      const preset = PRESET_KPIS.find(p => p.name === presetName);
-      if (preset) {
+      // First try to find in dynamic presets from database
+      const dynamicPreset = dynamicPresetKpis.find(p => p.name === presetName);
+      if (dynamicPreset) {
         setSelectedPreset(presetName);
-        setNewKPIName(preset.name);
-        setNewKPIType(preset.metricType);
-        setNewKPIDirection(preset.targetDirection);
+        setNewKPIName(dynamicPreset.name);
+        setNewKPIType(dynamicPreset.metric_type as "dollar" | "percentage" | "unit");
+        setNewKPIDirection(dynamicPreset.target_direction as "above" | "below");
+      } else {
+        // Fallback to hardcoded presets for backwards compatibility
+        const preset = PRESET_KPIS.find(p => p.name === presetName);
+        if (preset) {
+          setSelectedPreset(presetName);
+          setNewKPIName(preset.name);
+          setNewKPIType(preset.metricType);
+          setNewKPIDirection(preset.targetDirection);
+        }
       }
     }
   };
@@ -2997,8 +3023,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                             </SelectTrigger>
                             <SelectContent className="bg-background z-50">
                               <SelectItem value="custom">Custom KPI</SelectItem>
-                              {PRESET_KPIS.map((preset) => (
-                                <SelectItem key={preset.name} value={preset.name}>
+                              {dynamicPresetKpis.map((preset) => (
+                                <SelectItem key={preset.id} value={preset.name}>
                                   {preset.name}
                                 </SelectItem>
                               ))}
