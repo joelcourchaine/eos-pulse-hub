@@ -368,7 +368,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     clientId: string, 
     date: Date, 
     time?: string,
-    recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly'
+    recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly'
   ) => {
     try {
       if (recurrenceType) {
@@ -387,6 +387,11 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
             occurrences = 52; // ~2 years
             addInterval = (d, c) => addWeeks(d, c * 2);
             label = 'Bi-weekly';
+            break;
+          case 'every-4-weeks':
+            occurrences = 26; // ~2 years
+            addInterval = (d, c) => addWeeks(d, c * 4);
+            label = 'Every 4 weeks';
             break;
           case 'monthly':
             occurrences = 24; // 2 years
@@ -641,7 +646,7 @@ function DisplayRowComponent({
   months: { key: string; label: string; shortLabel: string; date: Date }[];
   onUpdateClient: (id: string, field: string, value: any) => void;
   onDeleteClient: (id: string) => void;
-  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly') => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
   onAddRowForClient: (clientId: string) => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
@@ -851,7 +856,7 @@ function MonthCell({
   monthKey: string;
   monthDate: Date;
   call: ConsultingCall | null;
-  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly') => void;
+  onCreateCall: (clientId: string, date: Date, time?: string, recurrenceType?: 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly') => void;
   onUpdateCall: (callId: string, field: string, value: any) => void;
   onDeleteCall: (callId: string) => void;
   onDeleteRecurringSeries: (recurrenceGroupId: string, keepCallId?: string) => void;
@@ -862,7 +867,7 @@ function MonthCell({
     call?.call_date ? parseISO(call.call_date) : undefined
   );
   const [time, setTime] = useState(call?.call_time?.slice(0, 5) || '');
-  const [recurrenceType, setRecurrenceType] = useState<'weekly' | 'bi-weekly' | 'monthly' | 'quarterly' | 'none'>('none');
+  const [recurrenceType, setRecurrenceType] = useState<'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly' | 'none'>('none');
 
   // Get holidays for calendar display (current year +/- 1)
   const currentYear = getYear(new Date());
@@ -1078,6 +1083,7 @@ function MonthCell({
                         <SelectItem value="none">No recurrence</SelectItem>
                         <SelectItem value="weekly">Weekly</SelectItem>
                         <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                        <SelectItem value="every-4-weeks">Every 4 weeks</SelectItem>
                         <SelectItem value="monthly">Monthly</SelectItem>
                         <SelectItem value="quarterly">Quarterly</SelectItem>
                       </SelectContent>
@@ -1138,7 +1144,7 @@ function MonthCell({
                           if (v !== 'none') {
                             const callDate = parseISO(call.call_date);
                             onDeleteCall(call.id);
-                            onCreateCall(clientId, callDate, call.call_time || undefined, v as 'weekly' | 'bi-weekly' | 'monthly' | 'quarterly');
+                            onCreateCall(clientId, callDate, call.call_time || undefined, v as 'weekly' | 'bi-weekly' | 'every-4-weeks' | 'monthly' | 'quarterly');
                             setDateOpen(false);
                           }
                         }}
@@ -1150,6 +1156,7 @@ function MonthCell({
                           <SelectItem value="none">Not recurring</SelectItem>
                           <SelectItem value="weekly">Weekly</SelectItem>
                           <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
+                          <SelectItem value="every-4-weeks">Every 4 weeks</SelectItem>
                           <SelectItem value="monthly">Monthly</SelectItem>
                           <SelectItem value="quarterly">Quarterly</SelectItem>
                         </SelectContent>
