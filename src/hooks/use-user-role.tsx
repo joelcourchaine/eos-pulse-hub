@@ -44,10 +44,13 @@ export const useUserRole = (userId: string | undefined) => {
   const hasRole = (role: string) => roles.includes(role);
   const isSuperAdmin = hasRole("super_admin");
   const isStoreGM = hasRole("store_gm");
+  const isController = hasRole("controller");
   const isDepartmentManager = hasRole("department_manager") || hasRole("fixed_ops_manager");
   const isFixedOpsManager = hasRole("fixed_ops_manager");
   const isConsultingScheduler = hasRole("consulting_scheduler");
   const hasElevatedAccess = isSuperAdmin || isConsultingScheduler;
+  // Controller has same view access as Store GM but read-only
+  const hasStoreViewAccess = isStoreGM || isController;
 
   return {
     roles,
@@ -55,9 +58,11 @@ export const useUserRole = (userId: string | undefined) => {
     hasRole,
     isSuperAdmin,
     isStoreGM,
+    isController,
     isDepartmentManager,
     isFixedOpsManager,
     isConsultingScheduler,
     hasElevatedAccess,
+    hasStoreViewAccess,
   };
 };
