@@ -943,25 +943,32 @@ function MonthCell({
     <Button
       variant="ghost"
       className={cn(
-        "h-6 justify-center text-left font-normal px-1.5 gap-1 w-full text-xs",
+        "h-6 justify-start text-left font-normal px-1.5 w-full text-xs",
         "hover:bg-muted/50",
         !call && "text-muted-foreground",
         isHolidayCall && "bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700"
       )}
     >
-      {call && (
-        <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
-      )}
-      {call?.recurrence_group_id && (
-        <Repeat className="h-3 w-3 shrink-0 text-muted-foreground" />
-      )}
-      {isHolidayCall && (
-        <span className="shrink-0 text-amber-600 dark:text-amber-400" title={holidayName!}>🍁</span>
-      )}
-      <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
-      <span className={cn("truncate", isCallInPast && "opacity-50")}>
-        {displayText || "Date / Time"}
-      </span>
+      <div className="flex items-center gap-1 w-full">
+        {/* Left side - always aligned */}
+        {call && (
+          <div className={cn("w-2 h-2 rounded-full shrink-0", getStatusColor(call.status))} />
+        )}
+        <CalendarIcon className={cn("h-3 w-3 shrink-0", isCallInPast && "opacity-50")} />
+        <span className={cn("truncate", isCallInPast && "opacity-50")}>
+          {displayText || "Date / Time"}
+        </span>
+        
+        {/* Right side - recurring and holiday indicators */}
+        <div className="flex items-center gap-0.5 ml-auto shrink-0">
+          {call?.recurrence_group_id && (
+            <Repeat className="h-3 w-3 text-muted-foreground" />
+          )}
+          {isHolidayCall && (
+            <span className="text-amber-600 dark:text-amber-400" title={holidayName!}>🍁</span>
+          )}
+        </div>
+      </div>
     </Button>
   );
 
