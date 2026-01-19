@@ -4,10 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, LayoutGrid, ChevronLeft, ChevronRight, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { format, startOfWeek, addWeeks, subWeeks, isSameWeek, differenceInWeeks } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { format, startOfWeek, addWeeks, subWeeks, isSameWeek, differenceInWeeks, endOfWeek, parseISO } from "date-fns";
 import { IssuesAndTodosPanel } from "@/components/issues/IssuesAndTodosPanel";
 
 export type MeetingViewMode = "view-all" | "segue" | "scorecard" | "rocks" | "headlines" | "issues-todos" | "conclude";
@@ -73,6 +74,90 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
     if (weeksDiff === -1) return "Next week";
     if (weeksDiff < -1) return `${Math.abs(weeksDiff)} weeks ahead`;
     return null;
+  };
+
+  // Fetch scheduled consulting call for this department during the selected week
+  const { data: scheduledCall } = useQuery({
+    queryKey: ['scheduled-call', departmentId, format(selectedWeekStart, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      // First get the department info to find the store and department name
+      const { data: department, error: deptError } = await supabase
+        .from('departments')
+        .select('name, store_id, stores(name)')
+        .eq('id', departmentId)
+        .single();
+
+      if (deptError || !department) {
+        console.error('Error fetching department:', deptError);
+        return null;
+      }
+
+      const storeName = (department.stores as { name: string })?.name;
+      const departmentName = department.name;
+
+      if (!storeName) return null;
+
+      // Find consulting clients that match this store name and department
+      const { data: clients, error: clientError } = await supabase
+        .from('consulting_clients')
+        .select('id')
+        .eq('name', storeName)
+        .eq('department_name', departmentName);
+
+      if (clientError || !clients?.length) {
+        return null;
+      }
+
+      const clientIds = clients.map(c => c.id);
+      const weekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+
+      // Find calls for these clients in the selected week
+      const { data: calls, error: callError } = await supabase
+        .from('consulting_calls')
+        .select('call_date, call_time, status')
+        .in('client_id', clientIds)
+        .gte('call_date', format(selectedWeekStart, 'yyyy-MM-dd'))
+        .lte('call_date', format(weekEnd, 'yyyy-MM-dd'))
+        .order('call_date', { ascending: true })
+        .order('call_time', { ascending: true })
+        .limit(1);
+
+      if (callError || !calls?.length) {
+        return null;
+      }
+
+      return calls[0];
+    },
+    enabled: !!departmentId,
+  });
+
+  // Format the call date/time for display
+  const formatCallDateTime = (callDate: string, callTime: string | null) => {
+    const date = parseISO(callDate);
+    const dayStr = format(date, 'EEE MMM d');
+    
+    if (callTime) {
+      // Parse time like "10:00" and format nicely
+      const [hours, minutes] = callTime.split(':').map(Number);
+      const timeDate = new Date();
+      timeDate.setHours(hours, minutes);
+      const timeStr = format(timeDate, 'h:mm a');
+      return `${dayStr} @ ${timeStr}`;
+    }
+    
+    return dayStr;
+  };
+
+  // Get status badge variant
+  const getStatusVariant = (status: string | null) => {
+    switch (status) {
+      case 'completed':
+        return 'default';
+      case 'cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
+    }
   };
 
   // Notify parent of initial view mode on mount and when component remounts
@@ -222,43 +307,64 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
             </CardDescription>
           </div>
           
-          {/* Week Navigation */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToPreviousWeek}
-              className="h-8 w-8"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            
-            <div className="flex flex-col items-center min-w-[180px]">
-              <span className="text-sm font-medium">
-                Week of {format(selectedWeekStart, 'MMM d, yyyy')}
-              </span>
-              <div className="flex items-center gap-2 mt-0.5">
-                {isCurrentWeek ? (
-                  <Badge variant="default" className="text-xs">
-                    This Week
-                  </Badge>
-                ) : relativeText ? (
-                  <span className="text-xs text-muted-foreground">
-                    {relativeText}
+          <div className="flex items-center gap-6">
+            {/* Scheduled Call Info */}
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              {scheduledCall ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {formatCallDateTime(scheduledCall.call_date, scheduledCall.call_time)}
                   </span>
-                ) : null}
-              </div>
+                  <Badge variant={getStatusVariant(scheduledCall.status)} className="text-xs capitalize">
+                    {scheduledCall.status || 'Scheduled'}
+                  </Badge>
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  No call scheduled this week
+                </span>
+              )}
             </div>
             
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToNextWeek}
-              disabled={isAtMaxFuture}
-              className="h-8 w-8"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            {/* Week Navigation */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToPreviousWeek}
+                className="h-8 w-8"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <div className="flex flex-col items-center min-w-[180px]">
+                <span className="text-sm font-medium">
+                  Week of {format(selectedWeekStart, 'MMM d, yyyy')}
+                </span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {isCurrentWeek ? (
+                    <Badge variant="default" className="text-xs">
+                      This Week
+                    </Badge>
+                  ) : relativeText ? (
+                    <span className="text-xs text-muted-foreground">
+                      {relativeText}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToNextWeek}
+                disabled={isAtMaxFuture}
+                className="h-8 w-8"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardHeader>
