@@ -361,8 +361,10 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const stickyScrollRef = useRef<HTMLDivElement>(null);
   const tryLoadPreviousRef = useRef<null | (() => void)>(null);
   const [scrollLeftDebug, setScrollLeftDebug] = useState(0);
+  const [tableWidth, setTableWidth] = useState(0);
   const [scrollWidthDebug, setScrollWidthDebug] = useState(0);
   const [scrollClientWidthDebug, setScrollClientWidthDebug] = useState(0);
   
@@ -519,6 +521,34 @@ const loadData = async () => {
     const timeout = setTimeout(checkContainer, 100);
     return () => clearTimeout(timeout);
   }, [loading, viewMode]);
+
+  // Track table width for sticky scrollbar
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    
+    const updateWidth = () => {
+      setTableWidth(container.scrollWidth);
+    };
+    updateWidth();
+    
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [kpis, entries, viewMode, year, quarter, loadedPreviousQuarters]);
+
+  // Scroll synchronization handlers for sticky scrollbar
+  const handleStickyScroll = useCallback(() => {
+    if (stickyScrollRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
+    }
+  }, []);
+
+  const handleMainScroll = useCallback(() => {
+    if (stickyScrollRef.current && scrollContainerRef.current) {
+      stickyScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
+    }
+  }, []);
 
   // Infinite scroll handler for weekly/monthly view - load previous quarter when scrolling to left edge
   useEffect(() => {
@@ -3261,7 +3291,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             )}
             <div 
               ref={scrollContainerRef}
-              className="overflow-x-auto border rounded-lg"
+              className="overflow-x-auto border rounded-t-lg"
+              onScroll={handleMainScroll}
             >
             <Table>
             <TableHeader>
@@ -4633,6 +4664,15 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           })}
         </TableBody>
       </Table>
+            </div>
+            {/* Sticky horizontal scrollbar at bottom of viewport */}
+            <div 
+              ref={stickyScrollRef}
+              className="sticky bottom-0 overflow-x-auto bg-muted/50 border border-t-0 rounded-b-lg z-20"
+              style={{ height: '16px' }}
+              onScroll={handleStickyScroll}
+            >
+              <div style={{ width: tableWidth, height: '1px' }} />
             </div>
           </div>
         </>
