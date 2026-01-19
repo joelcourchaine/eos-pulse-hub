@@ -1067,14 +1067,7 @@ function MonthCell({
   );
 
   return (
-    <TableCell className={cn("text-center py-0.5 relative", isCurrentMonth && "bg-destructive/5")}>
-      {/* Today marker line extending through data rows */}
-      {isCurrentMonth && (
-        <div 
-          className="absolute left-0 right-0 h-0.5 bg-destructive z-10 pointer-events-none"
-          style={{ top: `${todayPositionPercent}%` }}
-        />
-      )}
+    <TableCell className={cn("text-center py-0.5", isCurrentMonth && "bg-destructive/5")}>
       <ContextMenu>
         <ContextMenuTrigger disabled={!call}>
           <Popover open={dateOpen} onOpenChange={setDateOpen}>
