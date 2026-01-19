@@ -101,6 +101,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isStoreGM, setIsStoreGM] = useState(false);
   const [currentUserGroupId, setCurrentUserGroupId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -110,15 +111,15 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if super admin
+      // Check user roles
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "super_admin")
-        .maybeSingle();
+        .eq("user_id", user.id);
       
-      setIsSuperAdmin(!!roleData);
+      const roles = roleData?.map(r => r.role) || [];
+      setIsSuperAdmin(roles.includes("super_admin"));
+      setIsStoreGM(roles.includes("store_gm"));
 
       // Get current user's store group
       const { data: profileData } = await supabase
@@ -607,8 +608,8 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                         <SelectContent>
                           {isSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
                           {isSuperAdmin && <SelectItem value="consulting_scheduler">Consulting Scheduler</SelectItem>}
-                          <SelectItem value="store_gm">Store GM</SelectItem>
-                          <SelectItem value="controller">Controller</SelectItem>
+                          {(isSuperAdmin || isStoreGM) && <SelectItem value="store_gm">Store GM</SelectItem>}
+                          {(isSuperAdmin || isStoreGM) && <SelectItem value="controller">Controller</SelectItem>}
                           <SelectItem value="department_manager">Dept Manager</SelectItem>
                           <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                           <SelectItem value="read_only">Read Only</SelectItem>
