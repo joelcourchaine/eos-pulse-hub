@@ -856,7 +856,7 @@ export default function DealerComparison() {
             departmentId: deptId,
             departmentName: deptName,
             metricName,
-            value: entry.value ? Number(entry.value) : null,
+            value: entry.value !== null && entry.value !== undefined ? Number(entry.value) : null,
             target: comparisonInfo?.value || null,
             variance: null,
           };
