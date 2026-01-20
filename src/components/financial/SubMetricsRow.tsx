@@ -423,8 +423,34 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               const rockDirection = subMetricRock?.target_direction ?? 'above';
               
               if (period.type === 'month') {
-                const value = getSubMetricValue(subMetric.name, period.identifier);
-                // Only apply variance coloring for current year months
+                const monthId = period.identifier;
+
+                // For percentage metrics, compute % from underlying numerator/denominator data
+                const value = ((): number | null => {
+                  if (isPercentageMetric && percentageCalculation && getSubMetricValueForParent) {
+                    const { numerator, denominator } = percentageCalculation;
+
+                    const numeratorValue = getSubMetricValueForParent(numerator, subMetric.name, monthId);
+                    const denominatorSubValue = getSubMetricValueForParent(denominator, subMetric.name, monthId);
+
+                    // If denominator has matching sub-metric (GP% style)
+                    if (denominatorSubValue !== null && denominatorSubValue !== 0) {
+                      return numeratorValue !== null ? (numeratorValue / denominatorSubValue) * 100 : null;
+                    }
+
+                    // Otherwise (Sales Expense % style), use parent denominator total for this month
+                    if (getParentMetricTotal) {
+                      const parentDenominator = getParentMetricTotal(denominator, [monthId]);
+                      if (numeratorValue !== null && parentDenominator !== null && parentDenominator !== 0) {
+                        return (numeratorValue / parentDenominator) * 100;
+                      }
+                    }
+
+                    return null;
+                  }
+
+                  return getSubMetricValue(subMetric.name, monthId);
+                })();
                 const periodYear = parseInt(period.identifier.split('-')[0]);
                 const isCurrentYear = periodYear === currentYear;
                 
@@ -777,7 +803,31 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             </div>
           </TableCell>
           {monthIdentifiers.map((monthId) => {
-            const value = getSubMetricValue(subMetric.name, monthId);
+            // For percentage metrics, compute % from underlying numerator/denominator data
+            const value = ((): number | null => {
+              if (isPercentageMetric && percentageCalculation && getSubMetricValueForParent) {
+                const { numerator, denominator } = percentageCalculation;
+
+                const numeratorValue = getSubMetricValueForParent(numerator, subMetric.name, monthId);
+                const denominatorSubValue = getSubMetricValueForParent(denominator, subMetric.name, monthId);
+
+                if (denominatorSubValue !== null && denominatorSubValue !== 0) {
+                  return numeratorValue !== null ? (numeratorValue / denominatorSubValue) * 100 : null;
+                }
+
+                if (getParentMetricTotal) {
+                  const parentDenominator = getParentMetricTotal(denominator, [monthId]);
+                  if (numeratorValue !== null && parentDenominator !== null && parentDenominator !== 0) {
+                    return (numeratorValue / parentDenominator) * 100;
+                  }
+                }
+
+                return null;
+              }
+
+              return getSubMetricValue(subMetric.name, monthId);
+            })();
+
             const quarterlyTargetValue = getSubMetricTarget && quarter && currentYear
               ? getSubMetricTarget(subMetric.name, quarter, currentYear)
               : null;
