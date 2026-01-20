@@ -49,6 +49,15 @@ export default function MetricComparisonTable({
     );
   }
 
+
+  const getMetricRowLabel = (metricName: string) => {
+    if (metricName.startsWith("sub:")) {
+      const parts = metricName.split(":");
+      return `↳ ${parts.slice(2).join(":")}`;
+    }
+    return metricName;
+  };
+
   // Group data by store
   const storeData = data.reduce((acc, item) => {
     if (!acc[item.storeId]) {
@@ -57,10 +66,12 @@ export default function MetricComparisonTable({
         metrics: {},
       };
     }
-    const key = item.departmentName ? `${item.departmentName} - ${item.metricName}` : item.metricName;
+    const rowLabel = getMetricRowLabel(item.metricName);
+    const key = item.departmentName ? `${item.departmentName} - ${rowLabel}` : rowLabel;
     acc[item.storeId].metrics[key] = item;
     return acc;
   }, {} as Record<string, { storeName: string; metrics: Record<string, MetricData> }>);
+
 
   // Sort stores by the selected metric (best/highest values first = left side)
   let stores = Object.entries(storeData);
@@ -81,83 +92,67 @@ export default function MetricComparisonTable({
   const allMetricKeys = useMemo(() => {
     const uniqueKeys = Array.from(
       new Set(
-        data.map((d) => (d.departmentName ? `${d.departmentName} - ${d.metricName}` : d.metricName)),
+        data.map((d) => {
+          const rowLabel = getMetricRowLabel(d.metricName);
+          return d.departmentName ? `${d.departmentName} - ${rowLabel}` : rowLabel;
+        }),
       ),
     );
 
-    // Build a map of parent metric key -> list of sub-metric keys
-    const parentToSubs = new Map<string, string[]>();
-    const subKeySet = new Set<string>();
 
-    uniqueKeys.forEach((key) => {
-      // Sub-metrics are displayed as "↳ SubName" or "Dept - ↳ SubName"
-      const isSubMetric = key.includes("↳");
-      if (isSubMetric) {
-        subKeySet.add(key);
-        // Try to find the parent by matching the selection ID structure
-        // Look for a parent by checking selectedMetrics for matching sub: entries
-        selectedMetrics.forEach((selId) => {
-          if (selId.startsWith("sub:")) {
-            const parts = selId.split(":");
-            const parentKey = parts[1];
-            const subName = parts.slice(parts.length >= 4 ? 3 : 2).join(":");
-            const expectedSubDisplay = `↳ ${subName}`;
-            
-            // Check if this key ends with the expected sub display
-            if (key.endsWith(expectedSubDisplay)) {
-              // Find the parent display name in the list
-              const parentDef = metrics.find((m: any) => m.key === parentKey);
-              if (parentDef) {
-                const deptPrefix = key.includes(" - ") ? key.split(" - ↳")[0] + " - " : "";
-                const parentDisplayKey = deptPrefix + parentDef.name;
-                
-                if (!parentToSubs.has(parentDisplayKey)) {
-                  parentToSubs.set(parentDisplayKey, []);
-                }
-                if (!parentToSubs.get(parentDisplayKey)!.includes(key)) {
-                  parentToSubs.get(parentDisplayKey)!.push(key);
-                }
-              }
-            }
+    // Build preferred row order from the user's selection order.
+    // This avoids relying on data-map insertion order and ensures sub-metrics render
+    // immediately after their parent.
+    const departmentNames = Array.from(
+      new Set(data.map((d) => d.departmentName).filter(Boolean) as string[]),
+    );
+
+    const buildDisplayLabelFromSelectionId = (selectionId: string) => {
+      if (!selectionId.startsWith("sub:")) return selectionId;
+      const parts = selectionId.split(":");
+      // sub:<parentKey>:<subName...>
+      return `↳ ${parts.slice(2).join(":")}`;
+    };
+
+    const preferredOrder: string[] = [];
+    const deptsToOrder = departmentNames.length ? departmentNames : [null];
+
+    deptsToOrder.forEach((dept) => {
+      selectedMetrics.forEach((selectionId) => {
+        const label = buildDisplayLabelFromSelectionId(selectionId);
+        preferredOrder.push(dept ? `${dept} - ${label}` : label);
+
+        // If we have a sub-metric selected, also ensure the parent appears immediately
+        // above it in the preferred order (even if the parent wasn't explicitly selected).
+        if (selectionId.startsWith("sub:")) {
+          const parentKey = selectionId.split(":")[1];
+          const parentDef = metrics.find((m: any) => m.key === parentKey);
+          const parentLabel = parentDef?.name ?? parentKey;
+          const parentRowKey = dept ? `${dept} - ${parentLabel}` : parentLabel;
+
+          // Insert parent just before the sub-metric (if it isn't already in the list).
+          const subRowKey = dept ? `${dept} - ${label}` : label;
+          const subIdx = preferredOrder.lastIndexOf(subRowKey);
+          if (subIdx !== -1 && !preferredOrder.includes(parentRowKey)) {
+            preferredOrder.splice(subIdx, 0, parentRowKey);
           }
-        });
-      }
+        }
+      });
     });
 
-    // Build ordered list: parent followed by its sub-metrics
-    const orderedKeys: string[] = [];
-    const addedKeys = new Set<string>();
-
-    uniqueKeys.forEach((key) => {
-      if (addedKeys.has(key)) return;
-      
-      // Skip sub-metrics here; they'll be added after their parent
-      if (subKeySet.has(key)) return;
-      
-      // Add the parent/regular metric
-      orderedKeys.push(key);
-      addedKeys.add(key);
-      
-      // Add any sub-metrics for this parent
-      const subs = parentToSubs.get(key);
-      if (subs) {
-        subs.forEach((subKey) => {
-          if (!addedKeys.has(subKey)) {
-            orderedKeys.push(subKey);
-            addedKeys.add(subKey);
-          }
-        });
-      }
+    const preferredIndex = new Map<string, number>();
+    preferredOrder.forEach((k, idx) => {
+      if (!preferredIndex.has(k)) preferredIndex.set(k, idx);
     });
 
-    // Add any remaining sub-metrics that weren't matched to a parent
-    uniqueKeys.forEach((key) => {
-      if (!addedKeys.has(key)) {
-        orderedKeys.push(key);
-      }
+    return uniqueKeys.sort((a, b) => {
+      const ai = preferredIndex.get(a);
+      const bi = preferredIndex.get(b);
+      if (ai === undefined && bi === undefined) return a.localeCompare(b);
+      if (ai === undefined) return 1;
+      if (bi === undefined) return -1;
+      return ai - bi;
     });
-
-    return orderedKeys;
   }, [data, selectedMetrics, metrics]);
 
   // Map sub-metric display rows ("↳ ...") to the type of their parent selection.
@@ -259,10 +254,12 @@ export default function MetricComparisonTable({
                           <td key={storeId} className="border-b px-4 py-3">
                             {metric ? (
                               <div className="space-y-1">
-                                <div className="font-semibold">{formatValue(metric.value, metric.metricName)}</div>
+                                <div className="font-semibold">
+                                  {formatValue(metric.value, getMetricRowLabel(metric.metricName))}
+                                </div>
                                 {metric.target !== null && metric.target !== undefined && (
                                   <div className="text-xs text-muted-foreground">
-                                    Target: {formatValue(metric.target, metric.metricName)}
+                                    Target: {formatValue(metric.target, getMetricRowLabel(metric.metricName))}
                                   </div>
                                 )}
                                 {metric.variance !== null && metric.variance !== undefined && (
