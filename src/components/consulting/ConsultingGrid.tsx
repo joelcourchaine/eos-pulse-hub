@@ -1082,7 +1082,7 @@ function MonthCell({
   );
 
   return (
-    <TableCell className={cn("text-center py-0.5 relative", isCurrentMonth && "bg-destructive/5")}>
+    <TableCell className="text-center py-0.5 relative">
       {/* "Next appointment" line - only shown on the row with the next upcoming call */}
       {showNextLine && (
         <div className="absolute left-0 right-0 top-0 h-0.5 bg-destructive z-10 pointer-events-none" />
