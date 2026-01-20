@@ -543,24 +543,33 @@ export default function Enterprise() {
       const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
       const result: any[] = [];
       
-      baseMetrics.forEach((metric: any) => {
-        result.push(metric);
-        
-        // Check if this metric has sub-metrics
-        if (subMetricData.has(metric.key)) {
-          const subNames = Array.from(subMetricData.get(metric.key)!).sort();
-          subNames.forEach(subName => {
-            result.push({
-              name: `↳ ${subName}`,
-              key: `sub:${metric.key}:${subName}`,
-              type: metric.type,
-              isSubMetric: true,
-              parentKey: metric.key,
-              parentName: metric.name,
-            });
-          });
-        }
-      });
+       baseMetrics.forEach((metric: any) => {
+         result.push(metric);
+
+         // Check if this metric has sub-metrics.
+         // NOTE: percentage metrics with calculations store sub-metrics under their NUMERATOR key
+         // (e.g., Sales Expense % uses sub-metrics stored under sales_expense).
+         const subMetricSourceKey =
+           metric.type === 'percentage' && metric.hasSubMetrics && metric.calculation && 'numerator' in metric.calculation
+             ? metric.calculation.numerator
+             : metric.key;
+
+         if (subMetricData.has(subMetricSourceKey)) {
+           const subNames = Array.from(subMetricData.get(subMetricSourceKey)!).sort();
+           subNames.forEach((subName) => {
+             result.push({
+               name: `↳ ${subName}`,
+               // Keep the parent selection keyed to the *visible* metric (metric.key),
+               // but we'll read values from subMetricSourceKey when computing.
+               key: `sub:${metric.key}:${subName}`,
+               type: metric.type,
+               isSubMetric: true,
+               parentKey: metric.key,
+               parentName: metric.name,
+             });
+           });
+         }
+       });
       
       return result;
     }
@@ -616,24 +625,29 @@ export default function Enterprise() {
     const result: any[] = [];
     const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
     
-    baseMetrics.forEach((metric: any) => {
-      result.push(metric);
-      
-      // Check if this metric has sub-metrics
-      if (subMetricData.has(metric.key)) {
-        const subNames = Array.from(subMetricData.get(metric.key)!).sort();
-        subNames.forEach(subName => {
-          result.push({
-            name: `↳ ${subName}`,
-            key: `sub:${metric.key}:${subName}`,
-            type: metric.type,
-            isSubMetric: true,
-            parentKey: metric.key,
-            parentName: metric.name,
-          });
-        });
-      }
-    });
+     baseMetrics.forEach((metric: any) => {
+       result.push(metric);
+
+       const subMetricSourceKey =
+         metric.type === 'percentage' && metric.hasSubMetrics && metric.calculation && 'numerator' in metric.calculation
+           ? metric.calculation.numerator
+           : metric.key;
+
+       // Check if this metric has sub-metrics
+       if (subMetricData.has(subMetricSourceKey)) {
+         const subNames = Array.from(subMetricData.get(subMetricSourceKey)!).sort();
+         subNames.forEach((subName) => {
+           result.push({
+             name: `↳ ${subName}`,
+             key: `sub:${metric.key}:${subName}`,
+             type: metric.type,
+             isSubMetric: true,
+             parentKey: metric.key,
+             parentName: metric.name,
+           });
+         });
+       }
+     });
     
     return result;
   }, [metricType, filteredStores, subMetrics]);
@@ -1727,20 +1741,12 @@ export default function Enterprise() {
                               : selectedBrandNames.join(", ");
                           }
                           
-                          // Convert selection IDs to display names for sub-metrics
-                          const displayMetrics = selectedMetrics.map(selectionId => {
-                            if (selectionId.startsWith('sub:')) {
-                              const parts = selectionId.split(':');
-                              if (parts.length >= 3) {
-                                return `↳ ${parts.slice(2).join(':')}`;
-                              }
-                            }
-                            return selectionId;
-                          });
-                          
+                          // For reports, keep selection IDs (especially sub:*), so we can:
+                          // - avoid collisions (same sub-name under different parents)
+                          // - compute percentage-based sub-metrics correctly
                           setTrendReportParams({
                             storeIds: filteredStores.map(s => s.id),
-                            selectedMetrics: displayMetrics,
+                            selectedMetrics: selectedMetrics,
                             startMonth: start,
                             endMonth: end,
                             brandDisplayName,

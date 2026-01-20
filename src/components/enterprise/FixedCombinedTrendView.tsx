@@ -177,23 +177,42 @@ export function FixedCombinedTrendView({
     return departments?.map(d => d.id) || [];
   }, [departments]);
 
-  // Fetch financial entries for date range
+  // Fetch financial entries for date range (paginate to avoid the 1000 row limit)
   const { data: financialEntries, isLoading } = useQuery({
     queryKey: ["trend_view_financial", departmentIds, startMonth, endMonth],
     queryFn: async () => {
       if (departmentIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("financial_entries")
-        .select("*, departments(id, name, store_id)")
-        .in("department_id", departmentIds)
-        .gte("month", startMonth)
-        .lte("month", endMonth);
-      if (error) throw error;
-      console.log('[Trend View] Fetched financial entries:', data?.length, 'entries for', departmentIds.length, 'departments');
-      return data || [];
+
+      const allEntries: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("financial_entries")
+          .select("*, departments(id, name, store_id)")
+          .in("department_id", departmentIds)
+          .gte("month", startMonth)
+          .lte("month", endMonth)
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allEntries.push(...data);
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log('[Trend View] Fetched financial entries:', allEntries.length, 'entries for', departmentIds.length, 'departments');
+      return allEntries;
     },
     enabled: departmentIds.length > 0,
-    staleTime: 0, // Always fetch fresh data
+    staleTime: 0,
     refetchOnMount: 'always',
   });
 
@@ -268,16 +287,13 @@ export function FixedCombinedTrendView({
     };
 
     // Helper to find sub-metric key from month data
-    const findSubMetricKey = (subName: string, monthData: Map<string, number>): string | null => {
+    const findSubMetricKey = (parentKey: string, subName: string, monthData: Map<string, number>): string | null => {
       for (const [key] of monthData) {
-        if (key.startsWith('sub:')) {
-          const parts = key.split(':');
-          if (parts.length >= 4) {
-            const storedName = parts.slice(3).join(':');
-            if (storedName === subName) {
-              return key;
-            }
-          }
+        if (!key.startsWith(`sub:${parentKey}:`)) continue;
+        const parts = key.split(':');
+        if (parts.length >= 4) {
+          const storedName = parts.slice(3).join(':');
+          if (storedName === subName) return key;
         }
       }
       return null;
@@ -318,28 +334,62 @@ export function FixedCombinedTrendView({
         metrics: {},
       } as any;
       
-      selectedMetrics.forEach(metricName => {
-        const isSubMetric = metricName.startsWith('↳ ');
-        
-        result[store.id][metricName] = {};
+      selectedMetrics.forEach(selectionId => {
+        const isSubMetric = selectionId.startsWith('sub:');
+
+        // Display label
+        const displayName = isSubMetric
+          ? (() => {
+              const parts = selectionId.split(':');
+              return parts.length >= 3 ? `↳ ${parts.slice(2).join(':')}` : selectionId;
+            })()
+          : selectionId;
+
+        result[store.id][selectionId] = {};
+
         months.forEach(month => {
           let value: number | undefined;
-          
+
           if (isSubMetric) {
-            // For sub-metrics, find the key dynamically
-            const subName = metricName.substring(2); // Remove "↳ "
+            const parts = selectionId.split(':');
+            const parentKey = parts[1];
+            const subName = parts.slice(2).join(':');
+
+            const storeBrand = store.brand || (store as any).brands?.name || null;
+            const storeMetricDefs = getMetricsForBrand(storeBrand);
+            const parentDef = storeMetricDefs.find((m: any) => m.key === parentKey);
+
             const monthData = storeMonthData[store.id][month];
-            const subMetricKey = findSubMetricKey(subName, monthData);
-            value = subMetricKey ? monthData.get(subMetricKey) : undefined;
+
+            // If the parent is a percentage metric, compute % using its calculation config.
+            if (parentDef?.type === 'percentage' && parentDef.calculation && 'numerator' in parentDef.calculation && 'denominator' in parentDef.calculation) {
+              const numeratorKey = parentDef.calculation.numerator;
+              const denominatorKey = parentDef.calculation.denominator;
+
+              // Percentage sub-metrics are stored under the numerator's sub-metrics
+              const numeratorSubKey = findSubMetricKey(numeratorKey, subName, monthData);
+              const numeratorValue = numeratorSubKey ? monthData.get(numeratorSubKey) : undefined;
+              const denomTotal = monthData.get(denominatorKey);
+
+              if (numeratorValue !== undefined && denomTotal !== undefined && denomTotal !== 0) {
+                value = (numeratorValue / denomTotal) * 100;
+              } else {
+                value = undefined;
+              }
+            } else {
+              // Dollar sub-metric: stored under its parentKey
+              const subMetricKey = findSubMetricKey(parentKey, subName, monthData);
+              value = subMetricKey ? monthData.get(subMetricKey) : undefined;
+            }
           } else {
-            // Regular metric - use name to key mapping
-            const metricKey = nameToKey.get(metricName);
+            // Regular metric - selectionId is the metric NAME; map to metric key
+            const metricKey = nameToKey.get(selectionId);
             if (metricKey) {
               value = storeMonthData[store.id][month].get(metricKey);
             }
           }
-          
-          result[store.id][metricName][month] = value !== undefined ? value : null;
+
+          result[store.id][selectionId][month] = value !== undefined ? value : null;
         });
       });
     });
@@ -347,11 +397,23 @@ export function FixedCombinedTrendView({
     return result;
   }, [financialEntries, stores, departments, months, selectedMetrics]);
 
-  const formatValue = (value: number | null, metricName: string) => {
+  const formatValue = (value: number | null, selectionId: string) => {
     if (value === null || value === undefined) return "-";
-    
-    // Sub-metrics (starting with ↳) are always dollar amounts
-    if (metricName.startsWith('↳ ')) {
+
+    // Sub-metric selection IDs are: sub:PARENT_KEY:Sub Name...
+    if (selectionId.startsWith('sub:')) {
+      const parts = selectionId.split(':');
+      const parentKey = parts[1];
+
+      // Determine if parent is a percentage metric (store-agnostic formatting)
+      const metrics = getMetricsForBrand(null);
+      const parentDef = metrics.find((m: any) => m.key === parentKey);
+
+      if (parentDef?.type === 'percentage') {
+        return `${value.toFixed(1)}%`;
+      }
+
+      // Otherwise treat as currency
       return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
@@ -359,14 +421,14 @@ export function FixedCombinedTrendView({
         maximumFractionDigits: 0,
       }).format(value);
     }
-    
+
     const metrics = getMetricsForBrand(null);
-    const metricDef = metrics.find((m: any) => m.name === metricName);
-    
-    if (metricDef?.type === "percentage" || metricName.includes("%")) {
+    const metricDef = metrics.find((m: any) => m.name === selectionId);
+
+    if (metricDef?.type === "percentage" || selectionId.includes("%")) {
       return `${value.toFixed(1)}%`;
     }
-    
+
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
@@ -461,12 +523,12 @@ export function FixedCombinedTrendView({
               if (!store) return null;
               
               // Calculate months with data for this store
-              const monthsWithData = months.filter(month => {
-                return selectedMetrics.some(metricName => {
-                  const metricData = storeData[metricName] as Record<string, number | null> | undefined;
-                  return metricData?.[month] !== null && metricData?.[month] !== undefined;
-                });
-              }).length;
+               const monthsWithData = months.filter(month => {
+                 return selectedMetrics.some(selectionId => {
+                   const metricData = storeData[selectionId] as Record<string, number | null> | undefined;
+                   return metricData?.[month] !== null && metricData?.[month] !== undefined;
+                 });
+               }).length;
               
               return (
                 <Card key={storeId} className="print:shadow-none print:border print:break-inside-avoid">
@@ -495,36 +557,53 @@ export function FixedCombinedTrendView({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {selectedMetrics.map(metricName => {
-                            const metricData = storeData[metricName] as Record<string, number | null> | undefined;
-                            const isSubMetric = metricName.startsWith('↳ ');
-                            
-                            // Calculate total/average for the metric
+                          {selectedMetrics.map((selectionId) => {
+                            const metricData = storeData[selectionId] as Record<string, number | null> | undefined;
+
+                            const isSubMetric = selectionId.startsWith('sub:');
+                            const displayName = isSubMetric
+                              ? (() => {
+                                  const parts = selectionId.split(':');
+                                  return parts.length >= 3 ? `↳ ${parts.slice(2).join(':')}` : selectionId;
+                                })()
+                              : selectionId;
+
                             const values = months
                               .map(month => metricData?.[month])
                               .filter((v): v is number => v !== null && v !== undefined);
-                            
-                            const isPercentage = !isSubMetric && (metricName.includes("%") || 
-                              getMetricsForBrand(null).find((m: any) => m.name === metricName)?.type === "percentage");
-                            
+
+                            const isPercentage = (() => {
+                              if (isSubMetric) {
+                                const parts = selectionId.split(':');
+                                const parentKey = parts[1];
+                                const parentDef = getMetricsForBrand(null).find((m: any) => m.key === parentKey);
+                                return parentDef?.type === 'percentage';
+                              }
+                              const def = getMetricsForBrand(null).find((m: any) => m.name === selectionId);
+                              return def?.type === 'percentage' || selectionId.includes('%');
+                            })();
+
                             const total = values.length > 0
                               ? isPercentage
-                                ? values.reduce((sum, v) => sum + v, 0) / values.length // Average for percentages
-                                : values.reduce((sum, v) => sum + v, 0) // Sum for dollar amounts
+                                ? values.reduce((sum, v) => sum + v, 0) / values.length
+                                : values.reduce((sum, v) => sum + v, 0)
                               : null;
-                            
+
                             return (
-                            <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}>
+                              <TableRow
+                                key={selectionId}
+                                className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}
+                              >
                                 <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
-                                  {metricName}
+                                  {displayName}
                                 </TableCell>
                                 {months.map(month => (
                                   <TableCell key={month} className="text-center">
-                                    {formatValue(metricData?.[month] ?? null, metricName)}
+                                    {formatValue(metricData?.[month] ?? null, selectionId)}
                                   </TableCell>
                                 ))}
                                 <TableCell className="text-center font-semibold bg-primary/10">
-                                  {formatValue(total, metricName)}
+                                  {formatValue(total, selectionId)}
                                 </TableCell>
                               </TableRow>
                             );
