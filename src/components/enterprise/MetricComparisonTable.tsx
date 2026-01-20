@@ -72,16 +72,93 @@ export default function MetricComparisonTable({
     });
   }
 
-  const allMetricKeys = Array.from(
-    new Set(
-      data.map((d) => (d.departmentName ? `${d.departmentName} - ${d.metricName}` : d.metricName)),
-    ),
-  );
-
-  // Get metric definitions to determine type
+  // Get metric definitions to determine type (must be before allMetricKeys which uses it)
   const metrics = getMetricsForBrand(null);
   const metricDefMap = new Map<string, any>();
   metrics.forEach((m: any) => metricDefMap.set(m.name, m));
+
+  // Build allMetricKeys with sub-metrics appearing directly below their parent
+  const allMetricKeys = useMemo(() => {
+    const uniqueKeys = Array.from(
+      new Set(
+        data.map((d) => (d.departmentName ? `${d.departmentName} - ${d.metricName}` : d.metricName)),
+      ),
+    );
+
+    // Build a map of parent metric key -> list of sub-metric keys
+    const parentToSubs = new Map<string, string[]>();
+    const subKeySet = new Set<string>();
+
+    uniqueKeys.forEach((key) => {
+      // Sub-metrics are displayed as "↳ SubName" or "Dept - ↳ SubName"
+      const isSubMetric = key.includes("↳");
+      if (isSubMetric) {
+        subKeySet.add(key);
+        // Try to find the parent by matching the selection ID structure
+        // Look for a parent by checking selectedMetrics for matching sub: entries
+        selectedMetrics.forEach((selId) => {
+          if (selId.startsWith("sub:")) {
+            const parts = selId.split(":");
+            const parentKey = parts[1];
+            const subName = parts.slice(parts.length >= 4 ? 3 : 2).join(":");
+            const expectedSubDisplay = `↳ ${subName}`;
+            
+            // Check if this key ends with the expected sub display
+            if (key.endsWith(expectedSubDisplay)) {
+              // Find the parent display name in the list
+              const parentDef = metrics.find((m: any) => m.key === parentKey);
+              if (parentDef) {
+                const deptPrefix = key.includes(" - ") ? key.split(" - ↳")[0] + " - " : "";
+                const parentDisplayKey = deptPrefix + parentDef.name;
+                
+                if (!parentToSubs.has(parentDisplayKey)) {
+                  parentToSubs.set(parentDisplayKey, []);
+                }
+                if (!parentToSubs.get(parentDisplayKey)!.includes(key)) {
+                  parentToSubs.get(parentDisplayKey)!.push(key);
+                }
+              }
+            }
+          }
+        });
+      }
+    });
+
+    // Build ordered list: parent followed by its sub-metrics
+    const orderedKeys: string[] = [];
+    const addedKeys = new Set<string>();
+
+    uniqueKeys.forEach((key) => {
+      if (addedKeys.has(key)) return;
+      
+      // Skip sub-metrics here; they'll be added after their parent
+      if (subKeySet.has(key)) return;
+      
+      // Add the parent/regular metric
+      orderedKeys.push(key);
+      addedKeys.add(key);
+      
+      // Add any sub-metrics for this parent
+      const subs = parentToSubs.get(key);
+      if (subs) {
+        subs.forEach((subKey) => {
+          if (!addedKeys.has(subKey)) {
+            orderedKeys.push(subKey);
+            addedKeys.add(subKey);
+          }
+        });
+      }
+    });
+
+    // Add any remaining sub-metrics that weren't matched to a parent
+    uniqueKeys.forEach((key) => {
+      if (!addedKeys.has(key)) {
+        orderedKeys.push(key);
+      }
+    });
+
+    return orderedKeys;
+  }, [data, selectedMetrics, metrics]);
 
   // Map sub-metric display rows ("↳ ...") to the type of their parent selection.
   // This is required because sub-metric rows don't exist in the base metric defs by name.
