@@ -1222,7 +1222,7 @@ export default function DealerComparison() {
             if (!rawSubMetricKey || subDollarValue === null) return;
 
             const percentValue = (subDollarValue / denom) * 100;
-            const dataKey = `${storeId}-${deptId}-${rawSubMetricKey}`;
+            const dataKey = `${storeId}-${deptId}-${sel.selectionId}`;
 
             const existing = dataMap[dataKey];
             dataMap[dataKey] = {
@@ -1230,7 +1230,7 @@ export default function DealerComparison() {
               storeName: sampleEntry.storeName,
               departmentId: deptId,
               departmentName: sampleEntry.departmentName,
-              metricName: sel.displayName,
+              metricName: sel.selectionId,
               value: percentValue,
               target: existing?.target ?? null,
               variance: existing?.variance ?? null,
@@ -1296,9 +1296,11 @@ export default function DealerComparison() {
         });
       });
       
-      // Filter to only selected metrics (selection IDs converted to display names)
-      const result = Object.values(dataMap).filter(item => 
-        selectedMetricNames.includes(item.metricName)
+      // Filter to only selected metrics.
+      // Most rows are keyed by their display name (selectedMetricNames), but some computed
+      // rows (like percentage sub-metrics) are keyed by the original selectionId.
+      const result = Object.values(dataMap).filter((item) =>
+        selectedMetricNames.includes(item.metricName) || selectedMetrics.includes(item.metricName),
       );
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
