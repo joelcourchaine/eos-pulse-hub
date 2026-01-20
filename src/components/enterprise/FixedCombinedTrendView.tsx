@@ -299,23 +299,46 @@ export function FixedCombinedTrendView({
       return null;
     };
 
+    // Some store statements only import sub-metrics (sub:<parentKey>:...)
+    // and omit the parent totals (e.g., gp_net, total_sales). In that case,
+    // reconstruct the total by summing all sub-metrics for that parent key.
+    const sumSubMetricTotal = (parentKey: string, monthData: Map<string, number>): number | undefined => {
+      let sum = 0;
+      let found = false;
+
+      for (const [key, value] of monthData) {
+        if (!key.startsWith(`sub:${parentKey}:`)) continue;
+        found = true;
+        sum += value || 0;
+      }
+
+      return found ? sum : undefined;
+    };
+
     // Calculate derived metrics for each store/month using store-specific brand
     stores.forEach(store => {
       const storeBrand = store.brand || (store as any).brands?.name || null;
       const storeMetricDefs = getMetricsForBrand(storeBrand);
-      
+
       months.forEach(month => {
         const storeMetrics = storeMonthData[store.id][month];
-        
-        // First pass: calculate dollar metrics
+
+        // First: backfill missing parent totals from sub-metrics when needed
+        storeMetricDefs.forEach((metricDef: any) => {
+          if (storeMetrics.get(metricDef.key) !== undefined) return;
+          const summed = sumSubMetricTotal(metricDef.key, storeMetrics);
+          if (summed !== undefined) storeMetrics.set(metricDef.key, summed);
+        });
+
+        // Second: calculate derived dollar metrics
         storeMetricDefs.forEach((metricDef: any) => {
           if (metricDef.type === 'dollar' && metricDef.calculation) {
             const calculated = calculateDerivedMetric(storeMetrics, metricDef);
             storeMetrics.set(metricDef.key, calculated);
           }
         });
-        
-        // Second pass: calculate percentage metrics
+
+        // Third: calculate percentage metrics
         storeMetricDefs.forEach((metricDef: any) => {
           if (metricDef.type === 'percentage') {
             const calculated = calculateDerivedMetric(storeMetrics, metricDef);
