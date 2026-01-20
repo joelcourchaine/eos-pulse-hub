@@ -217,6 +217,44 @@ export default function DealerComparison() {
     return result;
   }, [selectedMetrics]);
 
+  // Order selected metrics so sub-metrics render directly under their parent metric.
+  // (Does not change calculations; display-only.)
+  const orderedSelectedMetrics = useMemo(() => {
+    if (metricType !== "financial") return selectedMetrics;
+
+    const defs = getMetricsForBrand(null);
+    const keyToName = new Map<string, string>();
+    defs.forEach((d: any) => keyToName.set(d.key, d.name));
+
+    const ordered: string[] = [];
+    const added = new Set<string>();
+
+    selectedMetrics.forEach((id) => {
+      if (id.startsWith("sub:")) {
+        const parentKey = id.split(":")[1];
+        const parentName = keyToName.get(parentKey) ?? parentKey;
+
+        if (!added.has(parentName) && selectedMetrics.includes(parentName)) {
+          ordered.push(parentName);
+          added.add(parentName);
+        }
+
+        if (!added.has(id)) {
+          ordered.push(id);
+          added.add(id);
+        }
+        return;
+      }
+
+      if (!added.has(id)) {
+        ordered.push(id);
+        added.add(id);
+      }
+    });
+
+    return ordered;
+  }, [metricType, selectedMetrics]);
+
   // Fetch financial targets
   const { data: financialTargets } = useQuery({
     queryKey: ["dealer_comparison_targets", departmentIds, selectedMonth],
@@ -1654,7 +1692,7 @@ export default function DealerComparison() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {selectedMetrics.map((selectionId) => {
+                    {orderedSelectedMetrics.map((selectionId) => {
                       // Convert selection ID to display name for rendering
                       const displayName = selectionIdToDisplayName(selectionId);
                       const isSortedRow = sortByMetric && selectionId === sortByMetric;
