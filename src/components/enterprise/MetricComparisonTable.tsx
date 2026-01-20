@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -29,14 +30,6 @@ export default function MetricComparisonTable({
   isLoading = false,
   sortByMetric = "",
 }: MetricComparisonTableProps) {
-  console.log("MetricComparisonTable render:", {
-    dataLength: data.length,
-    selectedMetricsCount: selectedMetrics.length,
-    metricType,
-    isLoading,
-    sampleData: data.slice(0, 2),
-  });
-
   if (isLoading) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -48,12 +41,10 @@ export default function MetricComparisonTable({
   if (selectedMetrics.length === 0 || data.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        {selectedMetrics.length === 0 
+        {selectedMetrics.length === 0
           ? "Select metrics to view comparison"
           : "No data available for the selected criteria"}
-        <div className="text-xs mt-2">
-          (Data: {data.length}, Metrics: {selectedMetrics.length})
-        </div>
+        <div className="text-xs mt-2">(Data: {data.length}, Metrics: {selectedMetrics.length})</div>
       </div>
     );
   }
@@ -66,56 +57,70 @@ export default function MetricComparisonTable({
         metrics: {},
       };
     }
-    const key = item.departmentName 
-      ? `${item.departmentName} - ${item.metricName}`
-      : item.metricName;
+    const key = item.departmentName ? `${item.departmentName} - ${item.metricName}` : item.metricName;
     acc[item.storeId].metrics[key] = item;
     return acc;
   }, {} as Record<string, { storeName: string; metrics: Record<string, MetricData> }>);
 
   // Sort stores by the selected metric (best/highest values first = left side)
   let stores = Object.entries(storeData);
-  
   if (sortByMetric) {
     stores = stores.sort(([, aData], [, bData]) => {
-      // Find the metric value for sorting - match DealerComparison logic (just by metric name)
       const aValue = aData.metrics[sortByMetric]?.value ?? -Infinity;
       const bValue = bData.metrics[sortByMetric]?.value ?? -Infinity;
-      
-      // Sort descending (highest/best first on the left)
       return bValue - aValue;
     });
   }
+
   const allMetricKeys = Array.from(
-    new Set(data.map(d => 
-      d.departmentName 
-        ? `${d.departmentName} - ${d.metricName}`
-        : d.metricName
-    ))
+    new Set(
+      data.map((d) => (d.departmentName ? `${d.departmentName} - ${d.metricName}` : d.metricName)),
+    ),
   );
 
-  // Get metric definitions to determine type (matching DealerComparison)
+  // Get metric definitions to determine type
   const metrics = getMetricsForBrand(null);
   const metricDefMap = new Map<string, any>();
   metrics.forEach((m: any) => metricDefMap.set(m.name, m));
 
+  // Map sub-metric display rows ("↳ ...") to the type of their parent selection.
+  // This is required because sub-metric rows don't exist in the base metric defs by name.
+  const subRowTypeByDisplayName = useMemo(() => {
+    const map = new Map<string, "percentage" | "dollar">();
+
+    selectedMetrics.forEach((selectionId) => {
+      if (!selectionId.startsWith("sub:")) return;
+      const parts = selectionId.split(":");
+      if (parts.length < 3) return;
+
+      const parentKey = parts[1];
+      const parentDef = metrics.find((d: any) => d.key === parentKey);
+      const displayName = `↳ ${parts.slice(parts.length >= 4 ? 3 : 2).join(":")}`;
+
+      map.set(displayName, parentDef?.type === "percentage" ? "percentage" : "dollar");
+    });
+
+    return map;
+  }, [selectedMetrics, metrics]);
+
   const formatValue = (value: number | null, metricName: string) => {
     if (value === null || value === undefined) return "-";
-    
-    // Get metric definition to check type (matching DealerComparison)
+
+    // Sub-metric rows are displayed as "↳ ..." and need type info from the parent selection.
+    const subRowType = subRowTypeByDisplayName.get(metricName);
+    if (subRowType === "percentage") {
+      return `${value.toFixed(1)}%`;
+    }
+
     const metricDef = metricDefMap.get(metricName);
-    
-    // Check if it's a percentage metric by type or name
     if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
       return `${value.toFixed(1)}%`;
     }
-    
-    // Total Hours should show whole numbers
+
     if (metricName === "Total Hours") {
       return Math.round(value).toLocaleString();
     }
-    
-    // Format as currency for dollar metrics (matching DealerComparison)
+
     if (metricType === "financial") {
       return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -124,7 +129,7 @@ export default function MetricComparisonTable({
         maximumFractionDigits: 0,
       }).format(value);
     }
-    
+
     return value.toLocaleString();
   };
 
@@ -152,10 +157,7 @@ export default function MetricComparisonTable({
                     Metric
                   </th>
                   {stores.map(([storeId, { storeName }]) => (
-                    <th
-                      key={storeId}
-                      className="border-b px-4 py-3 text-left font-semibold min-w-[200px]"
-                    >
+                    <th key={storeId} className="border-b px-4 py-3 text-left font-semibold min-w-[200px]">
                       {storeName}
                     </th>
                   ))}
@@ -165,43 +167,44 @@ export default function MetricComparisonTable({
                 {allMetricKeys.map((metricKey, idx) => {
                   const isSortedRow = sortByMetric && metricKey === sortByMetric;
                   return (
-                  <tr
-                    key={metricKey}
-                    className={`${isSortedRow ? "bg-primary/10 ring-1 ring-primary/30" : idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
-                  >
-                    <td className={`border-b border-r px-4 py-3 font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-inherit"}`}>
-                      {metricKey}
-                    </td>
-                    {stores.map(([storeId, { metrics }]) => {
-                      const metric = metrics[metricKey];
-                      return (
-                        <td key={storeId} className="border-b px-4 py-3">
-                          {metric ? (
-                            <div className="space-y-1">
-                              <div className="font-semibold">
-                                {formatValue(metric.value, metric.metricName)}
+                    <tr
+                      key={metricKey}
+                      className={`${isSortedRow ? "bg-primary/10 ring-1 ring-primary/30" : idx % 2 === 0 ? "bg-background" : "bg-muted/20"}`}
+                    >
+                      <td
+                        className={`border-b border-r px-4 py-3 font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-inherit"}`}
+                      >
+                        {metricKey}
+                      </td>
+                      {stores.map(([storeId, { metrics }]) => {
+                        const metric = metrics[metricKey];
+                        return (
+                          <td key={storeId} className="border-b px-4 py-3">
+                            {metric ? (
+                              <div className="space-y-1">
+                                <div className="font-semibold">{formatValue(metric.value, metric.metricName)}</div>
+                                {metric.target !== null && metric.target !== undefined && (
+                                  <div className="text-xs text-muted-foreground">
+                                    Target: {formatValue(metric.target, metric.metricName)}
+                                  </div>
+                                )}
+                                {metric.variance !== null && metric.variance !== undefined && (
+                                  <div className={`text-xs flex items-center gap-1 ${getVarianceColor(metric.variance)}`}>
+                                    {getVarianceIcon(metric.variance)}
+                                    {metric.variance > 0 ? "+" : ""}
+                                    {metric.variance.toFixed(1)}%
+                                  </div>
+                                )}
                               </div>
-                              {metric.target !== null && metric.target !== undefined && (
-                                <div className="text-xs text-muted-foreground">
-                                  Target: {formatValue(metric.target, metric.metricName)}
-                                </div>
-                              )}
-                              {metric.variance !== null && metric.variance !== undefined && (
-                                <div className={`text-xs flex items-center gap-1 ${getVarianceColor(metric.variance)}`}>
-                                  {getVarianceIcon(metric.variance)}
-                                  {metric.variance > 0 ? "+" : ""}
-                                  {metric.variance.toFixed(1)}%
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                )})}
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
