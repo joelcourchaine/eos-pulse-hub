@@ -449,6 +449,7 @@ export function useForecastCalculations({
       // - If GP% is increased vs baseline: Total Sales increases proportionally (same hours, higher rate).
       // - GP Net is then derived from Total Sales * locked GP% (so both move up).
       // - If GP% is decreased: we do NOT force sales down; only margin (GP Net) changes.
+      // Total Sales is distributed using weights - this is the core driver
       const getCalculatedTotalSales = (): number => {
         const lockedTotalSales = lockedValues['total_sales'];
         if (lockedTotalSales !== undefined && lockedTotalSales !== null) {
@@ -460,26 +461,25 @@ export function useForecastCalculations({
           // Only scale sales UP when GP% increases (ELR lift assumption).
           if (basePct > 0 && lockedGpPercent > basePct) {
             const ratio = lockedGpPercent / basePct;
-            return baselineMonthlyValues.total_sales * growthFactor * ratio;
+            // Apply weight distribution AND GP% scaling
+            return annualValues['total_sales'] * weightFactor * ratio;
           }
         }
 
-        return baselineMonthlyValues.total_sales * growthFactor;
+        // Apply weight distribution to annual total
+        return annualValues['total_sales'] * weightFactor;
       };
 
+      // GP Net is derived from weight-distributed Total Sales × GP%
       const getCalculatedGpNet = (): number => {
         const lockedGpNet = lockedValues['gp_net'];
         if (lockedGpNet !== undefined && lockedGpNet !== null) {
           return lockedGpNet;
         }
 
-        if (!hasSubMetrics && lockedGpPercent !== undefined && lockedGpPercent !== null) {
-          const totalSales = getCalculatedTotalSales();
-          return totalSales * (lockedGpPercent / 100);
-        }
-
-        // Default: keep GP Net proportional to growth
-        return baselineMonthlyValues.gp_net * growthFactor;
+        // GP Net = Total Sales × GP% (user-controlled via targetGpPercent)
+        const totalSales = getCalculatedTotalSales();
+        return totalSales * (targetGpPercent / 100);
       };
 
       // Sales expense should stay at the same % of GP Net unless explicitly locked.
