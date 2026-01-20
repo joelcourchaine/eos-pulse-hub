@@ -662,6 +662,31 @@ export default function DealerComparison() {
             return v.count > 0 ? v.sum / v.count : 0;
           };
 
+          // Some statements only import sub-metrics (sub:<parentKey>:...) and omit the
+          // parent totals (e.g., total_sales, gp_net). Backfill those parent totals by
+          // summing the sub-metrics so comparisons don't show N/A.
+          const backfillParentTotalsFromSubMetrics = () => {
+            const sums = new Map<string, number>();
+
+            for (const [k, v] of storeMetrics) {
+              if (!k.startsWith("sub:")) continue;
+              const parts = k.split(":");
+              const parentKey = parts.length >= 2 ? parts[1] : "";
+              if (!parentKey) continue;
+
+              const numeric = typeof v === "number" ? v : v.count > 0 ? v.sum / v.count : 0;
+              sums.set(parentKey, (sums.get(parentKey) || 0) + (numeric || 0));
+            }
+
+            for (const [parentKey, sum] of sums) {
+              if (storeMetrics.get(parentKey) === undefined) {
+                storeMetrics.set(parentKey, sum);
+              }
+            }
+          };
+
+          backfillParentTotalsFromSubMetrics();
+
           // Process each metric
           storeMetrics.forEach((_aggregatedValue, metricKey) => {
             const metricDef = getMetricDef(metricKey, storeBrand);
@@ -849,6 +874,69 @@ export default function DealerComparison() {
               dataMap[key].variance = shouldReverse ? -variance : variance;
             }
           }
+        });
+
+        // Backfill missing parent totals from sub-metrics for single-month comparisons.
+        // Murray Merritt-style imports can have only sub:* rows with no parent metric rows.
+        const subSumsByStoreDept = new Map<string, Map<string, number>>();
+
+        financialEntries.forEach(e => {
+          const k = e.metric_name as string;
+          if (!k?.startsWith("sub:")) return;
+
+          const storeId = (e as any)?.departments?.store_id || "";
+          const deptId = (e as any)?.departments?.id;
+          if (!storeId || !deptId) return;
+
+          const parts = k.split(":");
+          const parentKey = parts.length >= 2 ? parts[1] : "";
+          if (!parentKey) return;
+
+          const pairKey = `${storeId}|${deptId}`;
+          if (!subSumsByStoreDept.has(pairKey)) subSumsByStoreDept.set(pairKey, new Map());
+
+          const m = subSumsByStoreDept.get(pairKey)!;
+          m.set(parentKey, (m.get(parentKey) || 0) + (e.value ? Number(e.value) : 0));
+        });
+
+        subSumsByStoreDept.forEach((parentSums, pairKey) => {
+          const [storeId, deptId] = pairKey.split("|");
+
+          // Grab metadata from any existing entry in this store/dept
+          const sample = Object.values(dataMap).find(d => d.storeId === storeId && String(d.departmentId) === deptId);
+          if (!sample) return;
+
+          const storeBrand = storeBrands.get(storeId) || null;
+
+          parentSums.forEach((sum, parentKey) => {
+            const existingKey = `${storeId}-${deptId}-${parentKey}`;
+            if (dataMap[existingKey]) return;
+
+            const metricName = keyToName.get(parentKey) || parentKey;
+
+            const comparisonKey = `${deptId}-${parentKey}`;
+            const comparisonInfo = comparisonMap.get(comparisonKey);
+            const metricDef = getMetricDef(parentKey, storeBrand);
+
+            const entry: ComparisonData = {
+              storeId,
+              storeName: sample.storeName,
+              departmentId: deptId,
+              departmentName: sample.departmentName,
+              metricName,
+              value: sum,
+              target: comparisonInfo?.value || null,
+              variance: null,
+            };
+
+            if (entry.target !== null && entry.target !== 0) {
+              const variance = ((sum - entry.target) / Math.abs(entry.target)) * 100;
+              const shouldReverse = comparisonMode === "targets" && metricDef?.targetDirection === "below";
+              entry.variance = shouldReverse ? -variance : variance;
+            }
+
+            dataMap[existingKey] = entry;
+          });
         });
       }
       
