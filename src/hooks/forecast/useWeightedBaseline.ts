@@ -22,12 +22,13 @@ const MONTH_NAMES = [
 export function useWeightedBaseline(departmentId: string | undefined, baselineYear: number) {
   // Fetch baseline year's monthly total_sales
   // Use whatever data exists for the baseline year
+  // Falls back to summing sub-metrics if no parent total_sales exists
   const { data: baselineYearSales, isLoading } = useQuery({
     queryKey: ['baseline-year-sales', departmentId, baselineYear],
     queryFn: async () => {
       if (!departmentId) return [];
       
-      // Fetch all data for the baseline year
+      // First, try to fetch parent total_sales for the baseline year
       let { data, error } = await supabase
         .from('financial_entries')
         .select('month, value')
@@ -38,10 +39,39 @@ export function useWeightedBaseline(departmentId: string | undefined, baselineYe
       
       if (error) throw error;
       
-      // If no data for baseline year, try prior year as fallback
+      // If no parent total_sales data, try summing sub-metrics
+      if (!data || data.length === 0) {
+        const { data: subMetricData, error: subError } = await supabase
+          .from('financial_entries')
+          .select('month, value')
+          .eq('department_id', departmentId)
+          .like('metric_name', 'sub:total_sales:%')
+          .gte('month', `${baselineYear}-01`)
+          .lte('month', `${baselineYear}-12`);
+        
+        if (subError) throw subError;
+        
+        // Group by month and sum sub-metric values
+        if (subMetricData && subMetricData.length > 0) {
+          const monthTotals = new Map<string, number>();
+          subMetricData.forEach(entry => {
+            const current = monthTotals.get(entry.month) || 0;
+            monthTotals.set(entry.month, current + (entry.value || 0));
+          });
+          
+          data = Array.from(monthTotals.entries()).map(([month, value]) => ({
+            month,
+            value,
+          }));
+        }
+      }
+      
+      // If still no data for baseline year, try prior year as fallback
       if (!data || data.length === 0) {
         const priorYear = baselineYear - 1;
-        const priorResult = await supabase
+        
+        // Try parent total_sales first
+        let priorResult = await supabase
           .from('financial_entries')
           .select('month, value')
           .eq('department_id', departmentId)
@@ -50,7 +80,34 @@ export function useWeightedBaseline(departmentId: string | undefined, baselineYe
           .lte('month', `${priorYear}-12`);
         
         if (priorResult.error) throw priorResult.error;
-        data = priorResult.data;
+        
+        // If no parent, try sub-metrics for prior year
+        if (!priorResult.data || priorResult.data.length === 0) {
+          const { data: priorSubData, error: priorSubError } = await supabase
+            .from('financial_entries')
+            .select('month, value')
+            .eq('department_id', departmentId)
+            .like('metric_name', 'sub:total_sales:%')
+            .gte('month', `${priorYear}-01`)
+            .lte('month', `${priorYear}-12`);
+          
+          if (priorSubError) throw priorSubError;
+          
+          if (priorSubData && priorSubData.length > 0) {
+            const monthTotals = new Map<string, number>();
+            priorSubData.forEach(entry => {
+              const current = monthTotals.get(entry.month) || 0;
+              monthTotals.set(entry.month, current + (entry.value || 0));
+            });
+            
+            data = Array.from(monthTotals.entries()).map(([month, value]) => ({
+              month,
+              value,
+            }));
+          }
+        } else {
+          data = priorResult.data;
+        }
       }
       
       return data as MonthlyData[];
