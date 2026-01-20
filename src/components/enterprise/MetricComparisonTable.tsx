@@ -99,43 +99,53 @@ export default function MetricComparisonTable({
       ),
     );
 
-
     // Build preferred row order from the user's selection order.
-    // This avoids relying on data-map insertion order and ensures sub-metrics render
-    // immediately after their parent.
+    // Ensures sub-metrics render immediately after their parent (per department).
     const departmentNames = Array.from(
       new Set(data.map((d) => d.departmentName).filter(Boolean) as string[]),
     );
 
-    const buildDisplayLabelFromSelectionId = (selectionId: string) => {
-      if (!selectionId.startsWith("sub:")) return selectionId;
+    const deptsToOrder = departmentNames.length ? departmentNames : [null];
+
+    const buildSubLabel = (selectionId: string) => {
       const parts = selectionId.split(":");
       // sub:<parentKey>:<subName...>
       return `↳ ${parts.slice(2).join(":")}`;
     };
 
+    const rowKeyForDept = (dept: string | null, label: string) =>
+      dept ? `${dept} - ${label}` : label;
+
     const preferredOrder: string[] = [];
-    const deptsToOrder = departmentNames.length ? departmentNames : [null];
+    const added = new Set<string>();
 
     deptsToOrder.forEach((dept) => {
       selectedMetrics.forEach((selectionId) => {
-        const label = buildDisplayLabelFromSelectionId(selectionId);
-        preferredOrder.push(dept ? `${dept} - ${label}` : label);
-
-        // If we have a sub-metric selected, also ensure the parent appears immediately
-        // above it in the preferred order (even if the parent wasn't explicitly selected).
         if (selectionId.startsWith("sub:")) {
-          const parentKey = selectionId.split(":")[1];
+          const parts = selectionId.split(":");
+          const parentKey = parts[1];
           const parentDef = metrics.find((m: any) => m.key === parentKey);
           const parentLabel = parentDef?.name ?? parentKey;
-          const parentRowKey = dept ? `${dept} - ${parentLabel}` : parentLabel;
+          const parentRowKey = rowKeyForDept(dept, parentLabel);
 
-          // Insert parent just before the sub-metric (if it isn't already in the list).
-          const subRowKey = dept ? `${dept} - ${label}` : label;
-          const subIdx = preferredOrder.lastIndexOf(subRowKey);
-          if (subIdx !== -1 && !preferredOrder.includes(parentRowKey)) {
-            preferredOrder.splice(subIdx, 0, parentRowKey);
+          const subLabel = buildSubLabel(selectionId);
+          const subRowKey = rowKeyForDept(dept, subLabel);
+
+          if (!added.has(parentRowKey)) {
+            preferredOrder.push(parentRowKey);
+            added.add(parentRowKey);
           }
+          if (!added.has(subRowKey)) {
+            preferredOrder.push(subRowKey);
+            added.add(subRowKey);
+          }
+          return;
+        }
+
+        const rowKey = rowKeyForDept(dept, selectionId);
+        if (!added.has(rowKey)) {
+          preferredOrder.push(rowKey);
+          added.add(rowKey);
         }
       });
     });
