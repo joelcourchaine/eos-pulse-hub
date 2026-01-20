@@ -55,7 +55,7 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     description: "Total sales expenses", 
     targetDirection: "below" 
   },
-  { 
+{ 
     name: "Sales Expense %", 
     key: "sales_expense_percent", 
     type: "percentage", 
@@ -64,7 +64,8 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     calculation: {
       numerator: "sales_expense",
       denominator: "gp_net"
-    }
+    },
+    hasSubMetrics: true
   },
   { 
     name: "Semi Fixed Expense", 
