@@ -3112,9 +3112,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const targetDirection = targetDirections[metric.key] || metric.targetDirection;
                     const isDepartmentProfit = metric.key === 'department_profit';
                     const isNetSellingGross = metric.key === 'net_selling_gross';
-                    const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(metric.key);
+                    // For percentage metrics with calculation, check sub-metrics under the numerator key
+                    const subMetricSourceKey = metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation
+                      ? metric.calculation.numerator
+                      : metric.key;
+                    const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(subMetricSourceKey);
                     const isMetricExpanded = expandedMetrics.has(metric.key);
-                    const subMetricNames = metricHasSubMetrics ? getSubMetricNames(metric.key) : [];
+                    const subMetricNames = metricHasSubMetrics ? getSubMetricNames(subMetricSourceKey) : [];
                     const metricHasRock = hasRockForMetric(metric.key);
                     const metricRock = metricHasRock ? getRockForMetric(metric.key) : null;
                     
@@ -3163,7 +3167,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   )}
                                   <ExpandableMetricName
                                     metricName={metric.name}
-                                    hasSubMetrics={metric.hasSubMetrics || checkHasSubMetrics(metric.key)}
+                                    hasSubMetrics={metricHasSubMetrics}
                                     isExpanded={expandedMetrics.has(metric.key)}
                                     onToggle={() => toggleMetricExpansion(metric.key)}
                                     isDepartmentProfit={isDepartmentProfit}
@@ -4289,8 +4293,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       <SubMetricsRow
                         subMetrics={subMetricNames.map((name, idx) => {
                           // Find the order index from the raw sub-metrics data
+                          // Use subMetricSourceKey (numerator for percentage metrics)
                           const subMetricEntry = allSubMetrics.find(
-                            sm => sm.parentMetricKey === metric.key && sm.name === name
+                            sm => sm.parentMetricKey === subMetricSourceKey && sm.name === name
                           );
                           return { 
                             name, 
