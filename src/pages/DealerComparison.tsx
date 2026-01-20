@@ -702,15 +702,7 @@ export default function DealerComparison() {
               }
             }
 
-            const metricName = (() => {
-              if (metricKey?.startsWith("sub:")) {
-                const parts = metricKey.split(":");
-                const parentKey = parts.length >= 2 ? parts[1] : "";
-                const subName = parts.length >= 4 ? parts.slice(3).join(":") : metricKey;
-                return `sub:${parentKey}:${subName}`;
-              }
-              return keyToName.get(metricKey) || metricKey;
-            })();
+            const metricName = keyToName.get(metricKey) || metricKey;
             const entryKey = `${storeId}-${deptId}-${metricKey}`;
 
             // Get comparison baseline for this metric
@@ -822,12 +814,6 @@ export default function DealerComparison() {
         financialEntries.forEach(entry => {
           const metricName = (() => {
             const k = entry.metric_name as string;
-            if (k?.startsWith("sub:")) {
-              const parts = k.split(":");
-              const parentKey = parts.length >= 2 ? parts[1] : "";
-              const subName = parts.length >= 4 ? parts.slice(3).join(":") : k;
-              return `sub:${parentKey}:${subName}`;
-            }
             return keyToName.get(k) || k;
           })();
           if (entry.metric_name === 'total_direct_expenses') {
@@ -1162,8 +1148,100 @@ export default function DealerComparison() {
         });
       }
       
+
+      // If the user selected sub-metrics under a percentage parent (e.g. "Sales Expense %"),
+      // the underlying imported sub-metrics are usually stored under the NUMERATOR key
+      // (e.g. sub:sales_expense:*). We therefore compute those selected sub-rows as % values
+      // using the parent's denominator (e.g. GP Net).
+      const percentSubSelections = selectedMetrics
+        .filter((id) => id.startsWith("sub:"))
+        .map((id) => {
+          const parts = id.split(":");
+          if (parts.length < 3) return null;
+
+          const parentKey = parts[1];
+          const subName = parts.slice(parts.length >= 4 ? 3 : 2).join(":");
+          const parentDef = keyToDef.get(parentKey);
+
+          if (!parentDef || parentDef.type !== "percentage" || !parentDef.calculation) return null;
+          if (!("numerator" in parentDef.calculation) || !("denominator" in parentDef.calculation)) return null;
+
+          return {
+            selectionId: id,
+            displayName: selectionIdToDisplayName(id),
+            parentKey,
+            subName,
+            numeratorKey: parentDef.calculation.numerator,
+            denominatorKey: parentDef.calculation.denominator,
+          };
+        })
+        .filter(Boolean) as Array<{
+        selectionId: string;
+        displayName: string;
+        parentKey: string;
+        subName: string;
+        numeratorKey: string;
+        denominatorKey: string;
+      }>;
+
+      if (percentSubSelections.length > 0) {
+        storeDeptPairs.forEach((pair) => {
+          const [storeId, deptId] = pair.split("|");
+
+          // Rebuild the values map for this store/dept (including previously calculated metrics)
+          const allValues = new Map<string, number>();
+          Object.values(dataMap).forEach((d) => {
+            if (d.storeId === storeId && d.departmentId === deptId && d.value !== null && d.value !== undefined) {
+              const k = nameToKey.get(d.metricName);
+              if (k) allValues.set(k, d.value);
+            }
+          });
+
+          const sampleEntry = Object.values(dataMap).find((d) => d.storeId === storeId && d.departmentId === deptId);
+          if (!sampleEntry) return;
+
+          percentSubSelections.forEach((sel) => {
+            const denom = allValues.get(sel.denominatorKey) || 0;
+            if (denom === 0) return;
+
+            // Find the imported numerator sub-metric that matches this subName
+            let rawSubMetricKey: string | null = null;
+            let subDollarValue: number | null = null;
+
+            for (const [k, v] of allValues) {
+              if (!k.startsWith(`sub:${sel.numeratorKey}:`)) continue;
+              const parts = k.split(":");
+              const importedSubName = parts.length >= 4 ? parts.slice(3).join(":") : "";
+              if (importedSubName === sel.subName) {
+                rawSubMetricKey = k;
+                subDollarValue = v;
+                break;
+              }
+            }
+
+            if (!rawSubMetricKey || subDollarValue === null) return;
+
+            const percentValue = (subDollarValue / denom) * 100;
+            const dataKey = `${storeId}-${deptId}-${rawSubMetricKey}`;
+
+            const existing = dataMap[dataKey];
+            dataMap[dataKey] = {
+              storeId,
+              storeName: sampleEntry.storeName,
+              departmentId: deptId,
+              departmentName: sampleEntry.departmentName,
+              metricName: sel.displayName,
+              value: percentValue,
+              target: existing?.target ?? null,
+              variance: existing?.variance ?? null,
+            };
+          });
+        });
+      }
+
       // Build complete list of all store+dept combinations from initial department IDs
       const allDepts = new Map<string, { storeId: string; storeName: string; deptId: string; deptName: string }>();
+      
       
       // First pass: collect all store+dept info from entries
       financialEntries.forEach(entry => {
@@ -1218,9 +1296,9 @@ export default function DealerComparison() {
         });
       });
       
-      // Filter to only selected metrics
+      // Filter to only selected metrics (selection IDs converted to display names)
       const result = Object.values(dataMap).filter(item => 
-        selectedMetrics.includes(item.metricName)
+        selectedMetricNames.includes(item.metricName)
       );
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
