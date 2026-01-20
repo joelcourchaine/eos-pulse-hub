@@ -226,30 +226,60 @@ export default function DealerComparison() {
     const keyToName = new Map<string, string>();
     defs.forEach((d: any) => keyToName.set(d.key, d.name));
 
-    const ordered: string[] = [];
-    const added = new Set<string>();
+    // Separate parent metrics and sub-metrics
+    const parentIds: string[] = [];
+    const subMetricsByParent = new Map<string, string[]>();
 
     selectedMetrics.forEach((id) => {
       if (id.startsWith("sub:")) {
         const parentKey = id.split(":")[1];
         const parentName = keyToName.get(parentKey) ?? parentKey;
-
-        if (!added.has(parentName) && selectedMetrics.includes(parentName)) {
-          ordered.push(parentName);
-          added.add(parentName);
+        if (!subMetricsByParent.has(parentName)) {
+          subMetricsByParent.set(parentName, []);
         }
+        subMetricsByParent.get(parentName)!.push(id);
+      } else {
+        parentIds.push(id);
+      }
+    });
 
-        if (!added.has(id)) {
-          ordered.push(id);
-          added.add(id);
+    // Build ordered list: for each parent, add the parent then its sub-metrics
+    const ordered: string[] = [];
+    const added = new Set<string>();
+
+    // First pass: add parents that are explicitly selected, followed by their subs
+    parentIds.forEach((parentId) => {
+      if (!added.has(parentId)) {
+        ordered.push(parentId);
+        added.add(parentId);
+      }
+      // Add any sub-metrics for this parent
+      const subs = subMetricsByParent.get(parentId);
+      if (subs) {
+        subs.forEach((subId) => {
+          if (!added.has(subId)) {
+            ordered.push(subId);
+            added.add(subId);
+          }
+        });
+        subMetricsByParent.delete(parentId);
+      }
+    });
+
+    // Second pass: add remaining sub-metrics whose parent wasn't explicitly selected
+    // Insert the parent first (even if not selected) then the subs
+    subMetricsByParent.forEach((subs, parentName) => {
+      // Find if parent exists in our remaining items
+      if (!added.has(parentName) && selectedMetrics.includes(parentName)) {
+        ordered.push(parentName);
+        added.add(parentName);
+      }
+      subs.forEach((subId) => {
+        if (!added.has(subId)) {
+          ordered.push(subId);
+          added.add(subId);
         }
-        return;
-      }
-
-      if (!added.has(id)) {
-        ordered.push(id);
-        added.add(id);
-      }
+      });
     });
 
     return ordered;
