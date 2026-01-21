@@ -259,12 +259,14 @@ export const parseCSRProductivityReport = (
           if (!row || row.length === 0) continue;
           
           // Check multiple columns for advisor headers (not just first column)
-          // Some reports have advisor names in column 0, others in different columns
+          // Some reports have advisor names shifted far to the right depending on the DMS export.
           let advisorInfo: { displayName: string; employeeId: string } | null = null;
           let advisorCellValue = "";
           
-          for (let colIdx = 0; colIdx < Math.min(5, row.length); colIdx++) {
-            const cellValue = String(row[colIdx] || "").trim();
+          // Scan a wider range to avoid missing advisors that appear lower in the sheet
+          // where indentation/blank columns change.
+          for (let colIdx = 0; colIdx < Math.min(15, row.length); colIdx++) {
+            const cellValue = String(row[colIdx] ?? "").trim();
             if (cellValue) {
               advisorInfo = parseAdvisorHeader(cellValue);
               if (advisorInfo) {
