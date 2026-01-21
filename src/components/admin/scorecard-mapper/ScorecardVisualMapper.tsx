@@ -248,6 +248,22 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedProfileId,
   });
 
+  // Fetch existing column templates for selected profile
+  const { data: columnTemplates } = useQuery({
+    queryKey: ["column-templates", selectedProfileId],
+    queryFn: async () => {
+      if (!selectedProfileId) return [];
+      const { data, error } = await supabase
+        .from("scorecard_column_templates")
+        .select("*")
+        .eq("import_profile_id", selectedProfileId)
+        .order("col_index");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedProfileId,
+  });
+
   // Save column mappings mutation
   const saveColumnMappingsMutation = useMutation({
     mutationFn: async () => {
@@ -393,6 +409,54 @@ export const ScorecardVisualMapper = () => {
       toast.error("Failed to remove cell mapping: " + error.message);
     },
   });
+
+  // Save column template mutation (called automatically when saving cell mapping)
+  const saveColumnTemplateMutation = useMutation({
+    mutationFn: async (template: { colIndex: number; kpiName: string }) => {
+      if (!selectedProfileId) throw new Error("No profile selected");
+      
+      const { data: user } = await supabase.auth.getUser();
+      
+      // Upsert the template (col_index + kpi_name is unique per profile)
+      const { error } = await supabase
+        .from("scorecard_column_templates")
+        .upsert({
+          import_profile_id: selectedProfileId,
+          col_index: template.colIndex,
+          kpi_name: template.kpiName,
+          created_by: user.user?.id,
+        }, {
+          onConflict: "import_profile_id,col_index,kpi_name",
+        });
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["column-templates", selectedProfileId] });
+      toast.success(`Template saved: Column ${variables.colIndex + 1} → ${variables.kpiName}`);
+    },
+    onError: (error) => {
+      console.error("Failed to save column template:", error);
+    },
+  });
+
+  // Delete column template mutation
+  const deleteColumnTemplateMutation = useMutation({
+    mutationFn: async (templateId: string) => {
+      const { error } = await supabase
+        .from("scorecard_column_templates")
+        .delete()
+        .eq("id", templateId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["column-templates", selectedProfileId] });
+      toast.success("Template removed");
+    },
+    onError: (error) => {
+      toast.error("Failed to remove template: " + error.message);
+    },
+  });
+
 
   // Load existing cell mappings into state when they're fetched
   // Relative mappings have null row_index and are matched by userId + colIndex
@@ -661,7 +725,7 @@ export const ScorecardVisualMapper = () => {
     handleFirstColClick(rowIndex, advisorName);
   };
 
-  const handleUserMappingSave = (mapping: {
+  const handleUserMappingSave = async (mapping: {
     rowIndex: number;
     advisorName: string;
     userId: string;
@@ -685,7 +749,15 @@ export const ScorecardVisualMapper = () => {
     
     // Automatically set the newly linked user as the active KPI owner
     setSelectedKpiOwnerId(mapping.userId);
-    toast.success(`${mapping.profileName} is now the active KPI owner`);
+    
+    // Auto-apply column templates for this user
+    const appliedCount = await applyTemplatesForUser(mapping.userId, mapping.profileName);
+    
+    if (appliedCount > 0) {
+      toast.success(`${mapping.profileName} is now the active KPI owner. Applied ${appliedCount} mappings from template.`);
+    } else {
+      toast.success(`${mapping.profileName} is now the active KPI owner`);
+    }
     
     setUserPopoverOpen(false);
     setSelectedRow(null);
@@ -745,6 +817,13 @@ export const ScorecardVisualMapper = () => {
     
     // Auto-save to database
     saveCellMappingMutation.mutate(mapping);
+    
+    // Also save as a column template for future users
+    // This creates a profile-level template: "Column X contains KPI Y"
+    saveColumnTemplateMutation.mutate({
+      colIndex: mapping.colIndex,
+      kpiName: mapping.kpiName,
+    });
   };
 
   const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number) => {
@@ -795,7 +874,72 @@ export const ScorecardVisualMapper = () => {
     // Filter to only mappings for the active owner
     const ownerMappings = safeCellKpiMappings.filter(m => m.userId === selectedKpiOwnerId);
     return new Set(ownerMappings.map(m => m.kpiId));
-  }, [safeCellKpiMappings]);
+  }, [safeCellKpiMappings, selectedKpiOwnerId]);
+
+  // Auto-apply column templates for a user when they are linked
+  const applyTemplatesForUser = useCallback(async (userId: string, profileName: string) => {
+    if (!selectedProfileId || !columnTemplates || !departmentKpis) return 0;
+    
+    // Get KPIs assigned to this user
+    const userKpis = departmentKpis.filter(kpi => kpi.assigned_to === userId);
+    const userKpiNames = new Map(userKpis.map(kpi => [kpi.name.toLowerCase(), kpi]));
+    
+    // Find templates that match this user's KPIs
+    const matchingTemplates = columnTemplates.filter(template => 
+      userKpiNames.has(template.kpi_name.toLowerCase())
+    );
+    
+    if (matchingTemplates.length === 0) return 0;
+    
+    const { data: user } = await supabase.auth.getUser();
+    
+    // Create cell mappings for each matching template
+    const mappingsToCreate = matchingTemplates.map(template => {
+      const matchedKpi = userKpiNames.get(template.kpi_name.toLowerCase())!;
+      return {
+        import_profile_id: selectedProfileId,
+        user_id: userId,
+        kpi_id: matchedKpi.id,
+        kpi_name: matchedKpi.name,
+        row_index: null, // Relative mapping
+        col_index: template.col_index,
+        is_relative: true,
+        created_by: user.user?.id,
+      };
+    });
+    
+    // Batch insert (using upsert to avoid conflicts)
+    for (const mapping of mappingsToCreate) {
+      await supabase
+        .from("scorecard_cell_mappings")
+        .upsert(mapping, {
+          onConflict: "import_profile_id,user_id,col_index",
+        });
+    }
+    
+    // Update local state with new mappings
+    const newLocalMappings: CellKpiMapping[] = matchingTemplates.map(template => {
+      const matchedKpi = userKpiNames.get(template.kpi_name.toLowerCase())!;
+      return {
+        colIndex: template.col_index,
+        kpiId: matchedKpi.id,
+        kpiName: matchedKpi.name,
+        userId: userId,
+      };
+    });
+    
+    setCellKpiMappings(prev => {
+      const existing = (prev ?? []).filter(Boolean);
+      // Add new mappings (filter out any duplicates)
+      const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}`));
+      const toAdd = newLocalMappings.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}`));
+      return [...existing, ...toAdd];
+    });
+    
+    queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
+    
+    return matchingTemplates.length;
+  }, [selectedProfileId, columnTemplates, departmentKpis, queryClient]);
 
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
@@ -1131,6 +1275,39 @@ export const ScorecardVisualMapper = () => {
                         </span>
                       </div>
                     </div>
+                    
+                    {/* Column Templates Section */}
+                    {columnTemplates && columnTemplates.length > 0 && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-1">
+                          <Save className="h-3 w-3" />
+                          Column Templates ({columnTemplates.length})
+                        </div>
+                        <ul className="space-y-1 max-h-32 overflow-y-auto">
+                          {columnTemplates.map((template) => (
+                            <li
+                              key={template.id}
+                              className="flex items-center justify-between gap-2 text-xs p-1.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                            >
+                              <span className="truncate">
+                                Col {template.col_index + 1} → {template.kpi_name}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => deleteColumnTemplateMutation.mutate(template.id)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-[10px] text-muted-foreground mt-2 italic">
+                          Templates auto-apply when linking new advisors
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

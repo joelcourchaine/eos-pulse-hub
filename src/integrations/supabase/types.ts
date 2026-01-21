@@ -1938,6 +1938,44 @@ export type Database = {
           },
         ]
       }
+      scorecard_column_templates: {
+        Row: {
+          col_index: number
+          created_at: string
+          created_by: string | null
+          id: string
+          import_profile_id: string
+          kpi_name: string
+          pay_type_filter: string | null
+        }
+        Insert: {
+          col_index: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          import_profile_id: string
+          kpi_name: string
+          pay_type_filter?: string | null
+        }
+        Update: {
+          col_index?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          import_profile_id?: string
+          kpi_name?: string
+          pay_type_filter?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_column_templates_import_profile_id_fkey"
+            columns: ["import_profile_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_import_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scorecard_entries: {
         Row: {
           actual_value: number | null
