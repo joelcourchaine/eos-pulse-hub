@@ -43,17 +43,61 @@ interface ParsedExcelData {
   headerRowIndex: number; // Index of the header row in the displayed data
 }
 
+const STORAGE_KEY = "scorecard-visual-mapper-state";
+
+interface PersistedMapperState {
+  parsedData: ParsedExcelData | null;
+  fileName: string | null;
+  selectedStoreId: string | null;
+  selectedDepartmentId: string | null;
+  selectedProfileId: string | null;
+}
+
+const loadPersistedState = (): Partial<PersistedMapperState> => {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.warn("Failed to load persisted mapper state:", e);
+  }
+  return {};
+};
+
+const savePersistedState = (state: PersistedMapperState) => {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn("Failed to save mapper state:", e);
+  }
+};
+
 export const ScorecardVisualMapper = () => {
   const queryClient = useQueryClient();
   
-  // State
-  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  // Load persisted state on mount
+  const persistedState = useMemo(() => loadPersistedState(), []);
+  
+  // State - initialize from persisted values
+  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(persistedState.selectedStoreId ?? null);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(persistedState.selectedDepartmentId ?? null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(persistedState.selectedProfileId ?? null);
   const [selectedKpiOwnerId, setSelectedKpiOwnerId] = useState<string | null>(null); // User to assign KPIs to
-  const [parsedData, setParsedData] = useState<ParsedExcelData | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsedData, setParsedData] = useState<ParsedExcelData | null>(persistedState.parsedData ?? null);
+  const [fileName, setFileName] = useState<string | null>(persistedState.fileName ?? null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Persist state changes to sessionStorage
+  useEffect(() => {
+    savePersistedState({
+      parsedData,
+      fileName,
+      selectedStoreId,
+      selectedDepartmentId,
+      selectedProfileId,
+    });
+  }, [parsedData, fileName, selectedStoreId, selectedDepartmentId, selectedProfileId]);
   
   // Mapping states
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
@@ -435,6 +479,42 @@ export const ScorecardVisualMapper = () => {
       setCellKpiMappings(loadedMappings);
     }
   }, [existingCellMappings]);
+
+  // Re-initialize column and user mappings when persisted data is restored and DB data is available
+  useEffect(() => {
+    if (!parsedData || columnMappings.length > 0 || userMappings.length > 0) return;
+    
+    // Initialize column mappings from persisted headers
+    const initialMappings: ColumnMapping[] = parsedData.headers.map((header, index) => {
+      const existing = existingMappings?.find(m => 
+        m.source_column.toLowerCase() === header.toLowerCase()
+      );
+      
+      return {
+        columnIndex: index,
+        columnHeader: header,
+        targetKpiName: existing?.target_kpi_name || null,
+        payTypeFilter: existing?.pay_type_filter || null,
+        isPerUser: existing?.is_per_user || false,
+      };
+    });
+    setColumnMappings(initialMappings);
+    
+    // Initialize user mappings from persisted advisor names
+    const initialUserMappings: UserMapping[] = parsedData.advisorNames.map(({ rowIndex, name }) => {
+      const existing = existingAliases?.find(a => 
+        a.alias_name.toLowerCase() === name.toLowerCase()
+      );
+      
+      return {
+        rowIndex,
+        advisorName: name,
+        userId: existing?.user_id || null,
+        matchedProfileName: existing?.profileName || null,
+      };
+    });
+    setUserMappings(initialUserMappings);
+  }, [parsedData, existingMappings, existingAliases, columnMappings.length, userMappings.length]);
 
   // Parse Excel file
   const parseExcelFile = useCallback((file: File) => {
