@@ -254,9 +254,10 @@ export const ExcelPreviewGrid = ({
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
-                  const canMapCell = canClickCells && !isAdvisorRow && !isHeaderRow && !isMetadataRow;
+                  const canMapCell = canClickCells && !isHeaderRow && !isMetadataRow && !isFirstCol;
                   
                   // First column cells are clickable (except header/metadata) to select as owner
+                  // CRITICAL: isAdvisorRow check removed - we want ANY first column cell to be clickable
                   const canSelectAsOwner = isFirstCol && !isHeaderRow && !isMetadataRow && String(cell || "").trim() !== "";
                   
                   return (
@@ -272,7 +273,8 @@ export const ExcelPreviewGrid = ({
                         isSelectedCell && "ring-2 ring-primary ring-inset",
                       )}
                       onClick={() => {
-                        if (canSelectAsOwner && onFirstColClick) {
+                        console.log("Cell clicked:", { rowIndex, colIndex, isFirstCol, canSelectAsOwner, canMapCell, onFirstColClick: !!onFirstColClick, isHeaderRow, isMetadataRow, cell });
+                        if (isFirstCol && !isHeaderRow && !isMetadataRow && onFirstColClick) {
                           onFirstColClick(rowIndex, String(cell || ""));
                         } else if (canMapCell) {
                           onCellClick(rowIndex, colIndex, cell, headers[colIndex] || "");
