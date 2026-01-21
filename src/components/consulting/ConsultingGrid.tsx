@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat, AlertTriangle } from "lucide-react";
+import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat, AlertTriangle, ArrowUpDown, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -68,6 +68,7 @@ interface DisplayRow {
 
 export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
   const queryClient = useQueryClient();
+  const [previewSortMonth, setPreviewSortMonth] = useState<string | null>(null);
   const [newRow, setNewRow] = useState<{
     store_id: string | null;
     department_id: string | null;
@@ -228,9 +229,26 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
       }
     });
 
-    // Sort rows by earliest call date/time (later dates appear lower)
+    // Sort rows based on preview month or default (earliest call)
     rows.sort((a, b) => {
-      // Find the earliest call for each row
+      if (previewSortMonth) {
+        // Preview mode: sort by calls in the selected month only
+        const callA = a.calls.get(previewSortMonth);
+        const callB = b.calls.get(previewSortMonth);
+        
+        // Rows without calls in this month go to the bottom
+        if (!callA && !callB) {
+          return a.client.name.localeCompare(b.client.name);
+        }
+        if (!callA) return 1;
+        if (!callB) return -1;
+        
+        const timeA = `${callA.call_date}T${callA.call_time || '00:00'}`;
+        const timeB = `${callB.call_date}T${callB.call_time || '00:00'}`;
+        return timeA.localeCompare(timeB);
+      }
+      
+      // Default: sort by earliest call date/time across all months
       const getEarliestCall = (row: DisplayRow): { date: string; time: string } | null => {
         let earliest: { date: string; time: string } | null = null;
         row.calls.forEach((call) => {
@@ -268,7 +286,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     });
 
     return rows;
-  }, [clients, calls, stores, allDepartments, months]);
+  }, [clients, calls, stores, allDepartments, months, previewSortMonth]);
 
   // Find the next upcoming call in the current month (for the "next appointment" line)
   const nextUpcomingCallRowId = useMemo(() => {
@@ -606,7 +624,25 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        {/* Preview sort mode indicator */}
+        {previewSortMonth && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-md">
+            <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-medium text-primary">
+              Sorted by {months.find(m => m.key === previewSortMonth)?.label || previewSortMonth}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 w-5 p-0 hover:bg-primary/20"
+              onClick={() => setPreviewSortMonth(null)}
+            >
+              <X className="h-3 w-3 text-primary" />
+            </Button>
+          </div>
+        )}
+        {!previewSortMonth && <div />}
         <Button onClick={handleAddRow} disabled={!!newRow}>
           <Plus className="h-4 w-4 mr-2" />
           Add Client
@@ -624,17 +660,30 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                 <TableHead className="w-[80px] text-right py-1 text-xs">Value</TableHead>
                 {months.map(m => {
                   const isCurrentMonth = m.key === currentMonthKey;
+                  const isPreviewMonth = m.key === previewSortMonth;
                   return (
                     <TableHead 
                       key={m.key} 
                       className={cn(
-                        "w-[130px] text-center min-w-[130px] py-1 text-xs",
-                        isCurrentMonth && "bg-destructive/10"
+                        "w-[130px] text-center min-w-[130px] py-1 text-xs cursor-pointer transition-colors",
+                        isCurrentMonth && "bg-destructive/10",
+                        isPreviewMonth && "bg-primary/20 ring-1 ring-primary/50",
+                        !isPreviewMonth && !isCurrentMonth && "hover:bg-muted"
                       )}
+                      onClick={() => {
+                        // Toggle: if clicking the same month, clear preview; otherwise set it
+                        setPreviewSortMonth(prev => prev === m.key ? null : m.key);
+                      }}
                     >
-                      <span className={cn(isCurrentMonth && "font-semibold text-destructive")}>
-                        {m.label}
-                      </span>
+                      <div className="flex items-center justify-center gap-1">
+                        <span className={cn(
+                          isCurrentMonth && "font-semibold text-destructive",
+                          isPreviewMonth && "font-semibold text-primary"
+                        )}>
+                          {m.label}
+                        </span>
+                        {isPreviewMonth && <ArrowUpDown className="h-3 w-3 text-primary" />}
+                      </div>
                     </TableHead>
                   );
                 })}
