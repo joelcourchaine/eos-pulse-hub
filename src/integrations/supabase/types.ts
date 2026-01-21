@@ -1923,6 +1923,231 @@ export type Database = {
           },
         ]
       }
+      scorecard_import_logs: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          file_name: string
+          id: string
+          import_source: string
+          imported_by: string | null
+          metrics_imported: Json | null
+          month: string
+          status: string
+          store_id: string | null
+          unmatched_users: string[] | null
+          user_mappings: Json | null
+          warnings: string[] | null
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          file_name: string
+          id?: string
+          import_source?: string
+          imported_by?: string | null
+          metrics_imported?: Json | null
+          month: string
+          status?: string
+          store_id?: string | null
+          unmatched_users?: string[] | null
+          user_mappings?: Json | null
+          warnings?: string[] | null
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          file_name?: string
+          id?: string
+          import_source?: string
+          imported_by?: string | null
+          metrics_imported?: Json | null
+          month?: string
+          status?: string
+          store_id?: string | null
+          unmatched_users?: string[] | null
+          user_mappings?: Json | null
+          warnings?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_import_logs_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_import_logs_imported_by_fkey"
+            columns: ["imported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_import_logs_imported_by_fkey"
+            columns: ["imported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_import_logs_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scorecard_import_mappings: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          import_profile_id: string
+          is_per_user: boolean
+          metric_type: string
+          pay_type_filter: string | null
+          source_column: string
+          target_kpi_name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          import_profile_id: string
+          is_per_user?: boolean
+          metric_type?: string
+          pay_type_filter?: string | null
+          source_column: string
+          target_kpi_name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          import_profile_id?: string
+          is_per_user?: boolean
+          metric_type?: string
+          pay_type_filter?: string | null
+          source_column?: string
+          target_kpi_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_import_mappings_import_profile_id_fkey"
+            columns: ["import_profile_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_import_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scorecard_import_profiles: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          parser_type: string
+          role_type: string
+          store_group_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          parser_type?: string
+          role_type?: string
+          store_group_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          parser_type?: string
+          role_type?: string
+          store_group_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_import_profiles_store_group_id_fkey"
+            columns: ["store_group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scorecard_user_aliases: {
+        Row: {
+          alias_name: string
+          created_at: string
+          created_by: string | null
+          id: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          alias_name: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          alias_name?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_user_aliases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_user_aliases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_user_aliases_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_user_aliases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_user_aliases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signature_requests: {
         Row: {
           access_token: string
