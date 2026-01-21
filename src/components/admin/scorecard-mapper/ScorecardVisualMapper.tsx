@@ -47,6 +47,7 @@ export const ScorecardVisualMapper = () => {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [selectedKpiOwnerId, setSelectedKpiOwnerId] = useState<string | null>(null); // User to assign KPIs to
   const [parsedData, setParsedData] = useState<ParsedExcelData | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -570,17 +571,11 @@ export const ScorecardVisualMapper = () => {
     setSelectedCell(null);
   };
 
-  // Find advisor that owns the selected cell (for fetching their KPIs)
-  const getOwningAdvisorForCell = (rowIndex: number) => {
-    if (!parsedData) return null;
-    const precedingAdvisorRows = parsedData.advisorRowIndices.filter(idx => idx < rowIndex);
-    const owningAdvisorIdx = precedingAdvisorRows.length > 0 ? precedingAdvisorRows[precedingAdvisorRows.length - 1] : null;
-    if (owningAdvisorIdx === null) return null;
-    return safeUserMappings.find(m => m.rowIndex === owningAdvisorIdx);
-  };
-
-  const selectedCellOwnerMapping = selectedCell ? getOwningAdvisorForCell(selectedCell.rowIndex) : null;
-  const selectedCellOwnerUserId = selectedCellOwnerMapping?.userId;
+  // Get selected KPI owner name for display
+  const selectedKpiOwnerName = useMemo(() => {
+    if (!selectedKpiOwnerId || !storeUsers) return null;
+    return storeUsers.find(u => u.id === selectedKpiOwnerId)?.full_name || null;
+  }, [selectedKpiOwnerId, storeUsers]);
 
   // Fetch KPIs for the selected department (scoped to department, not just user)
   const { data: departmentKpis } = useQuery({
@@ -598,11 +593,11 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedDepartmentId,
   });
 
-  // Filter department KPIs to those assigned to the cell's owner user
+  // Filter department KPIs to those assigned to the manually selected KPI owner
   const userAssignedKpis = useMemo(() => {
-    if (!departmentKpis || !selectedCellOwnerUserId) return [];
-    return departmentKpis.filter(kpi => kpi.assigned_to === selectedCellOwnerUserId);
-  }, [departmentKpis, selectedCellOwnerUserId]);
+    if (!departmentKpis || !selectedKpiOwnerId) return [];
+    return departmentKpis.filter(kpi => kpi.assigned_to === selectedKpiOwnerId);
+  }, [departmentKpis, selectedKpiOwnerId]);
 
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
@@ -700,6 +695,26 @@ export const ScorecardVisualMapper = () => {
             </SelectContent>
           </Select>
         </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-sm">KPI Owner (for cell mapping)</Label>
+          <Select 
+            value={selectedKpiOwnerId || ""} 
+            onValueChange={setSelectedKpiOwnerId}
+            disabled={!selectedDepartmentId}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder={selectedDepartmentId ? "Select user..." : "Select department first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {storeUsers?.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.full_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Drop zone or preview */}
@@ -750,7 +765,7 @@ export const ScorecardVisualMapper = () => {
                   {fileName}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  1) Map advisors to users → 2) Click cells in their rows to assign KPIs
+                  Select a KPI Owner above, then click any cell to assign its value to a KPI
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
@@ -815,7 +830,7 @@ export const ScorecardVisualMapper = () => {
               </UserMappingPopover>
             )}
 
-            {selectedCell && selectedCellOwnerMapping && (
+            {selectedCell && selectedKpiOwnerId && (
               <CellKpiMappingPopover
                 open={cellPopoverOpen}
                 onOpenChange={setCellPopoverOpen}
@@ -823,7 +838,7 @@ export const ScorecardVisualMapper = () => {
                 columnHeader={selectedCell.header}
                 rowIndex={selectedCell.rowIndex}
                 colIndex={selectedCell.colIndex}
-                advisorName={selectedCellOwnerMapping.matchedProfileName || selectedCellOwnerMapping.advisorName}
+                advisorName={selectedKpiOwnerName || "Selected User"}
                 currentKpiId={currentCellMapping?.kpiId || null}
                 userKpis={userAssignedKpis || []}
                 onSave={handleCellKpiMappingSave}
@@ -847,6 +862,7 @@ export const ScorecardVisualMapper = () => {
               selectedRow={selectedRow}
               selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
               headerRowIndex={parsedData.headerRowIndex}
+              canClickCells={!!selectedKpiOwnerId}
             />
 
             {/* Save button */}
@@ -872,9 +888,9 @@ export const ScorecardVisualMapper = () => {
           <AlertDescription>
             <strong>How it works:</strong> Drop an Excel report to see a visual preview. 
             <br />
-            <strong>Step 1:</strong> Click on advisor names (blue rows) to map them to store users.
+            <strong>Step 1:</strong> Select a Store, Department, and KPI Owner from the dropdowns above.
             <br />
-            <strong>Step 2:</strong> After mapping an advisor, click on cells in their data rows to assign values to that user's KPIs.
+            <strong>Step 2:</strong> Click on any data cell to assign its value to one of that user's KPIs.
             <br />
             Cell mappings allow different pay types (Customer, Warranty, Internal) in the same column to map to different KPIs.
           </AlertDescription>
