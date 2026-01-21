@@ -453,65 +453,120 @@ export const ScorecardImportPreviewDialog = ({
                 <TableRow>
                   <TableHead>Advisor</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Total Hrs</TableHead>
-                  <TableHead>CP Hrs</TableHead>
-                  <TableHead>Lab Sold</TableHead>
+                  {/* Show mapped KPI columns from Visual Mapper if available */}
+                  {cellMappings && cellMappings.length > 0 ? (
+                    // Get unique KPI names from mappings
+                    [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
+                      <TableHead key={kpiName} className="text-xs">
+                        {kpiName}
+                      </TableHead>
+                    ))
+                  ) : (
+                    // Fallback to hardcoded columns when no Visual Mapper
+                    <>
+                      <TableHead>Total Hrs</TableHead>
+                      <TableHead>CP Hrs</TableHead>
+                      <TableHead>Lab Sold</TableHead>
+                    </>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {advisorMatches.map((match, index) => (
-                  <TableRow key={match.advisor.rawName}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
+                {advisorMatches.map((match, index) => {
+                  // Build a lookup of this advisor's values by KPI name
+                  const assignedUserId = match.selectedUserId || match.userId;
+                  const previewValues: Record<string, number | null> = {};
+                  
+                  if (cellMappings && cellMappings.length > 0 && assignedUserId) {
+                    // Get mappings for this specific user
+                    const userMappings = cellMappings.filter(cm => cm.user_id === assignedUserId);
+                    
+                    for (const mapping of userMappings) {
+                      const kpiName = mapping.kpi_name.toLowerCase();
+                      // Determine pay type from KPI name
+                      let payType: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
+                      if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
+                        payType = 'customer';
+                      } else if (kpiName.includes("warranty")) {
+                        payType = 'warranty';
+                      } else if (kpiName.includes("internal")) {
+                        payType = 'internal';
+                      }
+                      
+                      const value = match.advisor.metricsByIndex[payType]?.[mapping.col_index];
+                      if (typeof value === 'number') {
+                        previewValues[mapping.kpi_name] = value;
+                      }
+                    }
+                  }
+                  
+                  return (
+                    <TableRow key={match.advisor.rawName}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {match.userId ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : match.selectedUserId ? (
+                            <UserPlus className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                          )}
+                          <span>{match.advisor.displayName}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         {match.userId ? (
-                          <Check className="h-4 w-4 text-green-500" />
+                          <Badge className="bg-green-500/20 text-green-700">
+                            {match.matchType === "alias" ? "Alias" : 
+                             match.matchType === "exact" ? "Exact" : "Fuzzy"}
+                          </Badge>
                         ) : match.selectedUserId ? (
-                          <UserPlus className="h-4 w-4 text-blue-500" />
+                          <Badge className="bg-blue-500/20 text-blue-700">
+                            Will Create Alias
+                          </Badge>
                         ) : (
-                          <AlertCircle className="h-4 w-4 text-yellow-500" />
+                          <Select
+                            value={match.selectedUserId || ""}
+                            onValueChange={(v) => handleUserSelect(index, v)}
+                          >
+                            <SelectTrigger className="w-[150px] h-7 text-xs">
+                              <SelectValue placeholder="Select user..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {storeUsers?.map((user) => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         )}
-                        <span>{match.advisor.displayName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {match.userId ? (
-                        <Badge className="bg-green-500/20 text-green-700">
-                          {match.matchType === "alias" ? "Alias" : 
-                           match.matchType === "exact" ? "Exact" : "Fuzzy"}
-                        </Badge>
-                      ) : match.selectedUserId ? (
-                        <Badge className="bg-blue-500/20 text-blue-700">
-                          Will Create Alias
-                        </Badge>
+                      </TableCell>
+                      {/* Show mapped KPI values from Visual Mapper if available */}
+                      {cellMappings && cellMappings.length > 0 ? (
+                        [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
+                          <TableCell key={kpiName} className="text-xs">
+                            {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
+                              ? previewValues[kpiName]!.toLocaleString()
+                              : "-"}
+                          </TableCell>
+                        ))
                       ) : (
-                        <Select
-                          value={match.selectedUserId || ""}
-                          onValueChange={(v) => handleUserSelect(index, v)}
-                        >
-                          <SelectTrigger className="w-[150px] h-7 text-xs">
-                            <SelectValue placeholder="Select user..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {storeUsers?.map((user) => (
-                              <SelectItem key={user.id} value={user.id}>
-                                {user.full_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <>
+                          <TableCell>
+                            {match.advisor.metrics.total["Sold Hrs"]?.toLocaleString() || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {match.advisor.metrics.customer["Sold Hrs"]?.toLocaleString() || "-"}
+                          </TableCell>
+                          <TableCell>
+                            ${match.advisor.metrics.customer["Lab Sold"]?.toLocaleString() || "0"}
+                          </TableCell>
+                        </>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {match.advisor.metrics.total["Sold Hrs"]?.toLocaleString() || "-"}
-                    </TableCell>
-                    <TableCell>
-                      {match.advisor.metrics.customer["Sold Hrs"]?.toLocaleString() || "-"}
-                    </TableCell>
-                    <TableCell>
-                      ${match.advisor.metrics.customer["Lab Sold"]?.toLocaleString() || "0"}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
