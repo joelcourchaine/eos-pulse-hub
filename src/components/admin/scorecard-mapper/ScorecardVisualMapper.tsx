@@ -36,6 +36,7 @@ interface ParsedExcelData {
   rows: (string | number | null)[][];
   advisorRowIndices: number[];
   advisorNames: { rowIndex: number; name: string }[];
+  headerRowIndex: number; // Index of the header row in the displayed data
 }
 
 export const ScorecardVisualMapper = () => {
@@ -302,12 +303,33 @@ export const ScorecardVisualMapper = () => {
           return;
         }
         
-        // Extract data rows and identify advisor rows
+        // Extract ALL rows including metadata rows before header
         const dataRows: (string | number | null)[][] = [];
         const advisorRowIndices: number[] = [];
         const advisorNames: { rowIndex: number; name: string }[] = [];
+        const metadataRowCount = headerRowIndex; // Rows before header are metadata
         
-        for (let i = headerRowIndex + 1; i < Math.min(rows.length, headerRowIndex + 100); i++) {
+        // Include metadata rows (before header)
+        for (let i = 0; i < headerRowIndex; i++) {
+          const row = rows[i];
+          const normalizedRow = (row || []).map((cell: any) => {
+            if (cell === null || cell === undefined) return null;
+            if (typeof cell === "number") return cell;
+            return String(cell).trim();
+          });
+          // Pad to match header length
+          while (normalizedRow.length < headers.length) {
+            normalizedRow.push(null);
+          }
+          dataRows.push(normalizedRow);
+        }
+        
+        // Include header row itself for visual context
+        dataRows.push(headers.map(h => h));
+        const displayedHeaderRowIndex = dataRows.length - 1;
+        
+        // Include ALL data rows after header (no 100 row limit)
+        for (let i = headerRowIndex + 1; i < rows.length; i++) {
           const row = rows[i];
           if (!row || row.length === 0) continue;
           
@@ -336,6 +358,7 @@ export const ScorecardVisualMapper = () => {
           rows: dataRows,
           advisorRowIndices,
           advisorNames,
+          headerRowIndex: displayedHeaderRowIndex,
         });
         setFileName(file.name);
         
@@ -659,6 +682,7 @@ export const ScorecardVisualMapper = () => {
               onAdvisorClick={handleAdvisorClick}
               selectedColumn={selectedColumn}
               selectedRow={selectedRow}
+              headerRowIndex={parsedData.headerRowIndex}
             />
 
             {/* Save button */}

@@ -34,6 +34,7 @@ interface ExcelPreviewGridProps {
   onAdvisorClick: (rowIndex: number, advisorName: string) => void;
   selectedColumn: number | null;
   selectedRow: number | null;
+  headerRowIndex?: number; // Index of the header row in the data
 }
 
 export const ExcelPreviewGrid = ({
@@ -46,6 +47,7 @@ export const ExcelPreviewGrid = ({
   onAdvisorClick,
   selectedColumn,
   selectedRow,
+  headerRowIndex = -1,
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -131,14 +133,18 @@ export const ExcelPreviewGrid = ({
           const isUserRowMapped = isUserMapped(rowIndex);
           const userInfo = getUserMappingInfo(rowIndex);
           const isSelectedRow = selectedRow === rowIndex;
+          const isHeaderRow = rowIndex === headerRowIndex;
+          const isMetadataRow = headerRowIndex > 0 && rowIndex < headerRowIndex;
           
           return (
             <div
               key={rowIndex}
               className={cn(
                 "flex border-b hover:bg-muted/30 transition-colors",
-                isAdvisorRow && "bg-blue-50 dark:bg-blue-900/20",
-                isUserRowMapped && "bg-green-50 dark:bg-green-900/20",
+                isHeaderRow && "bg-amber-100 dark:bg-amber-900/30 font-semibold sticky top-10 z-[5]",
+                isMetadataRow && "bg-slate-50 dark:bg-slate-800/30 text-muted-foreground",
+                isAdvisorRow && !isHeaderRow && "bg-blue-50 dark:bg-blue-900/20",
+                isUserRowMapped && !isHeaderRow && "bg-green-50 dark:bg-green-900/20",
                 isSelectedRow && "ring-2 ring-primary ring-inset",
               )}
             >
