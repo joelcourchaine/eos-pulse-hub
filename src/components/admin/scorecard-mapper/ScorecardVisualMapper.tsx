@@ -51,6 +51,10 @@ export const ScorecardVisualMapper = () => {
   // Mapping states
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
+
+  // Always work with sanitized arrays (prevents runtime crashes if any undefined slips in)
+  const safeColumnMappings = useMemo(() => (columnMappings ?? []).filter(Boolean), [columnMappings]);
+  const safeUserMappings = useMemo(() => (userMappings ?? []).filter(Boolean), [userMappings]);
   
   // Popover states
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
@@ -415,21 +419,27 @@ export const ScorecardVisualMapper = () => {
     payTypeFilter: string | null;
     isPerUser: boolean;
   }) => {
-    setColumnMappings(prev => prev.map(m => 
-      m.columnIndex === mapping.columnIndex
-        ? { ...m, ...mapping }
-        : m
-    ));
+    setColumnMappings((prev) =>
+      (prev ?? [])
+        .filter(Boolean)
+        .map((m) =>
+          m?.columnIndex === mapping.columnIndex ? { ...m, ...mapping } : m
+        )
+    );
     setColumnPopoverOpen(false);
     setSelectedColumn(null);
   };
 
   const handleColumnMappingRemove = (columnIndex: number) => {
-    setColumnMappings(prev => prev.map(m => 
-      m.columnIndex === columnIndex
-        ? { ...m, targetKpiName: null, payTypeFilter: null }
-        : m
-    ));
+    setColumnMappings((prev) =>
+      (prev ?? [])
+        .filter(Boolean)
+        .map((m) =>
+          m?.columnIndex === columnIndex
+            ? { ...m, targetKpiName: null, payTypeFilter: null }
+            : m
+        )
+    );
     setColumnPopoverOpen(false);
     setSelectedColumn(null);
   };
@@ -454,9 +464,11 @@ export const ScorecardVisualMapper = () => {
       matchedProfileName: mapping.profileName,
     };
     
-    setUserMappings(prev => prev.map(m => 
-      m.rowIndex === mapping.rowIndex ? updatedMapping : m
-    ));
+    setUserMappings((prev) =>
+      (prev ?? [])
+        .filter(Boolean)
+        .map((m) => (m?.rowIndex === mapping.rowIndex ? updatedMapping : m))
+    );
     
     // Also save to database
     saveUserAliasMutation.mutate(updatedMapping);
@@ -466,26 +478,28 @@ export const ScorecardVisualMapper = () => {
   };
 
   const handleUserMappingRemove = (rowIndex: number) => {
-    setUserMappings(prev => prev.map(m => 
-      m.rowIndex === rowIndex
-        ? { ...m, userId: null, matchedProfileName: null }
-        : m
-    ));
+    setUserMappings((prev) =>
+      (prev ?? [])
+        .filter(Boolean)
+        .map((m) =>
+          m?.rowIndex === rowIndex ? { ...m, userId: null, matchedProfileName: null } : m
+        )
+    );
     setUserPopoverOpen(false);
     setSelectedRow(null);
   };
 
   // Stats
-  const mappedColumnsCount = columnMappings.filter(m => m.targetKpiName).length;
-  const mappedUsersCount = userMappings.filter(m => m.userId).length;
+  const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
+  const mappedUsersCount = safeUserMappings.filter((m) => m?.userId).length;
 
   // Get current column/user info for popovers
   const currentColumnMapping = selectedColumn !== null 
-    ? columnMappings.find(m => m.columnIndex === selectedColumn)
+    ? safeColumnMappings.find((m) => m?.columnIndex === selectedColumn)
     : null;
   
   const currentUserMapping = selectedRow !== null
-    ? userMappings.find(m => m.rowIndex === selectedRow)
+    ? safeUserMappings.find((m) => m?.rowIndex === selectedRow)
     : null;
 
   return (
@@ -639,8 +653,8 @@ export const ScorecardVisualMapper = () => {
               headers={parsedData.headers}
               rows={parsedData.rows}
               advisorRowIndices={parsedData.advisorRowIndices}
-              columnMappings={columnMappings}
-              userMappings={userMappings}
+              columnMappings={safeColumnMappings}
+              userMappings={safeUserMappings}
               onColumnClick={handleColumnClick}
               onAdvisorClick={handleAdvisorClick}
               selectedColumn={selectedColumn}

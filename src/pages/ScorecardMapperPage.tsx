@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ScorecardVisualMapper } from "@/components/admin/scorecard-mapper";
+import { AppErrorBoundary } from "@/components/error-boundary";
 
 const ScorecardMapperPage = () => {
   const navigate = useNavigate();
@@ -65,7 +66,9 @@ const ScorecardMapperPage = () => {
           </div>
         </div>
 
-        <ScorecardVisualMapper />
+        <AppErrorBoundary title="Visual Mapper error">
+          <ScorecardVisualMapper />
+        </AppErrorBoundary>
       </div>
     </div>
   );
