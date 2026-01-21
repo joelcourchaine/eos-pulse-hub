@@ -10,7 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag, Trash2, Upload } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +27,9 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
-import { ScorecardImportDropZone } from "./ScorecardImportDropZone";
+import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
+import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
+import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
 
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
@@ -336,7 +338,10 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
   const [departmentManagerId, setDepartmentManagerId] = useState<string | null>(null);
   const [departmentStoreId, setDepartmentStoreId] = useState<string | null>(null);
-  const [importDropZoneOpen, setImportDropZoneOpen] = useState(false);
+  const [importPreviewOpen, setImportPreviewOpen] = useState(false);
+  const [droppedParseResult, setDroppedParseResult] = useState<CSRParseResult | null>(null);
+  const [droppedFileName, setDroppedFileName] = useState<string>("");
+  const [importMonth, setImportMonth] = useState<string>("");
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
@@ -2963,6 +2968,35 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       {/* Quarter Controls - Always visible */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-4 flex-wrap">
+          <ScorecardPeriodDropZone
+            disabled={!departmentStoreId}
+          onFileDrop={async (file) => {
+            try {
+              const result = await parseCSRProductivityReport(file);
+              // Calculate appropriate month based on current period
+              const now = new Date();
+              const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+              const monthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
+              result.month = monthStr;
+              
+              setDroppedParseResult(result);
+              setDroppedFileName(file.name);
+              setImportMonth(monthStr);
+              setImportPreviewOpen(true);
+              
+              toast({
+                title: "File parsed successfully",
+                description: `Found ${result.advisors.length} advisors`,
+              });
+            } catch (error: any) {
+              toast({
+                title: "Parse error",
+                description: error.message || "Failed to parse file",
+                variant: "destructive",
+              });
+            }
+          }}
+        >
           <div className="flex items-center gap-2">
             <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
               <SelectTrigger className="w-[100px]">
@@ -2994,6 +3028,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               </SelectContent>
             </Select>
           </div>
+        </ScorecardPeriodDropZone>
 
           {/* View Mode Toggle - Prominent - Hide in Quarter Trend and Monthly Trend */}
           {!isQuarterTrendMode && !isMonthlyTrendMode && (
@@ -3222,17 +3257,6 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <ClipboardPaste className="h-4 w-4" />
                     Paste Row
                   </Button>
-                  {departmentStoreId && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setImportDropZoneOpen(true)}
-                      className="gap-2"
-                    >
-                      <Upload className="h-4 w-4" />
-                      Import
-                    </Button>
-                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -4981,14 +5005,26 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Scorecard Import Drop Zone */}
-      {departmentStoreId && (
-        <ScorecardImportDropZone
-          open={importDropZoneOpen}
-          onOpenChange={setImportDropZoneOpen}
+      {/* Scorecard Import Preview Dialog */}
+      {departmentStoreId && droppedParseResult && (
+        <ScorecardImportPreviewDialog
+          open={importPreviewOpen}
+          onOpenChange={(open) => {
+            setImportPreviewOpen(open);
+            if (!open) {
+              setDroppedParseResult(null);
+              setDroppedFileName("");
+            }
+          }}
+          parseResult={droppedParseResult}
+          fileName={droppedFileName}
           departmentId={departmentId}
           storeId={departmentStoreId}
-          onImportComplete={() => {
+          month={importMonth}
+          onImportSuccess={() => {
+            setImportPreviewOpen(false);
+            setDroppedParseResult(null);
+            setDroppedFileName("");
             // Refresh scorecard data after import
             loadKPITargets().then(freshTargets => loadScorecardData(freshTargets));
           }}
