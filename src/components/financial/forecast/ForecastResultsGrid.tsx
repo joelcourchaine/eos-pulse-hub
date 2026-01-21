@@ -170,11 +170,17 @@ export function ForecastResultsGrid({
     return undefined;
   };
 
-  const handleCellClick = (columnKey: string, metricKey: string, currentValue: number, isLocked: boolean) => {
+  const handleCellClick = (columnKey: string, metricKey: string, currentValue: number, isLocked: boolean, metricType: 'currency' | 'percent' | 'number') => {
     if (isLocked) return; // Don't edit locked cells
     const cellKey = `${columnKey}:${metricKey}`;
     setEditingCell(cellKey);
-    setEditValue(currentValue.toString());
+    // Round to appropriate precision based on type to avoid floating-point artifacts
+    if (metricType === 'percent') {
+      setEditValue(currentValue.toFixed(1));
+    } else {
+      // Currency and number types - round to whole number for easier editing
+      setEditValue(Math.round(currentValue).toString());
+    }
   };
 
   const handleCellBlur = (columnKey: string, metricKey: string) => {
@@ -443,7 +449,7 @@ export function ForecastResultsGrid({
                   onChange={(e) => setEditValue(e.target.value)}
                   onBlur={() => handleCellBlur(col.key, metric.key)}
                   onKeyDown={(e) => handleKeyDown(e, col.key, metric.key)}
-                  className="h-6 w-20 text-right text-sm ml-auto"
+                  className="h-6 w-28 text-right text-sm ml-auto"
                   autoFocus
                 />
               ) : (
@@ -459,7 +465,7 @@ export function ForecastResultsGrid({
                               isLocked && "cursor-not-allowed opacity-70",
                               isSubMetric && "text-muted-foreground"
                             )}
-                            onClick={() => !isSubMetric && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                            onClick={() => !isSubMetric && handleCellClick(col.key, metric.key, cellValue, isLocked, metric.type)}
                           >
                             {formatValue(cellValue, metric.type)}
                           </span>
@@ -476,7 +482,7 @@ export function ForecastResultsGrid({
                         isLocked && "cursor-not-allowed opacity-70",
                         isSubMetric && "text-muted-foreground"
                       )}
-                      onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked)}
+                      onClick={() => !isSubMetric && cellValue !== undefined && handleCellClick(col.key, metric.key, cellValue, isLocked, metric.type)}
                     >
                       {cellValue !== undefined ? formatValue(cellValue, metric.type) : '-'}
                     </span>
