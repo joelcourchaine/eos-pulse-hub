@@ -114,18 +114,61 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedStoreId,
   });
 
-  // Fetch store users
+  // Fetch store users - include users from store, store group, and KPI owners with null store
   const { data: storeUsers } = useQuery({
-    queryKey: ["store-users-for-mapper", selectedStoreId],
+    queryKey: ["store-users-for-mapper", selectedStoreId, selectedDepartmentId],
     queryFn: async () => {
       if (!selectedStoreId) return [];
-      const { data, error } = await supabase
+      
+      // Get the store's group_id first
+      const { data: store } = await supabase
+        .from("stores")
+        .select("group_id")
+        .eq("id", selectedStoreId)
+        .single();
+      
+      // Get users directly assigned to store
+      const { data: storeUsersDirect } = await supabase
         .from("profiles")
         .select("id, full_name")
-        .eq("store_id", selectedStoreId)
-        .order("full_name");
-      if (error) throw error;
-      return data;
+        .eq("store_id", selectedStoreId);
+      
+      // Get users assigned to the store group
+      let groupUsers: { id: string; full_name: string | null }[] = [];
+      if (store?.group_id) {
+        const { data: groupData } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .eq("store_group_id", store.group_id);
+        groupUsers = groupData || [];
+      }
+      
+      // Get KPI owners for departments in this store (may have null store_id)
+      let kpiOwners: { id: string; full_name: string | null }[] = [];
+      if (selectedDepartmentId) {
+        const { data: kpiData } = await supabase
+          .from("kpi_definitions")
+          .select("assigned_to")
+          .eq("department_id", selectedDepartmentId)
+          .not("assigned_to", "is", null);
+        
+        const ownerIds = [...new Set(kpiData?.map(k => k.assigned_to).filter(Boolean) || [])];
+        if (ownerIds.length > 0) {
+          const { data: ownerProfiles } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", ownerIds);
+          kpiOwners = ownerProfiles || [];
+        }
+      }
+      
+      // Combine and dedupe by id
+      const allUsers = [...(storeUsersDirect || []), ...groupUsers, ...kpiOwners];
+      const uniqueUsers = Array.from(
+        new Map(allUsers.map(u => [u.id, u])).values()
+      ).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
+      
+      return uniqueUsers;
     },
     enabled: !!selectedStoreId,
   });

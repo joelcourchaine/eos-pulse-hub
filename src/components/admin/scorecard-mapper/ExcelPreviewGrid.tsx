@@ -254,15 +254,17 @@ export const ExcelPreviewGrid = ({
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
                   // Check if this cell contains an "Advisor" pattern (e.g., "Advisor 1099 - Kayla Bender")
+                  // This pattern can appear anywhere in the grid, even in metadata rows
                   const cellStr = String(cell || "").trim();
                   const isAdvisorCell = /^Advisor\s+\d+\s*[-–—]\s*\S/i.test(cellStr);
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
-                  // But NOT on advisor cells - those are for owner selection
-                  const canMapCell = canClickCells && !isHeaderRow && !isMetadataRow && !isAdvisorCell;
+                  // But NOT on advisor cells - those are for owner selection, and not header row
+                  const canMapCell = canClickCells && !isHeaderRow && !isAdvisorCell;
                   
-                  // Advisor cells (matching pattern) are clickable to select as owner
-                  const canSelectAsOwner = isAdvisorCell && !isHeaderRow && !isMetadataRow;
+                  // Advisor cells (matching pattern) are ALWAYS clickable to select as owner
+                  // Even if they're in what would otherwise be a "metadata" row
+                  const canSelectAsOwner = isAdvisorCell;
                   
                   return (
                     <div
