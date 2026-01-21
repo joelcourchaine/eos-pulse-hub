@@ -45,6 +45,7 @@ interface ExcelPreviewGridProps {
   selectedRow: number | null;
   selectedCell: { rowIndex: number; colIndex: number } | null;
   headerRowIndex?: number;
+  canClickCells?: boolean; // New prop to control if cells are clickable
 }
 
 export const ExcelPreviewGrid = ({
@@ -61,6 +62,7 @@ export const ExcelPreviewGrid = ({
   selectedRow,
   selectedCell,
   headerRowIndex = -1,
+  canClickCells = false,
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -191,11 +193,8 @@ export const ExcelPreviewGrid = ({
                 const isCellMapped = !!cellMapping;
                 const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                 
-                // Check if this row belongs to a mapped user (for cell-level KPI mapping)
-                const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
-                const canMapCell = !isAdvisorRow && !isHeaderRow && !isMetadataRow && 
-                                   owningAdvisorIdx !== null && isUserMapped(owningAdvisorIdx) &&
-                                   !isFirstCol && colIndex > 0;
+                // Allow clicking any cell when canClickCells is true (KPI owner is selected)
+                const canMapCell = canClickCells && !isAdvisorRow && !isHeaderRow && !isMetadataRow;
                 
                 return (
                   <div
