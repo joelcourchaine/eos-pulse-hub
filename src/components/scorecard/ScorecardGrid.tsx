@@ -372,7 +372,10 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const stickyScrollRef = useRef<HTMLDivElement>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const headerRowRef = useRef<HTMLTableRowElement>(null);
   const tryLoadPreviousRef = useRef<null | (() => void)>(null);
+  const [showTopScrollbar, setShowTopScrollbar] = useState(false);
   const [scrollLeftDebug, setScrollLeftDebug] = useState(0);
   const [tableWidth, setTableWidth] = useState(0);
   const [scrollbarRect, setScrollbarRect] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
@@ -570,13 +573,55 @@ const loadData = async () => {
   const handleStickyScroll = useCallback(() => {
     if (stickyScrollRef.current && scrollContainerRef.current) {
       scrollContainerRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
+      // Also sync top scrollbar
+      if (topScrollRef.current) {
+        topScrollRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
+      }
+    }
+  }, []);
+
+  const handleTopScroll = useCallback(() => {
+    if (topScrollRef.current && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      // Also sync bottom scrollbar
+      if (stickyScrollRef.current) {
+        stickyScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      }
     }
   }, []);
 
   const handleMainScroll = useCallback(() => {
-    if (stickyScrollRef.current && scrollContainerRef.current) {
-      stickyScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
+    if (scrollContainerRef.current) {
+      // Sync bottom scrollbar
+      if (stickyScrollRef.current) {
+        stickyScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
+      }
+      // Sync top scrollbar
+      if (topScrollRef.current) {
+        topScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
+      }
     }
+  }, []);
+
+  // IntersectionObserver to detect when header row scrolls out of view
+  // When header is not visible, show a top scrollbar for easier horizontal scrolling
+  useEffect(() => {
+    const header = headerRowRef.current;
+    if (!header) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Show top scrollbar when header is NOT intersecting (scrolled out of view)
+        setShowTopScrollbar(!entry.isIntersecting);
+      },
+      { 
+        threshold: 0, 
+        // Account for any fixed nav/header at the top (approximately 64px)
+        rootMargin: "-64px 0px 0px 0px" 
+      }
+    );
+    observer.observe(header);
+    return () => observer.disconnect();
   }, []);
 
   // Infinite scroll handler for weekly/monthly view - load previous quarter when scrolling to left edge
@@ -3370,7 +3415,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             >
             <Table>
             <TableHeader>
-              <TableRow className="bg-muted/50">
+              <TableRow ref={headerRowRef} className="bg-muted/50">
                 <TableHead 
                   className="sticky left-0 bg-muted z-20 w-[200px] min-w-[200px] max-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]"
                 >
@@ -4745,7 +4790,28 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             </div>
           </div>
 
-          {/* Fixed horizontal scrollbar (portal to body to avoid layout/overflow issues) */}
+          {/* Fixed top horizontal scrollbar - appears when header scrolls out of view */}
+          {showTopScrollbar && tableWidth > scrollClientWidthDebug + 1 &&
+            createPortal(
+              <div
+                className="pointer-events-none"
+                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, top: 72, zIndex: 9999 }}
+              >
+                <div className="pointer-events-auto">
+                  <div
+                    ref={topScrollRef}
+                    className="overflow-x-auto bg-muted/80 border rounded-lg shadow-md backdrop-blur-sm"
+                    style={{ height: "16px" }}
+                    onScroll={handleTopScroll}
+                  >
+                    <div style={{ width: tableWidth, height: "1px" }} />
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+          {/* Fixed bottom horizontal scrollbar (portal to body to avoid layout/overflow issues) */}
           {tableWidth > scrollClientWidthDebug + 1 &&
             createPortal(
               <div
