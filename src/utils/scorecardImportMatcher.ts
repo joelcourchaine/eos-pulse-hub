@@ -19,6 +19,36 @@ export interface KPIMatchResult {
   targetDirection: "above" | "below";
 }
 
+type ProfileRow = {
+  id: string;
+  full_name: string;
+  store_id?: string | null;
+  store_group_id?: string | null;
+};
+
+const fetchCandidateProfiles = async (storeId: string, storeGroupId?: string | null) => {
+  let query = supabase
+    .from("profiles")
+    .select("id, full_name, store_id, store_group_id")
+    .order("full_name");
+
+  // Prefer wider matching: anyone in the same store OR store group.
+  // This avoids false "unmatched" when a user is set at group-level (or has store_id null).
+  if (storeGroupId) {
+    query = query.or(`store_id.eq.${storeId},store_group_id.eq.${storeGroupId}`);
+  } else {
+    query = query.eq("store_id", storeId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn("[Scorecard Matcher] Profile lookup failed:", error);
+    return null;
+  }
+
+  return (data ?? []) as ProfileRow[];
+};
+
 const normalizeName = (name: string | null | undefined) =>
   String(name ?? "")
     .toLowerCase()
@@ -157,7 +187,8 @@ const levenshteinDistance = (s1: string, s2: string): number => {
  */
 export const matchUserByName = async (
   name: string,
-  storeId: string
+  storeId: string,
+  storeGroupId?: string | null
 ): Promise<UserMatchResult> => {
   const normalizedName = normalizeName(name);
 
@@ -181,11 +212,8 @@ export const matchUserByName = async (
     };
   }
   
-  // 2. Check for exact match in profiles
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("store_id", storeId);
+  // 2. Check for exact match in profiles (store OR store group)
+  const profiles = await fetchCandidateProfiles(storeId, storeGroupId);
   
   if (profiles) {
     // Exact match
@@ -237,7 +265,8 @@ export const matchUserByName = async (
 export const matchUsersByNames = async (
   names: string[],
   storeId: string,
-  rawNames?: string[] // Optional raw names for alias matching (e.g., "Advisor 1099 - Kayla Bender")
+  rawNames?: string[], // Optional raw names for alias matching (e.g., "Advisor 1099 - Kayla Bender")
+  storeGroupId?: string | null
 ): Promise<Map<string, UserMatchResult>> => {
   const results = new Map<string, UserMatchResult>();
   
@@ -247,11 +276,8 @@ export const matchUsersByNames = async (
     .select("user_id, alias_name")
     .eq("store_id", storeId);
   
-  // Fetch all profiles for this store
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name")
-    .eq("store_id", storeId);
+  // Fetch candidate profiles (store OR store group)
+  const profiles = await fetchCandidateProfiles(storeId, storeGroupId);
   
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
