@@ -10,7 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag, Trash2 } from "lucide-react";
+import { Loader2, Calendar, CalendarDays, Copy, Plus, UserPlus, GripVertical, RefreshCw, ClipboardPaste, AlertCircle, Flag, Trash2, Upload } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
+import { ScorecardImportDropZone } from "./ScorecardImportDropZone";
 
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
@@ -334,6 +335,8 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [draggedOwnerId, setDraggedOwnerId] = useState<string | null>(null);
   const [dragOverOwnerId, setDragOverOwnerId] = useState<string | null>(null);
   const [departmentManagerId, setDepartmentManagerId] = useState<string | null>(null);
+  const [departmentStoreId, setDepartmentStoreId] = useState<string | null>(null);
+  const [importDropZoneOpen, setImportDropZoneOpen] = useState(false);
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
@@ -1145,8 +1148,9 @@ const loadData = async () => {
       return;
     }
 
-    // Store the department manager ID
+    // Store the department manager ID and store ID
     setDepartmentManagerId(departmentData.manager_id);
+    setDepartmentStoreId(departmentData.store_id);
 
     // Get profiles for that store
     const { data, error } = await supabase
@@ -3218,6 +3222,17 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <ClipboardPaste className="h-4 w-4" />
                     Paste Row
                   </Button>
+                  {departmentStoreId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImportDropZoneOpen(true)}
+                      className="gap-2"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Import
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -4965,6 +4980,20 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Scorecard Import Drop Zone */}
+      {departmentStoreId && (
+        <ScorecardImportDropZone
+          open={importDropZoneOpen}
+          onOpenChange={setImportDropZoneOpen}
+          departmentId={departmentId}
+          storeId={departmentStoreId}
+          onImportComplete={() => {
+            // Refresh scorecard data after import
+            loadKPITargets().then(freshTargets => loadScorecardData(freshTargets));
+          }}
+        />
+      )}
     </div>
   );
 };
