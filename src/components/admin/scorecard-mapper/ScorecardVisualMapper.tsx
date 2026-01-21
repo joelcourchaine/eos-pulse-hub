@@ -1300,6 +1300,23 @@ export const ScorecardVisualMapper = () => {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = ".xlsx,.xls";
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (file) parseExcelFile(file);
+                    };
+                    input.click();
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Upload New File
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
                     setParsedData(null);
                     setFileName(null);
                     setColumnMappings([]);
