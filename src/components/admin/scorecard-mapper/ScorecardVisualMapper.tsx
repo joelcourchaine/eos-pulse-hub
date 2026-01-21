@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -189,6 +189,21 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedStoreId,
   });
 
+  // Fetch existing cell KPI mappings for selected profile
+  const { data: existingCellMappings } = useQuery({
+    queryKey: ["existing-cell-mappings", selectedProfileId],
+    queryFn: async () => {
+      if (!selectedProfileId) return [];
+      const { data, error } = await supabase
+        .from("scorecard_cell_mappings")
+        .select("*")
+        .eq("import_profile_id", selectedProfileId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedProfileId,
+  });
+
   // Save column mappings mutation
   const saveColumnMappingsMutation = useMutation({
     mutationFn: async () => {
@@ -274,6 +289,73 @@ export const ScorecardVisualMapper = () => {
       toast.error("Failed to save user mapping: " + error.message);
     },
   });
+
+  // Save cell KPI mapping mutation (auto-save on click)
+  const saveCellMappingMutation = useMutation({
+    mutationFn: async (mapping: { rowIndex: number; colIndex: number; kpiId: string; kpiName: string }) => {
+      if (!selectedProfileId || !selectedKpiOwnerId) throw new Error("No profile or KPI owner selected");
+      
+      const { data: user } = await supabase.auth.getUser();
+      
+      // Upsert - use the unique constraint (import_profile_id, row_index, col_index)
+      const { error } = await supabase
+        .from("scorecard_cell_mappings")
+        .upsert({
+          import_profile_id: selectedProfileId,
+          user_id: selectedKpiOwnerId,
+          kpi_id: mapping.kpiId,
+          kpi_name: mapping.kpiName,
+          row_index: mapping.rowIndex,
+          col_index: mapping.colIndex,
+          created_by: user.user?.id,
+        }, {
+          onConflict: "import_profile_id,row_index,col_index",
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cell mapping saved");
+      queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
+    },
+    onError: (error) => {
+      toast.error("Failed to save cell mapping: " + error.message);
+    },
+  });
+
+  // Delete cell KPI mapping mutation
+  const deleteCellMappingMutation = useMutation({
+    mutationFn: async ({ rowIndex, colIndex }: { rowIndex: number; colIndex: number }) => {
+      if (!selectedProfileId) throw new Error("No profile selected");
+      
+      const { error } = await supabase
+        .from("scorecard_cell_mappings")
+        .delete()
+        .eq("import_profile_id", selectedProfileId)
+        .eq("row_index", rowIndex)
+        .eq("col_index", colIndex);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Cell mapping removed");
+      queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
+    },
+    onError: (error) => {
+      toast.error("Failed to remove cell mapping: " + error.message);
+    },
+  });
+
+  // Load existing cell mappings into state when they're fetched
+  useEffect(() => {
+    if (existingCellMappings && existingCellMappings.length > 0) {
+      const loadedMappings: CellKpiMapping[] = existingCellMappings.map(m => ({
+        rowIndex: m.row_index,
+        colIndex: m.col_index,
+        kpiId: m.kpi_id,
+        kpiName: m.kpi_name,
+      }));
+      setCellKpiMappings(loadedMappings);
+    }
+  }, [existingCellMappings]);
 
   // Parse Excel file
   const parseExcelFile = useCallback((file: File) => {
@@ -549,6 +631,7 @@ export const ScorecardVisualMapper = () => {
     kpiId: string;
     kpiName: string;
   }) => {
+    // Update local state immediately for responsive UI
     setCellKpiMappings((prev) => {
       const existing = (prev ?? []).filter(Boolean);
       const existingIdx = existing.findIndex(m => m.rowIndex === mapping.rowIndex && m.colIndex === mapping.colIndex);
@@ -561,14 +644,21 @@ export const ScorecardVisualMapper = () => {
     });
     setCellPopoverOpen(false);
     setSelectedCell(null);
+    
+    // Auto-save to database
+    saveCellMappingMutation.mutate(mapping);
   };
 
   const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number) => {
+    // Update local state immediately
     setCellKpiMappings((prev) => 
       (prev ?? []).filter(Boolean).filter(m => !(m.rowIndex === rowIndex && m.colIndex === colIndex))
     );
     setCellPopoverOpen(false);
     setSelectedCell(null);
+    
+    // Auto-delete from database
+    deleteCellMappingMutation.mutate({ rowIndex, colIndex });
   };
 
   // Get selected KPI owner name for display

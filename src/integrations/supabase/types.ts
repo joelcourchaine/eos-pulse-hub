@@ -1856,6 +1856,85 @@ export type Database = {
           },
         ]
       }
+      scorecard_cell_mappings: {
+        Row: {
+          col_index: number
+          created_at: string
+          created_by: string | null
+          id: string
+          import_profile_id: string
+          kpi_id: string
+          kpi_name: string
+          row_index: number
+          user_id: string
+        }
+        Insert: {
+          col_index: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          import_profile_id: string
+          kpi_id: string
+          kpi_name: string
+          row_index: number
+          user_id: string
+        }
+        Update: {
+          col_index?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          import_profile_id?: string
+          kpi_id?: string
+          kpi_name?: string
+          row_index?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_cell_mappings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_cell_mappings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_cell_mappings_import_profile_id_fkey"
+            columns: ["import_profile_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_import_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_cell_mappings_kpi_id_fkey"
+            columns: ["kpi_id"]
+            isOneToOne: false
+            referencedRelation: "kpi_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_cell_mappings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_cell_mappings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scorecard_entries: {
         Row: {
           actual_value: number | null
