@@ -50,19 +50,19 @@ export const ExcelPreviewGrid = ({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const isColumnMapped = (colIndex: number) => {
-    return columnMappings.some(m => m.columnIndex === colIndex && m.targetKpiName);
+    return columnMappings?.some(m => m?.columnIndex === colIndex && m?.targetKpiName) ?? false;
   };
 
   const getColumnMappingInfo = (colIndex: number) => {
-    return columnMappings.find(m => m.columnIndex === colIndex);
+    return columnMappings?.find(m => m?.columnIndex === colIndex);
   };
 
   const isUserMapped = (rowIndex: number) => {
-    return userMappings.some(m => m.rowIndex === rowIndex && m.userId);
+    return userMappings?.some(m => m?.rowIndex === rowIndex && m?.userId) ?? false;
   };
 
   const getUserMappingInfo = (rowIndex: number) => {
-    return userMappings.find(m => m.rowIndex === rowIndex);
+    return userMappings?.find(m => m?.rowIndex === rowIndex);
   };
 
   const formatCellValue = (value: string | number | null): string => {
