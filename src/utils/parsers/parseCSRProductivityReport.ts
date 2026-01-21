@@ -141,20 +141,22 @@ const findHeaderRow = (rows: any[][]): { rowIndex: number; headers: string[]; pa
   
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || row.length < 3) continue;
+    if (!row || !Array.isArray(row) || row.length < 3) continue;
     
-    const rowStrings = row.map(cell => String(cell || "").toLowerCase().trim());
+    const rowStrings = row.map(cell => String(cell ?? "").toLowerCase().trim());
     
     // Check if this row has at least 2 expected headers
     const matchCount = expectedHeaders.filter(h => 
-      rowStrings.some(rs => rs.includes(h))
+      rowStrings.some(rs => rs && typeof rs === 'string' && rs.includes(h))
     ).length;
     
     if (matchCount >= 2) {
-      const payTypeIndex = rowStrings.findIndex(rs => rs.includes("pay type") || rs === "type");
+      const payTypeIndex = rowStrings.findIndex(rs => 
+        rs && typeof rs === 'string' && (rs.includes("pay type") || rs === "type")
+      );
       return {
         rowIndex: i,
-        headers: row.map(cell => String(cell || "").trim()),
+        headers: row.map(cell => String(cell ?? "").trim()),
         payTypeIndex: payTypeIndex >= 0 ? payTypeIndex : 0
       };
     }
