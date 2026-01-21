@@ -1016,6 +1016,8 @@ export const ScorecardVisualMapper = () => {
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
   const mappedUsersCount = safeUserMappings.filter((m) => m?.userId).length;
   const mappedCellsCount = safeCellKpiMappings.length;
+  const detectedAdvisorsCount = parsedData?.advisorNames?.length ?? 0;
+  const canBulkMapAdvisors = detectedAdvisorsCount > 0;
 
   // Get current column/user info for popovers
   const currentColumnMapping = selectedColumn !== null 
@@ -1182,18 +1184,22 @@ export const ScorecardVisualMapper = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Bulk mapping button - show whenever advisors are detected */}
-                {parsedData?.advisorNames && parsedData.advisorNames.length > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setConfirmationPanelOpen(true)}
-                    className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Wand2 className="h-4 w-4" />
-                    Map All Advisors ({parsedData.advisorNames.length})
-                  </Button>
-                )}
+                {/* Bulk mapping button (disabled when no advisors were auto-detected in this report) */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setConfirmationPanelOpen(true)}
+                  className="gap-1.5"
+                  disabled={!canBulkMapAdvisors}
+                  title={
+                    canBulkMapAdvisors
+                      ? "Bulk-map detected advisors"
+                      : "No advisors were auto-detected in this report"
+                  }
+                >
+                  <Wand2 className="h-4 w-4" />
+                  Map All Advisors{canBulkMapAdvisors ? ` (${detectedAdvisorsCount})` : ""}
+                </Button>
                 <Badge variant="outline" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
                   {mappedUsersCount}/{userMappings.length} advisors
