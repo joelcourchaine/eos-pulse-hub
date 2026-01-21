@@ -599,6 +599,11 @@ export const ScorecardVisualMapper = () => {
     return departmentKpis.filter(kpi => kpi.assigned_to === selectedKpiOwnerId);
   }, [departmentKpis, selectedKpiOwnerId]);
 
+  // Build a set of KPI IDs that have been mapped for this user
+  const mappedKpiIds = useMemo(() => {
+    return new Set(safeCellKpiMappings.map(m => m.kpiId));
+  }, [safeCellKpiMappings]);
+
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
   const mappedUsersCount = safeUserMappings.filter((m) => m?.userId).length;
@@ -848,22 +853,72 @@ export const ScorecardVisualMapper = () => {
               </CellKpiMappingPopover>
             )}
 
-            <ExcelPreviewGrid
-              headers={parsedData.headers}
-              rows={parsedData.rows}
-              advisorRowIndices={parsedData.advisorRowIndices}
-              columnMappings={safeColumnMappings}
-              userMappings={safeUserMappings}
-              cellKpiMappings={safeCellKpiMappings}
-              onColumnClick={handleColumnClick}
-              onAdvisorClick={handleAdvisorClick}
-              onCellClick={handleCellClick}
-              selectedColumn={selectedColumn}
-              selectedRow={selectedRow}
-              selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
-              headerRowIndex={parsedData.headerRowIndex}
-              canClickCells={!!selectedKpiOwnerId}
-            />
+            <div className="flex gap-4">
+              {/* KPI List Panel - show when owner is selected */}
+              {selectedKpiOwnerId && (
+                <div className="w-64 shrink-0 border rounded-lg p-3 bg-muted/30">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{selectedKpiOwnerName}'s KPIs</span>
+                  </div>
+                  {userAssignedKpis.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      No KPIs assigned to this user in this department.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1.5 max-h-[400px] overflow-y-auto">
+                      {userAssignedKpis.map((kpi) => {
+                        const isMapped = mappedKpiIds.has(kpi.id);
+                        return (
+                          <li
+                            key={kpi.id}
+                            className={cn(
+                              "flex items-center gap-2 text-xs p-1.5 rounded",
+                              isMapped 
+                                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300" 
+                                : "bg-background"
+                            )}
+                          >
+                            {isMapped ? (
+                              <Check className="h-3 w-3 shrink-0" />
+                            ) : (
+                              <div className="h-3 w-3 shrink-0 rounded-full border border-muted-foreground/40" />
+                            )}
+                            <span className="truncate">{kpi.name}</span>
+                            <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0">
+                              {kpi.metric_type}
+                            </Badge>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                  <div className="mt-3 pt-2 border-t text-xs text-muted-foreground">
+                    {userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length}/{userAssignedKpis.length} mapped
+                  </div>
+                </div>
+              )}
+
+              {/* Excel Grid */}
+              <div className="flex-1 min-w-0">
+                <ExcelPreviewGrid
+                  headers={parsedData.headers}
+                  rows={parsedData.rows}
+                  advisorRowIndices={parsedData.advisorRowIndices}
+                  columnMappings={safeColumnMappings}
+                  userMappings={safeUserMappings}
+                  cellKpiMappings={safeCellKpiMappings}
+                  onColumnClick={handleColumnClick}
+                  onAdvisorClick={handleAdvisorClick}
+                  onCellClick={handleCellClick}
+                  selectedColumn={selectedColumn}
+                  selectedRow={selectedRow}
+                  selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
+                  headerRowIndex={parsedData.headerRowIndex}
+                  canClickCells={!!selectedKpiOwnerId}
+                />
+              </div>
+            </div>
 
             {/* Save button */}
             {selectedProfileId && mappedColumnsCount > 0 && (
