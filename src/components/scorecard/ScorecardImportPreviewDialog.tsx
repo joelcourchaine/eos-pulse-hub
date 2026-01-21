@@ -269,26 +269,34 @@ export const ScorecardImportPreviewDialog = ({
             // USE VISUAL MAPPER MAPPINGS: Extract values by column index
             console.log(`[Import] Using Visual Mapper for ${match.advisor.displayName}: ${userColMappings.size} column mappings`);
             
-            // metricsByIndex contains data keyed by column index
-            // We need to check all pay types (total is typically what we want for "Total Hours", etc.)
-            const allPayTypes = ['total', 'customer', 'warranty', 'internal'] as const;
-            
-            for (const payType of allPayTypes) {
-              const metricsByIdx = match.advisor.metricsByIndex[payType];
-              if (!metricsByIdx) continue;
+            // Process each cell mapping - need to check against KPI names to determine pay type
+            for (const [colIndex, kpiId] of userColMappings.entries()) {
+              // Find the KPI definition to determine pay type from naming convention
+              const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
+              const kpiName = kpiDef?.name?.toLowerCase() || "";
               
-              for (const [colIndexStr, value] of Object.entries(metricsByIdx)) {
-                const colIndex = parseInt(colIndexStr, 10);
-                const kpiId = userColMappings.get(colIndex);
-                
-                if (kpiId && typeof value === 'number') {
-                  entriesToUpsert.push({
-                    kpi_id: kpiId,
-                    month,
-                    entry_type: "monthly",
-                    actual_value: value,
-                  });
-                }
+              // Determine which pay type row to read from based on KPI name
+              // CP = Customer Pay, Total = Total row
+              let payTypeToRead: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
+              if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
+                payTypeToRead = 'customer';
+              } else if (kpiName.includes("warranty")) {
+                payTypeToRead = 'warranty';
+              } else if (kpiName.includes("internal")) {
+                payTypeToRead = 'internal';
+              }
+              
+              const metricsByIdx = match.advisor.metricsByIndex[payTypeToRead];
+              const value = metricsByIdx?.[colIndex];
+              
+              if (typeof value === 'number') {
+                console.log(`[Import] Mapping col ${colIndex} (${payTypeToRead}) -> ${kpiDef?.name}: ${value}`);
+                entriesToUpsert.push({
+                  kpi_id: kpiId,
+                  month,
+                  entry_type: "monthly",
+                  actual_value: value,
+                });
               }
             }
           } else {
