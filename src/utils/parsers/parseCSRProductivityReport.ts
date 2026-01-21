@@ -258,10 +258,29 @@ export const parseCSRProductivityReport = (
           const row = rows[i];
           if (!row || row.length === 0) continue;
           
-          const firstCell = String(row[0] || "").trim();
+          // Check multiple columns for advisor headers (not just first column)
+          // Some reports have advisor names in column 0, others in different columns
+          let advisorInfo: { displayName: string; employeeId: string } | null = null;
+          let advisorCellValue = "";
           
-          // Check if this is an advisor header
-          const advisorInfo = parseAdvisorHeader(firstCell);
+          for (let colIdx = 0; colIdx < Math.min(5, row.length); colIdx++) {
+            const cellValue = String(row[colIdx] || "").trim();
+            if (cellValue) {
+              advisorInfo = parseAdvisorHeader(cellValue);
+              if (advisorInfo) {
+                advisorCellValue = cellValue;
+                break;
+              }
+              // Also check for "All Repair Orders" or similar markers
+              if (cellValue.toLowerCase().includes("all repair orders") || 
+                  cellValue.toLowerCase().includes("department total") ||
+                  cellValue.toLowerCase().includes("grand total")) {
+                advisorCellValue = cellValue;
+                break;
+              }
+            }
+          }
+          
           if (advisorInfo) {
             // Save previous advisor
             if (currentAdvisor) {
@@ -269,7 +288,7 @@ export const parseCSRProductivityReport = (
             }
             
             currentAdvisor = {
-              rawName: firstCell,
+              rawName: advisorCellValue,
               displayName: advisorInfo.displayName,
               employeeId: advisorInfo.employeeId,
               metrics: {
@@ -286,18 +305,20 @@ export const parseCSRProductivityReport = (
               }
             };
             inDepartmentTotals = false;
+            console.log(`[CSR Parse] Found advisor: ${advisorInfo.displayName} (${advisorInfo.employeeId})`);
             continue;
           }
           
           // Check if we're entering department totals section
-          if (firstCell.toLowerCase().includes("all repair orders") || 
-              firstCell.toLowerCase().includes("department total") ||
-              firstCell.toLowerCase().includes("grand total")) {
+          if (advisorCellValue.toLowerCase().includes("all repair orders") || 
+              advisorCellValue.toLowerCase().includes("department total") ||
+              advisorCellValue.toLowerCase().includes("grand total")) {
             if (currentAdvisor) {
               advisors.push(currentAdvisor);
               currentAdvisor = null;
             }
             inDepartmentTotals = true;
+            console.log(`[CSR Parse] Entering department totals section`);
             continue;
           }
           
