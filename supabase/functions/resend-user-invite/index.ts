@@ -40,7 +40,7 @@ function getInviteEmailHtml(continueLink: string): string {
               <a href="${continueLink}" class="button">Accept Invitation</a>
             </div>
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 1 hour for security reasons. If it expires, ask your admin to resend the invite.
+              This link will expire in 7 days for security reasons. If it expires, ask your admin to resend the invite.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you weren't expecting this invitation, you can safely ignore this email.
@@ -83,7 +83,7 @@ function getPasswordResetEmailHtml(continueLink: string): string {
               <a href="${continueLink}" class="button">Reset Password</a>
             </div>
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 1 hour for security reasons.
+              This link will expire in 7 days for security reasons.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you didn't request a password reset, you can safely ignore this email.
@@ -284,109 +284,53 @@ Deno.serve(async (req) => {
     // Determine redirect URL for the app
     const appUrl = 'https://dealergrowth.solutions';
 
+    // Determine token type based on confirmation status
+    const tokenType = isConfirmed ? 'password_reset' : 'invite';
+    console.log(`User confirmed: ${isConfirmed}, generating ${tokenType} token for:`, realEmail);
+
+    // Generate custom 7-day auth token
+    const { data: customToken, error: tokenError } = await supabaseAdmin.rpc('create_auth_token', {
+      _token_type: tokenType,
+      _user_id: user_id,
+      _email: realEmail,
+      _created_by: user.id,
+    });
+
+    if (tokenError || !customToken) {
+      console.error('Error generating custom auth token:', tokenError);
+      throw new Error('Failed to generate authentication token');
+    }
+
+    console.log('Custom 7-day auth token generated successfully');
+
+    // Build link using custom token
+    const inviteLink = `${appUrl}/accept-invite?token=${customToken}`;
+
+    // Send appropriate email via Resend
     if (isConfirmed) {
-      // User is already active, generate password reset link
-      console.log('User is already active, generating password reset link for:', realEmail);
-      
-      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: realEmail, // Use real email from profiles
-        options: {
-          redirectTo: `${appUrl}/reset-password`
-        }
-      });
-
-      if (linkError || !linkData) {
-        console.error('Error generating recovery link:', linkError);
-        throw new Error(linkError?.message || 'Failed to generate recovery link');
-      }
-
-      console.log('Recovery link generated successfully');
-      
-      // Send password reset email via Resend - only use continueLink to prevent scanner consumption
-      const actionLink = linkData.properties.action_link;
-      const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(actionLink)}`;
-
       await sendEmailViaResend(
         realEmail,
         'Reset Your Password - Dealer Growth Solutions',
-        getPasswordResetEmailHtml(continueLink)
+        getPasswordResetEmailHtml(inviteLink)
       );
-
       console.log('Password reset email sent successfully to:', realEmail);
-      
-      // Update invited_at timestamp in profiles
-      const { error: invitedAtError } = await supabaseAdmin
-        .from('profiles')
-        .update({ invited_at: new Date().toISOString() })
-        .eq('id', user_id);
-      
-      if (invitedAtError) {
-        console.error('Error updating invited_at:', invitedAtError);
-      }
     } else {
-      // User hasn't confirmed yet, try to generate invitation link
-      console.log('User not confirmed, attempting to generate invitation link for:', realEmail);
-      
-      let actionLink: string;
-      let linkType = 'invite';
-      
-      // Try invite first, fall back to recovery if user already exists
-      const { data: inviteLinkData, error: inviteLinkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'invite',
-        email: realEmail,
-        options: {
-          redirectTo: `${appUrl}/set-password`
-        }
-      });
-
-      if (inviteLinkError) {
-        console.log('Invite link failed (user may already exist), trying recovery link:', inviteLinkError.message);
-        
-        // Fall back to recovery/password reset link
-        const { data: recoveryLinkData, error: recoveryLinkError } = await supabaseAdmin.auth.admin.generateLink({
-          type: 'recovery',
-          email: realEmail,
-          options: {
-            redirectTo: `${appUrl}/set-password`
-          }
-        });
-
-        if (recoveryLinkError || !recoveryLinkData) {
-          console.error('Error generating recovery link:', recoveryLinkError);
-          throw new Error(recoveryLinkError?.message || 'Failed to generate any auth link');
-        }
-
-        actionLink = recoveryLinkData.properties.action_link;
-        linkType = 'recovery';
-        console.log('Recovery link generated successfully as fallback');
-      } else if (!inviteLinkData) {
-        throw new Error('Failed to generate invite link - no data returned');
-      } else {
-        actionLink = inviteLinkData.properties.action_link;
-        console.log('Invite link generated successfully');
-      }
-      
-      // Send invitation email via Resend - only use continueLink to prevent scanner consumption
-      const continueLink = `${appUrl}/set-password?continue=${encodeURIComponent(actionLink)}`;
-
       await sendEmailViaResend(
         realEmail,
         'Welcome to Dealer Growth Solutions - Set Your Password',
-        getInviteEmailHtml(continueLink)
+        getInviteEmailHtml(inviteLink)
       );
+      console.log('Invitation email sent successfully to:', realEmail);
+    }
 
-      console.log(`${linkType} email sent successfully to:`, realEmail);
-      
-      // Update invited_at timestamp in profiles
-      const { error: invitedAtError } = await supabaseAdmin
-        .from('profiles')
-        .update({ invited_at: new Date().toISOString() })
-        .eq('id', user_id);
-      
-      if (invitedAtError) {
-        console.error('Error updating invited_at:', invitedAtError);
-      }
+    // Update invited_at timestamp in profiles
+    const { error: invitedAtError } = await supabaseAdmin
+      .from('profiles')
+      .update({ invited_at: new Date().toISOString() })
+      .eq('id', user_id);
+    
+    if (invitedAtError) {
+      console.error('Error updating invited_at:', invitedAtError);
     }
 
     return new Response(

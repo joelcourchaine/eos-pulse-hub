@@ -48,7 +48,7 @@ function getInviteEmailHtml(inviteLink: string, fullName: string): string {
       <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
       <p style="word-break: break-all; color: #2563eb; font-size: 14px;">${inviteLink}</p>
       
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 24 hours.</p>
+      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 7 days.</p>
       
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
       
@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
     const referer = req.headers.get('referer') || '';
     const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
 
-    // Generate the invite link (doesn't send email via Supabase)
+    // Generate user in auth system (without sending email)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: email,
@@ -286,16 +286,31 @@ Deno.serve(async (req) => {
       throw linkError;
     }
 
-    if (!linkData?.properties?.action_link) {
-      console.error('No action link returned from generateLink');
-      throw new Error('Failed to generate invite link');
+    if (!linkData?.user?.id) {
+      console.error('No user returned from generateLink');
+      throw new Error('Failed to create user');
     }
 
-    const inviteLink = linkData.properties.action_link;
     const userId = linkData.user.id;
-
     console.log('User created in auth:', userId);
-    console.log('Invite link generated successfully');
+
+    // Generate custom 7-day auth token
+    const { data: customToken, error: tokenError } = await supabaseAdmin.rpc('create_auth_token', {
+      _token_type: 'invite',
+      _user_id: userId,
+      _email: email,
+      _created_by: user.id,
+    });
+
+    if (tokenError || !customToken) {
+      console.error('Error generating custom auth token:', tokenError);
+      throw new Error('Failed to generate invitation token');
+    }
+
+    console.log('Custom 7-day auth token generated');
+
+    // Build invite link using custom token
+    const inviteLink = `${origin}/accept-invite?token=${customToken}`;
 
     // Send the invite email via Resend
     const emailResult = await sendInviteEmailViaResend(email, inviteLink, full_name);
