@@ -1182,8 +1182,8 @@ export const ScorecardVisualMapper = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
-                {/* Bulk mapping button */}
-                {parsedData?.advisorNames && parsedData.advisorNames.length > 0 && columnTemplates && columnTemplates.length > 0 && (
+                {/* Bulk mapping button - show whenever advisors are detected */}
+                {parsedData?.advisorNames && parsedData.advisorNames.length > 0 && (
                   <Button
                     variant="default"
                     size="sm"
