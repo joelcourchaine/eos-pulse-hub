@@ -994,26 +994,40 @@ export const ScorecardVisualMapper = () => {
     const { data: user } = await supabase.auth.getUser();
     let totalMappings = 0;
     let aliasesCreated = 0;
+    let aliasFailures = 0;
+    let mappingFailures = 0;
 
     for (const conf of confirmations) {
       if (!conf.suggestedUserId) continue;
 
       // 1. Save alias (if not already exists)
-      const { data: existingAlias } = await supabase
-        .from("scorecard_user_aliases")
-        .select("id")
-        .eq("store_id", selectedStoreId)
-        .eq("alias_name", conf.excelName)
-        .single();
+      try {
+        const { data: existingAlias, error: existingAliasError } = await supabase
+          .from("scorecard_user_aliases")
+          .select("id")
+          .eq("store_id", selectedStoreId)
+          .eq("alias_name", conf.excelName)
+          .maybeSingle();
 
-      if (!existingAlias) {
-        await supabase.from("scorecard_user_aliases").insert({
-          store_id: selectedStoreId,
-          alias_name: conf.excelName,
-          user_id: conf.suggestedUserId,
-          created_by: user.user?.id,
+        if (existingAliasError) throw existingAliasError;
+
+        if (!existingAlias) {
+          const { error: insertAliasError } = await supabase.from("scorecard_user_aliases").insert({
+            store_id: selectedStoreId,
+            alias_name: conf.excelName,
+            user_id: conf.suggestedUserId,
+            created_by: user.user?.id,
+          });
+          if (insertAliasError) throw insertAliasError;
+          aliasesCreated++;
+        }
+      } catch (e: any) {
+        aliasFailures++;
+        console.error("[Scorecard Visual Mapper] Failed to save alias:", {
+          excelName: conf.excelName,
+          userId: conf.suggestedUserId,
+          error: e,
         });
-        aliasesCreated++;
       }
 
       // 2. Apply column templates for this user
@@ -1029,7 +1043,7 @@ export const ScorecardVisualMapper = () => {
 
       for (const template of matchingTemplates) {
         const matchedKpi = userKpiNames.get(template.kpi_name.toLowerCase())!;
-        await supabase.from("scorecard_cell_mappings").upsert(
+        const { error: upsertError } = await supabase.from("scorecard_cell_mappings").upsert(
           {
             import_profile_id: selectedProfileId,
             user_id: conf.suggestedUserId,
@@ -1042,6 +1056,17 @@ export const ScorecardVisualMapper = () => {
           },
           { onConflict: "import_profile_id,user_id,col_index" }
         );
+        if (upsertError) {
+          mappingFailures++;
+          console.error("[Scorecard Visual Mapper] Failed to save cell mapping:", {
+            excelName: conf.excelName,
+            userId: conf.suggestedUserId,
+            colIndex: template.col_index,
+            kpiId: matchedKpi.id,
+            error: upsertError,
+          });
+          continue;
+        }
         totalMappings++;
         
         // Add to local state tracking
@@ -1085,11 +1110,17 @@ export const ScorecardVisualMapper = () => {
     queryClient.invalidateQueries({ queryKey: ["existing-user-aliases", selectedStoreId] });
     queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
 
-    toast.success(
-      `Mapped ${confirmations.length} advisors with ${totalMappings} KPI assignments${
-        aliasesCreated > 0 ? ` (${aliasesCreated} new aliases created)` : ""
-      }`
-    );
+    if (aliasFailures > 0 || mappingFailures > 0) {
+      toast.error(
+        `Completed with issues: ${aliasFailures} alias save failed, ${mappingFailures} cell mapping save failed. Check console for details.`
+      );
+    } else {
+      toast.success(
+        `Mapped ${confirmations.length} advisors with ${totalMappings} KPI assignments${
+          aliasesCreated > 0 ? ` (${aliasesCreated} new aliases created)` : ""
+        }`
+      );
+    }
   }, [selectedStoreId, selectedProfileId, columnTemplates, departmentKpis, queryClient]);
 
   // Stats
