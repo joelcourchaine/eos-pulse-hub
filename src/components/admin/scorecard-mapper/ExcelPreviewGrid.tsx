@@ -259,6 +259,7 @@ export const ExcelPreviewGrid = ({
                   // - "Advisor 1099 - Kayla Bender"
                   // - "Advisor: 1099 - Kayla Bender"
                   // - "Service Advisor 1099 - Kayla Bender"
+                  // - "All Repair Orders" (totals row - assignable to department manager)
                   const cellStr = String(cell ?? "");
                   const normalized = cellStr.replace(/\s+/g, " ").trim();
                   const hasAdvisorWord = /\badvisor\b/i.test(normalized);
@@ -267,7 +268,11 @@ export const ExcelPreviewGrid = ({
                     ? /[-–—:]/.test(normalized) && /\S/.test(normalized.split(/[-–—:]/).slice(1).join("-").trim())
                     : false;
 
-                  const isAdvisorCell = hasAdvisorWord && hasSeparator && hasNameAfterSeparator;
+                  // Also detect "All Repair Orders" or similar totals rows
+                  const isTotalsRow = /\ball\s+repair\s+orders\b/i.test(normalized) || 
+                                      /\btotal[s]?\b/i.test(normalized) && normalized.length < 30;
+
+                  const isAdvisorCell = (hasAdvisorWord && hasSeparator && hasNameAfterSeparator) || isTotalsRow;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
                   // But NOT on advisor cells - those are for owner selection, and not header row
