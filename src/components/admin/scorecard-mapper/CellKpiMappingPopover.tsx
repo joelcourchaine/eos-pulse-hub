@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,7 +34,7 @@ interface CellKpiMappingPopoverProps {
     kpiName: string;
   }) => void;
   onRemove: (rowIndex: number, colIndex: number) => void;
-  children: React.ReactNode;
+  children?: React.ReactNode; // Optional now since we use Dialog
 }
 
 export const CellKpiMappingPopover = ({
@@ -48,9 +49,15 @@ export const CellKpiMappingPopover = ({
   userKpis,
   onSave,
   onRemove,
-  children,
 }: CellKpiMappingPopoverProps) => {
   const [selectedKpiId, setSelectedKpiId] = useState(currentKpiId || "");
+
+  // Reset selection when dialog opens with new data
+  useEffect(() => {
+    if (open) {
+      setSelectedKpiId(currentKpiId || "");
+    }
+  }, [open, currentKpiId]);
 
   // Find matching KPI name for display
   const selectedKpi = useMemo(() => 
@@ -82,45 +89,45 @@ export const CellKpiMappingPopover = ({
       : String(cellValue);
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="w-80" align="start">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Map Cell to KPI
+          </DialogTitle>
+        </DialogHeader>
+        
         <div className="space-y-4">
-          <div>
-            <h4 className="font-medium text-sm flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Map Cell to KPI
-            </h4>
-            <div className="text-xs text-muted-foreground mt-2 space-y-1">
-              <div className="flex justify-between">
-                <span>Advisor:</span>
-                <Badge variant="secondary" className="text-xs">{advisorName}</Badge>
-              </div>
-              <div className="flex justify-between">
-                <span>Column:</span>
-                <span className="font-medium">{columnHeader}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Value:</span>
-                <span className="font-mono">{displayValue}</span>
-              </div>
+          <div className="text-sm space-y-2 p-3 bg-muted/50 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Owner:</span>
+              <Badge variant="secondary">{advisorName}</Badge>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Column:</span>
+              <span className="font-medium">{columnHeader}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Value:</span>
+              <span className="font-mono bg-background px-2 py-0.5 rounded">{displayValue}</span>
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Map to KPI ({userKpis.length} available)</Label>
+          <div className="space-y-2">
+            <Label>Map to KPI ({userKpis.length} available)</Label>
             {userKpis.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 No KPIs assigned to this user. Assign KPIs first in the scorecard settings.
               </p>
             ) : (
               <Select value={selectedKpiId} onValueChange={setSelectedKpiId}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger>
                   <SelectValue placeholder="Select a KPI..." />
                 </SelectTrigger>
                 <SelectContent>
                   {userKpis.map((kpi) => (
-                    <SelectItem key={kpi.id} value={kpi.id} className="text-xs">
+                    <SelectItem key={kpi.id} value={kpi.id}>
                       {kpi.name}
                       <span className="text-muted-foreground ml-2">
                         ({kpi.metric_type})
@@ -132,27 +139,26 @@ export const CellKpiMappingPopover = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t">
+          <div className="flex items-center gap-2 pt-4 border-t">
             <Button
-              size="sm"
               onClick={handleSave}
               disabled={!selectedKpiId || userKpis.length === 0}
               className="flex-1"
             >
-              <Check className="h-3.5 w-3.5 mr-1" />
-              Save
+              <Check className="h-4 w-4 mr-2" />
+              Save Mapping
             </Button>
             {currentKpiId && (
-              <Button size="sm" variant="destructive" onClick={handleRemove}>
-                <Trash2 className="h-3.5 w-3.5" />
+              <Button variant="destructive" onClick={handleRemove}>
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-              <X className="h-3.5 w-3.5" />
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 };
