@@ -614,6 +614,10 @@ export const ScorecardVisualMapper = () => {
     // Also save to database
     saveUserAliasMutation.mutate(updatedMapping);
     
+    // Automatically set the newly linked user as the active KPI owner
+    setSelectedKpiOwnerId(mapping.userId);
+    toast.success(`${mapping.profileName} is now the active KPI owner`);
+    
     setUserPopoverOpen(false);
     setSelectedRow(null);
   };
