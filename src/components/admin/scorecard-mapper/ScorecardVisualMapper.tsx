@@ -1167,9 +1167,7 @@ export const ScorecardVisualMapper = () => {
                 storeUsers={storeUsers || []}
                 onSave={handleUserMappingSave}
                 onRemove={handleUserMappingRemove}
-              >
-                <span />
-              </UserMappingPopover>
+              />
             )}
 
             {selectedCell && selectedKpiOwnerId && (

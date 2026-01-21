@@ -1,12 +1,13 @@
 import { useState, useMemo } from "react";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, X, Search, User, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,7 +32,7 @@ interface UserMappingPopoverProps {
     profileName: string;
   }) => void;
   onRemove: (rowIndex: number) => void;
-  children: React.ReactNode;
+  children?: React.ReactNode; // Made optional since Dialog doesn't need trigger
 }
 
 export const UserMappingPopover = ({
@@ -43,7 +44,6 @@ export const UserMappingPopover = ({
   storeUsers,
   onSave,
   onRemove,
-  children,
 }: UserMappingPopoverProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(currentUserId);
@@ -92,31 +92,33 @@ export const UserMappingPopover = ({
   };
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent className="w-80" align="start">
-        <div className="space-y-4">
-          <div>
-            <h4 className="font-medium text-sm">Map Advisor to User</h4>
-            <p className="text-xs text-muted-foreground mt-1">
-              Report name: <span className="font-medium">{advisorName}</span>
-            </p>
-          </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Map Advisor to User
+          </DialogTitle>
+          <DialogDescription>
+            Link "<span className="font-medium text-foreground">{advisorName}</span>" to a system user
+          </DialogDescription>
+        </DialogHeader>
 
+        <div className="space-y-4">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-xs"
+              className="pl-9"
             />
           </div>
 
-          <ScrollArea className="h-48 border rounded-md">
-            <div className="p-1 space-y-0.5">
+          <ScrollArea className="h-64 border rounded-md">
+            <div className="p-2 space-y-1">
               {sortedUsers.length === 0 ? (
-                <div className="text-center py-4 text-xs text-muted-foreground">
+                <div className="text-center py-8 text-sm text-muted-foreground">
                   No users found
                 </div>
               ) : (
@@ -129,20 +131,20 @@ export const UserMappingPopover = ({
                       key={user.id}
                       onClick={() => setSelectedUserId(user.id)}
                       className={cn(
-                        "w-full flex items-center gap-2 p-2 rounded-md text-left transition-colors",
+                        "w-full flex items-center gap-3 p-3 rounded-md text-left transition-colors",
                         isSelected
                           ? "bg-primary text-primary-foreground"
                           : "hover:bg-muted"
                       )}
                     >
-                      <User className="h-3.5 w-3.5 shrink-0" />
-                      <span className="flex-1 text-xs truncate">
+                      <User className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 text-sm truncate">
                         {user.full_name || "Unnamed User"}
                       </span>
                       {badge && !isSelected && (
                         <span
                           className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                            "text-xs px-2 py-0.5 rounded font-medium",
                             badge.className
                           )}
                         >
@@ -150,7 +152,7 @@ export const UserMappingPopover = ({
                         </span>
                       )}
                       {isSelected && (
-                        <Check className="h-3.5 w-3.5 shrink-0" />
+                        <Check className="h-4 w-4 shrink-0" />
                       )}
                     </button>
                   );
@@ -159,27 +161,26 @@ export const UserMappingPopover = ({
             </div>
           </ScrollArea>
 
-          <div className="flex items-center gap-2 pt-2 border-t">
+          <div className="flex items-center gap-2 pt-2">
             <Button
-              size="sm"
               onClick={handleSave}
               disabled={!selectedUserId}
               className="flex-1"
             >
-              <Check className="h-3.5 w-3.5 mr-1" />
-              Save Mapping
+              <Check className="h-4 w-4 mr-2" />
+              Save & Set as Owner
             </Button>
             {currentUserId && (
-              <Button size="sm" variant="destructive" onClick={handleRemove}>
-                <Trash2 className="h-3.5 w-3.5" />
+              <Button variant="destructive" onClick={handleRemove}>
+                <Trash2 className="h-4 w-4" />
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
-              <X className="h-3.5 w-3.5" />
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 };
