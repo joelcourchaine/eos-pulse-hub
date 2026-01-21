@@ -142,8 +142,11 @@ export const ScorecardImportPreviewDialog = ({
       setIsMatching(true);
       
       try {
-        const names = parseResult.advisors.map(a => a.displayName);
-        const matches = await matchUsersByNames(names, storeId);
+        const displayNames = parseResult.advisors.map(a => a.displayName);
+        const rawNames = parseResult.advisors.map(a => a.rawName);
+        
+        // Pass both displayNames and rawNames for better alias matching
+        const matches = await matchUsersByNames(displayNames, storeId, rawNames);
         
         const advisorMatches: AdvisorMatch[] = parseResult.advisors.map(advisor => {
           const match = matches.get(advisor.displayName);
