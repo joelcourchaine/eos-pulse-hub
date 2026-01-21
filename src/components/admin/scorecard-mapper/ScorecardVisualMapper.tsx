@@ -944,6 +944,9 @@ export const ScorecardVisualMapper = () => {
         userKpiNames.has(template.kpi_name.toLowerCase())
       );
 
+      // Track new cell mappings for local state update
+      const newCellMappingsForUser: CellKpiMapping[] = [];
+
       for (const template of matchingTemplates) {
         const matchedKpi = userKpiNames.get(template.kpi_name.toLowerCase())!;
         await supabase.from("scorecard_cell_mappings").upsert(
@@ -960,6 +963,14 @@ export const ScorecardVisualMapper = () => {
           { onConflict: "import_profile_id,user_id,col_index" }
         );
         totalMappings++;
+        
+        // Add to local state tracking
+        newCellMappingsForUser.push({
+          colIndex: template.col_index,
+          kpiId: matchedKpi.id,
+          kpiName: matchedKpi.name,
+          userId: conf.suggestedUserId,
+        });
       }
 
       // 3. Update local userMappings state
@@ -977,6 +988,17 @@ export const ScorecardVisualMapper = () => {
         }
         return [...existing, newMapping];
       });
+
+      // 4. Update local cellKpiMappings state for immediate purple highlighting
+      if (newCellMappingsForUser.length > 0) {
+        setCellKpiMappings(prev => {
+          const existing = (prev ?? []).filter(Boolean);
+          // Add new mappings, avoiding duplicates
+          const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}`));
+          const toAdd = newCellMappingsForUser.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}`));
+          return [...existing, ...toAdd];
+        });
+      }
     }
 
     // Invalidate queries to refresh data
