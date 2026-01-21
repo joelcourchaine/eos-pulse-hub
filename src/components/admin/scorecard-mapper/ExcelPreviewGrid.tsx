@@ -24,10 +24,11 @@ export interface UserMapping {
 }
 
 export interface CellKpiMapping {
-  rowIndex: number;
+  rowIndex?: number; // Optional for relative mappings (row is detected dynamically)
   colIndex: number;
   kpiId: string;
   kpiName: string;
+  userId?: string; // User ID for relative mappings
 }
 
 interface ExcelPreviewGridProps {
@@ -85,8 +86,23 @@ export const ExcelPreviewGrid = ({
     return userMappings?.find(m => m?.rowIndex === rowIndex);
   };
 
+  // For relative mappings, we match by userId + colIndex
+  // The owning user's row is determined dynamically from userMappings
   const getCellMapping = (rowIndex: number, colIndex: number) => {
-    return cellKpiMappings?.find(m => m?.rowIndex === rowIndex && m?.colIndex === colIndex);
+    // First check for legacy absolute mappings (with explicit rowIndex)
+    const absoluteMatch = cellKpiMappings?.find(m => m?.rowIndex === rowIndex && m?.colIndex === colIndex);
+    if (absoluteMatch) return absoluteMatch;
+    
+    // For relative mappings, find the owner of this row and match by userId + colIndex
+    const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
+    if (owningAdvisorIdx !== null) {
+      const userMapping = userMappings?.find(m => m?.rowIndex === owningAdvisorIdx);
+      if (userMapping?.userId) {
+        return cellKpiMappings?.find(m => m?.userId === userMapping.userId && m?.colIndex === colIndex && !m?.rowIndex);
+      }
+    }
+    
+    return undefined;
   };
 
   // Find which advisor "owns" a given data row (the advisor row that precedes it)
