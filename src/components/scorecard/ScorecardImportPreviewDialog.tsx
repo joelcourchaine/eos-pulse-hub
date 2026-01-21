@@ -83,26 +83,39 @@ export const ScorecardImportPreviewDialog = ({
   // Match advisors to users on mount
   useEffect(() => {
     const matchAdvisors = async () => {
-      if (!open || !parseResult.advisors.length) return;
+      if (!open) return;
+      
+      // If no advisors parsed, just show empty state (not infinite loading)
+      if (!parseResult.advisors || parseResult.advisors.length === 0) {
+        setAdvisorMatches([]);
+        setIsMatching(false);
+        return;
+      }
       
       setIsMatching(true);
       
-      const names = parseResult.advisors.map(a => a.displayName);
-      const matches = await matchUsersByNames(names, storeId);
-      
-      const advisorMatches: AdvisorMatch[] = parseResult.advisors.map(advisor => {
-        const match = matches.get(advisor.displayName);
-        return {
-          advisor,
-          userId: match?.userId || null,
-          matchedName: match?.matchedName || null,
-          matchType: match?.matchType || null,
-          selectedUserId: null,
-        };
-      });
-      
-      setAdvisorMatches(advisorMatches);
-      setIsMatching(false);
+      try {
+        const names = parseResult.advisors.map(a => a.displayName);
+        const matches = await matchUsersByNames(names, storeId);
+        
+        const advisorMatches: AdvisorMatch[] = parseResult.advisors.map(advisor => {
+          const match = matches.get(advisor.displayName);
+          return {
+            advisor,
+            userId: match?.userId || null,
+            matchedName: match?.matchedName || null,
+            matchType: match?.matchType || null,
+            selectedUserId: null,
+          };
+        });
+        
+        setAdvisorMatches(advisorMatches);
+      } catch (error) {
+        console.error("[Import Preview] Error matching advisors:", error);
+        setAdvisorMatches([]);
+      } finally {
+        setIsMatching(false);
+      }
     };
     
     matchAdvisors();
@@ -313,6 +326,16 @@ export const ScorecardImportPreviewDialog = ({
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : advisorMatches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No individual advisors found in this report.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Department totals below will still be imported if available.
+              </p>
+            </div>
           ) : (
             <Table>
               <TableHeader>
@@ -378,8 +401,14 @@ export const ScorecardImportPreviewDialog = ({
                     </TableCell>
                   </TableRow>
                 ))}
-                
-                {/* Department Totals Row */}
+              </TableBody>
+            </Table>
+          )}
+          
+          {/* Department Totals - always show */}
+          {!isMatching && (
+            <Table className="mt-2">
+              <TableBody>
                 <TableRow className="border-t-2 font-medium bg-muted/50">
                   <TableCell>Department Total</TableCell>
                   <TableCell>
