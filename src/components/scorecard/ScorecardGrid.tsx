@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
 import React from "react";
-import { createPortal } from "react-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +30,7 @@ import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
 import { ScorecardMonthDropZone } from "./ScorecardMonthDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
+import { StickyHScrollbar } from "./StickyHScrollbar";
 
 const PRESET_KPIS = [
   { name: "Total Hours", metricType: "unit" as const, targetDirection: "above" as const },
@@ -371,8 +371,6 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const stickyScrollRef = useRef<HTMLDivElement>(null);
-  const topScrollRef = useRef<HTMLDivElement>(null);
   const headerRowRef = useRef<HTMLTableRowElement>(null);
   const tryLoadPreviousRef = useRef<null | (() => void)>(null);
   const [showTopScrollbar, setShowTopScrollbar] = useState(false);
@@ -553,10 +551,7 @@ const loadData = async () => {
       setScrollWidthDebug(sw);
       setScrollClientWidthDebug(cw);
 
-      // Keep the fixed scrollbar aligned if it already exists
-      if (stickyScrollRef.current) {
-        stickyScrollRef.current.scrollLeft = container.scrollLeft;
-      }
+      setScrollLeftDebug(container.scrollLeft);
     };
 
     updateMetrics();
@@ -569,38 +564,19 @@ const loadData = async () => {
     };
   }, [kpis, entries, viewMode, year, quarter, loadedPreviousQuarters]);
 
-  // Scroll synchronization handlers for fixed scrollbar
-  const handleStickyScroll = useCallback(() => {
-    if (stickyScrollRef.current && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
-      // Also sync top scrollbar
-      if (topScrollRef.current) {
-        topScrollRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
-      }
-    }
-  }, []);
-
-  const handleTopScroll = useCallback(() => {
-    if (topScrollRef.current && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-      // Also sync bottom scrollbar
-      if (stickyScrollRef.current) {
-        stickyScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
-      }
-    }
-  }, []);
-
   const handleMainScroll = useCallback(() => {
-    if (scrollContainerRef.current) {
-      // Sync bottom scrollbar
-      if (stickyScrollRef.current) {
-        stickyScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
-      }
-      // Sync top scrollbar
-      if (topScrollRef.current) {
-        topScrollRef.current.scrollLeft = scrollContainerRef.current.scrollLeft;
-      }
-    }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    setScrollLeftDebug(container.scrollLeft);
+    setScrollWidthDebug(container.scrollWidth);
+    setScrollClientWidthDebug(container.clientWidth);
+  }, []);
+
+  const setContainerScrollLeft = useCallback((nextScrollLeft: number) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollLeft = nextScrollLeft;
+    setScrollLeftDebug(container.scrollLeft);
   }, []);
 
   // IntersectionObserver to detect when header row scrolls out of view
@@ -4792,47 +4768,29 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             </div>
           </div>
 
-          {/* Fixed top horizontal scrollbar - appears when header scrolls out of view */}
-          {showTopScrollbar && tableWidth > scrollClientWidthDebug + 1 &&
-            createPortal(
-              <div
-                className="pointer-events-none"
-                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, top: 72, zIndex: 9999 }}
-              >
-                <div className="pointer-events-auto">
-                  <div
-                    ref={topScrollRef}
-                    className="overflow-x-auto bg-primary/10 border-2 border-primary/30 rounded-lg shadow-lg backdrop-blur-sm"
-                    style={{ height: "18px" }}
-                    onScroll={handleTopScroll}
-                  >
-                    <div style={{ width: tableWidth, height: "1px" }} />
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )}
+          <StickyHScrollbar
+            show={showTopScrollbar}
+            position="top"
+            offsetPx={72}
+            left={scrollbarRect.left}
+            width={scrollbarRect.width}
+            scrollWidth={tableWidth}
+            clientWidth={scrollClientWidthDebug}
+            scrollLeft={scrollLeftDebug}
+            onSetScrollLeft={setContainerScrollLeft}
+          />
 
-          {/* Fixed bottom horizontal scrollbar (portal to body to avoid layout/overflow issues) */}
-          {tableWidth > scrollClientWidthDebug + 1 &&
-            createPortal(
-              <div
-                className="pointer-events-none"
-                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, bottom: 12, zIndex: 9999 }}
-              >
-                <div className="pointer-events-auto">
-                  <div
-                    ref={stickyScrollRef}
-                    className="overflow-x-auto bg-primary/10 border-2 border-primary/30 rounded-lg shadow-lg"
-                    style={{ height: "18px" }}
-                    onScroll={handleStickyScroll}
-                  >
-                    <div style={{ width: tableWidth, height: "1px" }} />
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )}
+          <StickyHScrollbar
+            show={true}
+            position="bottom"
+            offsetPx={12}
+            left={scrollbarRect.left}
+            width={scrollbarRect.width}
+            scrollWidth={tableWidth}
+            clientWidth={scrollClientWidthDebug}
+            scrollLeft={scrollLeftDebug}
+            onSetScrollLeft={setContainerScrollLeft}
+          />
         </>
       )}
 
