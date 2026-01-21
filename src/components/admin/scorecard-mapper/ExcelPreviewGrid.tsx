@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Check, User, BarChart3, MousePointerClick } from "lucide-react";
 
@@ -129,56 +130,61 @@ export const ExcelPreviewGrid = ({
   };
 
   const mainScrollRef = useRef<HTMLDivElement>(null);
-  const topScrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const stickyScrollRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
+  const [containerLeft, setContainerLeft] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [showStickyScroll, setShowStickyScroll] = useState(false);
   const isSyncing = useRef(false);
 
-  // Measure content width for top scrollbar
+  // Measure content width and container position for sticky scrollbar
   useEffect(() => {
     const mainEl = mainScrollRef.current;
-    if (!mainEl) return;
+    const containerEl = containerRef.current;
+    if (!mainEl || !containerEl) return;
     
-    const updateWidth = () => {
+    const updateMeasurements = () => {
       setContentWidth(mainEl.scrollWidth);
+      const rect = containerEl.getBoundingClientRect();
+      setContainerLeft(rect.left);
+      setContainerWidth(rect.width);
+      // Show sticky scroll only if content overflows
+      setShowStickyScroll(mainEl.scrollWidth > mainEl.clientWidth);
     };
     
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    updateMeasurements();
+    const observer = new ResizeObserver(updateMeasurements);
     observer.observe(mainEl);
-    return () => observer.disconnect();
+    observer.observe(containerEl);
+    window.addEventListener("resize", updateMeasurements);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateMeasurements);
+    };
   }, [rows, headers]);
 
   // Sync scrollbars
   const handleMainScroll = useCallback(() => {
     if (isSyncing.current) return;
     isSyncing.current = true;
-    if (topScrollRef.current && mainScrollRef.current) {
-      topScrollRef.current.scrollLeft = mainScrollRef.current.scrollLeft;
+    if (stickyScrollRef.current && mainScrollRef.current) {
+      stickyScrollRef.current.scrollLeft = mainScrollRef.current.scrollLeft;
     }
     requestAnimationFrame(() => { isSyncing.current = false; });
   }, []);
 
-  const handleTopScroll = useCallback(() => {
+  const handleStickyScroll = useCallback(() => {
     if (isSyncing.current) return;
     isSyncing.current = true;
-    if (mainScrollRef.current && topScrollRef.current) {
-      mainScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    if (mainScrollRef.current && stickyScrollRef.current) {
+      mainScrollRef.current.scrollLeft = stickyScrollRef.current.scrollLeft;
     }
     requestAnimationFrame(() => { isSyncing.current = false; });
   }, []);
 
   return (
-    <div className="w-full border rounded-lg bg-card flex flex-col">
-      {/* Top scrollbar */}
-      <div
-        ref={topScrollRef}
-        onScroll={handleTopScroll}
-        className="w-full overflow-x-auto overflow-y-hidden h-3 border-b bg-muted/30"
-        style={{ minHeight: '12px' }}
-      >
-        <div style={{ width: contentWidth, height: 1 }} />
-      </div>
-      
+    <div ref={containerRef} className="w-full border rounded-lg bg-card flex flex-col">
       {/* Main scrollable content */}
       <div
         ref={mainScrollRef}
@@ -377,6 +383,23 @@ export const ExcelPreviewGrid = ({
           })}
         </div>
       </div>
+      
+      {/* Sticky bottom scrollbar - portalled to body */}
+      {showStickyScroll && createPortal(
+        <div
+          ref={stickyScrollRef}
+          onScroll={handleStickyScroll}
+          className="fixed bottom-0 overflow-x-auto overflow-y-hidden bg-background/95 backdrop-blur-sm border-t z-50"
+          style={{
+            left: containerLeft,
+            width: containerWidth,
+            height: 16,
+          }}
+        >
+          <div style={{ width: contentWidth, height: 1 }} />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
