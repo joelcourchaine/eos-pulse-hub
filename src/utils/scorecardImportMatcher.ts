@@ -19,6 +19,71 @@ export interface KPIMatchResult {
   targetDirection: "above" | "below";
 }
 
+const normalizeName = (name: string | null | undefined) =>
+  String(name ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
+ * Generate additional alias keys that should map to the same user.
+ * e.g. "Advisor 1099 - Kayla Bender" => ["advisor 1099 - kayla bender", "kayla bender"]
+ * e.g. "Advisor PB - Peter B" => ["advisor pb - peter b", "peter b"]
+ */
+const getAliasKeys = (aliasName: string): string[] => {
+  const raw = normalizeName(aliasName);
+  const keys = new Set<string>();
+  if (raw) keys.add(raw);
+
+  // If there's a dash, also add the trailing part as a key
+  const dashMatch = raw.match(/\s-\s(.+)$/);
+  if (dashMatch?.[1]) {
+    keys.add(normalizeName(dashMatch[1]));
+  }
+
+  // If starts with "advisor ", also add version without that prefix
+  if (raw.startsWith("advisor ")) {
+    keys.add(normalizeName(raw.replace(/^advisor\s+/, "")));
+  }
+
+  return Array.from(keys);
+};
+
+const findAliasMatch = (
+  aliases: Array<{ user_id: string; alias_name: string }> | null | undefined,
+  candidateNames: string[]
+) => {
+  if (!aliases || aliases.length === 0) return null;
+
+  const normalizedCandidates = candidateNames.map(normalizeName).filter(Boolean);
+  if (normalizedCandidates.length === 0) return null;
+
+  // Build a map of aliasKey -> alias row
+  const aliasKeyMap = new Map<string, { user_id: string; alias_name: string }>();
+  for (const a of aliases) {
+    for (const key of getAliasKeys(a.alias_name)) {
+      if (key && !aliasKeyMap.has(key)) aliasKeyMap.set(key, a);
+    }
+  }
+
+  // 1) Exact key match against derived keys
+  for (const c of normalizedCandidates) {
+    const hit = aliasKeyMap.get(c);
+    if (hit) return hit;
+  }
+
+  // 2) Containment match (handles small differences like extra tokens)
+  for (const c of normalizedCandidates) {
+    for (const [aliasKey, aliasRow] of aliasKeyMap.entries()) {
+      if (aliasKey.includes(c) || c.includes(aliasKey)) {
+        return aliasRow;
+      }
+    }
+  }
+
+  return null;
+};
+
 /**
  * Calculate fuzzy match score between two strings (0-1)
  */
@@ -94,17 +159,19 @@ export const matchUserByName = async (
   name: string,
   storeId: string
 ): Promise<UserMatchResult> => {
-  const normalizedName = name.toLowerCase().trim();
-  
-  // 1. First check aliases
-  const { data: aliasMatch } = await supabase
+  const normalizedName = normalizeName(name);
+
+  // 1) First check aliases (robust matching against normalized/derived keys)
+  const { data: aliases, error: aliasError } = await supabase
     .from("scorecard_user_aliases")
     .select("user_id, alias_name")
-    .eq("store_id", storeId)
-    .ilike("alias_name", normalizedName)
-    .limit(1)
-    .single();
-  
+    .eq("store_id", storeId);
+
+  if (aliasError) {
+    console.warn("[Scorecard Matcher] Alias lookup failed:", aliasError);
+  }
+
+  const aliasMatch = findAliasMatch(aliases, [normalizedName]);
   if (aliasMatch) {
     return {
       userId: aliasMatch.user_id,
@@ -186,22 +253,14 @@ export const matchUsersByNames = async (
     .select("id, full_name")
     .eq("store_id", storeId);
   
-  const aliasMap = new Map(
-    aliases?.map(a => [a.alias_name.toLowerCase().trim(), a]) || []
-  );
-  
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
     const rawName = rawNames?.[i];
-    const normalizedName = name.toLowerCase().trim();
-    const normalizedRawName = rawName?.toLowerCase().trim();
-    
-    // Check alias against BOTH display name AND raw name
-    let aliasMatch = aliasMap.get(normalizedName);
-    if (!aliasMatch && normalizedRawName) {
-      aliasMatch = aliasMap.get(normalizedRawName);
-    }
-    
+    const normalizedName = normalizeName(name);
+    const normalizedRawName = normalizeName(rawName);
+
+    // Check alias against BOTH display name AND raw name, with derived/contains matching
+    const aliasMatch = findAliasMatch(aliases, [normalizedName, normalizedRawName]);
     if (aliasMatch) {
       results.set(name, {
         userId: aliasMatch.user_id,
