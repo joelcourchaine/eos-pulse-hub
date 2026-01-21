@@ -27,9 +27,10 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ExcelPreviewGrid, ColumnMapping, UserMapping } from "./ExcelPreviewGrid";
+import { ExcelPreviewGrid, ColumnMapping, UserMapping, CellKpiMapping } from "./ExcelPreviewGrid";
 import { ColumnMappingPopover } from "./ColumnMappingPopover";
 import { UserMappingPopover } from "./UserMappingPopover";
+import { CellKpiMappingPopover } from "./CellKpiMappingPopover";
 
 interface ParsedExcelData {
   headers: string[];
@@ -52,16 +53,20 @@ export const ScorecardVisualMapper = () => {
   // Mapping states
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
   const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
+  const [cellKpiMappings, setCellKpiMappings] = useState<CellKpiMapping[]>([]);
 
   // Always work with sanitized arrays (prevents runtime crashes if any undefined slips in)
   const safeColumnMappings = useMemo(() => (columnMappings ?? []).filter(Boolean), [columnMappings]);
   const safeUserMappings = useMemo(() => (userMappings ?? []).filter(Boolean), [userMappings]);
+  const safeCellKpiMappings = useMemo(() => (cellKpiMappings ?? []).filter(Boolean), [cellKpiMappings]);
   
   // Popover states
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
+  const [selectedCell, setSelectedCell] = useState<{ rowIndex: number; colIndex: number; value: string | number | null; header: string } | null>(null);
   const [columnPopoverOpen, setColumnPopoverOpen] = useState(false);
   const [userPopoverOpen, setUserPopoverOpen] = useState(false);
+  const [cellPopoverOpen, setCellPopoverOpen] = useState(false);
 
   // Fetch stores
   const { data: stores, isLoading: storesLoading } = useQuery({
@@ -512,9 +517,74 @@ export const ScorecardVisualMapper = () => {
     setSelectedRow(null);
   };
 
+  // Cell KPI mapping handlers
+  const handleCellClick = (rowIndex: number, colIndex: number, cellValue: string | number | null, header: string) => {
+    setSelectedCell({ rowIndex, colIndex, value: cellValue, header });
+    setSelectedColumn(null);
+    setSelectedRow(null);
+    setCellPopoverOpen(true);
+  };
+
+  const handleCellKpiMappingSave = (mapping: {
+    rowIndex: number;
+    colIndex: number;
+    kpiId: string;
+    kpiName: string;
+  }) => {
+    setCellKpiMappings((prev) => {
+      const existing = (prev ?? []).filter(Boolean);
+      const existingIdx = existing.findIndex(m => m.rowIndex === mapping.rowIndex && m.colIndex === mapping.colIndex);
+      if (existingIdx >= 0) {
+        const updated = [...existing];
+        updated[existingIdx] = mapping;
+        return updated;
+      }
+      return [...existing, mapping];
+    });
+    setCellPopoverOpen(false);
+    setSelectedCell(null);
+  };
+
+  const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number) => {
+    setCellKpiMappings((prev) => 
+      (prev ?? []).filter(Boolean).filter(m => !(m.rowIndex === rowIndex && m.colIndex === colIndex))
+    );
+    setCellPopoverOpen(false);
+    setSelectedCell(null);
+  };
+
+  // Find advisor that owns the selected cell (for fetching their KPIs)
+  const getOwningAdvisorForCell = (rowIndex: number) => {
+    if (!parsedData) return null;
+    const precedingAdvisorRows = parsedData.advisorRowIndices.filter(idx => idx < rowIndex);
+    const owningAdvisorIdx = precedingAdvisorRows.length > 0 ? precedingAdvisorRows[precedingAdvisorRows.length - 1] : null;
+    if (owningAdvisorIdx === null) return null;
+    return safeUserMappings.find(m => m.rowIndex === owningAdvisorIdx);
+  };
+
+  const selectedCellOwnerMapping = selectedCell ? getOwningAdvisorForCell(selectedCell.rowIndex) : null;
+  const selectedCellOwnerUserId = selectedCellOwnerMapping?.userId;
+
+  // Fetch KPIs assigned to the selected cell's owner user
+  const { data: userAssignedKpis } = useQuery({
+    queryKey: ["user-assigned-kpis", selectedCellOwnerUserId],
+    queryFn: async () => {
+      if (!selectedCellOwnerUserId) return [];
+      const { data, error } = await supabase
+        .from("kpi_definitions")
+        .select("id, name, metric_type")
+        .eq("assigned_to", selectedCellOwnerUserId)
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedCellOwnerUserId,
+  });
+
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
   const mappedUsersCount = safeUserMappings.filter((m) => m?.userId).length;
+  const mappedCellsCount = safeCellKpiMappings.length;
 
   // Get current column/user info for popovers
   const currentColumnMapping = selectedColumn !== null 
@@ -523,6 +593,10 @@ export const ScorecardVisualMapper = () => {
   
   const currentUserMapping = selectedRow !== null
     ? safeUserMappings.find((m) => m?.rowIndex === selectedRow)
+    : null;
+
+  const currentCellMapping = selectedCell 
+    ? safeCellKpiMappings.find(m => m.rowIndex === selectedCell.rowIndex && m.colIndex === selectedCell.colIndex)
     : null;
 
   return (
@@ -610,18 +684,20 @@ export const ScorecardVisualMapper = () => {
                   {fileName}
                 </CardTitle>
                 <CardDescription className="mt-1">
-                  Click column headers to map to KPIs, click advisor names to map to users
+                  1) Map advisors to users → 2) Click cells in their rows to assign KPIs
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
                 <Badge variant="outline" className="gap-1.5">
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  {mappedColumnsCount}/{columnMappings.length} columns
-                </Badge>
-                <Badge variant="outline" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
                   {mappedUsersCount}/{userMappings.length} advisors
                 </Badge>
+                {mappedCellsCount > 0 && (
+                  <Badge variant="secondary" className="gap-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    {mappedCellsCount} cells mapped
+                  </Badge>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -630,6 +706,7 @@ export const ScorecardVisualMapper = () => {
                     setFileName(null);
                     setColumnMappings([]);
                     setUserMappings([]);
+                    setCellKpiMappings([]);
                   }}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -672,16 +749,37 @@ export const ScorecardVisualMapper = () => {
               </UserMappingPopover>
             )}
 
+            {selectedCell && selectedCellOwnerMapping && (
+              <CellKpiMappingPopover
+                open={cellPopoverOpen}
+                onOpenChange={setCellPopoverOpen}
+                cellValue={selectedCell.value}
+                columnHeader={selectedCell.header}
+                rowIndex={selectedCell.rowIndex}
+                colIndex={selectedCell.colIndex}
+                advisorName={selectedCellOwnerMapping.matchedProfileName || selectedCellOwnerMapping.advisorName}
+                currentKpiId={currentCellMapping?.kpiId || null}
+                userKpis={userAssignedKpis || []}
+                onSave={handleCellKpiMappingSave}
+                onRemove={handleCellKpiMappingRemove}
+              >
+                <span />
+              </CellKpiMappingPopover>
+            )}
+
             <ExcelPreviewGrid
               headers={parsedData.headers}
               rows={parsedData.rows}
               advisorRowIndices={parsedData.advisorRowIndices}
               columnMappings={safeColumnMappings}
               userMappings={safeUserMappings}
+              cellKpiMappings={safeCellKpiMappings}
               onColumnClick={handleColumnClick}
               onAdvisorClick={handleAdvisorClick}
+              onCellClick={handleCellClick}
               selectedColumn={selectedColumn}
               selectedRow={selectedRow}
+              selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
               headerRowIndex={parsedData.headerRowIndex}
             />
 
@@ -707,9 +805,12 @@ export const ScorecardVisualMapper = () => {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             <strong>How it works:</strong> Drop an Excel report to see a visual preview. 
-            Click on column headers to map them to system KPIs (with pay type filters). 
-            Click on advisor names (highlighted in blue) to map them to store users. 
-            Mappings are saved and will be used automatically for future imports.
+            <br />
+            <strong>Step 1:</strong> Click on advisor names (blue rows) to map them to store users.
+            <br />
+            <strong>Step 2:</strong> After mapping an advisor, click on cells in their data rows to assign values to that user's KPIs.
+            <br />
+            Cell mappings allow different pay types (Customer, Warranty, Internal) in the same column to map to different KPIs.
           </AlertDescription>
         </Alert>
       )}

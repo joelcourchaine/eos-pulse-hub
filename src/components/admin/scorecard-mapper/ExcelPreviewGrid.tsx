@@ -24,17 +24,27 @@ export interface UserMapping {
   matchedProfileName: string | null;
 }
 
+export interface CellKpiMapping {
+  rowIndex: number;
+  colIndex: number;
+  kpiId: string;
+  kpiName: string;
+}
+
 interface ExcelPreviewGridProps {
   headers: string[];
   rows: (string | number | null)[][];
   advisorRowIndices: number[];
   columnMappings: ColumnMapping[];
   userMappings: UserMapping[];
+  cellKpiMappings: CellKpiMapping[];
   onColumnClick: (colIndex: number, header: string) => void;
   onAdvisorClick: (rowIndex: number, advisorName: string) => void;
+  onCellClick: (rowIndex: number, colIndex: number, cellValue: string | number | null, header: string) => void;
   selectedColumn: number | null;
   selectedRow: number | null;
-  headerRowIndex?: number; // Index of the header row in the data
+  selectedCell: { rowIndex: number; colIndex: number } | null;
+  headerRowIndex?: number;
 }
 
 export const ExcelPreviewGrid = ({
@@ -43,10 +53,13 @@ export const ExcelPreviewGrid = ({
   advisorRowIndices,
   columnMappings,
   userMappings,
+  cellKpiMappings,
   onColumnClick,
   onAdvisorClick,
+  onCellClick,
   selectedColumn,
   selectedRow,
+  selectedCell,
   headerRowIndex = -1,
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -65,6 +78,23 @@ export const ExcelPreviewGrid = ({
 
   const getUserMappingInfo = (rowIndex: number) => {
     return userMappings?.find(m => m?.rowIndex === rowIndex);
+  };
+
+  const getCellMapping = (rowIndex: number, colIndex: number) => {
+    return cellKpiMappings?.find(m => m?.rowIndex === rowIndex && m?.colIndex === colIndex);
+  };
+
+  // Find which advisor "owns" a given data row (the advisor row that precedes it)
+  const getOwningAdvisorRowIndex = (rowIndex: number): number | null => {
+    // Find the closest advisor row that comes before this row
+    const precedingAdvisorRows = advisorRowIndices.filter(idx => idx < rowIndex);
+    return precedingAdvisorRows.length > 0 ? precedingAdvisorRows[precedingAdvisorRows.length - 1] : null;
+  };
+
+  const isDataRowForMappedUser = (rowIndex: number): boolean => {
+    const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
+    if (owningAdvisorIdx === null) return false;
+    return isUserMapped(owningAdvisorIdx);
   };
 
   const formatCellValue = (value: string | number | null): string => {
@@ -157,6 +187,15 @@ export const ExcelPreviewGrid = ({
                 const isFirstCol = colIndex === 0;
                 const isMappedCol = isColumnMapped(colIndex);
                 const isSelectedCol = selectedColumn === colIndex;
+                const cellMapping = getCellMapping(rowIndex, colIndex);
+                const isCellMapped = !!cellMapping;
+                const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
+                
+                // Check if this row belongs to a mapped user (for cell-level KPI mapping)
+                const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
+                const canMapCell = !isAdvisorRow && !isHeaderRow && !isMetadataRow && 
+                                   owningAdvisorIdx !== null && isUserMapped(owningAdvisorIdx) &&
+                                   !isFirstCol && colIndex > 0;
                 
                 return (
                   <div
@@ -166,10 +205,15 @@ export const ExcelPreviewGrid = ({
                       isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                       isSelectedCol && "bg-primary/5",
                       isFirstCol && isAdvisorRow && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
+                      canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                      isCellMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
+                      isSelectedCell && "ring-2 ring-primary ring-inset",
                     )}
                     onClick={() => {
                       if (isFirstCol && isAdvisorRow) {
                         onAdvisorClick(rowIndex, String(cell));
+                      } else if (canMapCell) {
+                        onCellClick(rowIndex, colIndex, cell, headers[colIndex] || "");
                       }
                     }}
                   >
@@ -188,6 +232,15 @@ export const ExcelPreviewGrid = ({
                             </span>
                           )}
                         </div>
+                      </div>
+                    ) : isCellMapped ? (
+                      <div className="flex flex-col min-w-0">
+                        <span className={cn(typeof cell === "number" && "font-mono")}>
+                          {formatCellValue(cell)}
+                        </span>
+                        <span className="text-[10px] text-purple-700 dark:text-purple-300 truncate">
+                          → {cellMapping.kpiName}
+                        </span>
                       </div>
                     ) : (
                       <span className={cn(
