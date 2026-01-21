@@ -13,7 +13,7 @@ import { AdminSystemTab } from "@/components/admin/AdminSystemTab";
 import { AdminTicketsTab } from "@/components/admin/AdminTicketsTab";
 import { AdminTop10Tab } from "@/components/admin/AdminTop10Tab";
 import { AdminScorecardImportsTab } from "@/components/admin/AdminScorecardImportsTab";
-import { Ticket, ListOrdered, Calendar, Upload } from "lucide-react";
+import { Ticket, ListOrdered, Calendar, Upload, Eye } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SuperAdminDashboard = () => {
@@ -69,12 +69,20 @@ const SuperAdminDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground">Super Admin Dashboard</h1>
             <p className="text-muted-foreground mt-1">System-wide management and monitoring</p>
           </div>
-          <Link to="/admin/consulting">
-            <Button variant="outline" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Consulting Scheduler
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/admin/scorecard-mapper">
+              <Button variant="outline" className="gap-2">
+                <Eye className="h-4 w-4" />
+                Visual Mapper
+              </Button>
+            </Link>
+            <Link to="/admin/consulting">
+              <Button variant="outline" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Consulting Scheduler
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <AdminStatsCards />
