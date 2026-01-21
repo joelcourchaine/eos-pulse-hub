@@ -270,7 +270,8 @@ export const ExcelPreviewGrid = ({
                     <div
                       key={colIndex}
                       className={cn(
-                        "min-w-[120px] max-w-[180px] p-2 border-r text-sm truncate",
+                        "p-2 border-r text-sm",
+                        isAdvisorCell ? "min-w-[280px] max-w-[320px]" : "min-w-[120px] max-w-[180px] truncate",
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
                         canSelectAsOwner && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
