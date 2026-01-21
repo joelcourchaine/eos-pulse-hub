@@ -165,10 +165,12 @@ export const matchUserByName = async (
 
 /**
  * Batch match multiple advisor names
+ * Supports matching against both displayName and rawName (full advisor header)
  */
 export const matchUsersByNames = async (
   names: string[],
-  storeId: string
+  storeId: string,
+  rawNames?: string[] // Optional raw names for alias matching (e.g., "Advisor 1099 - Kayla Bender")
 ): Promise<Map<string, UserMatchResult>> => {
   const results = new Map<string, UserMatchResult>();
   
@@ -188,11 +190,18 @@ export const matchUsersByNames = async (
     aliases?.map(a => [a.alias_name.toLowerCase().trim(), a]) || []
   );
   
-  for (const name of names) {
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    const rawName = rawNames?.[i];
     const normalizedName = name.toLowerCase().trim();
+    const normalizedRawName = rawName?.toLowerCase().trim();
     
-    // Check alias
-    const aliasMatch = aliasMap.get(normalizedName);
+    // Check alias against BOTH display name AND raw name
+    let aliasMatch = aliasMap.get(normalizedName);
+    if (!aliasMatch && normalizedRawName) {
+      aliasMatch = aliasMap.get(normalizedRawName);
+    }
+    
     if (aliasMatch) {
       results.set(name, {
         userId: aliasMatch.user_id,
@@ -224,7 +233,7 @@ export const matchUsersByNames = async (
       
       for (const profile of profiles) {
         const score = fuzzyNameMatch(name, profile.full_name);
-        if (score > 0.85 && (!bestMatch || score > bestMatch.score)) {
+        if (score > 0.6 && (!bestMatch || score > bestMatch.score)) {
           bestMatch = { profile, score };
         }
       }
