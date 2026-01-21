@@ -1181,14 +1181,14 @@ export const ScorecardVisualMapper = () => {
                   Click an advisor name to select them as KPI owner, then click cells to map values
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 {/* Bulk mapping button - show whenever advisors are detected */}
                 {parsedData?.advisorNames && parsedData.advisorNames.length > 0 && (
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => setConfirmationPanelOpen(true)}
-                    className="gap-1.5"
+                    className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
                   >
                     <Wand2 className="h-4 w-4" />
                     Map All Advisors ({parsedData.advisorNames.length})
