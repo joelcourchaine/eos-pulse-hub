@@ -12,7 +12,8 @@ import { AdminStoreGroupsTab } from "@/components/admin/AdminStoreGroupsTab";
 import { AdminSystemTab } from "@/components/admin/AdminSystemTab";
 import { AdminTicketsTab } from "@/components/admin/AdminTicketsTab";
 import { AdminTop10Tab } from "@/components/admin/AdminTop10Tab";
-import { Ticket, ListOrdered, Calendar } from "lucide-react";
+import { AdminScorecardImportsTab } from "@/components/admin/AdminScorecardImportsTab";
+import { Ticket, ListOrdered, Calendar, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SuperAdminDashboard = () => {
@@ -87,6 +88,10 @@ const SuperAdminDashboard = () => {
               <ListOrdered className="h-4 w-4" />
               Top 10 Templates
             </TabsTrigger>
+            <TabsTrigger value="scorecard-imports" className="flex items-center gap-1.5">
+              <Upload className="h-4 w-4" />
+              Scorecard Imports
+            </TabsTrigger>
             <TabsTrigger value="tickets" className="flex items-center gap-1.5">
               <Ticket className="h-4 w-4" />
               Tickets
@@ -108,6 +113,10 @@ const SuperAdminDashboard = () => {
 
           <TabsContent value="top10">
             <AdminTop10Tab />
+          </TabsContent>
+
+          <TabsContent value="scorecard-imports">
+            <AdminScorecardImportsTab />
           </TabsContent>
 
           <TabsContent value="tickets">
