@@ -197,7 +197,7 @@ export const AdvisorConfirmationPanel: React.FC<AdvisorConfirmationPanelProps> =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col min-h-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -249,7 +249,7 @@ export const AdvisorConfirmationPanel: React.FC<AdvisorConfirmationPanelProps> =
         </div>
 
         {/* Advisor List */}
-        <ScrollArea className="flex-1 -mx-6 px-6">
+        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
           <div className="space-y-2 py-2">
             {confirmations.map((conf) => (
               <div
