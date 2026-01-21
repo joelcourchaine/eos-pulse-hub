@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
+import { ScorecardMonthDropZone } from "./ScorecardMonthDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
 
@@ -2760,6 +2761,20 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     }
   };
 
+  // Handler for month-specific file drop in Monthly Trend view
+  const handleMonthFileDrop = useCallback((result: CSRParseResult, fileName: string, monthIdentifier: string) => {
+    result.month = monthIdentifier;
+    setDroppedParseResult(result);
+    setDroppedFileName(fileName);
+    setImportMonth(monthIdentifier);
+    setImportPreviewOpen(true);
+    
+    toast({
+      title: "File parsed successfully",
+      description: `Found ${result.advisors.length} advisors for ${monthIdentifier}`,
+    });
+  }, [toast]);
+
   const handleOwnerDragStart = (ownerId: string | null) => {
     setDraggedOwnerId(ownerId);
   };
@@ -3459,27 +3474,31 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <TableHead 
                       key={period.identifier} 
                       className={cn(
-                        "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
+                        "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10 p-0",
                         period.type === 'year-avg' && "bg-primary/10 border-l-2 border-primary/30",
                         period.type === 'year-total' && "bg-primary/10 border-r-2 border-primary/30",
                         period.type === 'month' && "bg-muted/50"
                       )}
                     >
-                      <div className="flex flex-col items-center">
-                        {period.type === 'month' ? (
-                          <>
+                      {period.type === 'month' ? (
+                        <ScorecardMonthDropZone
+                          monthIdentifier={period.identifier}
+                          onFileDrop={handleMonthFileDrop}
+                          className="w-full h-full py-[7.2px]"
+                        >
+                          <div className="flex flex-col items-center">
                             <div>{period.label.split(' ')[0]}</div>
                             <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
-                            <div className="text-xs font-normal text-muted-foreground">
-                              {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        </ScorecardMonthDropZone>
+                      ) : (
+                        <div className="flex flex-col items-center py-[7.2px]">
+                          <div>{period.type === 'year-avg' ? 'Avg' : 'Total'}</div>
+                          <div className="text-xs font-normal text-muted-foreground">
+                            {period.isYTD ? `${period.summaryYear} YTD` : period.summaryYear}
+                          </div>
+                        </div>
+                      )}
                     </TableHead>
                   ))}
                 </>
