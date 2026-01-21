@@ -1176,6 +1176,12 @@ export const ScorecardVisualMapper = () => {
                   <Users className="h-3.5 w-3.5" />
                   {mappedUsersCount}/{userMappings.length} advisors
                 </Badge>
+                {columnTemplates && columnTemplates.length > 0 && (
+                  <Badge variant="outline" className="gap-1.5 border-amber-400 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                    <BarChart3 className="h-3.5 w-3.5" />
+                    {columnTemplates.length} KPI columns preset
+                  </Badge>
+                )}
                 {mappedCellsCount > 0 && (
                   <Badge variant="secondary" className="gap-1.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
                     <BarChart3 className="h-3.5 w-3.5" />
@@ -1390,6 +1396,7 @@ export const ScorecardVisualMapper = () => {
                   headerRowIndex={parsedData.headerRowIndex}
                   canClickCells={!!selectedKpiOwnerId}
                   activeOwnerId={selectedKpiOwnerId}
+                  templateColumnIndices={columnTemplates?.map(t => t.col_index) || []}
                 />
               </div>
             </div>

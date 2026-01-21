@@ -49,6 +49,7 @@ interface ExcelPreviewGridProps {
   headerRowIndex?: number;
   canClickCells?: boolean;
   activeOwnerId?: string | null;
+  templateColumnIndices?: number[]; // Column indices that have templates (will be auto-mapped)
 }
 
 export const ExcelPreviewGrid = ({
@@ -68,8 +69,12 @@ export const ExcelPreviewGrid = ({
   headerRowIndex = -1,
   canClickCells = false,
   activeOwnerId = null,
+  templateColumnIndices = [],
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Create a Set for faster lookup of template columns
+  const templateColSet = new Set(templateColumnIndices);
 
   const isColumnMapped = (colIndex: number) => {
     return columnMappings?.some(m => m?.columnIndex === colIndex && m?.targetKpiName) ?? false;
@@ -275,6 +280,11 @@ export const ExcelPreviewGrid = ({
                   const isCellMapped = !!cellMapping;
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
+                  // Check if this cell is on a template column (will be auto-mapped)
+                  const isTemplateColumn = templateColSet.has(colIndex);
+                  // Highlight template cells on advisor rows that are NOT yet mapped
+                  const isTemplatePreviewCell = isTemplateColumn && isAdvisorRow && !isHeaderRow && !isCellMapped;
+                  
                   // Detect owner/advisor name cells.
                   // Reports vary a lot (extra columns, metadata blocks, inconsistent spacing), so we normalize first.
                   // Examples we want to match:
@@ -308,7 +318,7 @@ export const ExcelPreviewGrid = ({
                     <div
                       key={colIndex}
                       className={cn(
-                        "p-2 border-r text-sm",
+                        "p-2 border-r text-sm relative",
                         isAdvisorCell ? "min-w-[280px] max-w-[320px]" : "min-w-[120px] max-w-[180px] truncate",
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
@@ -316,6 +326,8 @@ export const ExcelPreviewGrid = ({
                         canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
                         isCellMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
                         isSelectedCell && "ring-2 ring-primary ring-inset",
+                        // Template preview highlighting - shows cells that will be auto-mapped
+                        isTemplatePreviewCell && "bg-amber-100/70 dark:bg-amber-900/40 ring-2 ring-amber-400 dark:ring-amber-600 ring-dashed",
                       )}
                       onClick={() => {
                         if (canSelectAsOwner && onFirstColClick) {
