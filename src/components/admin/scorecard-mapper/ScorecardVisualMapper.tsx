@@ -26,12 +26,14 @@ import {
   BarChart3,
   Users,
   X,
+  Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExcelPreviewGrid, ColumnMapping, UserMapping, CellKpiMapping } from "./ExcelPreviewGrid";
 import { ColumnMappingPopover } from "./ColumnMappingPopover";
 import { UserMappingPopover } from "./UserMappingPopover";
 import { CellKpiMappingPopover } from "./CellKpiMappingPopover";
+import { AdvisorConfirmationPanel, AdvisorConfirmation } from "./AdvisorConfirmationPanel";
 
 interface ParsedExcelData {
   headers: string[];
@@ -70,6 +72,9 @@ export const ScorecardVisualMapper = () => {
   const [columnPopoverOpen, setColumnPopoverOpen] = useState(false);
   const [userPopoverOpen, setUserPopoverOpen] = useState(false);
   const [cellPopoverOpen, setCellPopoverOpen] = useState(false);
+  
+  // Advisor confirmation panel state
+  const [confirmationPanelOpen, setConfirmationPanelOpen] = useState(false);
 
   // Fetch stores
   const { data: stores, isLoading: storesLoading } = useQuery({
@@ -899,6 +904,92 @@ export const ScorecardVisualMapper = () => {
     return matchingTemplates.length;
   }, [selectedProfileId, columnTemplates, departmentKpis, queryClient]);
 
+  // Bulk apply mappings for all confirmed advisors
+  const handleBulkApplyMappings = useCallback(async (confirmations: AdvisorConfirmation[]) => {
+    if (!selectedStoreId || !selectedProfileId || !columnTemplates || !departmentKpis) {
+      toast.error("Please select store, department, and profile first");
+      return;
+    }
+
+    const { data: user } = await supabase.auth.getUser();
+    let totalMappings = 0;
+    let aliasesCreated = 0;
+
+    for (const conf of confirmations) {
+      if (!conf.suggestedUserId) continue;
+
+      // 1. Save alias (if not already exists)
+      const { data: existingAlias } = await supabase
+        .from("scorecard_user_aliases")
+        .select("id")
+        .eq("store_id", selectedStoreId)
+        .eq("alias_name", conf.excelName)
+        .single();
+
+      if (!existingAlias) {
+        await supabase.from("scorecard_user_aliases").insert({
+          store_id: selectedStoreId,
+          alias_name: conf.excelName,
+          user_id: conf.suggestedUserId,
+          created_by: user.user?.id,
+        });
+        aliasesCreated++;
+      }
+
+      // 2. Apply column templates for this user
+      const userKpis = departmentKpis.filter(kpi => kpi.assigned_to === conf.suggestedUserId);
+      const userKpiNames = new Map(userKpis.map(kpi => [kpi.name.toLowerCase(), kpi]));
+
+      const matchingTemplates = columnTemplates.filter(template =>
+        userKpiNames.has(template.kpi_name.toLowerCase())
+      );
+
+      for (const template of matchingTemplates) {
+        const matchedKpi = userKpiNames.get(template.kpi_name.toLowerCase())!;
+        await supabase.from("scorecard_cell_mappings").upsert(
+          {
+            import_profile_id: selectedProfileId,
+            user_id: conf.suggestedUserId,
+            kpi_id: matchedKpi.id,
+            kpi_name: matchedKpi.name,
+            row_index: null,
+            col_index: template.col_index,
+            is_relative: true,
+            created_by: user.user?.id,
+          },
+          { onConflict: "import_profile_id,user_id,col_index" }
+        );
+        totalMappings++;
+      }
+
+      // 3. Update local userMappings state
+      setUserMappings(prev => {
+        const existing = (prev ?? []).filter(Boolean);
+        const existingIndex = existing.findIndex(m => m.rowIndex === conf.rowIndex);
+        const newMapping: UserMapping = {
+          rowIndex: conf.rowIndex,
+          advisorName: conf.excelName,
+          userId: conf.suggestedUserId,
+          matchedProfileName: conf.suggestedUserName,
+        };
+        if (existingIndex >= 0) {
+          return [...existing.slice(0, existingIndex), newMapping, ...existing.slice(existingIndex + 1)];
+        }
+        return [...existing, newMapping];
+      });
+    }
+
+    // Invalidate queries to refresh data
+    queryClient.invalidateQueries({ queryKey: ["existing-user-aliases", selectedStoreId] });
+    queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
+
+    toast.success(
+      `Mapped ${confirmations.length} advisors with ${totalMappings} KPI assignments${
+        aliasesCreated > 0 ? ` (${aliasesCreated} new aliases created)` : ""
+      }`
+    );
+  }, [selectedStoreId, selectedProfileId, columnTemplates, departmentKpis, queryClient]);
+
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
   const mappedUsersCount = safeUserMappings.filter((m) => m?.userId).length;
@@ -1069,6 +1160,18 @@ export const ScorecardVisualMapper = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
+                {/* Bulk mapping button */}
+                {parsedData?.advisorNames && parsedData.advisorNames.length > 0 && columnTemplates && columnTemplates.length > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setConfirmationPanelOpen(true)}
+                    className="gap-1.5"
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    Map All Advisors ({parsedData.advisorNames.length})
+                  </Button>
+                )}
                 <Badge variant="outline" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
                   {mappedUsersCount}/{userMappings.length} advisors
@@ -1316,12 +1419,27 @@ export const ScorecardVisualMapper = () => {
             <br />
             <strong>Step 1:</strong> Select a Store and Department from the dropdowns above.
             <br />
-            <strong>Step 2:</strong> Click on an advisor's name to link them to a user (if not already) and set them as the active KPI owner.
+            <strong>Step 2:</strong> Click "Map All Advisors" to confirm which advisors to map — the system auto-matches names and applies preset KPI columns.
             <br />
-            <strong>Step 3:</strong> Click on any data cell to assign its value to one of that owner's KPIs.
+            <strong>Or:</strong> Click individual advisor names to manually link them one at a time.
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Advisor Confirmation Panel */}
+      <AdvisorConfirmationPanel
+        open={confirmationPanelOpen}
+        onOpenChange={setConfirmationPanelOpen}
+        advisorNames={parsedData?.advisorNames || []}
+        storeUsers={storeUsers || []}
+        existingAliases={(existingAliases || []).map(a => ({
+          alias_name: a.alias_name,
+          user_id: a.user_id,
+          profileName: a.profileName,
+        }))}
+        onApply={handleBulkApplyMappings}
+        templateCount={columnTemplates?.length || 0}
+      />
     </div>
   );
 };
