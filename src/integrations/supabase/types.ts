@@ -1863,9 +1863,10 @@ export type Database = {
           created_by: string | null
           id: string
           import_profile_id: string
+          is_relative: boolean
           kpi_id: string
           kpi_name: string
-          row_index: number
+          row_index: number | null
           user_id: string
         }
         Insert: {
@@ -1874,9 +1875,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           import_profile_id: string
+          is_relative?: boolean
           kpi_id: string
           kpi_name: string
-          row_index: number
+          row_index?: number | null
           user_id: string
         }
         Update: {
@@ -1885,9 +1887,10 @@ export type Database = {
           created_by?: string | null
           id?: string
           import_profile_id?: string
+          is_relative?: boolean
           kpi_id?: string
           kpi_name?: string
-          row_index?: number
+          row_index?: number | null
           user_id?: string
         }
         Relationships: [

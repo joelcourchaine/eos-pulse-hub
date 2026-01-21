@@ -335,13 +335,16 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Save cell KPI mapping mutation (auto-save on click)
+  // Uses RELATIVE mappings: stores user_id + col_index (no row_index)
+  // This makes mappings resilient to row shifts when advisors leave
   const saveCellMappingMutation = useMutation({
     mutationFn: async (mapping: { rowIndex: number; colIndex: number; kpiId: string; kpiName: string }) => {
       if (!selectedProfileId || !selectedKpiOwnerId) throw new Error("No profile or KPI owner selected");
       
       const { data: user } = await supabase.auth.getUser();
       
-      // Upsert - use the unique constraint (import_profile_id, row_index, col_index)
+      // Use the RELATIVE unique constraint (import_profile_id, user_id, col_index)
+      // row_index is NULL for relative mappings - the row is detected dynamically during import
       const { error } = await supabase
         .from("scorecard_cell_mappings")
         .upsert({
@@ -349,16 +352,17 @@ export const ScorecardVisualMapper = () => {
           user_id: selectedKpiOwnerId,
           kpi_id: mapping.kpiId,
           kpi_name: mapping.kpiName,
-          row_index: mapping.rowIndex,
+          row_index: null, // Relative mapping - no fixed row
           col_index: mapping.colIndex,
+          is_relative: true,
           created_by: user.user?.id,
         }, {
-          onConflict: "import_profile_id,row_index,col_index",
+          onConflict: "import_profile_id,user_id,col_index",
         });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Cell mapping saved");
+      toast.success("Cell mapping saved (relative to owner)");
       queryClient.invalidateQueries({ queryKey: ["existing-cell-mappings", selectedProfileId] });
     },
     onError: (error) => {
@@ -367,15 +371,17 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Delete cell KPI mapping mutation
+  // For relative mappings, delete by user_id + col_index
   const deleteCellMappingMutation = useMutation({
-    mutationFn: async ({ rowIndex, colIndex }: { rowIndex: number; colIndex: number }) => {
-      if (!selectedProfileId) throw new Error("No profile selected");
+    mutationFn: async ({ colIndex }: { rowIndex?: number; colIndex: number }) => {
+      if (!selectedProfileId || !selectedKpiOwnerId) throw new Error("No profile or owner selected");
       
+      // Delete by user_id + col_index for relative mappings
       const { error } = await supabase
         .from("scorecard_cell_mappings")
         .delete()
         .eq("import_profile_id", selectedProfileId)
-        .eq("row_index", rowIndex)
+        .eq("user_id", selectedKpiOwnerId)
         .eq("col_index", colIndex);
       if (error) throw error;
     },
@@ -389,13 +395,15 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Load existing cell mappings into state when they're fetched
+  // Relative mappings have null row_index and are matched by userId + colIndex
   useEffect(() => {
     if (existingCellMappings && existingCellMappings.length > 0) {
       const loadedMappings: CellKpiMapping[] = existingCellMappings.map(m => ({
-        rowIndex: m.row_index,
+        rowIndex: m.row_index ?? undefined, // undefined for relative mappings
         colIndex: m.col_index,
         kpiId: m.kpi_id,
         kpiName: m.kpi_name,
+        userId: m.user_id ?? undefined, // userId for relative lookups
       }));
       setCellKpiMappings(loadedMappings);
     }
@@ -710,15 +718,27 @@ export const ScorecardVisualMapper = () => {
     kpiName: string;
   }) => {
     // Update local state immediately for responsive UI
+    // Store as relative mapping: userId + colIndex (no rowIndex)
+    const relativeMapping: CellKpiMapping = {
+      colIndex: mapping.colIndex,
+      kpiId: mapping.kpiId,
+      kpiName: mapping.kpiName,
+      userId: selectedKpiOwnerId ?? undefined,
+      // rowIndex omitted for relative mappings
+    };
+    
     setCellKpiMappings((prev) => {
       const existing = (prev ?? []).filter(Boolean);
-      const existingIdx = existing.findIndex(m => m.rowIndex === mapping.rowIndex && m.colIndex === mapping.colIndex);
+      // Match by userId + colIndex for relative mappings
+      const existingIdx = existing.findIndex(m => 
+        m.userId === selectedKpiOwnerId && m.colIndex === mapping.colIndex
+      );
       if (existingIdx >= 0) {
         const updated = [...existing];
-        updated[existingIdx] = mapping;
+        updated[existingIdx] = relativeMapping;
         return updated;
       }
-      return [...existing, mapping];
+      return [...existing, relativeMapping];
     });
     setCellPopoverOpen(false);
     setSelectedCell(null);
@@ -729,14 +749,17 @@ export const ScorecardVisualMapper = () => {
 
   const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number) => {
     // Update local state immediately
+    // For relative mappings, filter by userId + colIndex
     setCellKpiMappings((prev) => 
-      (prev ?? []).filter(Boolean).filter(m => !(m.rowIndex === rowIndex && m.colIndex === colIndex))
+      (prev ?? []).filter(Boolean).filter(m => 
+        !(m.userId === selectedKpiOwnerId && m.colIndex === colIndex)
+      )
     );
     setCellPopoverOpen(false);
     setSelectedCell(null);
     
-    // Auto-delete from database
-    deleteCellMappingMutation.mutate({ rowIndex, colIndex });
+    // Auto-delete from database (uses userId + colIndex)
+    deleteCellMappingMutation.mutate({ colIndex });
   };
 
   // Get selected KPI owner name for display
@@ -767,9 +790,11 @@ export const ScorecardVisualMapper = () => {
     return departmentKpis.filter(kpi => kpi.assigned_to === selectedKpiOwnerId);
   }, [departmentKpis, selectedKpiOwnerId]);
 
-  // Build a set of KPI IDs that have been mapped for this user
+  // Build a set of KPI IDs that have been mapped for the active owner
   const mappedKpiIds = useMemo(() => {
-    return new Set(safeCellKpiMappings.map(m => m.kpiId));
+    // Filter to only mappings for the active owner
+    const ownerMappings = safeCellKpiMappings.filter(m => m.userId === selectedKpiOwnerId);
+    return new Set(ownerMappings.map(m => m.kpiId));
   }, [safeCellKpiMappings]);
 
   // Stats
