@@ -1,6 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Check, User, BarChart3 } from "lucide-react";
+import { Check, User, BarChart3, MousePointerClick } from "lucide-react";
 
 export interface CellData {
   value: string | number | null;
@@ -44,7 +44,8 @@ interface ExcelPreviewGridProps {
   selectedRow: number | null;
   selectedCell: { rowIndex: number; colIndex: number } | null;
   headerRowIndex?: number;
-  canClickCells?: boolean; // New prop to control if cells are clickable
+  canClickCells?: boolean;
+  activeOwnerId?: string | null; // Currently selected KPI owner
 }
 
 export const ExcelPreviewGrid = ({
@@ -62,6 +63,7 @@ export const ExcelPreviewGrid = ({
   selectedCell,
   headerRowIndex = -1,
   canClickCells = false,
+  activeOwnerId = null,
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -221,6 +223,7 @@ export const ExcelPreviewGrid = ({
             const isSelectedRow = selectedRow === rowIndex;
             const isHeaderRow = rowIndex === headerRowIndex;
             const isMetadataRow = headerRowIndex > 0 && rowIndex < headerRowIndex;
+            const isActiveOwnerRow = isAdvisorRow && userInfo?.userId === activeOwnerId;
             
             return (
               <div
@@ -229,8 +232,9 @@ export const ExcelPreviewGrid = ({
                   "flex border-b hover:bg-muted/30 transition-colors",
                   isHeaderRow && "bg-amber-100 dark:bg-amber-900/30 font-semibold sticky top-10 z-[5]",
                   isMetadataRow && "bg-slate-50 dark:bg-slate-800/30 text-muted-foreground",
-                  isAdvisorRow && !isHeaderRow && "bg-blue-50 dark:bg-blue-900/20",
-                  isUserRowMapped && !isHeaderRow && "bg-green-50 dark:bg-green-900/20",
+                  isAdvisorRow && !isHeaderRow && !isActiveOwnerRow && "bg-blue-50 dark:bg-blue-900/20",
+                  isActiveOwnerRow && "bg-green-100 dark:bg-green-900/30 ring-2 ring-green-500 ring-inset",
+                  isUserRowMapped && !isHeaderRow && !isActiveOwnerRow && "bg-green-50 dark:bg-green-900/20",
                   isSelectedRow && "ring-2 ring-primary ring-inset",
                 )}
               >
@@ -272,16 +276,34 @@ export const ExcelPreviewGrid = ({
                     >
                       {isFirstCol && isAdvisorRow ? (
                         <div className="flex items-center gap-1.5">
-                          {isUserRowMapped ? (
+                          {isActiveOwnerRow ? (
+                            <MousePointerClick className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
+                          ) : isUserRowMapped ? (
                             <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
                           ) : (
                             <User className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                           )}
                           <div className="flex flex-col min-w-0">
-                            <span className="truncate font-medium">{formatCellValue(cell)}</span>
+                            <span className={cn(
+                              "truncate font-medium",
+                              isActiveOwnerRow && "text-green-800 dark:text-green-300"
+                            )}>
+                              {formatCellValue(cell)}
+                            </span>
                             {userInfo?.matchedProfileName && (
-                              <span className="text-[10px] text-green-700 dark:text-green-300 truncate">
+                              <span className={cn(
+                                "text-[10px] truncate",
+                                isActiveOwnerRow 
+                                  ? "text-green-600 dark:text-green-400 font-medium" 
+                                  : "text-green-700 dark:text-green-300"
+                              )}>
                                 → {userInfo.matchedProfileName}
+                                {isActiveOwnerRow && " (active)"}
+                              </span>
+                            )}
+                            {!isUserRowMapped && (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Click to link user
                               </span>
                             )}
                           </div>

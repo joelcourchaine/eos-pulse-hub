@@ -25,6 +25,7 @@ import {
   Trash2,
   BarChart3,
   Users,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ExcelPreviewGrid, ColumnMapping, UserMapping, CellKpiMapping } from "./ExcelPreviewGrid";
@@ -574,9 +575,21 @@ export const ScorecardVisualMapper = () => {
 
   // User mapping handlers
   const handleAdvisorClick = (rowIndex: number, advisorName: string) => {
-    setSelectedRow(rowIndex);
-    setSelectedColumn(null);
-    setUserPopoverOpen(true);
+    // Check if this advisor is already mapped to a user
+    const userMapping = safeUserMappings.find(m => m?.rowIndex === rowIndex);
+    
+    if (userMapping?.userId) {
+      // Advisor is mapped to a user - set them as active KPI owner for cell mapping
+      setSelectedKpiOwnerId(userMapping.userId);
+      setSelectedRow(null);
+      setSelectedColumn(null);
+      toast.success(`Selected ${userMapping.matchedProfileName || advisorName} as KPI owner`);
+    } else {
+      // Advisor not mapped - open the user mapping popover to link them first
+      setSelectedRow(rowIndex);
+      setSelectedColumn(null);
+      setUserPopoverOpen(true);
+    }
   };
 
   const handleUserMappingSave = (mapping: {
@@ -791,25 +804,24 @@ export const ScorecardVisualMapper = () => {
           </Select>
         </div>
         
-        <div className="space-y-1.5">
-          <Label className="text-sm">KPI Owner (for cell mapping)</Label>
-          <Select 
-            value={selectedKpiOwnerId || ""} 
-            onValueChange={setSelectedKpiOwnerId}
-            disabled={!selectedDepartmentId}
-          >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder={selectedDepartmentId ? "Select user..." : "Select department first"} />
-            </SelectTrigger>
-            <SelectContent>
-              {storeUsers?.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      {/* KPI Owner indicator - selected by clicking advisor row */}
+        {selectedKpiOwnerId && selectedKpiOwnerName && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Active KPI Owner</Label>
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+              <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="text-sm font-medium text-green-800 dark:text-green-300">{selectedKpiOwnerName}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 w-6 p-0 ml-auto text-muted-foreground hover:text-foreground"
+                onClick={() => setSelectedKpiOwnerId(null)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Drop zone or preview */}
@@ -859,8 +871,8 @@ export const ScorecardVisualMapper = () => {
                   <FileSpreadsheet className="h-5 w-5" />
                   {fileName}
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  Select a KPI Owner above, then click any cell to assign its value to a KPI
+              <CardDescription className="mt-1">
+                  Click an advisor name to select them as KPI owner, then click cells to map values
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3">
@@ -1006,6 +1018,7 @@ export const ScorecardVisualMapper = () => {
                   selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
                   headerRowIndex={parsedData.headerRowIndex}
                   canClickCells={!!selectedKpiOwnerId}
+                  activeOwnerId={selectedKpiOwnerId}
                 />
               </div>
             </div>
@@ -1033,11 +1046,11 @@ export const ScorecardVisualMapper = () => {
           <AlertDescription>
             <strong>How it works:</strong> Drop an Excel report to see a visual preview. 
             <br />
-            <strong>Step 1:</strong> Select a Store, Department, and KPI Owner from the dropdowns above.
+            <strong>Step 1:</strong> Select a Store and Department from the dropdowns above.
             <br />
-            <strong>Step 2:</strong> Click on any data cell to assign its value to one of that user's KPIs.
+            <strong>Step 2:</strong> Click on an advisor's name to link them to a user (if not already) and set them as the active KPI owner.
             <br />
-            Cell mappings allow different pay types (Customer, Warranty, Internal) in the same column to map to different KPIs.
+            <strong>Step 3:</strong> Click on any data cell to assign its value to one of that owner's KPIs.
           </AlertDescription>
         </Alert>
       )}
