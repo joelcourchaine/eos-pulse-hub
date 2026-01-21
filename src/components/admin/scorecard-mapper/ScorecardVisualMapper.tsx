@@ -1041,9 +1041,7 @@ export const ScorecardVisualMapper = () => {
                 userKpis={userAssignedKpis || []}
                 onSave={handleCellKpiMappingSave}
                 onRemove={handleCellKpiMappingRemove}
-              >
-                <span />
-              </CellKpiMappingPopover>
+              />
             )}
 
             <div className="flex gap-4">
