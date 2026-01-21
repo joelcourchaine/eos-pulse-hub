@@ -45,6 +45,7 @@ export const ScorecardVisualMapper = () => {
   
   // State
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedExcelData | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -93,6 +94,22 @@ export const ScorecardVisualMapper = () => {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch departments for selected store
+  const { data: storeDepartments } = useQuery({
+    queryKey: ["store-departments-for-mapper", selectedStoreId],
+    queryFn: async () => {
+      if (!selectedStoreId) return [];
+      const { data, error } = await supabase
+        .from("departments")
+        .select("id, name")
+        .eq("store_id", selectedStoreId)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedStoreId,
   });
 
   // Fetch store users
@@ -565,21 +582,27 @@ export const ScorecardVisualMapper = () => {
   const selectedCellOwnerMapping = selectedCell ? getOwningAdvisorForCell(selectedCell.rowIndex) : null;
   const selectedCellOwnerUserId = selectedCellOwnerMapping?.userId;
 
-  // Fetch KPIs assigned to the selected cell's owner user
-  const { data: userAssignedKpis } = useQuery({
-    queryKey: ["user-assigned-kpis", selectedCellOwnerUserId],
+  // Fetch KPIs for the selected department (scoped to department, not just user)
+  const { data: departmentKpis } = useQuery({
+    queryKey: ["department-kpis-for-mapper", selectedDepartmentId],
     queryFn: async () => {
-      if (!selectedCellOwnerUserId) return [];
+      if (!selectedDepartmentId) return [];
       const { data, error } = await supabase
         .from("kpi_definitions")
-        .select("id, name, metric_type")
-        .eq("assigned_to", selectedCellOwnerUserId)
+        .select("id, name, metric_type, assigned_to")
+        .eq("department_id", selectedDepartmentId)
         .order("name");
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedCellOwnerUserId,
+    enabled: !!selectedDepartmentId,
   });
+
+  // Filter department KPIs to those assigned to the cell's owner user
+  const userAssignedKpis = useMemo(() => {
+    if (!departmentKpis || !selectedCellOwnerUserId) return [];
+    return departmentKpis.filter(kpi => kpi.assigned_to === selectedCellOwnerUserId);
+  }, [departmentKpis, selectedCellOwnerUserId]);
 
   // Stats
   const mappedColumnsCount = safeColumnMappings.filter((m) => m?.targetKpiName).length;
@@ -605,7 +628,13 @@ export const ScorecardVisualMapper = () => {
       <div className="flex flex-wrap gap-4">
         <div className="space-y-1.5">
           <Label className="text-sm">Store</Label>
-          <Select value={selectedStoreId || ""} onValueChange={setSelectedStoreId}>
+          <Select 
+            value={selectedStoreId || ""} 
+            onValueChange={(value) => {
+              setSelectedStoreId(value);
+              setSelectedDepartmentId(null); // Reset department when store changes
+            }}
+          >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Select store..." />
             </SelectTrigger>
@@ -613,6 +642,26 @@ export const ScorecardVisualMapper = () => {
               {stores?.map((store) => (
                 <SelectItem key={store.id} value={store.id}>
                   {store.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-1.5">
+          <Label className="text-sm">Department</Label>
+          <Select 
+            value={selectedDepartmentId || ""} 
+            onValueChange={setSelectedDepartmentId}
+            disabled={!selectedStoreId}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder={selectedStoreId ? "Select department..." : "Select store first"} />
+            </SelectTrigger>
+            <SelectContent>
+              {storeDepartments?.map((dept) => (
+                <SelectItem key={dept.id} value={dept.id}>
+                  {dept.name}
                 </SelectItem>
               ))}
             </SelectContent>
