@@ -609,19 +609,21 @@ const loadData = async () => {
     const header = headerRowRef.current;
     if (!header) return;
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Show top scrollbar when header is NOT intersecting (scrolled out of view)
-        setShowTopScrollbar(!entry.isIntersecting);
-      },
-      { 
-        threshold: 0, 
-        // Account for any fixed nav/header at the top (approximately 64px)
-        rootMargin: "-64px 0px 0px 0px" 
-      }
-    );
-    observer.observe(header);
-    return () => observer.disconnect();
+    const checkVisibility = () => {
+      const rect = header.getBoundingClientRect();
+      // Header is "out of view" if its bottom is above the viewport top (with nav offset)
+      const isOutOfView = rect.bottom < 72;
+      setShowTopScrollbar(isOutOfView);
+    };
+
+    // Check on scroll
+    window.addEventListener('scroll', checkVisibility, { passive: true });
+    // Initial check
+    checkVisibility();
+    
+    return () => {
+      window.removeEventListener('scroll', checkVisibility);
+    };
   }, []);
 
   // Infinite scroll handler for weekly/monthly view - load previous quarter when scrolling to left edge
@@ -4800,8 +4802,8 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 <div className="pointer-events-auto">
                   <div
                     ref={topScrollRef}
-                    className="overflow-x-auto bg-muted/80 border rounded-lg shadow-md backdrop-blur-sm"
-                    style={{ height: "16px" }}
+                    className="overflow-x-auto bg-primary/10 border-2 border-primary/30 rounded-lg shadow-lg backdrop-blur-sm"
+                    style={{ height: "18px" }}
                     onScroll={handleTopScroll}
                   >
                     <div style={{ width: tableWidth, height: "1px" }} />
@@ -4816,13 +4818,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             createPortal(
               <div
                 className="pointer-events-none"
-                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, bottom: 8, zIndex: 9999 }}
+                style={{ position: "fixed", left: scrollbarRect.left, width: scrollbarRect.width, bottom: 12, zIndex: 9999 }}
               >
                 <div className="pointer-events-auto">
                   <div
                     ref={stickyScrollRef}
-                    className="overflow-x-auto bg-muted/50 border rounded-lg"
-                    style={{ height: "16px" }}
+                    className="overflow-x-auto bg-primary/10 border-2 border-primary/30 rounded-lg shadow-lg"
+                    style={{ height: "18px" }}
                     onScroll={handleStickyScroll}
                   >
                     <div style={{ width: tableWidth, height: "1px" }} />
