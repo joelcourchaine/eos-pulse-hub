@@ -253,10 +253,21 @@ export const ExcelPreviewGrid = ({
                   const isCellMapped = !!cellMapping;
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
-                  // Check if this cell contains an "Advisor" pattern (e.g., "Advisor 1099 - Kayla Bender")
-                  // More flexible pattern: allows "Advisor" anywhere, various separators, flexible spacing
-                  const cellStr = String(cell || "").trim();
-                  const isAdvisorCell = /Advisor\s*\d+\s*[-–—:]\s*\S/i.test(cellStr);
+                  // Detect owner/advisor name cells.
+                  // Reports vary a lot (extra columns, metadata blocks, inconsistent spacing), so we normalize first.
+                  // Examples we want to match:
+                  // - "Advisor 1099 - Kayla Bender"
+                  // - "Advisor: 1099 - Kayla Bender"
+                  // - "Service Advisor 1099 - Kayla Bender"
+                  const cellStr = String(cell ?? "");
+                  const normalized = cellStr.replace(/\s+/g, " ").trim();
+                  const hasAdvisorWord = /\badvisor\b/i.test(normalized);
+                  const hasSeparator = /[-–—:]/.test(normalized);
+                  const hasNameAfterSeparator = hasSeparator
+                    ? /[-–—:]/.test(normalized) && /\S/.test(normalized.split(/[-–—:]/).slice(1).join("-").trim())
+                    : false;
+
+                  const isAdvisorCell = hasAdvisorWord && hasSeparator && hasNameAfterSeparator;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
                   // But NOT on advisor cells - those are for owner selection, and not header row
