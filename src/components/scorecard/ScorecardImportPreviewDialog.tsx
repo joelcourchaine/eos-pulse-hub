@@ -51,21 +51,6 @@ export const ScorecardImportPreviewDialog = ({
   const [isMatching, setIsMatching] = useState(true);
   const { toast } = useToast();
 
-  // Fetch store users for manual matching
-  const { data: storeUsers } = useQuery({
-    queryKey: ["store-users-for-import", storeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, role")
-        .eq("store_id", storeId)
-        .order("full_name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: open,
-  });
-
   // Fetch KPI definitions for this department
   const { data: kpiDefinitions } = useQuery({
     queryKey: ["kpi-definitions-for-import", departmentId],
@@ -89,6 +74,28 @@ export const ScorecardImportPreviewDialog = ({
         .select("id, group_id")
         .eq("id", storeId)
         .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!storeId,
+  });
+
+  // Fetch store users for manual matching (store OR store group)
+  const { data: storeUsers } = useQuery({
+    queryKey: ["store-users-for-import", storeId, storeData?.group_id],
+    queryFn: async () => {
+      let query = supabase
+        .from("profiles")
+        .select("id, full_name, role, store_id, store_group_id")
+        .order("full_name");
+
+      if (storeData?.group_id) {
+        query = query.or(`store_id.eq.${storeId},store_group_id.eq.${storeData.group_id}`);
+      } else {
+        query = query.eq("store_id", storeId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -145,8 +152,9 @@ export const ScorecardImportPreviewDialog = ({
         const displayNames = parseResult.advisors.map(a => a.displayName);
         const rawNames = parseResult.advisors.map(a => a.rawName);
         
-        // Pass both displayNames and rawNames for better alias matching
-        const matches = await matchUsersByNames(displayNames, storeId, rawNames);
+        // Pass both displayNames and rawNames for better alias matching,
+        // and include store group to widen candidate user pool.
+        const matches = await matchUsersByNames(displayNames, storeId, rawNames, storeData?.group_id);
         
         const advisorMatches: AdvisorMatch[] = parseResult.advisors.map(advisor => {
           const match = matches.get(advisor.displayName);
@@ -169,7 +177,7 @@ export const ScorecardImportPreviewDialog = ({
     };
     
     matchAdvisors();
-  }, [open, parseResult.advisors, storeId]);
+  }, [open, parseResult.advisors, storeId, storeData?.group_id]);
 
   const handleUserSelect = (advisorIndex: number, userId: string) => {
     setAdvisorMatches(prev => {
