@@ -1045,48 +1045,92 @@ export const ScorecardVisualMapper = () => {
               />
             )}
 
-            <div className="flex gap-4">
-              {/* KPI List Panel - show when owner is selected */}
+            <div className="flex gap-4 relative">
+              {/* KPI List Panel - STICKY on left side when owner is selected */}
               {selectedKpiOwnerId && (
-                <div className="w-64 shrink-0 border rounded-lg p-3 bg-muted/30">
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b">
-                    <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{selectedKpiOwnerName}'s KPIs</span>
-                  </div>
-                  {userAssignedKpis.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">
-                      No KPIs assigned to this user in this department.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1.5 max-h-[400px] overflow-y-auto">
-                      {userAssignedKpis.map((kpi) => {
-                        const isMapped = mappedKpiIds.has(kpi.id);
-                        return (
-                          <li
-                            key={kpi.id}
-                            className={cn(
-                              "flex items-center gap-2 text-xs p-1.5 rounded",
-                              isMapped 
-                                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300" 
-                                : "bg-background"
-                            )}
-                          >
-                            {isMapped ? (
-                              <Check className="h-3 w-3 shrink-0" />
-                            ) : (
-                              <div className="h-3 w-3 shrink-0 rounded-full border border-muted-foreground/40" />
-                            )}
-                            <span className="truncate">{kpi.name}</span>
-                            <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0">
-                              {kpi.metric_type}
-                            </Badge>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                  <div className="mt-3 pt-2 border-t text-xs text-muted-foreground">
-                    {userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length}/{userAssignedKpis.length} mapped
+                <div className="w-72 shrink-0 sticky top-0 self-start max-h-[calc(100vh-200px)]">
+                  <div className="border rounded-lg p-4 bg-card shadow-lg">
+                    <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+                      <div className="p-1.5 bg-primary/10 rounded">
+                        <BarChart3 className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold">{selectedKpiOwnerName}</div>
+                        <div className="text-[10px] text-muted-foreground">KPIs to map</div>
+                      </div>
+                    </div>
+                    
+                    {userAssignedKpis.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic p-3 bg-amber-50 dark:bg-amber-900/20 rounded">
+                        No KPIs assigned to this user in this department.
+                      </p>
+                    ) : (
+                      <>
+                        {/* Unmapped KPIs - highlighted */}
+                        {userAssignedKpis.filter(k => !mappedKpiIds.has(k.id)).length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-[10px] uppercase tracking-wide text-amber-600 dark:text-amber-400 font-semibold mb-2 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Need Mapping ({userAssignedKpis.filter(k => !mappedKpiIds.has(k.id)).length})
+                            </div>
+                            <ul className="space-y-1">
+                              {userAssignedKpis.filter(k => !mappedKpiIds.has(k.id)).map((kpi) => (
+                                <li
+                                  key={kpi.id}
+                                  className="flex items-center gap-2 text-xs p-2 rounded bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+                                >
+                                  <div className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-amber-500" />
+                                  <span className="truncate font-medium">{kpi.name}</span>
+                                  <Badge variant="outline" className="ml-auto text-[10px] px-1 py-0 shrink-0">
+                                    {kpi.metric_type}
+                                  </Badge>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        {/* Mapped KPIs */}
+                        {userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-green-600 dark:text-green-400 font-semibold mb-2 flex items-center gap-1">
+                              <Check className="h-3 w-3" />
+                              Mapped ({userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length})
+                            </div>
+                            <ul className="space-y-1 max-h-32 overflow-y-auto">
+                              {userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).map((kpi) => (
+                                <li
+                                  key={kpi.id}
+                                  className="flex items-center gap-2 text-xs p-1.5 rounded bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                                >
+                                  <Check className="h-3 w-3 shrink-0" />
+                                  <span className="truncate">{kpi.name}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
+                    <div className="mt-4 pt-3 border-t flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">Progress</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-green-500 transition-all"
+                            style={{ 
+                              width: `${userAssignedKpis.length > 0 
+                                ? (userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length / userAssignedKpis.length) * 100 
+                                : 0}%` 
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium">
+                          {userAssignedKpis.filter(k => mappedKpiIds.has(k.id)).length}/{userAssignedKpis.length}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
