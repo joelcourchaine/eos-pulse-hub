@@ -40,12 +40,13 @@ interface ExcelPreviewGridProps {
   onColumnClick: (colIndex: number, header: string) => void;
   onAdvisorClick: (rowIndex: number, advisorName: string) => void;
   onCellClick: (rowIndex: number, colIndex: number, cellValue: string | number | null, header: string) => void;
+  onFirstColClick?: (rowIndex: number, cellValue: string) => void; // Click any first column cell
   selectedColumn: number | null;
   selectedRow: number | null;
   selectedCell: { rowIndex: number; colIndex: number } | null;
   headerRowIndex?: number;
   canClickCells?: boolean;
-  activeOwnerId?: string | null; // Currently selected KPI owner
+  activeOwnerId?: string | null;
 }
 
 export const ExcelPreviewGrid = ({
@@ -58,6 +59,7 @@ export const ExcelPreviewGrid = ({
   onColumnClick,
   onAdvisorClick,
   onCellClick,
+  onFirstColClick,
   selectedColumn,
   selectedRow,
   selectedCell,
@@ -254,6 +256,9 @@ export const ExcelPreviewGrid = ({
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
                   const canMapCell = canClickCells && !isAdvisorRow && !isHeaderRow && !isMetadataRow;
                   
+                  // First column cells are clickable (except header/metadata) to select as owner
+                  const canSelectAsOwner = isFirstCol && !isHeaderRow && !isMetadataRow && String(cell || "").trim() !== "";
+                  
                   return (
                     <div
                       key={colIndex}
@@ -261,20 +266,20 @@ export const ExcelPreviewGrid = ({
                         "min-w-[120px] max-w-[180px] p-2 border-r text-sm truncate",
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
-                        isFirstCol && isAdvisorRow && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
-                        canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                        canSelectAsOwner && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
+                        canMapCell && !isFirstCol && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
                         isCellMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
                         isSelectedCell && "ring-2 ring-primary ring-inset",
                       )}
                       onClick={() => {
-                        if (isFirstCol && isAdvisorRow) {
-                          onAdvisorClick(rowIndex, String(cell));
+                        if (canSelectAsOwner && onFirstColClick) {
+                          onFirstColClick(rowIndex, String(cell || ""));
                         } else if (canMapCell) {
                           onCellClick(rowIndex, colIndex, cell, headers[colIndex] || "");
                         }
                       }}
                     >
-                      {isFirstCol && isAdvisorRow ? (
+                      {isFirstCol && canSelectAsOwner ? (
                         <div className="flex items-center gap-1.5">
                           {isActiveOwnerRow ? (
                             <MousePointerClick className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
@@ -301,9 +306,9 @@ export const ExcelPreviewGrid = ({
                                 {isActiveOwnerRow && " (active)"}
                               </span>
                             )}
-                            {!isUserRowMapped && (
+                            {!isUserRowMapped && !isActiveOwnerRow && (
                               <span className="text-[10px] text-muted-foreground italic">
-                                Click to link user
+                                Click to select owner
                               </span>
                             )}
                           </div>

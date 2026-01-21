@@ -573,23 +573,41 @@ export const ScorecardVisualMapper = () => {
     setSelectedColumn(null);
   };
 
-  // User mapping handlers
-  const handleAdvisorClick = (rowIndex: number, advisorName: string) => {
-    // Check if this advisor is already mapped to a user
+  // First column click handler - for selecting any cell as a KPI owner
+  const handleFirstColClick = (rowIndex: number, cellValue: string) => {
+    // Check if this row is already mapped to a user
     const userMapping = safeUserMappings.find(m => m?.rowIndex === rowIndex);
     
     if (userMapping?.userId) {
-      // Advisor is mapped to a user - set them as active KPI owner for cell mapping
+      // Already mapped - set as active KPI owner
       setSelectedKpiOwnerId(userMapping.userId);
       setSelectedRow(null);
       setSelectedColumn(null);
-      toast.success(`Selected ${userMapping.matchedProfileName || advisorName} as KPI owner`);
+      toast.success(`Selected ${userMapping.matchedProfileName || cellValue} as KPI owner`);
     } else {
-      // Advisor not mapped - open the user mapping popover to link them first
+      // Not mapped - open popover to link this cell to a user
+      // First, add this row to userMappings if not present
+      const existingMapping = safeUserMappings.find(m => m?.rowIndex === rowIndex);
+      if (!existingMapping) {
+        setUserMappings(prev => [
+          ...(prev ?? []).filter(Boolean),
+          {
+            rowIndex,
+            advisorName: cellValue,
+            userId: null,
+            matchedProfileName: null,
+          }
+        ]);
+      }
       setSelectedRow(rowIndex);
       setSelectedColumn(null);
       setUserPopoverOpen(true);
     }
+  };
+
+  // Legacy advisor click handler (kept for compatibility)
+  const handleAdvisorClick = (rowIndex: number, advisorName: string) => {
+    handleFirstColClick(rowIndex, advisorName);
   };
 
   const handleUserMappingSave = (mapping: {
@@ -727,13 +745,14 @@ export const ScorecardVisualMapper = () => {
     const existing = safeUserMappings.find((m) => m?.rowIndex === selectedRow);
     if (existing) return existing;
     
-    // If not found but row is an advisor row, create a temp mapping from parsedData
-    if (parsedData) {
-      const advisorInfo = parsedData.advisorNames.find(a => a.rowIndex === selectedRow);
-      if (advisorInfo) {
+    // If not found, create a temp mapping from the row data
+    if (parsedData && parsedData.rows[selectedRow]) {
+      const firstCell = parsedData.rows[selectedRow][0];
+      const cellValue = String(firstCell || "").trim();
+      if (cellValue) {
         return {
           rowIndex: selectedRow,
-          advisorName: advisorInfo.name,
+          advisorName: cellValue,
           userId: null,
           matchedProfileName: null,
         };
@@ -1017,6 +1036,7 @@ export const ScorecardVisualMapper = () => {
                   onColumnClick={handleColumnClick}
                   onAdvisorClick={handleAdvisorClick}
                   onCellClick={handleCellClick}
+                  onFirstColClick={handleFirstColClick}
                   selectedColumn={selectedColumn}
                   selectedRow={selectedRow}
                   selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
