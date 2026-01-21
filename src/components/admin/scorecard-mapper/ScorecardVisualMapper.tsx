@@ -114,61 +114,34 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedStoreId,
   });
 
-  // Fetch store users - include users from store, store group, and KPI owners with null store
+  // Get the selected profile's role type for filtering users
+  const selectedProfile = useMemo(() => {
+    return profiles?.find(p => p.id === selectedProfileId);
+  }, [profiles, selectedProfileId]);
+
+  // Fetch store users - filter by store AND role type from the import profile
   const { data: storeUsers } = useQuery({
-    queryKey: ["store-users-for-mapper", selectedStoreId, selectedDepartmentId],
+    queryKey: ["store-users-for-mapper", selectedStoreId, selectedProfile?.role_type],
     queryFn: async () => {
       if (!selectedStoreId) return [];
       
-      // Get the store's group_id first
-      const { data: store } = await supabase
-        .from("stores")
-        .select("group_id")
-        .eq("id", selectedStoreId)
-        .single();
+      // Build query for users assigned to this store with matching role
+      const roleType = selectedProfile?.role_type as "service_advisor" | "technician" | "parts_advisor" | "sales_advisor" | undefined;
       
-      // Get users directly assigned to store
-      const { data: storeUsersDirect } = await supabase
+      let query = supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, role")
         .eq("store_id", selectedStoreId);
       
-      // Get users assigned to the store group
-      let groupUsers: { id: string; full_name: string | null }[] = [];
-      if (store?.group_id) {
-        const { data: groupData } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .eq("store_group_id", store.group_id);
-        groupUsers = groupData || [];
+      // Filter by role type if the profile specifies one
+      if (roleType) {
+        query = query.eq("role", roleType);
       }
       
-      // Get KPI owners for departments in this store (may have null store_id)
-      let kpiOwners: { id: string; full_name: string | null }[] = [];
-      if (selectedDepartmentId) {
-        const { data: kpiData } = await supabase
-          .from("kpi_definitions")
-          .select("assigned_to")
-          .eq("department_id", selectedDepartmentId)
-          .not("assigned_to", "is", null);
-        
-        const ownerIds = [...new Set(kpiData?.map(k => k.assigned_to).filter(Boolean) || [])];
-        if (ownerIds.length > 0) {
-          const { data: ownerProfiles } = await supabase
-            .from("profiles")
-            .select("id, full_name")
-            .in("id", ownerIds);
-          kpiOwners = ownerProfiles || [];
-        }
-      }
+      const { data, error } = await query.order("full_name");
+      if (error) throw error;
       
-      // Combine and dedupe by id
-      const allUsers = [...(storeUsersDirect || []), ...groupUsers, ...kpiOwners];
-      const uniqueUsers = Array.from(
-        new Map(allUsers.map(u => [u.id, u])).values()
-      ).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
-      
-      return uniqueUsers;
+      return data || [];
     },
     enabled: !!selectedStoreId,
   });
