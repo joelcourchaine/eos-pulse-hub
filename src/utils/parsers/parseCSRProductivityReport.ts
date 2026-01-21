@@ -41,10 +41,11 @@ export interface CSRParseResult {
 
 /**
  * Extract advisor name and ID from header like "Advisor 1099 - Kayla Bender"
+ * Also handles alphanumeric IDs like "Advisor AR - Amanda Ritchot" or "Advisor CHRISM - Chris Mark"
  */
 const parseAdvisorHeader = (header: string): { displayName: string; employeeId: string } | null => {
-  // Match pattern: "Advisor XXXX - Name"
-  const match = header.match(/Advisor\s+(\d+)\s*-\s*(.+)/i);
+  // Match pattern: "Advisor XXXX - Name" where XXXX can be alphanumeric
+  const match = header.match(/Advisor\s+([A-Za-z0-9]+)\s*-\s*(.+)/i);
   if (match) {
     return {
       employeeId: match[1],
