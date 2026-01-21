@@ -1039,6 +1039,7 @@ export const ScorecardVisualMapper = () => {
                 advisorName={selectedKpiOwnerName || "Selected User"}
                 currentKpiId={currentCellMapping?.kpiId || null}
                 userKpis={userAssignedKpis || []}
+                mappedKpiIds={mappedKpiIds}
                 onSave={handleCellKpiMappingSave}
                 onRemove={handleCellKpiMappingRemove}
               />
