@@ -80,6 +80,53 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open,
   });
 
+  // Fetch the store's group to find the right import profile
+  const { data: storeData } = useQuery({
+    queryKey: ["store-group-for-import", storeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stores")
+        .select("id, group_id")
+        .eq("id", storeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!storeId,
+  });
+
+  // Fetch the active import profile for this store group
+  const { data: importProfile } = useQuery({
+    queryKey: ["import-profile-for-store", storeData?.group_id],
+    queryFn: async () => {
+      if (!storeData?.group_id) return null;
+      const { data, error } = await supabase
+        .from("scorecard_import_profiles")
+        .select("*")
+        .eq("store_group_id", storeData.group_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!storeData?.group_id,
+  });
+
+  // Fetch cell mappings from Visual Mapper for this import profile
+  const { data: cellMappings } = useQuery({
+    queryKey: ["cell-mappings-for-import", importProfile?.id],
+    queryFn: async () => {
+      if (!importProfile?.id) return [];
+      const { data, error } = await supabase
+        .from("scorecard_cell_mappings")
+        .select("*")
+        .eq("import_profile_id", importProfile.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!importProfile?.id,
+  });
+
   // Match advisors to users on mount
   useEffect(() => {
     const matchAdvisors = async () => {
@@ -157,7 +204,22 @@ export const ScorecardImportPreviewDialog = ({
         actual_value: number;
       }[] = [];
 
-      // Process department totals first
+      // Build a lookup of cell mappings by user_id -> col_index -> kpi_id
+      const userCellMappingsLookup = new Map<string, Map<number, string>>();
+      if (cellMappings && cellMappings.length > 0) {
+        for (const cm of cellMappings) {
+          if (!cm.user_id) continue;
+          if (!userCellMappingsLookup.has(cm.user_id)) {
+            userCellMappingsLookup.set(cm.user_id, new Map());
+          }
+          userCellMappingsLookup.get(cm.user_id)!.set(cm.col_index, cm.kpi_id);
+        }
+      }
+
+      const hasCellMappings = userCellMappingsLookup.size > 0;
+      console.log("[Import] Using Visual Mapper cell mappings:", hasCellMappings, "- users with mappings:", userCellMappingsLookup.size);
+
+      // Process department totals first (these still use standard mappings)
       if (kpiDefinitions) {
         // Map column names to KPIs for "total" pay type
         for (const [columnName, value] of Object.entries(parseResult.departmentTotals.total)) {
@@ -200,36 +262,67 @@ export const ScorecardImportPreviewDialog = ({
           const assignedUserId = match.selectedUserId || match.userId;
           if (!assignedUserId) continue;
 
-          // Find KPIs assigned to this user
-          const userKpis = kpiDefinitions.filter(k => k.assigned_to === assignedUserId);
+          // Check if this user has Visual Mapper cell mappings
+          const userColMappings = userCellMappingsLookup.get(assignedUserId);
           
-          // Map advisor metrics to their KPIs
-          for (const [columnName, value] of Object.entries(match.advisor.metrics.total)) {
-            const kpiName = getStandardKpiName(columnName, "total");
-            if (kpiName) {
-              const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
-              if (kpi) {
-                entriesToUpsert.push({
-                  kpi_id: kpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+          if (userColMappings && userColMappings.size > 0) {
+            // USE VISUAL MAPPER MAPPINGS: Extract values by column index
+            console.log(`[Import] Using Visual Mapper for ${match.advisor.displayName}: ${userColMappings.size} column mappings`);
+            
+            // metricsByIndex contains data keyed by column index
+            // We need to check all pay types (total is typically what we want for "Total Hours", etc.)
+            const allPayTypes = ['total', 'customer', 'warranty', 'internal'] as const;
+            
+            for (const payType of allPayTypes) {
+              const metricsByIdx = match.advisor.metricsByIndex[payType];
+              if (!metricsByIdx) continue;
+              
+              for (const [colIndexStr, value] of Object.entries(metricsByIdx)) {
+                const colIndex = parseInt(colIndexStr, 10);
+                const kpiId = userColMappings.get(colIndex);
+                
+                if (kpiId && typeof value === 'number') {
+                  entriesToUpsert.push({
+                    kpi_id: kpiId,
+                    month,
+                    entry_type: "monthly",
+                    actual_value: value,
+                  });
+                }
               }
             }
-          }
+          } else {
+            // FALLBACK: Use standard column name mappings (legacy behavior)
+            const userKpis = kpiDefinitions.filter(k => k.assigned_to === assignedUserId);
+            
+            // Map advisor metrics to their KPIs by column name
+            for (const [columnName, value] of Object.entries(match.advisor.metrics.total)) {
+              const kpiName = getStandardKpiName(columnName, "total");
+              if (kpiName) {
+                const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+                if (kpi) {
+                  entriesToUpsert.push({
+                    kpi_id: kpi.id,
+                    month,
+                    entry_type: "monthly",
+                    actual_value: value,
+                  });
+                }
+              }
+            }
 
-          for (const [columnName, value] of Object.entries(match.advisor.metrics.customer)) {
-            const kpiName = getStandardKpiName(columnName, "customer");
-            if (kpiName) {
-              const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
-              if (kpi) {
-                entriesToUpsert.push({
-                  kpi_id: kpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+            for (const [columnName, value] of Object.entries(match.advisor.metrics.customer)) {
+              const kpiName = getStandardKpiName(columnName, "customer");
+              if (kpiName) {
+                const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+                if (kpi) {
+                  entriesToUpsert.push({
+                    kpi_id: kpi.id,
+                    month,
+                    entry_type: "monthly",
+                    actual_value: value,
+                  });
+                }
               }
             }
           }
@@ -308,6 +401,16 @@ export const ScorecardImportPreviewDialog = ({
             {parseResult.storeName} • {formatMonth(month)}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Visual Mapper indicator */}
+        {cellMappings && cellMappings.length > 0 && (
+          <div className="flex items-center gap-2 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+            <Check className="h-5 w-5 text-purple-600" />
+            <span className="text-sm">
+              Using Visual Mapper configuration ({cellMappings.length} column mappings)
+            </span>
+          </div>
+        )}
 
         {/* Warnings */}
         {unmatchedCount > 0 && (

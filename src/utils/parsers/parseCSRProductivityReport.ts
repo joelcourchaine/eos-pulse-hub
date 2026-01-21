@@ -12,11 +12,20 @@ export interface PayTypeMetrics {
   total: Record<string, number>;
 }
 
+// Metrics indexed by column index for Visual Mapper integration
+export interface PayTypeMetricsByIndex {
+  customer: Record<number, number>;
+  warranty: Record<number, number>;
+  internal: Record<number, number>;
+  total: Record<number, number>;
+}
+
 export interface AdvisorData {
   rawName: string; // "Advisor 1099 - Kayla Bender"
   displayName: string; // "Kayla Bender"
   employeeId: string; // "1099"
   metrics: PayTypeMetrics;
+  metricsByIndex: PayTypeMetricsByIndex; // Same data but keyed by column index
 }
 
 export interface CSRParseResult {
@@ -25,7 +34,9 @@ export interface CSRParseResult {
   month: string; // "2026-01"
   advisors: AdvisorData[];
   departmentTotals: PayTypeMetrics;
+  departmentTotalsByIndex: PayTypeMetricsByIndex; // Same data but keyed by column index
   columnHeaders: string[];
+  columnHeadersWithIndex: Array<{ header: string; index: number }>; // Headers with their column indices
 }
 
 /**
@@ -234,6 +245,13 @@ export const parseCSRProductivityReport = (
           internal: {},
           total: {}
         };
+        // Also track metrics by column index for Visual Mapper integration
+        let departmentTotalsByIndex: PayTypeMetricsByIndex = {
+          customer: {},
+          warranty: {},
+          internal: {},
+          total: {}
+        };
         let inDepartmentTotals = false;
         
         for (let i = headerInfo.rowIndex + 1; i < rows.length; i++) {
@@ -255,6 +273,12 @@ export const parseCSRProductivityReport = (
               displayName: advisorInfo.displayName,
               employeeId: advisorInfo.employeeId,
               metrics: {
+                customer: {},
+                warranty: {},
+                internal: {},
+                total: {}
+              },
+              metricsByIndex: {
                 customer: {},
                 warranty: {},
                 internal: {},
@@ -281,7 +305,8 @@ export const parseCSRProductivityReport = (
           const payType = getPayType(row, headerInfo.payTypeIndex);
           if (payType) {
             const metrics = inDepartmentTotals ? departmentTotals : currentAdvisor?.metrics;
-            if (metrics) {
+            const metricsByIdx = inDepartmentTotals ? departmentTotalsByIndex : currentAdvisor?.metricsByIndex;
+            if (metrics && metricsByIdx) {
               // Extract values for each column
               headerInfo.headers.forEach((header, colIndex) => {
                 if (colIndex === headerInfo.payTypeIndex) return;
@@ -292,7 +317,10 @@ export const parseCSRProductivityReport = (
                   // Skip empty headers
                   if (!normalizedHeader || normalizedHeader === "pay type") return;
                   
+                  // Store by header name (original behavior)
                   (metrics[payType as keyof PayTypeMetrics] as Record<string, number>)[header] = value;
+                  // Also store by column index (for Visual Mapper integration)
+                  (metricsByIdx[payType as keyof PayTypeMetricsByIndex] as Record<number, number>)[colIndex] = value;
                 }
               });
             }
@@ -311,15 +339,22 @@ export const parseCSRProductivityReport = (
         const month = dateInfo?.month || 
           `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
         
+        // Build column headers with index for Visual Mapper integration
+        const columnHeadersWithIndex = headerInfo.headers
+          .map((header, index) => ({ header, index }))
+          .filter(h => h.header.toLowerCase().trim() !== "pay type" && h.header.trim() !== "");
+        
         resolve({
           storeName,
           dateRange: dateInfo ? { start: dateInfo.start, end: dateInfo.end } : null,
           month,
           advisors,
           departmentTotals,
+          departmentTotalsByIndex,
           columnHeaders: headerInfo.headers.filter(h => 
             h.toLowerCase().trim() !== "pay type" && h.trim() !== ""
-          )
+          ),
+          columnHeadersWithIndex
         });
         
       } catch (error) {
