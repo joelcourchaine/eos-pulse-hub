@@ -614,9 +614,26 @@ export const ScorecardVisualMapper = () => {
     ? safeColumnMappings.find((m) => m?.columnIndex === selectedColumn)
     : null;
   
-  const currentUserMapping = selectedRow !== null
-    ? safeUserMappings.find((m) => m?.rowIndex === selectedRow)
-    : null;
+  // For user mapping: if we have a selected row, try to find the mapping or create a temporary one
+  const currentUserMapping = useMemo(() => {
+    if (selectedRow === null) return null;
+    const existing = safeUserMappings.find((m) => m?.rowIndex === selectedRow);
+    if (existing) return existing;
+    
+    // If not found but row is an advisor row, create a temp mapping from parsedData
+    if (parsedData) {
+      const advisorInfo = parsedData.advisorNames.find(a => a.rowIndex === selectedRow);
+      if (advisorInfo) {
+        return {
+          rowIndex: selectedRow,
+          advisorName: advisorInfo.name,
+          userId: null,
+          matchedProfileName: null,
+        };
+      }
+    }
+    return null;
+  }, [selectedRow, safeUserMappings, parsedData]);
 
   const currentCellMapping = selectedCell 
     ? safeCellKpiMappings.find(m => m.rowIndex === selectedCell.rowIndex && m.colIndex === selectedCell.colIndex)
