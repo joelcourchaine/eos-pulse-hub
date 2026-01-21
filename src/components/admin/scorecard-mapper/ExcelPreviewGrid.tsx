@@ -205,10 +205,11 @@ export const ExcelPreviewGrid = ({
             </div>
             
             {headers.map((header, colIndex) => {
+              const headerStr = String(header ?? "").trim();
               const isMapped = isColumnMapped(colIndex);
               const mappingInfo = getColumnMappingInfo(colIndex);
               const isSelected = selectedColumn === colIndex;
-              const isClickable = header.toLowerCase() !== "pay type" && header.trim() !== "";
+              const isClickable = headerStr.toLowerCase() !== "pay type" && headerStr !== "";
               
               return (
                 <div
@@ -219,7 +220,7 @@ export const ExcelPreviewGrid = ({
                     isMapped && "bg-green-100 dark:bg-green-900/30",
                     isSelected && "ring-2 ring-primary ring-inset",
                   )}
-                  onClick={() => isClickable && onColumnClick(colIndex, header)}
+                  onClick={() => isClickable && onColumnClick(colIndex, headerStr)}
                 >
                   <div className="flex items-center gap-1.5">
                     {isMapped ? (
@@ -227,7 +228,7 @@ export const ExcelPreviewGrid = ({
                     ) : isClickable ? (
                       <BarChart3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     ) : null}
-                    <span className="text-xs font-semibold truncate">{header}</span>
+                    <span className="text-xs font-semibold truncate">{headerStr}</span>
                   </div>
                   {mappingInfo?.targetKpiName && (
                     <div className="text-[10px] text-green-700 dark:text-green-300 mt-0.5 truncate">
