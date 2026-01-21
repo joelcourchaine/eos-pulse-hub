@@ -113,34 +113,19 @@ export const ScorecardVisualMapper = () => {
     },
     enabled: !!selectedStoreId,
   });
-
-  // Get the selected profile's role type for filtering users
-  const selectedProfile = useMemo(() => {
-    return profiles?.find(p => p.id === selectedProfileId);
-  }, [profiles, selectedProfileId]);
-
-  // Fetch store users - filter by store AND role type from the import profile
+  // Fetch store users - all users from the selected store
   const { data: storeUsers } = useQuery({
-    queryKey: ["store-users-for-mapper", selectedStoreId, selectedProfile?.role_type],
+    queryKey: ["store-users-for-mapper", selectedStoreId],
     queryFn: async () => {
       if (!selectedStoreId) return [];
       
-      // Build query for users assigned to this store with matching role
-      const roleType = selectedProfile?.role_type as "service_advisor" | "technician" | "parts_advisor" | "sales_advisor" | undefined;
-      
-      let query = supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, role")
-        .eq("store_id", selectedStoreId);
-      
-      // Filter by role type if the profile specifies one
-      if (roleType) {
-        query = query.eq("role", roleType);
-      }
-      
-      const { data, error } = await query.order("full_name");
+        .select("id, full_name")
+        .eq("store_id", selectedStoreId)
+        .order("full_name");
+        
       if (error) throw error;
-      
       return data || [];
     },
     enabled: !!selectedStoreId,
