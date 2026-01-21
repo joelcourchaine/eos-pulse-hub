@@ -253,12 +253,16 @@ export const ExcelPreviewGrid = ({
                   const isCellMapped = !!cellMapping;
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
-                  // Allow clicking any cell when canClickCells is true (KPI owner is selected)
-                  const canMapCell = canClickCells && !isHeaderRow && !isMetadataRow && !isFirstCol;
+                  // Check if this cell contains an "Advisor" pattern (e.g., "Advisor 1099 - Kayla Bender")
+                  const cellStr = String(cell || "").trim();
+                  const isAdvisorCell = /^Advisor\s+\d+\s*[-–—]\s*\S/i.test(cellStr);
                   
-                  // First column cells are clickable (except header/metadata) to select as owner
-                  // CRITICAL: isAdvisorRow check removed - we want ANY first column cell to be clickable
-                  const canSelectAsOwner = isFirstCol && !isHeaderRow && !isMetadataRow && String(cell || "").trim() !== "";
+                  // Allow clicking any cell when canClickCells is true (KPI owner is selected)
+                  // But NOT on advisor cells - those are for owner selection
+                  const canMapCell = canClickCells && !isHeaderRow && !isMetadataRow && !isAdvisorCell;
+                  
+                  // Advisor cells (matching pattern) are clickable to select as owner
+                  const canSelectAsOwner = isAdvisorCell && !isHeaderRow && !isMetadataRow;
                   
                   return (
                     <div
@@ -268,20 +272,19 @@ export const ExcelPreviewGrid = ({
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
                         canSelectAsOwner && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
-                        canMapCell && !isFirstCol && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                        canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
                         isCellMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
                         isSelectedCell && "ring-2 ring-primary ring-inset",
                       )}
                       onClick={() => {
-                        console.log("Cell clicked:", { rowIndex, colIndex, isFirstCol, canSelectAsOwner, canMapCell, onFirstColClick: !!onFirstColClick, isHeaderRow, isMetadataRow, cell });
-                        if (isFirstCol && !isHeaderRow && !isMetadataRow && onFirstColClick) {
-                          onFirstColClick(rowIndex, String(cell || ""));
+                        if (canSelectAsOwner && onFirstColClick) {
+                          onFirstColClick(rowIndex, cellStr);
                         } else if (canMapCell) {
                           onCellClick(rowIndex, colIndex, cell, headers[colIndex] || "");
                         }
                       }}
                     >
-                      {isFirstCol && canSelectAsOwner ? (
+                      {canSelectAsOwner ? (
                         <div className="flex items-center gap-1.5">
                           {isActiveOwnerRow ? (
                             <MousePointerClick className="h-3.5 w-3.5 text-green-600 dark:text-green-400 shrink-0" />
