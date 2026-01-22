@@ -2089,6 +2089,7 @@ export type Database = {
           imported_by: string | null
           metrics_imported: Json | null
           month: string
+          report_file_path: string | null
           status: string
           store_id: string | null
           unmatched_users: string[] | null
@@ -2104,6 +2105,7 @@ export type Database = {
           imported_by?: string | null
           metrics_imported?: Json | null
           month: string
+          report_file_path?: string | null
           status?: string
           store_id?: string | null
           unmatched_users?: string[] | null
@@ -2119,6 +2121,7 @@ export type Database = {
           imported_by?: string | null
           metrics_imported?: Json | null
           month?: string
+          report_file_path?: string | null
           status?: string
           store_id?: string | null
           unmatched_users?: string[] | null
