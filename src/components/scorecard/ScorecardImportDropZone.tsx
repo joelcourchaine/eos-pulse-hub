@@ -348,6 +348,7 @@ export const ScorecardImportDropZone = ({
           onOpenChange={setPreviewOpen}
           parseResult={fileSlots[selectedSlotIndex].parseResult!}
           fileName={fileSlots[selectedSlotIndex].file?.name || ""}
+          file={fileSlots[selectedSlotIndex].file}
           departmentId={departmentId}
           storeId={storeId}
           month={selectedMonth}

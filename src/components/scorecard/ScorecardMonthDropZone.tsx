@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 import { Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -28,12 +30,13 @@ export interface ScorecardImportLog {
   user_mappings?: Record<string, string> | null;
   unmatched_users?: string[] | null;
   warnings?: string[] | null;
+  report_file_path?: string | null;
 }
 
 interface ScorecardMonthDropZoneProps {
   children: React.ReactNode;
   monthIdentifier: string;
-  onFileDrop: (result: CSRParseResult, fileName: string, monthIdentifier: string) => void;
+  onFileDrop: (result: CSRParseResult, fileName: string, monthIdentifier: string, file: File) => void;
   className?: string;
   /** Most recent import log for this month */
   importLog?: ScorecardImportLog | null;
@@ -88,7 +91,7 @@ export const ScorecardMonthDropZone = ({
     setIsProcessing(true);
     try {
       const result = await parseCSRProductivityReport(excelFile);
-      onFileDrop(result, excelFile.name, monthIdentifier);
+      onFileDrop(result, excelFile.name, monthIdentifier, excelFile);
     } catch (error: any) {
       toast({
         title: "Parse Error",
@@ -99,6 +102,32 @@ export const ScorecardMonthDropZone = ({
       setIsProcessing(false);
     }
   }, [monthIdentifier, onFileDrop, toast]);
+
+  const handleViewOriginalReport = useCallback(async () => {
+    if (!importLog?.report_file_path) {
+      toast({
+        title: "No file available",
+        description: "This import log doesn't have an attached report file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase.storage
+      .from("scorecard-imports")
+      .createSignedUrl(importLog.report_file_path, 60);
+
+    if (error || !data?.signedUrl) {
+      toast({
+        title: "Unable to open file",
+        description: error?.message || "Could not generate a download link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }, [importLog?.report_file_path, toast]);
 
   const getStatusColor = () => {
     if (!importLog) return "";
@@ -215,6 +244,17 @@ export const ScorecardMonthDropZone = ({
                   <p className="text-sm text-muted-foreground">{importLog.metrics_imported.count}</p>
                 </div>
               )}
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleViewOriginalReport}
+                  disabled={!importLog.report_file_path}
+                >
+                  View / Download report
+                </Button>
+              </div>
               
               {importLog.user_mappings && Object.keys(importLog.user_mappings).length > 0 && (
                 <div>
