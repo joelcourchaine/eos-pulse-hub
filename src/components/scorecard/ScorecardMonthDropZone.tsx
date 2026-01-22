@@ -113,11 +113,16 @@ export const ScorecardMonthDropZone = ({
       return;
     }
 
+    // Open the tab immediately to avoid popup blockers (most browsers block window.open
+    // if it happens after an awaited async call).
+    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+
     const { data, error } = await supabase.storage
       .from("scorecard-imports")
       .createSignedUrl(importLog.report_file_path, 60);
 
     if (error || !data?.signedUrl) {
+      if (popup && !popup.closed) popup.close();
       toast({
         title: "Unable to open file",
         description: error?.message || "Could not generate a download link.",
@@ -126,7 +131,12 @@ export const ScorecardMonthDropZone = ({
       return;
     }
 
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    if (popup && !popup.closed) {
+      popup.location.href = data.signedUrl;
+    } else {
+      // Fallback: if the popup was blocked anyway, try a normal open.
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    }
   }, [importLog?.report_file_path, toast]);
 
   const getStatusColor = () => {
