@@ -121,7 +121,10 @@ export const ScorecardMonthDropZone = ({
       .from("scorecard-imports")
       .createSignedUrl(importLog.report_file_path, 60);
 
-    if (error || !data?.signedUrl) {
+    // Supabase can return either `signedUrl` (SDK) or `signedURL` (raw API) depending on version.
+    const signedPath = (data as any)?.signedUrl ?? (data as any)?.signedURL;
+
+    if (error || !signedPath) {
       if (popup && !popup.closed) popup.close();
       toast({
         title: "Unable to open file",
@@ -131,11 +134,17 @@ export const ScorecardMonthDropZone = ({
       return;
     }
 
+    // The signed URL may be returned as a relative path (e.g. "/object/sign/..."),
+    // so make it absolute before navigating.
+    const signedUrl = String(signedPath).startsWith("http")
+      ? String(signedPath)
+      : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1${String(signedPath)}`;
+
     if (popup && !popup.closed) {
-      popup.location.href = data.signedUrl;
+      popup.location.href = signedUrl;
     } else {
       // Fallback: if the popup was blocked anyway, try a normal open.
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
     }
   }, [importLog?.report_file_path, toast]);
 
