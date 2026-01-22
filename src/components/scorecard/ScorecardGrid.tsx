@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
-import { ScorecardMonthDropZone } from "./ScorecardMonthDropZone";
+import { ScorecardMonthDropZone, ScorecardImportLog } from "./ScorecardMonthDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
 import { StickyHScrollbar } from "./StickyHScrollbar";
@@ -343,6 +343,7 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [droppedParseResult, setDroppedParseResult] = useState<CSRParseResult | null>(null);
   const [droppedFileName, setDroppedFileName] = useState<string>("");
   const [importMonth, setImportMonth] = useState<string>("");
+  const [importLogs, setImportLogs] = useState<{ [month: string]: ScorecardImportLog }>({});
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
@@ -497,6 +498,7 @@ const loadData = async () => {
       fetchProfiles();
       loadStoreUsers();
       loadDynamicPresetKpis();
+      loadImportLogs();
 
       // Load targets first and pass them directly to scorecard data to avoid stale state
       const freshTargets = await loadKPITargets();
@@ -1194,6 +1196,36 @@ const loadData = async () => {
     }
 
 setStoreUsers(data || []);
+  };
+
+  // Load import logs for this department (most recent per month)
+  const loadImportLogs = async () => {
+    const { data, error } = await supabase
+      .from("scorecard_import_logs")
+      .select("id, file_name, month, status, created_at, metrics_imported")
+      .eq("department_id", departmentId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching import logs:", error);
+      return;
+    }
+
+    // Keep only the most recent import per month
+    const logsByMonth: { [month: string]: ScorecardImportLog } = {};
+    (data || []).forEach((log) => {
+      if (!logsByMonth[log.month]) {
+        logsByMonth[log.month] = {
+          id: log.id,
+          file_name: log.file_name,
+          month: log.month,
+          status: log.status,
+          created_at: log.created_at,
+          metrics_imported: log.metrics_imported as { count: number } | null,
+        };
+      }
+    });
+    setImportLogs(logsByMonth);
   };
 
   const loadDynamicPresetKpis = async () => {
@@ -3508,6 +3540,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                           monthIdentifier={period.identifier}
                           onFileDrop={handleMonthFileDrop}
                           className="w-full h-full py-[7.2px]"
+                          importLog={importLogs[period.identifier]}
                         >
                           <div className="flex flex-col items-center">
                             <div>{period.label.split(' ')[0]}</div>
@@ -5070,8 +5103,9 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             setImportPreviewOpen(false);
             setDroppedParseResult(null);
             setDroppedFileName("");
-            // Refresh scorecard data after import
+            // Refresh scorecard data and import logs after import
             loadKPITargets().then(freshTargets => loadScorecardData(freshTargets));
+            loadImportLogs();
           }}
         />
       )}
