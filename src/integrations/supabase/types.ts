@@ -93,42 +93,6 @@ export type Database = {
           },
         ]
       }
-      auth_tokens: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          email: string
-          expires_at: string
-          id: string
-          token: string
-          token_type: string
-          used_at: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          email: string
-          expires_at: string
-          id?: string
-          token: string
-          token_type: string
-          used_at?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          email?: string
-          expires_at?: string
-          id?: string
-          token?: string
-          token_type?: string
-          used_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       brands: {
         Row: {
           created_at: string
@@ -2928,16 +2892,6 @@ export type Database = {
         Args: { file_path: string }
         Returns: boolean
       }
-      create_auth_token: {
-        Args: {
-          _created_by?: string
-          _email: string
-          _token_type: string
-          _user_id: string
-        }
-        Returns: string
-      }
-      generate_auth_token: { Args: never; Returns: string }
       get_current_user_store_group: { Args: never; Returns: string }
       get_profiles_basic: {
         Args: never
