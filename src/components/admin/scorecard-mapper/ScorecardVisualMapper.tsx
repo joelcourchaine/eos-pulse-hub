@@ -1172,6 +1172,13 @@ export const ScorecardVisualMapper = () => {
             onValueChange={(value) => {
               setSelectedStoreId(value);
               setSelectedDepartmentId(null); // Reset department when store changes
+              setSelectedProfileId(null); // Reset profile when store changes
+              // Clear the report and mappings when store changes
+              setParsedData(null);
+              setFileName(null);
+              setColumnMappings([]);
+              setUserMappings([]);
+              setCellKpiMappings([]);
             }}
           >
             <SelectTrigger className="w-[200px]">
