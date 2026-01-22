@@ -3016,6 +3016,10 @@ export type Database = {
       }
       is_controller: { Args: { _user_id: string }; Returns: boolean }
       is_manager_or_above: { Args: { _user_id: string }; Returns: boolean }
+      is_store_gm_for_user: {
+        Args: { _caller_id: string; _target_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       announcement_priority: "info" | "warning" | "urgent"
