@@ -110,6 +110,16 @@ export const ScorecardVisualMapper = () => {
     });
   }, [fileName, lastReportPath, selectedStoreId, selectedDepartmentId, selectedProfileId]);
 
+  // Mapping states (moved earlier so callbacks below can reference setColumnMappings / setUserMappings)
+  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
+  const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
+  const [cellKpiMappings, setCellKpiMappings] = useState<CellKpiMapping[]>([]);
+
+  // Always work with sanitized arrays (prevents runtime crashes if any undefined slips in)
+  const safeColumnMappings = useMemo(() => (columnMappings ?? []).filter(Boolean), [columnMappings]);
+  const safeUserMappings = useMemo(() => (userMappings ?? []).filter(Boolean), [userMappings]);
+  const safeCellKpiMappings = useMemo(() => (cellKpiMappings ?? []).filter(Boolean), [cellKpiMappings]);
+
   const parseWorkbookToParsedData = useCallback(
     (
       workbook: XLSX.WorkBook,
@@ -237,47 +247,7 @@ export const ScorecardVisualMapper = () => {
     []
   );
 
-  const loadLastReportFromStorage = useCallback(async () => {
-    if (!lastReportPath) return;
-
-    try {
-      const { data, error } = await supabase.storage.from("scorecard-imports").download(lastReportPath);
-      if (error) throw error;
-      if (!data) throw new Error("No file data returned");
-
-      const buf = await data.arrayBuffer();
-      const workbook = XLSX.read(buf, { type: "array" });
-      const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
-        workbook,
-        existingMappingsRef.current,
-        existingAliasesRef.current
-      );
-      setParsedData(parsed);
-      setColumnMappings(initialMappings);
-      setUserMappings(initialUserMappings);
-    } catch (e: any) {
-      console.error("[ScorecardVisualMapper] Failed to restore last report", e);
-      toast.error("Could not restore the last report. Please upload it again.");
-    }
-  }, [lastReportPath, parseWorkbookToParsedData]);
-
-  // Auto-restore last report on reload (once we have the DB-dependent mapping context)
-  useEffect(() => {
-    if (parsedData) return;
-    if (!lastReportPath) return;
-    void loadLastReportFromStorage();
-  }, [parsedData, lastReportPath, loadLastReportFromStorage]);
-  
-  // Mapping states
-  const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
-  const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
-  const [cellKpiMappings, setCellKpiMappings] = useState<CellKpiMapping[]>([]);
-
-  // Always work with sanitized arrays (prevents runtime crashes if any undefined slips in)
-  const safeColumnMappings = useMemo(() => (columnMappings ?? []).filter(Boolean), [columnMappings]);
-  const safeUserMappings = useMemo(() => (userMappings ?? []).filter(Boolean), [userMappings]);
-  const safeCellKpiMappings = useMemo(() => (cellKpiMappings ?? []).filter(Boolean), [cellKpiMappings]);
-  
+  // Note: loadLastReportFromStorage is defined after the queries (see below line ~430)
   // Popover states
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<number | null>(null);
@@ -408,6 +378,55 @@ export const ScorecardVisualMapper = () => {
     },
     enabled: !!selectedStoreId,
   });
+
+  // Keep refs in sync with query results so the restore callback can use them
+  useEffect(() => {
+    existingMappingsRef.current = existingMappings;
+  }, [existingMappings]);
+
+  useEffect(() => {
+    existingAliasesRef.current = existingAliases;
+  }, [existingAliases]);
+
+  // Load report from storage - defined here so it's after queries
+  const loadLastReportFromStorage = useCallback(async () => {
+    if (!lastReportPath) return;
+
+    try {
+      const { data, error } = await supabase.storage.from("scorecard-imports").download(lastReportPath);
+      if (error) throw error;
+      if (!data) throw new Error("No file data returned");
+
+      const buf = await data.arrayBuffer();
+      const workbook = XLSX.read(buf, { type: "array" });
+      const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+        workbook,
+        existingMappingsRef.current,
+        existingAliasesRef.current
+      );
+      setParsedData(parsed);
+      setColumnMappings(initialMappings);
+      setUserMappings(initialUserMappings);
+    } catch (e: any) {
+      console.error("[ScorecardVisualMapper] Failed to restore last report", e);
+      toast.error("Could not restore the last report. Please upload it again.");
+    }
+  }, [lastReportPath, parseWorkbookToParsedData]);
+
+  // Track whether we've already attempted to restore
+  const restoredRef = useRef(false);
+
+  // Auto-restore last report on reload (once we have the DB-dependent mapping context)
+  useEffect(() => {
+    if (parsedData) return;
+    if (!lastReportPath) return;
+    if (restoredRef.current) return;
+    // Wait until we have enough context (profile mappings & aliases) before restoring
+    if (selectedProfileId && existingMappings === undefined) return;
+    if (selectedStoreId && existingAliases === undefined) return;
+    restoredRef.current = true;
+    void loadLastReportFromStorage();
+  }, [parsedData, lastReportPath, selectedProfileId, selectedStoreId, existingMappings, existingAliases, loadLastReportFromStorage]);
 
   // Fetch existing cell KPI mappings for selected profile
   const { data: existingCellMappings } = useQuery({
@@ -655,8 +674,8 @@ export const ScorecardVisualMapper = () => {
     
     // Initialize column mappings from persisted headers
     const initialMappings: ColumnMapping[] = parsedData.headers.map((header, index) => {
-      const existing = existingMappings?.find(m => 
-        m.source_column.toLowerCase() === header.toLowerCase()
+      const existing = existingMappingsRef.current?.find((m: any) => 
+        m?.source_column?.toLowerCase?.() === header.toLowerCase()
       );
       
       return {
@@ -671,8 +690,8 @@ export const ScorecardVisualMapper = () => {
     
     // Initialize user mappings from persisted advisor names
     const initialUserMappings: UserMapping[] = parsedData.advisorNames.map(({ rowIndex, name }) => {
-      const existing = existingAliases?.find(a => 
-        a.alias_name.toLowerCase() === name.toLowerCase()
+      const existing = existingAliasesRef.current?.find((a: any) => 
+        a?.alias_name?.toLowerCase?.() === name.toLowerCase()
       );
       
       return {
@@ -683,7 +702,7 @@ export const ScorecardVisualMapper = () => {
       };
     });
     setUserMappings(initialUserMappings);
-  }, [parsedData, existingMappings, existingAliases, columnMappings.length, userMappings.length]);
+  }, [parsedData, columnMappings.length, userMappings.length]);
 
   // Parse Excel file
   const parseExcelFile = useCallback((file: File) => {
@@ -696,8 +715,8 @@ export const ScorecardVisualMapper = () => {
 
         const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
           workbook,
-          existingMappings,
-          existingAliases
+          existingMappingsRef.current,
+          existingAliasesRef.current
         );
 
         setParsedData(parsed);
@@ -735,7 +754,7 @@ export const ScorecardVisualMapper = () => {
     };
     
     reader.readAsBinaryString(file);
-  }, [existingMappings, existingAliases]);
+  }, [parseWorkbookToParsedData]);
 
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
