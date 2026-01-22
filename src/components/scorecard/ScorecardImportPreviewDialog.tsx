@@ -23,6 +23,7 @@ interface ScorecardImportPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   parseResult: CSRParseResult;
   fileName: string;
+  file?: File | null;
   departmentId: string;
   storeId: string;
   month: string;
@@ -42,6 +43,7 @@ export const ScorecardImportPreviewDialog = ({
   onOpenChange,
   parseResult,
   fileName,
+  file,
   departmentId,
   storeId,
   month,
@@ -194,6 +196,25 @@ export const ScorecardImportPreviewDialog = ({
     mutationFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
+
+      // Upload original report file (so it can be viewed/downloaded later)
+      let reportFilePath: string | null = null;
+      if (file) {
+        const safeName = (file.name || fileName || "report.xlsx")
+          .replace(/[^a-zA-Z0-9._-]+/g, "_")
+          .slice(-120);
+        const storagePath = `${storeId}/${departmentId}/${month}/${Date.now()}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("scorecard-imports")
+          .upload(storagePath, file, {
+            upsert: true,
+            contentType: file.type || "application/octet-stream",
+          });
+
+        if (uploadError) throw uploadError;
+        reportFilePath = storagePath;
+      }
 
       // Create aliases for manually matched users
       for (const match of advisorMatches) {
@@ -372,6 +393,7 @@ export const ScorecardImportPreviewDialog = ({
           import_source: "drop_zone",
           file_name: fileName,
           month,
+          report_file_path: reportFilePath,
           metrics_imported: { count: entriesToUpsert.length },
           user_mappings: Object.fromEntries(
             advisorMatches

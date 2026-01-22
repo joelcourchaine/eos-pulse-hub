@@ -342,6 +342,7 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [droppedParseResult, setDroppedParseResult] = useState<CSRParseResult | null>(null);
   const [droppedFileName, setDroppedFileName] = useState<string>("");
+  const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [importMonth, setImportMonth] = useState<string>("");
   const [importLogs, setImportLogs] = useState<{ [month: string]: ScorecardImportLog }>({});
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
@@ -1202,7 +1203,7 @@ setStoreUsers(data || []);
   const loadImportLogs = async () => {
     const { data, error } = await supabase
       .from("scorecard_import_logs")
-      .select("id, file_name, month, status, created_at, metrics_imported, user_mappings, unmatched_users, warnings")
+      .select("id, file_name, month, status, created_at, metrics_imported, user_mappings, unmatched_users, warnings, report_file_path")
       .eq("department_id", departmentId)
       .order("created_at", { ascending: false });
 
@@ -1225,6 +1226,7 @@ setStoreUsers(data || []);
           user_mappings: log.user_mappings as Record<string, string> | null,
           unmatched_users: log.unmatched_users as string[] | null,
           warnings: log.warnings as string[] | null,
+          report_file_path: (log as any).report_file_path as string | null,
         };
       }
     });
@@ -2820,10 +2822,11 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
   };
 
   // Handler for month-specific file drop in Monthly Trend view
-  const handleMonthFileDrop = useCallback((result: CSRParseResult, fileName: string, monthIdentifier: string) => {
+  const handleMonthFileDrop = useCallback((result: CSRParseResult, fileName: string, monthIdentifier: string, file: File) => {
     result.month = monthIdentifier;
     setDroppedParseResult(result);
     setDroppedFileName(fileName);
+    setDroppedFile(file);
     setImportMonth(monthIdentifier);
     setImportPreviewOpen(true);
     
@@ -3054,6 +3057,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               
               setDroppedParseResult(result);
               setDroppedFileName(file.name);
+              setDroppedFile(file);
               setImportMonth(monthStr);
               setImportPreviewOpen(true);
               
@@ -5095,10 +5099,12 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             if (!open) {
               setDroppedParseResult(null);
               setDroppedFileName("");
+              setDroppedFile(null);
             }
           }}
           parseResult={droppedParseResult}
           fileName={droppedFileName}
+          file={droppedFile}
           departmentId={departmentId}
           storeId={departmentStoreId}
           month={importMonth}
@@ -5106,6 +5112,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
             setImportPreviewOpen(false);
             setDroppedParseResult(null);
             setDroppedFileName("");
+            setDroppedFile(null);
             // Refresh scorecard data and import logs after import
             loadKPITargets().then(freshTargets => loadScorecardData(freshTargets));
             loadImportLogs();
