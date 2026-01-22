@@ -1202,7 +1202,7 @@ setStoreUsers(data || []);
   const loadImportLogs = async () => {
     const { data, error } = await supabase
       .from("scorecard_import_logs")
-      .select("id, file_name, month, status, created_at, metrics_imported")
+      .select("id, file_name, month, status, created_at, metrics_imported, user_mappings, unmatched_users, warnings")
       .eq("department_id", departmentId)
       .order("created_at", { ascending: false });
 
@@ -1222,6 +1222,9 @@ setStoreUsers(data || []);
           status: log.status,
           created_at: log.created_at,
           metrics_imported: log.metrics_imported as { count: number } | null,
+          user_mappings: log.user_mappings as Record<string, string> | null,
+          unmatched_users: log.unmatched_users as string[] | null,
+          warnings: log.warnings as string[] | null,
         };
       }
     });
