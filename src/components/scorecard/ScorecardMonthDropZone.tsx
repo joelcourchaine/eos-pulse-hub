@@ -115,7 +115,15 @@ export const ScorecardMonthDropZone = ({
 
     // Open the tab immediately to avoid popup blockers (most browsers block window.open
     // if it happens after an awaited async call).
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+    // NOTE: Some browsers return `null` for the popup handle when `noopener` is used,
+    // which prevents us from redirecting the tab. We'll open without `noopener` and
+    // then explicitly sever the opener reference.
+    const popup = window.open("about:blank", "_blank");
+    try {
+      if (popup) popup.opener = null;
+    } catch {
+      // ignore
+    }
 
     const { data, error } = await supabase.storage
       .from("scorecard-imports")
