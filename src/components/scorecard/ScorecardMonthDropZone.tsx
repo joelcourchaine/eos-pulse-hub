@@ -148,12 +148,39 @@ export const ScorecardMonthDropZone = ({
       ? String(signedPath)
       : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1${String(signedPath)}`;
 
+    // Try redirecting the tab we opened. If the browser blocks navigation for any
+    // reason, render a manual link so the user can still download.
     if (popup && !popup.closed) {
-      popup.location.href = signedUrl;
-    } else {
-      // Fallback: if the popup was blocked anyway, try a normal open.
-      window.open(signedUrl, "_blank", "noopener,noreferrer");
+      try {
+        popup.location.replace(signedUrl);
+        return;
+      } catch (e) {
+        console.error("[Scorecard] Failed to redirect popup to signed URL", e);
+        try {
+          popup.document.open();
+          popup.document.write(`<!doctype html>
+            <html>
+              <head>
+                <meta charset="utf-8" />
+                <title>Download report</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+              </head>
+              <body style="font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px;">
+                <h1 style="font-size: 18px; margin: 0 0 12px;">Download report</h1>
+                <p style="margin: 0 0 16px;">Your browser blocked the automatic redirect. Click below:</p>
+                <p><a href="${signedUrl}" target="_self" rel="noreferrer">Open / download the report</a></p>
+              </body>
+            </html>`);
+          popup.document.close();
+          return;
+        } catch (e2) {
+          console.error("[Scorecard] Failed to write fallback download page", e2);
+        }
+      }
     }
+
+    // Final fallback: open in a new tab/window directly.
+    window.open(signedUrl, "_blank", "noreferrer");
   }, [importLog?.report_file_path, toast]);
 
   const getStatusColor = () => {
