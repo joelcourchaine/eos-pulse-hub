@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -46,8 +46,9 @@ interface ParsedExcelData {
 const STORAGE_KEY = "scorecard-visual-mapper-state";
 
 interface PersistedMapperState {
-  parsedData: ParsedExcelData | null;
   fileName: string | null;
+  /** Storage path in backend bucket for restoring the last uploaded report */
+  lastReportPath: string | null;
   selectedStoreId: string | null;
   selectedDepartmentId: string | null;
   selectedProfileId: string | null;
@@ -55,7 +56,9 @@ interface PersistedMapperState {
 
 const loadPersistedState = (): Partial<PersistedMapperState> => {
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
+    // Prefer localStorage so state survives reloads and new tabs.
+    // Fall back to sessionStorage for backward compatibility.
+    const stored = localStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -67,7 +70,7 @@ const loadPersistedState = (): Partial<PersistedMapperState> => {
 
 const savePersistedState = (state: PersistedMapperState) => {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
     console.warn("Failed to save mapper state:", e);
   }
@@ -84,20 +87,186 @@ export const ScorecardVisualMapper = () => {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(persistedState.selectedDepartmentId ?? null);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(persistedState.selectedProfileId ?? null);
   const [selectedKpiOwnerId, setSelectedKpiOwnerId] = useState<string | null>(null); // User to assign KPIs to
-  const [parsedData, setParsedData] = useState<ParsedExcelData | null>(persistedState.parsedData ?? null);
+  // NOTE: We intentionally do NOT persist parsedData (too large; exceeds browser storage quotas).
+  // Instead we persist the storage path for the last uploaded report and re-parse on reload.
+  const [parsedData, setParsedData] = useState<ParsedExcelData | null>(null);
   const [fileName, setFileName] = useState<string | null>(persistedState.fileName ?? null);
+  const [lastReportPath, setLastReportPath] = useState<string | null>(persistedState.lastReportPath ?? null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // These are declared early so we can safely reference them in callbacks defined above the queries.
+  // We populate them once the queries resolve.
+  const existingMappingsRef = useRef<any[] | undefined>(undefined);
+  const existingAliasesRef = useRef<any[] | undefined>(undefined);
 
   // Persist state changes to sessionStorage
   useEffect(() => {
     savePersistedState({
-      parsedData,
       fileName,
+      lastReportPath,
       selectedStoreId,
       selectedDepartmentId,
       selectedProfileId,
     });
-  }, [parsedData, fileName, selectedStoreId, selectedDepartmentId, selectedProfileId]);
+  }, [fileName, lastReportPath, selectedStoreId, selectedDepartmentId, selectedProfileId]);
+
+  const parseWorkbookToParsedData = useCallback(
+    (
+      workbook: XLSX.WorkBook,
+      existingMappingsInput: any[] | undefined,
+      existingAliasesInput: any[] | undefined
+    ) => {
+      // Use first sheet or preferred sheet
+      let sheetName = workbook.SheetNames[0];
+      const preferredSheets = ["All Repair Orders", "Summary", "Service Advisor", "Data"];
+      for (const preferred of preferredSheets) {
+        const match = workbook.SheetNames.find((s) => s.toLowerCase().includes(preferred.toLowerCase()));
+        if (match) {
+          sheetName = match;
+          break;
+        }
+      }
+
+      const sheet = workbook.Sheets[sheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      // Find header row
+      const expectedHeaders = ["pay type", "#so", "sold hrs", "lab sold", "e.l.r.", "parts sold"];
+      let headerRowIndex = -1;
+      let headers: string[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !Array.isArray(row) || row.length < 3) continue;
+
+        const rowStrings = row.map((cell) => String(cell ?? "").toLowerCase().trim());
+        const matchCount = expectedHeaders.filter((h) => rowStrings.some((rs) => rs.includes(h))).length;
+
+        if (matchCount >= 2) {
+          headerRowIndex = i;
+          headers = row.map((cell) => String(cell ?? "").trim());
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        throw new Error("Could not find header row in Excel file");
+      }
+
+      // Extract ALL rows including metadata rows before header
+      const dataRows: (string | number | null)[][] = [];
+      const advisorRowIndices: number[] = [];
+      const advisorNames: { rowIndex: number; name: string }[] = [];
+
+      // Include metadata rows (before header)
+      for (let i = 0; i < headerRowIndex; i++) {
+        const row = rows[i];
+        const normalizedRow = (row || []).map((cell: any) => {
+          if (cell === null || cell === undefined) return null;
+          if (typeof cell === "number") return cell;
+          return String(cell).trim();
+        });
+        // Pad to match header length
+        while (normalizedRow.length < headers.length) {
+          normalizedRow.push(null);
+        }
+        dataRows.push(normalizedRow);
+      }
+
+      // Include header row itself for visual context
+      dataRows.push(headers.map((h) => h));
+      const displayedHeaderRowIndex = dataRows.length - 1;
+
+      // Include ALL data rows after header
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+
+        const firstCell = String(row[0] || "").trim();
+
+        // Check if this is an advisor header row
+        const advisorMatch = firstCell.match(/Advisor\s+(\d+)\s*-\s*(.+)/i);
+        if (advisorMatch) {
+          const dataRowIndex = dataRows.length;
+          advisorRowIndices.push(dataRowIndex);
+          advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
+        }
+
+        const normalizedRow = row.map((cell: any) => {
+          if (cell === null || cell === undefined) return null;
+          if (typeof cell === "number") return cell;
+          return String(cell).trim();
+        });
+
+        dataRows.push(normalizedRow);
+      }
+
+      const parsed: ParsedExcelData = {
+        headers,
+        rows: dataRows,
+        advisorRowIndices,
+        advisorNames,
+        headerRowIndex: displayedHeaderRowIndex,
+      };
+
+      // Initialize column mappings from headers
+      const initialMappings: ColumnMapping[] = headers.map((header, index) => {
+        const existing = existingMappingsInput?.find((m: any) => m?.source_column?.toLowerCase?.() === header.toLowerCase());
+        return {
+          columnIndex: index,
+          columnHeader: header,
+          targetKpiName: existing?.target_kpi_name || null,
+          payTypeFilter: existing?.pay_type_filter || null,
+          isPerUser: existing?.is_per_user || false,
+        };
+      });
+
+      // Initialize user mappings from advisor names
+      const initialUserMappings: UserMapping[] = advisorNames.map(({ rowIndex, name }) => {
+        const existing = existingAliasesInput?.find((a: any) => a?.alias_name?.toLowerCase?.() === name.toLowerCase());
+        return {
+          rowIndex,
+          advisorName: name,
+          userId: existing?.user_id || null,
+          matchedProfileName: existing?.profileName || null,
+        };
+      });
+
+      return { parsed, initialMappings, initialUserMappings };
+    },
+    []
+  );
+
+  const loadLastReportFromStorage = useCallback(async () => {
+    if (!lastReportPath) return;
+
+    try {
+      const { data, error } = await supabase.storage.from("scorecard-imports").download(lastReportPath);
+      if (error) throw error;
+      if (!data) throw new Error("No file data returned");
+
+      const buf = await data.arrayBuffer();
+      const workbook = XLSX.read(buf, { type: "array" });
+      const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+        workbook,
+        existingMappingsRef.current,
+        existingAliasesRef.current
+      );
+      setParsedData(parsed);
+      setColumnMappings(initialMappings);
+      setUserMappings(initialUserMappings);
+    } catch (e: any) {
+      console.error("[ScorecardVisualMapper] Failed to restore last report", e);
+      toast.error("Could not restore the last report. Please upload it again.");
+    }
+  }, [lastReportPath, parseWorkbookToParsedData]);
+
+  // Auto-restore last report on reload (once we have the DB-dependent mapping context)
+  useEffect(() => {
+    if (parsedData) return;
+    if (!lastReportPath) return;
+    void loadLastReportFromStorage();
+  }, [parsedData, lastReportPath, loadLastReportFromStorage]);
   
   // Mapping states
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([]);
@@ -524,142 +693,40 @@ export const ScorecardVisualMapper = () => {
       try {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: "binary" });
-        
-        // Use first sheet or preferred sheet
-        let sheetName = workbook.SheetNames[0];
-        const preferredSheets = ["All Repair Orders", "Summary", "Service Advisor", "Data"];
-        for (const preferred of preferredSheets) {
-          const match = workbook.SheetNames.find(s => 
-            s.toLowerCase().includes(preferred.toLowerCase())
-          );
-          if (match) {
-            sheetName = match;
-            break;
-          }
-        }
-        
-        const sheet = workbook.Sheets[sheetName];
-        const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        
-        // Find header row
-        const expectedHeaders = ["pay type", "#so", "sold hrs", "lab sold", "e.l.r.", "parts sold"];
-        let headerRowIndex = -1;
-        let headers: string[] = [];
-        
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || !Array.isArray(row) || row.length < 3) continue;
-          
-          const rowStrings = row.map(cell => String(cell ?? "").toLowerCase().trim());
-          const matchCount = expectedHeaders.filter(h => 
-            rowStrings.some(rs => rs.includes(h))
-          ).length;
-          
-          if (matchCount >= 2) {
-            headerRowIndex = i;
-            headers = row.map(cell => String(cell ?? "").trim());
-            break;
-          }
-        }
-        
-        if (headerRowIndex === -1) {
-          toast.error("Could not find header row in Excel file");
-          return;
-        }
-        
-        // Extract ALL rows including metadata rows before header
-        const dataRows: (string | number | null)[][] = [];
-        const advisorRowIndices: number[] = [];
-        const advisorNames: { rowIndex: number; name: string }[] = [];
-        const metadataRowCount = headerRowIndex; // Rows before header are metadata
-        
-        // Include metadata rows (before header)
-        for (let i = 0; i < headerRowIndex; i++) {
-          const row = rows[i];
-          const normalizedRow = (row || []).map((cell: any) => {
-            if (cell === null || cell === undefined) return null;
-            if (typeof cell === "number") return cell;
-            return String(cell).trim();
-          });
-          // Pad to match header length
-          while (normalizedRow.length < headers.length) {
-            normalizedRow.push(null);
-          }
-          dataRows.push(normalizedRow);
-        }
-        
-        // Include header row itself for visual context
-        dataRows.push(headers.map(h => h));
-        const displayedHeaderRowIndex = dataRows.length - 1;
-        
-        // Include ALL data rows after header (no 100 row limit)
-        for (let i = headerRowIndex + 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.length === 0) continue;
-          
-          const firstCell = String(row[0] || "").trim();
-          
-          // Check if this is an advisor header row
-          const advisorMatch = firstCell.match(/Advisor\s+(\d+)\s*-\s*(.+)/i);
-          if (advisorMatch) {
-            const dataRowIndex = dataRows.length;
-            advisorRowIndices.push(dataRowIndex);
-            advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
-          }
-          
-          // Add row to data (normalize to strings/numbers)
-          const normalizedRow = row.map((cell: any) => {
-            if (cell === null || cell === undefined) return null;
-            if (typeof cell === "number") return cell;
-            return String(cell).trim();
-          });
-          
-          dataRows.push(normalizedRow);
-        }
-        
-        setParsedData({
-          headers,
-          rows: dataRows,
-          advisorRowIndices,
-          advisorNames,
-          headerRowIndex: displayedHeaderRowIndex,
-        });
+
+        const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+          workbook,
+          existingMappings,
+          existingAliases
+        );
+
+        setParsedData(parsed);
         setFileName(file.name);
-        
-        // Initialize column mappings from headers
-        const initialMappings: ColumnMapping[] = headers.map((header, index) => {
-          // Check for existing mapping
-          const existing = existingMappings?.find(m => 
-            m.source_column.toLowerCase() === header.toLowerCase()
-          );
-          
-          return {
-            columnIndex: index,
-            columnHeader: header,
-            targetKpiName: existing?.target_kpi_name || null,
-            payTypeFilter: existing?.pay_type_filter || null,
-            isPerUser: existing?.is_per_user || false,
-          };
-        });
         setColumnMappings(initialMappings);
-        
-        // Initialize user mappings from advisor names
-        const initialUserMappings: UserMapping[] = advisorNames.map(({ rowIndex, name }) => {
-          // Check for existing alias
-          const existing = existingAliases?.find(a => 
-            a.alias_name.toLowerCase() === name.toLowerCase()
-          );
-          
-          return {
-            rowIndex,
-            advisorName: name,
-            userId: existing?.user_id || null,
-            matchedProfileName: existing?.profileName || null,
-          };
-        });
         setUserMappings(initialUserMappings);
-        
-        toast.success(`Loaded ${file.name}: ${headers.length} columns, ${advisorNames.length} advisors`);
+
+        // Persist the *file* to backend storage so we can auto-restore on reload.
+        // (Storing the full parsed grid in browser storage exceeds quota for large reports.)
+        void (async () => {
+          try {
+            const { data: auth } = await supabase.auth.getUser();
+            const userId = auth.user?.id ?? "anonymous";
+            const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+            const path = `mapper/${userId}/${Date.now()}_${safeName}`;
+
+            const { error: uploadError } = await supabase
+              .storage
+              .from("scorecard-imports")
+              .upload(path, file, { upsert: true, contentType: file.type || undefined });
+            if (uploadError) throw uploadError;
+
+            setLastReportPath(path);
+          } catch (err) {
+            console.warn("[ScorecardVisualMapper] Failed to persist report for restore", err);
+          }
+        })();
+
+        toast.success(`Loaded ${file.name}: ${parsed.headers.length} columns, ${parsed.advisorNames.length} advisors`);
         
       } catch (error) {
         console.error("Parse error:", error);
