@@ -272,7 +272,7 @@ export const ScorecardVisualMapper = () => {
     },
   });
 
-  // Fetch import profiles
+  // Fetch import profiles (including last_mapper_report_path)
   const { data: profiles, isLoading: profilesLoading } = useQuery({
     queryKey: ["import-profiles-for-mapper"],
     queryFn: async () => {
@@ -282,7 +282,13 @@ export const ScorecardVisualMapper = () => {
         .eq("is_active", true)
         .order("name");
       if (error) throw error;
-      return data;
+      return data as Array<{
+        id: string;
+        name: string;
+        is_active: boolean;
+        last_mapper_report_path?: string | null;
+        [key: string]: any;
+      }>;
     },
   });
 
@@ -724,8 +730,7 @@ export const ScorecardVisualMapper = () => {
         setColumnMappings(initialMappings);
         setUserMappings(initialUserMappings);
 
-        // Persist the *file* to backend storage so we can auto-restore on reload.
-        // (Storing the full parsed grid in browser storage exceeds quota for large reports.)
+        // Persist the *file* to backend storage and save path to the selected profile.
         void (async () => {
           try {
             const { data: auth } = await supabase.auth.getUser();
@@ -740,6 +745,19 @@ export const ScorecardVisualMapper = () => {
             if (uploadError) throw uploadError;
 
             setLastReportPath(path);
+            
+            // Save the path to the selected profile for auto-loading
+            if (selectedProfileId) {
+              const { error: updateError } = await supabase
+                .from("scorecard_import_profiles")
+                .update({ last_mapper_report_path: path })
+                .eq("id", selectedProfileId);
+              if (updateError) {
+                console.warn("[ScorecardVisualMapper] Failed to save report path to profile", updateError);
+              } else {
+                queryClient.invalidateQueries({ queryKey: ["import-profiles-for-mapper"] });
+              }
+            }
           } catch (err) {
             console.warn("[ScorecardVisualMapper] Failed to persist report for restore", err);
           }
@@ -1302,7 +1320,46 @@ export const ScorecardVisualMapper = () => {
         
         <div className="space-y-1.5">
           <Label className="text-sm">Import Profile</Label>
-          <Select value={selectedProfileId || ""} onValueChange={setSelectedProfileId}>
+          <Select 
+            value={selectedProfileId || ""} 
+            onValueChange={async (value) => {
+              setSelectedProfileId(value);
+              
+              // Auto-load the report associated with this profile
+              const profile = profiles?.find(p => p.id === value);
+              if (profile?.last_mapper_report_path) {
+                try {
+                  const { data, error } = await supabase.storage
+                    .from("scorecard-imports")
+                    .download(profile.last_mapper_report_path);
+                  if (error) throw error;
+                  if (!data) throw new Error("No file data returned");
+
+                  const buf = await data.arrayBuffer();
+                  const workbook = XLSX.read(buf, { type: "array" });
+                  const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+                    workbook,
+                    existingMappingsRef.current,
+                    existingAliasesRef.current
+                  );
+                  setParsedData(parsed);
+                  setColumnMappings(initialMappings);
+                  setUserMappings(initialUserMappings);
+                  
+                  // Extract filename from path
+                  const pathParts = profile.last_mapper_report_path.split("/");
+                  const storedFileName = pathParts[pathParts.length - 1]?.replace(/^\d+_/, "") || "Report";
+                  setFileName(storedFileName);
+                  setLastReportPath(profile.last_mapper_report_path);
+                  
+                  toast.success(`Loaded report for ${profile.name}`);
+                } catch (e: any) {
+                  console.error("[ScorecardVisualMapper] Failed to load profile report", e);
+                  // Don't show error - user can still upload a new file
+                }
+              }
+            }}
+          >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Select profile..." />
             </SelectTrigger>
@@ -1335,6 +1392,36 @@ export const ScorecardVisualMapper = () => {
           </div>
         )}
       </div>
+
+      {/* Previous Advisor Mappings - show existing aliases for context */}
+      {selectedStoreId && existingAliases && existingAliases.length > 0 && (
+        <Alert className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+          <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                {existingAliases.length} saved advisor mapping{existingAliases.length !== 1 ? "s" : ""} for this store:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {existingAliases.slice(0, 20).map((alias) => (
+                  <Badge 
+                    key={alias.id} 
+                    variant="secondary" 
+                    className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                  >
+                    {alias.alias_name} → {alias.profileName || "Unknown"}
+                  </Badge>
+                ))}
+                {existingAliases.length > 20 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{existingAliases.length - 20} more
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Drop zone or preview */}
       {!parsedData ? (
