@@ -32,6 +32,13 @@ export interface CellKpiMapping {
   userId?: string; // User ID for relative mappings
 }
 
+export interface ColumnTemplate {
+  id: string;
+  col_index: number;
+  kpi_name: string;
+  pay_type_filter: string | null;
+}
+
 interface ExcelPreviewGridProps {
   headers: string[];
   rows: (string | number | null)[][];
@@ -49,7 +56,7 @@ interface ExcelPreviewGridProps {
   headerRowIndex?: number;
   canClickCells?: boolean;
   activeOwnerId?: string | null;
-  templateColumnIndices?: number[]; // Column indices that have templates (will be auto-mapped)
+  columnTemplates?: ColumnTemplate[]; // Full template data for highlighting mapped cells
 }
 
 export const ExcelPreviewGrid = ({
@@ -69,12 +76,13 @@ export const ExcelPreviewGrid = ({
   headerRowIndex = -1,
   canClickCells = false,
   activeOwnerId = null,
-  templateColumnIndices = [],
+  columnTemplates = [],
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  // Create a Set for faster lookup of template columns
-  const templateColSet = new Set(templateColumnIndices);
+  // Create a Set and Map for faster lookup of template columns
+  const templateColSet = new Set(columnTemplates.map(t => t.col_index));
+  const templateByColIndex = new Map(columnTemplates.map(t => [t.col_index, t]));
 
   const isColumnMapped = (colIndex: number) => {
     return columnMappings?.some(m => m?.columnIndex === colIndex && m?.targetKpiName) ?? false;
@@ -113,7 +121,8 @@ export const ExcelPreviewGrid = ({
   
   // Check if a cell should show template-based mapping (column template applies to all advisors)
   const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; payType: string | null } | null => {
-    if (!templateColSet.has(colIndex)) return null;
+    const template = templateByColIndex.get(colIndex);
+    if (!template) return null;
     
     // Only apply to advisor rows that are mapped to users
     const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
@@ -122,12 +131,7 @@ export const ExcelPreviewGrid = ({
     if (effectiveAdvisorIdx === null) return null;
     if (!isUserMapped(effectiveAdvisorIdx)) return null;
     
-    // Get the column mapping info for this template column
-    const colMapping = columnMappings?.find(m => m?.columnIndex === colIndex);
-    if (colMapping?.targetKpiName) {
-      return { kpiName: colMapping.targetKpiName, payType: colMapping.payTypeFilter };
-    }
-    return null;
+    return { kpiName: template.kpi_name, payType: template.pay_type_filter };
   };
 
   // Find which advisor "owns" a given data row (the advisor row that precedes it)
