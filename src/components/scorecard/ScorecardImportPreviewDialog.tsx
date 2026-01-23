@@ -584,32 +584,33 @@ export const ScorecardImportPreviewDialog = ({
                 Department totals below will still be imported if available.
               </p>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Advisor</TableHead>
-                  <TableHead>Status</TableHead>
-                  {/* Show mapped KPI columns from Visual Mapper if available */}
-                  {cellMappings && cellMappings.length > 0 ? (
-                    // Get unique KPI names from mappings - show ALL, not sliced
-                    [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
-                      <TableHead key={kpiName} className="text-xs whitespace-nowrap">
-                        {kpiName}
-                      </TableHead>
-                    ))
-                  ) : (
-                    // Fallback to hardcoded columns when no Visual Mapper
-                    <>
-                      <TableHead>Total Hrs</TableHead>
-                      <TableHead>CP Hrs</TableHead>
-                      <TableHead>Lab Sold</TableHead>
-                    </>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {advisorMatches.map((match, index) => {
+           ) : (
+             <div className="w-full overflow-x-auto">
+               <Table className="min-w-max">
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Advisor</TableHead>
+                     <TableHead>Status</TableHead>
+                     {/* Show mapped KPI columns from Visual Mapper if available */}
+                     {cellMappings && cellMappings.length > 0 ? (
+                       // Get unique KPI names from mappings - show ALL, not sliced
+                       [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
+                         <TableHead key={kpiName} className="text-xs whitespace-nowrap">
+                           {kpiName}
+                         </TableHead>
+                       ))
+                     ) : (
+                       // Fallback to hardcoded columns when no Visual Mapper
+                       <>
+                         <TableHead>Total Hrs</TableHead>
+                         <TableHead>CP Hrs</TableHead>
+                         <TableHead>Lab Sold</TableHead>
+                       </>
+                     )}
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {advisorMatches.map((match, index) => {
                   // Build a lookup of this advisor's values by KPI name
                   const assignedUserId = match.selectedUserId || match.userId;
                   const previewValues: Record<string, number | null> = {};
@@ -702,17 +703,19 @@ export const ScorecardImportPreviewDialog = ({
                         </>
                       )}
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                     );
+                   })}
+                 </TableBody>
+               </Table>
+             </div>
           )}
           
           {/* Department Totals users - show users mapped to totals rows */}
           {!isMatching && totalsUserMappings.length > 0 && (
-            <Table className="mt-2">
-              <TableBody>
-                {totalsUserMappings.map(totalsUser => {
+             <div className="w-full overflow-x-auto mt-2">
+               <Table className="min-w-max">
+                 <TableBody>
+                   {totalsUserMappings.map(totalsUser => {
                   // Build preview values for this totals user
                   const previewValues: Record<string, number | null> = {};
                   if (cellMappings) {
@@ -767,10 +770,11 @@ export const ScorecardImportPreviewDialog = ({
                         </>
                       )}
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                     );
+                   })}
+                 </TableBody>
+               </Table>
+             </div>
           )}
 
           {/* Department Totals summary row - show when no totals users mapped */}
