@@ -50,6 +50,11 @@ export const ScorecardImportPreviewDialog = ({
   onImportSuccess,
 }: ScorecardImportPreviewDialogProps) => {
   const [advisorMatches, setAdvisorMatches] = useState<AdvisorMatch[]>([]);
+  const [totalsUserMappings, setTotalsUserMappings] = useState<Array<{
+    userId: string;
+    userName: string;
+    mappingsCount: number;
+  }>>([]);
   const [isMatching, setIsMatching] = useState(true);
   const { toast } = useToast();
 
@@ -181,6 +186,46 @@ export const ScorecardImportPreviewDialog = ({
     matchAdvisors();
   }, [open, parseResult.advisors, storeId, storeData?.group_id]);
 
+  // Identify users with cell mappings who aren't in advisorMatches (Department Totals owners)
+  useEffect(() => {
+    if (!cellMappings || cellMappings.length === 0 || !storeUsers) {
+      setTotalsUserMappings([]);
+      return;
+    }
+
+    // Get all user IDs matched to advisors
+    const advisorUserIds = new Set(
+      advisorMatches
+        .map(m => m.userId || m.selectedUserId)
+        .filter((id): id is string => !!id)
+    );
+
+    // Group cell mappings by user_id
+    const mappingsByUser = new Map<string, number>();
+    for (const cm of cellMappings) {
+      if (!cm.user_id) continue;
+      mappingsByUser.set(cm.user_id, (mappingsByUser.get(cm.user_id) || 0) + 1);
+    }
+
+    // Find users with mappings who aren't matched to advisors (they're "Dept Totals" users)
+    const totalsUsers: Array<{ userId: string; userName: string; mappingsCount: number }> = [];
+    for (const [userId, count] of mappingsByUser.entries()) {
+      if (!advisorUserIds.has(userId)) {
+        const user = storeUsers.find(u => u.id === userId);
+        if (user) {
+          totalsUsers.push({
+            userId,
+            userName: user.full_name || "Unknown User",
+            mappingsCount: count,
+          });
+        }
+      }
+    }
+
+    console.log("[Import Preview] Dept Totals users detected:", totalsUsers.map(u => u.userName));
+    setTotalsUserMappings(totalsUsers);
+  }, [cellMappings, advisorMatches, storeUsers]);
+
   const handleUserSelect = (advisorIndex: number, userId: string) => {
     setAdvisorMatches(prev => {
       const updated = [...prev];
@@ -251,8 +296,53 @@ export const ScorecardImportPreviewDialog = ({
       const hasCellMappings = userCellMappingsLookup.size > 0;
       console.log("[Import] Using Visual Mapper cell mappings:", hasCellMappings, "- users with mappings:", userCellMappingsLookup.size);
 
-      // Process department totals first (these still use standard mappings)
+      // Process department totals - check for Visual Mapper mapped users first
       if (kpiDefinitions) {
+        // Get user IDs matched to advisors
+        const advisorUserIds = new Set(
+          advisorMatches
+            .map(m => m.userId || m.selectedUserId)
+            .filter((id): id is string => !!id)
+        );
+
+        // Process users with cell mappings who are NOT matched to advisors
+        // These are "Department Totals" users (e.g., Daniel Park mapped to "All Repair Orders")
+        for (const [mappedUserId, userColMappings] of userCellMappingsLookup.entries()) {
+          if (advisorUserIds.has(mappedUserId)) continue; // Skip - already processed with advisors
+          
+          console.log(`[Import] Processing Dept Totals user: ${mappedUserId} with ${userColMappings.size} column mappings`);
+          
+          for (const [colIndex, kpiId] of userColMappings.entries()) {
+            // Find the KPI definition to determine pay type from naming convention
+            const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
+            const kpiName = kpiDef?.name?.toLowerCase() || "";
+            
+            // Determine which pay type row to read from based on KPI name
+            let payTypeToRead: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
+            if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
+              payTypeToRead = 'customer';
+            } else if (kpiName.includes("warranty")) {
+              payTypeToRead = 'warranty';
+            } else if (kpiName.includes("internal")) {
+              payTypeToRead = 'internal';
+            }
+            
+            // Read from departmentTotalsByIndex instead of advisor metrics
+            const value = parseResult.departmentTotalsByIndex[payTypeToRead]?.[colIndex];
+            
+            if (typeof value === 'number') {
+              console.log(`[Import] Dept Totals: Mapping col ${colIndex} (${payTypeToRead}) -> ${kpiDef?.name}: ${value}`);
+              entriesToUpsert.push({
+                kpi_id: kpiId,
+                month,
+                entry_type: "monthly",
+                actual_value: value,
+              });
+            }
+          }
+        }
+
+        // Fallback: Also process department totals with standard mappings for un-assigned KPIs
         // Map column names to KPIs for "total" pay type
         for (const [columnName, value] of Object.entries(parseResult.departmentTotals.total)) {
           const kpiName = getStandardKpiName(columnName, "total");
@@ -423,7 +513,8 @@ export const ScorecardImportPreviewDialog = ({
     },
   });
 
-  const matchedCount = advisorMatches.filter(m => m.userId || m.selectedUserId).length;
+  const matchedCount = advisorMatches.filter(m => m.userId || m.selectedUserId).length + totalsUserMappings.length;
+  const totalOwnerCount = advisorMatches.length + totalsUserMappings.length;
   const unmatchedCount = advisorMatches.filter(m => !m.userId && !m.selectedUserId).length;
 
   // Format month for display
@@ -604,8 +695,73 @@ export const ScorecardImportPreviewDialog = ({
             </Table>
           )}
           
-          {/* Department Totals - always show */}
-          {!isMatching && (
+          {/* Department Totals users - show users mapped to totals rows */}
+          {!isMatching && totalsUserMappings.length > 0 && (
+            <Table className="mt-2">
+              <TableBody>
+                {totalsUserMappings.map(totalsUser => {
+                  // Build preview values for this totals user
+                  const previewValues: Record<string, number | null> = {};
+                  if (cellMappings) {
+                    const userMappings = cellMappings.filter(cm => cm.user_id === totalsUser.userId);
+                    for (const mapping of userMappings) {
+                      const kpiName = mapping.kpi_name.toLowerCase();
+                      let payType: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
+                      if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
+                        payType = 'customer';
+                      } else if (kpiName.includes("warranty")) {
+                        payType = 'warranty';
+                      } else if (kpiName.includes("internal")) {
+                        payType = 'internal';
+                      }
+                      const value = parseResult.departmentTotalsByIndex[payType]?.[mapping.col_index];
+                      if (typeof value === 'number') {
+                        previewValues[mapping.kpi_name] = value;
+                      }
+                    }
+                  }
+
+                  return (
+                    <TableRow key={totalsUser.userId} className="border-t-2 font-medium bg-purple-500/5">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-purple-500" />
+                          <span>{totalsUser.userName}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-purple-500/20 text-purple-700">Dept Totals</Badge>
+                      </TableCell>
+                      {cellMappings && cellMappings.length > 0 ? (
+                        [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
+                          <TableCell key={kpiName} className="text-xs">
+                            {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
+                              ? previewValues[kpiName]!.toLocaleString()
+                              : "-"}
+                          </TableCell>
+                        ))
+                      ) : (
+                        <>
+                          <TableCell>
+                            {parseResult.departmentTotals.total["Sold Hrs"]?.toLocaleString() || "-"}
+                          </TableCell>
+                          <TableCell>
+                            {parseResult.departmentTotals.customer["Sold Hrs"]?.toLocaleString() || "-"}
+                          </TableCell>
+                          <TableCell>
+                            ${parseResult.departmentTotals.customer["Lab Sold"]?.toLocaleString() || "0"}
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Department Totals summary row - show when no totals users mapped */}
+          {!isMatching && totalsUserMappings.length === 0 && (
             <Table className="mt-2">
               <TableBody>
                 <TableRow className="border-t-2 font-medium bg-muted/50">
@@ -631,7 +787,7 @@ export const ScorecardImportPreviewDialog = ({
         {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t">
           <div className="text-sm text-muted-foreground">
-            {matchedCount} of {advisorMatches.length} advisors matched
+            {matchedCount} of {totalOwnerCount} advisors matched
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
