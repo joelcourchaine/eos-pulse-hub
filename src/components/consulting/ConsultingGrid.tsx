@@ -795,13 +795,14 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           containerRef={containerRef}
           onEditTravel={handleOpenTravelDialog}
           calls={displayRows.flatMap((row, rowIndex) => {
-            const callsForRow: { rowId: string; rowIndex: number; call_date: string }[] = [];
-            row.calls.forEach((call) => {
+            const callsForRow: { rowId: string; rowIndex: number; call_date: string; monthKey: string }[] = [];
+            row.calls.forEach((call, monthKey) => {
               if (call) {
                 callsForRow.push({
                   rowId: row.rowId,
                   rowIndex,
                   call_date: call.call_date,
+                  monthKey,
                 });
               }
             });
