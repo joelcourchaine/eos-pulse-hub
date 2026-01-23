@@ -1261,7 +1261,8 @@ export const ScorecardVisualMapper = () => {
             user_id: conf.suggestedUserId,
             kpi_id: matchedKpi.id,
             kpi_name: matchedKpi.name,
-            row_index: null,
+            // CRITICAL: Use template.row_offset to store the relative row offset (not null!)
+            row_index: template.row_offset,
             col_index: template.col_index,
             is_relative: true,
             created_by: user.user?.id,
@@ -1287,6 +1288,8 @@ export const ScorecardVisualMapper = () => {
           kpiId: matchedKpi.id,
           kpiName: matchedKpi.name,
           userId: conf.suggestedUserId,
+          rowIndex: template.row_offset,
+          isRelative: true,
         });
       }
 
