@@ -619,17 +619,17 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Save cell KPI mapping mutation (auto-save on click)
-  // Uses RELATIVE mappings: stores user_id + col_index (no row_index)
-  // This makes mappings resilient to row shifts when advisors leave
+  // Uses RELATIVE mappings: stores user_id + col_index + row_offset (in row_index)
+  // This ensures one single mapped cell per owner per KPI.
   const saveCellMappingMutation = useMutation({
-    mutationFn: async (mapping: { rowIndex: number; colIndex: number; kpiId: string; kpiName: string }) => {
+    mutationFn: async (mapping: { rowIndex: number; colIndex: number; kpiId: string; kpiName: string; rowOffset: number }) => {
       if (!selectedProfileId || !selectedKpiOwnerId) throw new Error("No profile or KPI owner selected");
       
       const { data: user } = await supabase.auth.getUser();
       
       // Use the RELATIVE unique constraint (import_profile_id, user_id, col_index, kpi_id)
       // This allows multiple KPIs per column (e.g., Customer Pay ROs vs Total ROs on same column)
-      // row_index is NULL for relative mappings - the row is detected dynamically during import
+      // row_index stores the OFFSET (rowIndex - ownerAnchorRow) for relative mappings.
       const { error } = await supabase
         .from("scorecard_cell_mappings")
         .upsert({
@@ -637,7 +637,7 @@ export const ScorecardVisualMapper = () => {
           user_id: selectedKpiOwnerId,
           kpi_id: mapping.kpiId,
           kpi_name: mapping.kpiName,
-          row_index: null, // Relative mapping - no fixed row
+          row_index: mapping.rowOffset,
           col_index: mapping.colIndex,
           is_relative: true,
           created_by: user.user?.id,
@@ -738,15 +738,16 @@ export const ScorecardVisualMapper = () => {
 
 
   // Load existing cell mappings into state when they're fetched
-  // Relative mappings have null row_index and are matched by userId + colIndex
+  // Relative mappings store row_index as an OFFSET and are matched by userId + colIndex + offset
   useEffect(() => {
     if (existingCellMappings && existingCellMappings.length > 0) {
       const loadedMappings: CellKpiMapping[] = existingCellMappings.map(m => ({
-        rowIndex: m.row_index ?? undefined, // undefined for relative mappings
+        rowIndex: m.row_index ?? undefined,
         colIndex: m.col_index,
         kpiId: m.kpi_id,
         kpiName: m.kpi_name,
         userId: m.user_id ?? undefined, // userId for relative lookups
+        isRelative: !!m.is_relative,
       }));
       setCellKpiMappings(loadedMappings);
     }
@@ -1035,13 +1036,14 @@ export const ScorecardVisualMapper = () => {
     const rowOffset = calculateRowOffset(mapping.rowIndex);
     
     // Update local state immediately for responsive UI
-    // Store as relative mapping: userId + colIndex (no rowIndex)
+    // Store as relative mapping: userId + colIndex + rowOffset
     const relativeMapping: CellKpiMapping = {
       colIndex: mapping.colIndex,
       kpiId: mapping.kpiId,
       kpiName: mapping.kpiName,
       userId: selectedKpiOwnerId ?? undefined,
-      // rowIndex omitted for relative mappings
+      rowIndex: rowOffset,
+      isRelative: true,
     };
     
     setCellKpiMappings((prev) => {
@@ -1061,7 +1063,7 @@ export const ScorecardVisualMapper = () => {
     setSelectedCell(null);
     
     // Auto-save to database
-    saveCellMappingMutation.mutate(mapping);
+    saveCellMappingMutation.mutate({ ...mapping, rowOffset });
     
     // Also save as a column template for future users
     // This creates a profile-level template: "Column X at offset Y contains KPI Z"
@@ -1151,7 +1153,8 @@ export const ScorecardVisualMapper = () => {
         user_id: userId,
         kpi_id: matchedKpi.id,
         kpi_name: matchedKpi.name,
-        row_index: null, // Relative mapping
+        // Relative mapping: store the row OFFSET (relative to the owner's anchor row)
+        row_index: template.row_offset,
         col_index: template.col_index,
         is_relative: true,
         created_by: user.user?.id,
@@ -1175,6 +1178,8 @@ export const ScorecardVisualMapper = () => {
         kpiId: matchedKpi.id,
         kpiName: matchedKpi.name,
         userId: userId,
+        rowIndex: template.row_offset,
+        isRelative: true,
       };
     });
     
