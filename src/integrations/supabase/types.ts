@@ -1982,7 +1982,7 @@ export type Database = {
           id: string
           import_profile_id: string
           kpi_name: string
-          pay_type_filter: string | null
+          row_offset: number
         }
         Insert: {
           col_index: number
@@ -1991,7 +1991,7 @@ export type Database = {
           id?: string
           import_profile_id: string
           kpi_name: string
-          pay_type_filter?: string | null
+          row_offset?: number
         }
         Update: {
           col_index?: number
@@ -2000,7 +2000,7 @@ export type Database = {
           id?: string
           import_profile_id?: string
           kpi_name?: string
-          pay_type_filter?: string | null
+          row_offset?: number
         }
         Relationships: [
           {

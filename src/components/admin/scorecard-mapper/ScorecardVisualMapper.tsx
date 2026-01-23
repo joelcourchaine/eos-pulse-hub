@@ -677,29 +677,29 @@ export const ScorecardVisualMapper = () => {
 
   // Save column template mutation (called automatically when saving cell mapping)
   const saveColumnTemplateMutation = useMutation({
-    mutationFn: async (template: { colIndex: number; kpiName: string; payTypeFilter?: string | null }) => {
+    mutationFn: async (template: { colIndex: number; kpiName: string; rowOffset: number }) => {
       if (!selectedProfileId) throw new Error("No profile selected");
       
       const { data: user } = await supabase.auth.getUser();
       
-      // Upsert the template (col_index + kpi_name + pay_type_filter is unique per profile)
+      // Upsert the template (import_profile_id, row_offset, col_index, kpi_name is unique)
       const { error } = await supabase
         .from("scorecard_column_templates")
         .upsert({
           import_profile_id: selectedProfileId,
           col_index: template.colIndex,
           kpi_name: template.kpiName,
-          pay_type_filter: template.payTypeFilter || null,
+          row_offset: template.rowOffset,
           created_by: user.user?.id,
         }, {
-          onConflict: "import_profile_id,col_index,kpi_name",
+          onConflict: "import_profile_id,row_offset,col_index,kpi_name",
         });
       if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["column-templates", selectedProfileId] });
-      const payTypeLabel = variables.payTypeFilter ? ` (${variables.payTypeFilter})` : "";
-      toast.success(`Template saved: Column ${variables.colIndex + 1} → ${variables.kpiName}${payTypeLabel}`);
+      const offsetLabel = variables.rowOffset !== 0 ? ` (+${variables.rowOffset} rows)` : "";
+      toast.success(`Template saved: Column ${variables.colIndex + 1} → ${variables.kpiName}${offsetLabel}`);
     },
     onError: (error) => {
       console.error("Failed to save column template:", error);
@@ -1002,21 +1002,15 @@ export const ScorecardVisualMapper = () => {
     setCellPopoverOpen(true);
   };
 
-  // Detect the pay type of a row by looking at the first column values
-  const detectPayTypeFromRow = (rowIndex: number): string | null => {
-    if (!parsedData) return null;
-    const row = parsedData.rows[rowIndex];
-    if (!row) return null;
+  // Calculate the row offset from the selected owner's anchor row
+  const calculateRowOffset = (rowIndex: number): number => {
+    if (!selectedKpiOwnerId || !safeUserMappings) return 0;
     
-    // Check first few columns for pay type indicator
-    for (let i = 0; i < Math.min(row.length, 3); i++) {
-      const cellValue = String(row[i] || "").toLowerCase().trim();
-      if (cellValue === "customer" || cellValue === "customer pay") return "customer";
-      if (cellValue === "warranty") return "warranty";
-      if (cellValue === "internal") return "internal";
-      if (cellValue === "total" || cellValue === "totals") return "total";
-    }
-    return null;
+    // Find the anchor row for the selected KPI owner
+    const ownerMapping = safeUserMappings.find(m => m.userId === selectedKpiOwnerId);
+    if (!ownerMapping) return 0;
+    
+    return rowIndex - ownerMapping.rowIndex;
   };
 
   const handleCellKpiMappingSave = (mapping: {
@@ -1025,8 +1019,8 @@ export const ScorecardVisualMapper = () => {
     kpiId: string;
     kpiName: string;
   }) => {
-    // Detect pay type from the row being mapped
-    const payTypeFilter = detectPayTypeFromRow(mapping.rowIndex);
+    // Calculate row offset from the owner's anchor row
+    const rowOffset = calculateRowOffset(mapping.rowIndex);
     
     // Update local state immediately for responsive UI
     // Store as relative mapping: userId + colIndex (no rowIndex)
@@ -1058,11 +1052,11 @@ export const ScorecardVisualMapper = () => {
     saveCellMappingMutation.mutate(mapping);
     
     // Also save as a column template for future users
-    // This creates a profile-level template: "Column X contains KPI Y (for pay_type Z)"
+    // This creates a profile-level template: "Column X at offset Y contains KPI Z"
     saveColumnTemplateMutation.mutate({
       colIndex: mapping.colIndex,
       kpiName: mapping.kpiName,
-      payTypeFilter: payTypeFilter,
+      rowOffset: rowOffset,
     });
   };
 
