@@ -30,7 +30,8 @@ export interface AdvisorConfirmation {
   suggestedUserName: string | null;
   confidence: number;
   isConfirmed: boolean;
-  isSkipped: boolean; // For totals rows like "All Repair Orders"
+  isSkipped: boolean;
+  isTotalsRow?: boolean; // Indicates this is a department totals row (e.g., "All Repair Orders")
 }
 
 interface StoreUser {
@@ -77,20 +78,10 @@ export const AdvisorConfirmationPanel: React.FC<AdvisorConfirmationPanelProps> =
     if (!open || advisorNames.length === 0) return;
 
     const matched = advisorNames.map(({ name, rowIndex }) => {
-      // Check if it's a totals row
-      if (isTotalsRow(name)) {
-        return {
-          rowIndex,
-          excelName: name,
-          suggestedUserId: null,
-          suggestedUserName: null,
-          confidence: 0,
-          isConfirmed: false,
-          isSkipped: true,
-        };
-      }
-
-      // Check existing aliases first
+      // Check if it's a totals row - allow mapping but mark for manual selection
+      const isTotals = isTotalsRow(name);
+      
+      // Check existing aliases first (works for totals rows too!)
       const aliasMatch = existingAliases.find(
         a => a.alias_name.toLowerCase().trim() === name.toLowerCase().trim()
       );
@@ -103,8 +94,25 @@ export const AdvisorConfirmationPanel: React.FC<AdvisorConfirmationPanelProps> =
           confidence: 1,
           isConfirmed: true, // Auto-confirm alias matches
           isSkipped: false,
+          isTotalsRow: isTotals,
         };
       }
+      
+      // If it's a totals row with no existing alias, show for manual mapping
+      if (isTotals) {
+        return {
+          rowIndex,
+          excelName: name,
+          suggestedUserId: null,
+          suggestedUserName: null,
+          confidence: 0,
+          isConfirmed: false,
+          isSkipped: false, // Allow mapping!
+          isTotalsRow: true,
+        };
+      }
+
+      // Fuzzy match against store users (for non-totals rows)
 
       // Fuzzy match against store users
       const matches = storeUsers
@@ -270,7 +278,14 @@ export const AdvisorConfirmationPanel: React.FC<AdvisorConfirmationPanelProps> =
 
                 {/* Excel Name */}
                 <div className="w-40 shrink-0">
-                  <div className="font-medium text-sm truncate">{conf.excelName}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-sm truncate">{conf.excelName}</span>
+                    {conf.isTotalsRow && (
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400">
+                        Dept Totals
+                      </Badge>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">Row {conf.rowIndex + 1}</div>
                 </div>
 
