@@ -7,8 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Save, Loader2 } from "lucide-react";
+import { Plus, Trash2, Save, Loader2, LayoutGrid, Info } from "lucide-react";
 import { STANDARD_COLUMN_MAPPINGS } from "@/utils/scorecardImportMatcher";
 
 interface ColumnMapping {
@@ -64,6 +66,22 @@ export const ScorecardColumnMappingsPanel = ({
     enabled: !!selectedProfileId,
   });
 
+  // Fetch column templates from Visual Mapper
+  const { data: columnTemplates } = useQuery({
+    queryKey: ["column-templates-for-panel", selectedProfileId],
+    queryFn: async () => {
+      if (!selectedProfileId) return [];
+      const { data, error } = await supabase
+        .from("scorecard_column_templates")
+        .select("kpi_name, col_index")
+        .eq("import_profile_id", selectedProfileId)
+        .order("col_index");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedProfileId,
+  });
+
   const { data: presetKpis } = useQuery({
     queryKey: ["preset-kpis"],
     queryFn: async () => {
@@ -75,6 +93,11 @@ export const ScorecardColumnMappingsPanel = ({
       return data;
     },
   });
+
+  // Get unique KPI names from column templates
+  const mappedKpiNames = columnTemplates
+    ? [...new Set(columnTemplates.map((t) => t.kpi_name))].sort()
+    : [];
 
   useEffect(() => {
     if (mappings) {
@@ -252,6 +275,40 @@ export const ScorecardColumnMappingsPanel = ({
           </Button>
         </div>
       </div>
+
+      {/* Visual Mapper KPI Summary */}
+      {selectedProfileId && (
+        <Alert className="border-primary/20 bg-primary/5">
+          <LayoutGrid className="h-4 w-4" />
+          <AlertTitle className="flex items-center gap-2">
+            Visual Mapper Configuration
+          </AlertTitle>
+          <AlertDescription className="mt-2">
+            {mappedKpiNames.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {mappedKpiNames.length} KPI{mappedKpiNames.length !== 1 ? "s" : ""} mapped from the Visual Mapper:
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {mappedKpiNames.map((kpiName) => (
+                    <Badge key={kpiName} variant="secondary" className="text-xs">
+                      {kpiName}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
+                  <Info className="h-3 w-3" />
+                  Edit these mappings in the Visual Mapper (Super Admin Dashboard)
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No KPIs mapped yet. Use the Visual Mapper to configure column-to-KPI mappings.
+              </p>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="border rounded-lg">
         <Table>
