@@ -25,11 +25,16 @@ export interface UserMapping {
 }
 
 export interface CellKpiMapping {
-  rowIndex?: number; // Optional for relative mappings (row is detected dynamically)
+  /**
+   * For absolute mappings (legacy): the absolute row index.
+   * For relative mappings: the row offset from the owner anchor row (can be 0, 1, 2, ...).
+   */
+  rowIndex?: number;
   colIndex: number;
   kpiId: string;
   kpiName: string;
   userId?: string; // User ID for relative mappings
+  isRelative?: boolean;
 }
 
 export interface ColumnTemplate {
@@ -109,15 +114,24 @@ export const ExcelPreviewGrid = ({
   // The owning user's row is determined dynamically from userMappings
   const getCellMapping = (rowIndex: number, colIndex: number) => {
     // First check for legacy absolute mappings (with explicit rowIndex)
-    const absoluteMatch = cellKpiMappings?.find(m => m?.rowIndex === rowIndex && m?.colIndex === colIndex);
+    const absoluteMatch = cellKpiMappings?.find(
+      (m) => !m?.isRelative && m?.rowIndex === rowIndex && m?.colIndex === colIndex
+    );
     if (absoluteMatch) return absoluteMatch;
     
-    // For relative mappings, find the owner of this row and match by userId + colIndex
+    // For relative mappings, find the owner of this row and match by userId + colIndex + rowOffset
     const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
     if (owningAdvisorIdx !== null) {
       const userMapping = userMappings?.find(m => m?.rowIndex === owningAdvisorIdx);
       if (userMapping?.userId) {
-        return cellKpiMappings?.find(m => m?.userId === userMapping.userId && m?.colIndex === colIndex && !m?.rowIndex);
+        const currentOffset = rowIndex - owningAdvisorIdx;
+        return cellKpiMappings?.find(
+          (m) =>
+            m?.isRelative &&
+            m?.userId === userMapping.userId &&
+            m?.colIndex === colIndex &&
+            m?.rowIndex === currentOffset
+        );
       }
     }
     
