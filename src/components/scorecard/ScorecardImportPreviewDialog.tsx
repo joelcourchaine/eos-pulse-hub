@@ -126,19 +126,28 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeData?.group_id,
   });
 
-  // Fetch cell mappings from Visual Mapper for this import profile
+  // Fetch cell mappings from Visual Mapper for this import profile, filtered to current store's users
   const { data: cellMappings } = useQuery({
-    queryKey: ["cell-mappings-for-import", importProfile?.id],
+    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId, storeUsers?.map(u => u.id)],
     queryFn: async () => {
-      if (!importProfile?.id) return [];
+      if (!importProfile?.id || !storeUsers || storeUsers.length === 0) return [];
+      
+      // Get user IDs for the current store only
+      const currentStoreUserIds = storeUsers
+        .filter(u => u.store_id === storeId)
+        .map(u => u.id);
+      
+      if (currentStoreUserIds.length === 0) return [];
+      
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*")
-        .eq("import_profile_id", importProfile.id);
+        .eq("import_profile_id", importProfile.id)
+        .in("user_id", currentStoreUserIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: open && !!importProfile?.id,
+    enabled: open && !!importProfile?.id && !!storeUsers && storeUsers.length > 0,
   });
 
   // Match advisors to users on mount
