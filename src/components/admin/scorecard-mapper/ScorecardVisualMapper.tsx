@@ -438,6 +438,11 @@ export const ScorecardVisualMapper = () => {
   // Track whether we've already attempted to restore
   const restoredRef = useRef(false);
 
+  // If store/profile changes, allow restore logic to run again for the new combination.
+  useEffect(() => {
+    restoredRef.current = false;
+  }, [selectedStoreId, selectedProfileId]);
+
   // NOTE: Old localStorage-based auto-restore removed. 
   // We now use per-store database lookup via storedReportPath query below.
 
@@ -851,7 +856,7 @@ export const ScorecardVisualMapper = () => {
     };
     
     reader.readAsBinaryString(file);
-  }, [parseWorkbookToParsedData]);
+  }, [parseWorkbookToParsedData, queryClient, selectedProfileId, selectedStoreId]);
 
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
