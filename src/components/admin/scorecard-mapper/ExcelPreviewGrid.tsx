@@ -119,6 +119,22 @@ export const ExcelPreviewGrid = ({
     return undefined;
   };
   
+  // Detect the pay type of a row by looking at the first column value
+  const getRowPayType = (rowIndex: number): string | null => {
+    const row = rows[rowIndex];
+    if (!row) return null;
+    
+    // Check first few columns for pay type indicator
+    for (let i = 0; i < Math.min(row.length, 3); i++) {
+      const cellValue = String(row[i] || "").toLowerCase().trim();
+      if (cellValue === "customer" || cellValue === "customer pay") return "customer";
+      if (cellValue === "warranty") return "warranty";
+      if (cellValue === "internal") return "internal";
+      if (cellValue === "total" || cellValue === "totals") return "total";
+    }
+    return null;
+  };
+  
   // Check if a cell should show template-based mapping (column template applies to all advisors)
   const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; payType: string | null } | null => {
     const template = templateByColIndex.get(colIndex);
@@ -130,6 +146,15 @@ export const ExcelPreviewGrid = ({
     
     if (effectiveAdvisorIdx === null) return null;
     if (!isUserMapped(effectiveAdvisorIdx)) return null;
+    
+    // Check if this row's pay type matches the template's filter
+    if (template.pay_type_filter) {
+      const rowPayType = getRowPayType(rowIndex);
+      // Only show template on matching pay type row
+      if (rowPayType !== template.pay_type_filter.toLowerCase()) {
+        return null;
+      }
+    }
     
     return { kpiName: template.kpi_name, payType: template.pay_type_filter };
   };
