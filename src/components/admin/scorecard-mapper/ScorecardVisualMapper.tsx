@@ -606,7 +606,8 @@ export const ScorecardVisualMapper = () => {
       
       const { data: user } = await supabase.auth.getUser();
       
-      // Use the RELATIVE unique constraint (import_profile_id, user_id, col_index)
+      // Use the RELATIVE unique constraint (import_profile_id, user_id, col_index, kpi_id)
+      // This allows multiple KPIs per column (e.g., Customer Pay ROs vs Total ROs on same column)
       // row_index is NULL for relative mappings - the row is detected dynamically during import
       const { error } = await supabase
         .from("scorecard_cell_mappings")
@@ -620,7 +621,7 @@ export const ScorecardVisualMapper = () => {
           is_relative: true,
           created_by: user.user?.id,
         }, {
-          onConflict: "import_profile_id,user_id,col_index",
+          onConflict: "import_profile_id,user_id,col_index,kpi_id",
         });
       if (error) throw error;
     },
@@ -634,18 +635,19 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Delete cell KPI mapping mutation
-  // For relative mappings, delete by user_id + col_index
+  // For relative mappings, delete by user_id + col_index + kpi_id (allows multiple KPIs per column)
   const deleteCellMappingMutation = useMutation({
-    mutationFn: async ({ colIndex }: { rowIndex?: number; colIndex: number }) => {
+    mutationFn: async ({ colIndex, kpiId }: { rowIndex?: number; colIndex: number; kpiId: string }) => {
       if (!selectedProfileId || !selectedKpiOwnerId) throw new Error("No profile or owner selected");
       
-      // Delete by user_id + col_index for relative mappings
+      // Delete by user_id + col_index + kpi_id for relative mappings
       const { error } = await supabase
         .from("scorecard_cell_mappings")
         .delete()
         .eq("import_profile_id", selectedProfileId)
         .eq("user_id", selectedKpiOwnerId)
-        .eq("col_index", colIndex);
+        .eq("col_index", colIndex)
+        .eq("kpi_id", kpiId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1000,9 +1002,9 @@ export const ScorecardVisualMapper = () => {
     
     setCellKpiMappings((prev) => {
       const existing = (prev ?? []).filter(Boolean);
-      // Match by userId + colIndex for relative mappings
+      // Match by userId + colIndex + kpiId for relative mappings (allows multiple KPIs per column)
       const existingIdx = existing.findIndex(m => 
-        m.userId === selectedKpiOwnerId && m.colIndex === mapping.colIndex
+        m.userId === selectedKpiOwnerId && m.colIndex === mapping.colIndex && m.kpiId === mapping.kpiId
       );
       if (existingIdx >= 0) {
         const updated = [...existing];
@@ -1025,19 +1027,23 @@ export const ScorecardVisualMapper = () => {
     });
   };
 
-  const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number) => {
+  const handleCellKpiMappingRemove = (rowIndex: number, colIndex: number, kpiId?: string) => {
+    if (!kpiId) {
+      console.error("Cannot remove cell mapping without kpiId");
+      return;
+    }
     // Update local state immediately
-    // For relative mappings, filter by userId + colIndex
+    // For relative mappings, filter by userId + colIndex + kpiId (allows multiple KPIs per column)
     setCellKpiMappings((prev) => 
       (prev ?? []).filter(Boolean).filter(m => 
-        !(m.userId === selectedKpiOwnerId && m.colIndex === colIndex)
+        !(m.userId === selectedKpiOwnerId && m.colIndex === colIndex && m.kpiId === kpiId)
       )
     );
     setCellPopoverOpen(false);
     setSelectedCell(null);
     
-    // Auto-delete from database (uses userId + colIndex)
-    deleteCellMappingMutation.mutate({ colIndex });
+    // Auto-delete from database (uses userId + colIndex + kpiId)
+    deleteCellMappingMutation.mutate({ colIndex, kpiId });
   };
 
   // Get selected KPI owner name for display
@@ -1107,12 +1113,12 @@ export const ScorecardVisualMapper = () => {
       };
     });
     
-    // Batch insert (using upsert to avoid conflicts)
+    // Batch insert (using upsert to avoid conflicts - allows multiple KPIs per column)
     for (const mapping of mappingsToCreate) {
       await supabase
         .from("scorecard_cell_mappings")
         .upsert(mapping, {
-          onConflict: "import_profile_id,user_id,col_index",
+          onConflict: "import_profile_id,user_id,col_index,kpi_id",
         });
     }
     
@@ -1129,9 +1135,9 @@ export const ScorecardVisualMapper = () => {
     
     setCellKpiMappings(prev => {
       const existing = (prev ?? []).filter(Boolean);
-      // Add new mappings (filter out any duplicates)
-      const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}`));
-      const toAdd = newLocalMappings.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}`));
+      // Add new mappings (filter out duplicates by userId + colIndex + kpiId)
+      const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}-${m.kpiId}`));
+      const toAdd = newLocalMappings.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}-${m.kpiId}`));
       return [...existing, ...toAdd];
     });
     
@@ -1210,7 +1216,7 @@ export const ScorecardVisualMapper = () => {
             is_relative: true,
             created_by: user.user?.id,
           },
-          { onConflict: "import_profile_id,user_id,col_index" }
+          { onConflict: "import_profile_id,user_id,col_index,kpi_id" }
         );
         if (upsertError) {
           mappingFailures++;
@@ -1254,9 +1260,9 @@ export const ScorecardVisualMapper = () => {
       if (newCellMappingsForUser.length > 0) {
         setCellKpiMappings(prev => {
           const existing = (prev ?? []).filter(Boolean);
-          // Add new mappings, avoiding duplicates
-          const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}`));
-          const toAdd = newCellMappingsForUser.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}`));
+          // Add new mappings, avoiding duplicates by userId + colIndex + kpiId
+          const existingKeys = new Set(existing.map(m => `${m.userId}-${m.colIndex}-${m.kpiId}`));
+          const toAdd = newCellMappingsForUser.filter(m => !existingKeys.has(`${m.userId}-${m.colIndex}-${m.kpiId}`));
           return [...existing, ...toAdd];
         });
       }

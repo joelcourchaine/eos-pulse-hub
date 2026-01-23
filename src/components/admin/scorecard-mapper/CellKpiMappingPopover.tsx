@@ -34,7 +34,7 @@ interface CellKpiMappingPopoverProps {
     kpiId: string;
     kpiName: string;
   }) => void;
-  onRemove: (rowIndex: number, colIndex: number) => void;
+  onRemove: (rowIndex: number, colIndex: number, kpiId?: string) => void;
   children?: React.ReactNode;
 }
 
@@ -79,7 +79,7 @@ export const CellKpiMappingPopover = ({
   };
 
   const handleRemove = () => {
-    onRemove(rowIndex, colIndex);
+    onRemove(rowIndex, colIndex, currentKpiId || undefined);
     onOpenChange(false);
   };
 
