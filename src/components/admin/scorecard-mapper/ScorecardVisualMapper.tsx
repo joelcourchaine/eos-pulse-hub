@@ -422,17 +422,63 @@ export const ScorecardVisualMapper = () => {
   // Track whether we've already attempted to restore
   const restoredRef = useRef(false);
 
-  // Auto-restore last report on reload (once we have the DB-dependent mapping context)
+  // NOTE: Old localStorage-based auto-restore removed. 
+  // We now use per-store database lookup via storedReportPath query below.
+
+  // Fetch per-store report path for auto-restore on page load
+  const { data: storedReportPath } = useQuery({
+    queryKey: ["profile-store-report", selectedProfileId, selectedStoreId],
+    queryFn: async () => {
+      if (!selectedProfileId || !selectedStoreId) return null;
+      const { data, error } = await supabase
+        .from("scorecard_profile_store_reports")
+        .select("report_path")
+        .eq("import_profile_id", selectedProfileId)
+        .eq("store_id", selectedStoreId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.report_path || null;
+    },
+    enabled: !!selectedProfileId && !!selectedStoreId,
+  });
+
+  // Auto-load from per-store report path when it becomes available
   useEffect(() => {
-    if (parsedData) return;
-    if (!lastReportPath) return;
+    if (parsedData) return; // Already have data
+    if (!storedReportPath) return;
     if (restoredRef.current) return;
-    // Wait until we have enough context (profile mappings & aliases) before restoring
-    if (selectedProfileId && existingMappings === undefined) return;
-    if (selectedStoreId && existingAliases === undefined) return;
     restoredRef.current = true;
-    void loadLastReportFromStorage();
-  }, [parsedData, lastReportPath, selectedProfileId, selectedStoreId, existingMappings, existingAliases, loadLastReportFromStorage]);
+    
+    // Load the stored report
+    (async () => {
+      try {
+        const { data, error } = await supabase.storage
+          .from("scorecard-imports")
+          .download(storedReportPath);
+        if (error) throw error;
+        if (!data) throw new Error("No file data returned");
+
+        const buf = await data.arrayBuffer();
+        const workbook = XLSX.read(buf, { type: "array" });
+        const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+          workbook,
+          existingMappingsRef.current,
+          existingAliasesRef.current
+        );
+        setParsedData(parsed);
+        setColumnMappings(initialMappings);
+        setUserMappings(initialUserMappings);
+        
+        // Extract filename from path
+        const pathParts = storedReportPath.split("/");
+        const storedFileName = pathParts[pathParts.length - 1]?.replace(/^\d+_/, "") || "Report";
+        setFileName(storedFileName);
+        setLastReportPath(storedReportPath);
+      } catch (e) {
+        console.error("[ScorecardVisualMapper] Failed to auto-restore report", e);
+      }
+    })();
+  }, [parsedData, storedReportPath, parseWorkbookToParsedData]);
 
   // Fetch existing cell KPI mappings for selected profile
   const { data: existingCellMappings } = useQuery({
@@ -746,16 +792,22 @@ export const ScorecardVisualMapper = () => {
 
             setLastReportPath(path);
             
-            // Save the path to the selected profile for auto-loading
-            if (selectedProfileId) {
-              const { error: updateError } = await supabase
-                .from("scorecard_import_profiles")
-                .update({ last_mapper_report_path: path })
-                .eq("id", selectedProfileId);
-              if (updateError) {
-                console.warn("[ScorecardVisualMapper] Failed to save report path to profile", updateError);
+            // Save the path per-store for auto-loading (profile + store = unique report)
+            if (selectedProfileId && selectedStoreId) {
+              const { error: upsertError } = await supabase
+                .from("scorecard_profile_store_reports")
+                .upsert({
+                  import_profile_id: selectedProfileId,
+                  store_id: selectedStoreId,
+                  report_path: path,
+                  updated_at: new Date().toISOString(),
+                }, {
+                  onConflict: "import_profile_id,store_id",
+                });
+              if (upsertError) {
+                console.warn("[ScorecardVisualMapper] Failed to save per-store report path", upsertError);
               } else {
-                queryClient.invalidateQueries({ queryKey: ["import-profiles-for-mapper"] });
+                queryClient.invalidateQueries({ queryKey: ["profile-store-report", selectedProfileId, selectedStoreId] });
               }
             }
           } catch (err) {
@@ -1325,38 +1377,48 @@ export const ScorecardVisualMapper = () => {
             onValueChange={async (value) => {
               setSelectedProfileId(value);
               
-              // Auto-load the report associated with this profile
-              const profile = profiles?.find(p => p.id === value);
-              if (profile?.last_mapper_report_path) {
-                try {
-                  const { data, error } = await supabase.storage
-                    .from("scorecard-imports")
-                    .download(profile.last_mapper_report_path);
-                  if (error) throw error;
-                  if (!data) throw new Error("No file data returned");
+              // Auto-load the report associated with this profile + store combination
+              if (!selectedStoreId) return;
+              
+              try {
+                const { data: storeReport, error } = await supabase
+                  .from("scorecard_profile_store_reports")
+                  .select("report_path")
+                  .eq("import_profile_id", value)
+                  .eq("store_id", selectedStoreId)
+                  .maybeSingle();
+                
+                if (error) throw error;
+                if (!storeReport?.report_path) return;
+                
+                const { data, error: downloadError } = await supabase.storage
+                  .from("scorecard-imports")
+                  .download(storeReport.report_path);
+                if (downloadError) throw downloadError;
+                if (!data) throw new Error("No file data returned");
 
-                  const buf = await data.arrayBuffer();
-                  const workbook = XLSX.read(buf, { type: "array" });
-                  const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
-                    workbook,
-                    existingMappingsRef.current,
-                    existingAliasesRef.current
-                  );
-                  setParsedData(parsed);
-                  setColumnMappings(initialMappings);
-                  setUserMappings(initialUserMappings);
-                  
-                  // Extract filename from path
-                  const pathParts = profile.last_mapper_report_path.split("/");
-                  const storedFileName = pathParts[pathParts.length - 1]?.replace(/^\d+_/, "") || "Report";
-                  setFileName(storedFileName);
-                  setLastReportPath(profile.last_mapper_report_path);
-                  
-                  toast.success(`Loaded report for ${profile.name}`);
-                } catch (e: any) {
-                  console.error("[ScorecardVisualMapper] Failed to load profile report", e);
-                  // Don't show error - user can still upload a new file
-                }
+                const buf = await data.arrayBuffer();
+                const workbook = XLSX.read(buf, { type: "array" });
+                const { parsed, initialMappings, initialUserMappings } = parseWorkbookToParsedData(
+                  workbook,
+                  existingMappingsRef.current,
+                  existingAliasesRef.current
+                );
+                setParsedData(parsed);
+                setColumnMappings(initialMappings);
+                setUserMappings(initialUserMappings);
+                
+                // Extract filename from path
+                const pathParts = storeReport.report_path.split("/");
+                const storedFileName = pathParts[pathParts.length - 1]?.replace(/^\d+_/, "") || "Report";
+                setFileName(storedFileName);
+                setLastReportPath(storeReport.report_path);
+                
+                const profile = profiles?.find(p => p.id === value);
+                toast.success(`Loaded report for ${profile?.name || "profile"}`);
+              } catch (e: any) {
+                console.error("[ScorecardVisualMapper] Failed to load profile report", e);
+                // Don't show error - user can still upload a new file
               }
             }}
           >
