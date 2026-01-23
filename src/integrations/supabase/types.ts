@@ -2208,6 +2208,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          last_mapper_report_path: string | null
           name: string
           parser_type: string
           role_type: string
@@ -2218,6 +2219,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          last_mapper_report_path?: string | null
           name: string
           parser_type?: string
           role_type?: string
@@ -2228,6 +2230,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          last_mapper_report_path?: string | null
           name?: string
           parser_type?: string
           role_type?: string
