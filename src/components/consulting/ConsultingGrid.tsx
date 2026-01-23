@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO, addMonths, startOfMonth, addWeeks, getYear } from "date-fns";
 import { Label } from "@/components/ui/label";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,13 +12,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator } from "@/components/ui/context-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat, AlertTriangle, ArrowUpDown, X } from "lucide-react";
+import { Phone, Plus, Trash2, CalendarIcon, CheckCircle, Clock, XCircle, Copy, Repeat, AlertTriangle, ArrowUpDown, X, Plane } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getHolidayName, getHolidaysForYears } from "@/utils/canadianHolidays";
+import { useTravelPeriods, TravelPeriod } from "@/hooks/useTravelPeriods";
+import { TravelOverlay, TravelLegend } from "./TravelOverlay";
+import { TravelDialog } from "./TravelDialog";
 
 interface ConsultingGridProps {
   showAdhoc: boolean;
@@ -68,7 +71,10 @@ interface DisplayRow {
 
 export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
   const queryClient = useQueryClient();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [previewSortMonth, setPreviewSortMonth] = useState<string | null>(null);
+  const [travelDialogOpen, setTravelDialogOpen] = useState(false);
+  const [editingTravel, setEditingTravel] = useState<TravelPeriod | null>(null);
   const [newRow, setNewRow] = useState<{
     store_id: string | null;
     department_id: string | null;
@@ -78,6 +84,17 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     adhoc_name: string;
     adhoc_dept: string;
   } | null>(null);
+
+  // Travel periods hook
+  const {
+    travelPeriods,
+    destinations,
+    getDestinationColor,
+    createTravelPeriod,
+    updateTravelPeriod,
+    deleteTravelPeriod,
+    months: travelMonths,
+  } = useTravelPeriods();
 
   // Get 12 months starting from current month
   const months = useMemo(() => {
@@ -622,34 +639,61 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
     );
   }
 
+  const handleOpenTravelDialog = (travel?: TravelPeriod) => {
+    setEditingTravel(travel || null);
+    setTravelDialogOpen(true);
+  };
+
+  const handleSaveTravel = (data: { destination: string; start_date: string; end_date: string; notes?: string }) => {
+    createTravelPeriod.mutate(data);
+  };
+
+  const handleUpdateTravel = (data: { id: string; destination?: string; start_date?: string; end_date?: string; notes?: string | null }) => {
+    updateTravelPeriod.mutate(data);
+  };
+
+  const handleDeleteTravel = (id: string) => {
+    deleteTravelPeriod.mutate(id);
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        {/* Preview sort mode indicator */}
-        {previewSortMonth && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-md">
-            <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-medium text-primary">
-              Sorted by {months.find(m => m.key === previewSortMonth)?.label || previewSortMonth}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 w-5 p-0 hover:bg-primary/20"
-              onClick={() => setPreviewSortMonth(null)}
-            >
-              <X className="h-3 w-3 text-primary" />
-            </Button>
-          </div>
-        )}
-        {!previewSortMonth && <div />}
-        <Button onClick={handleAddRow} disabled={!!newRow}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Client
-        </Button>
+      <div className="flex justify-between items-center gap-4">
+        {/* Left side: Preview sort mode indicator and travel legend */}
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          {previewSortMonth && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 border border-primary/30 rounded-md shrink-0">
+              <ArrowUpDown className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-medium text-primary">
+                Sorted by {months.find(m => m.key === previewSortMonth)?.label || previewSortMonth}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 w-5 p-0 hover:bg-primary/20"
+                onClick={() => setPreviewSortMonth(null)}
+              >
+                <X className="h-3 w-3 text-primary" />
+              </Button>
+            </div>
+          )}
+          <TravelLegend destinations={destinations} getDestinationColor={getDestinationColor} />
+        </div>
+        
+        {/* Right side: Action buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" onClick={() => handleOpenTravelDialog()}>
+            <Plane className="h-4 w-4 mr-2" />
+            Add Travel
+          </Button>
+          <Button onClick={handleAddRow} disabled={!!newRow}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Client
+          </Button>
+        </div>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
+      <div className="border rounded-lg overflow-hidden relative" ref={containerRef}>
         <ScrollArea className="w-full">
           <Table>
             <TableHeader>
@@ -741,7 +785,29 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           </Table>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+
+        {/* Travel Overlay */}
+        <TravelOverlay
+          travelPeriods={travelPeriods}
+          destinations={destinations}
+          getDestinationColor={getDestinationColor}
+          months={travelMonths}
+          containerRef={containerRef}
+          onEditTravel={handleOpenTravelDialog}
+        />
       </div>
+
+      {/* Travel Dialog */}
+      <TravelDialog
+        open={travelDialogOpen}
+        onOpenChange={setTravelDialogOpen}
+        travel={editingTravel}
+        destinations={destinations}
+        getDestinationColor={getDestinationColor}
+        onSave={handleSaveTravel}
+        onUpdate={handleUpdateTravel}
+        onDelete={handleDeleteTravel}
+      />
     </div>
   );
 }

@@ -245,6 +245,72 @@ export type Database = {
           },
         ]
       }
+      consulting_travel: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          destination: string
+          end_date: string
+          id: string
+          notes: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          destination: string
+          end_date: string
+          id?: string
+          notes?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          destination?: string
+          end_date?: string
+          id?: string
+          notes?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consulting_travel_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consulting_travel_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consulting_travel_destinations: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       department_answer_history: {
         Row: {
           answer_id: string
