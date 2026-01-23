@@ -676,23 +676,30 @@ export const ScorecardVisualMapper = () => {
   });
 
   // Save column template mutation (called automatically when saving cell mapping)
+  // Ensures only ONE template per KPI per profile (deletes existing before inserting)
   const saveColumnTemplateMutation = useMutation({
     mutationFn: async (template: { colIndex: number; kpiName: string; rowOffset: number }) => {
       if (!selectedProfileId) throw new Error("No profile selected");
       
       const { data: user } = await supabase.auth.getUser();
       
-      // Upsert the template (import_profile_id, row_offset, col_index, kpi_name is unique)
+      // First, delete any existing templates for this KPI in this profile
+      // (ensures only ONE position per KPI)
+      await supabase
+        .from("scorecard_column_templates")
+        .delete()
+        .eq("import_profile_id", selectedProfileId)
+        .eq("kpi_name", template.kpiName);
+      
+      // Then insert the new template
       const { error } = await supabase
         .from("scorecard_column_templates")
-        .upsert({
+        .insert({
           import_profile_id: selectedProfileId,
           col_index: template.colIndex,
           kpi_name: template.kpiName,
           row_offset: template.rowOffset,
           created_by: user.user?.id,
-        }, {
-          onConflict: "import_profile_id,row_offset,col_index,kpi_name",
         });
       if (error) throw error;
     },
