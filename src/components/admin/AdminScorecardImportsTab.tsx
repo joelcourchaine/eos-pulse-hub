@@ -31,7 +31,7 @@ export const AdminScorecardImportsTab = () => {
             </TabsTrigger>
             <TabsTrigger value="mappings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              Column Mappings
+              Mapping
             </TabsTrigger>
             <TabsTrigger value="aliases" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
