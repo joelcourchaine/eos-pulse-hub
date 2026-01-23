@@ -290,15 +290,19 @@ export const ScorecardImportPreviewDialog = ({
         actual_value: number;
       }[] = [];
 
-      // Build a lookup of cell mappings by user_id -> col_index -> kpi_id
-      const userCellMappingsLookup = new Map<string, Map<number, string>>();
+      // Build a lookup of cell mappings by user_id -> list of mappings.
+      // IMPORTANT: multiple KPIs can live on the same column (distinguished by pay type / row offset),
+      // so we must NOT key solely by col_index.
+      const userCellMappingsLookup = new Map<
+        string,
+        Array<{ colIndex: number; kpiId: string; rowIndex: number | null }>
+      >();
       if (cellMappings && cellMappings.length > 0) {
         for (const cm of cellMappings) {
           if (!cm.user_id) continue;
-          if (!userCellMappingsLookup.has(cm.user_id)) {
-            userCellMappingsLookup.set(cm.user_id, new Map());
-          }
-          userCellMappingsLookup.get(cm.user_id)!.set(cm.col_index, cm.kpi_id);
+          const list = userCellMappingsLookup.get(cm.user_id) ?? [];
+          list.push({ colIndex: cm.col_index, kpiId: cm.kpi_id, rowIndex: cm.row_index });
+          userCellMappingsLookup.set(cm.user_id, list);
         }
       }
 
@@ -316,12 +320,12 @@ export const ScorecardImportPreviewDialog = ({
 
         // Process users with cell mappings who are NOT matched to advisors
         // These are "Department Totals" users (e.g., Daniel Park mapped to "All Repair Orders")
-        for (const [mappedUserId, userColMappings] of userCellMappingsLookup.entries()) {
+        for (const [mappedUserId, userMappings] of userCellMappingsLookup.entries()) {
           if (advisorUserIds.has(mappedUserId)) continue; // Skip - already processed with advisors
           
-          console.log(`[Import] Processing Dept Totals user: ${mappedUserId} with ${userColMappings.size} column mappings`);
+          console.log(`[Import] Processing Dept Totals user: ${mappedUserId} with ${userMappings.length} cell mappings`);
           
-          for (const [colIndex, kpiId] of userColMappings.entries()) {
+          for (const { colIndex, kpiId } of userMappings) {
             // Find the KPI definition to determine pay type from naming convention
             const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
             const kpiName = kpiDef?.name?.toLowerCase() || "";
@@ -394,14 +398,14 @@ export const ScorecardImportPreviewDialog = ({
           if (!assignedUserId) continue;
 
           // Check if this user has Visual Mapper cell mappings
-          const userColMappings = userCellMappingsLookup.get(assignedUserId);
+          const userMappings = userCellMappingsLookup.get(assignedUserId);
           
-          if (userColMappings && userColMappings.size > 0) {
+          if (userMappings && userMappings.length > 0) {
             // USE VISUAL MAPPER MAPPINGS: Extract values by column index
-            console.log(`[Import] Using Visual Mapper for ${match.advisor.displayName}: ${userColMappings.size} column mappings`);
+            console.log(`[Import] Using Visual Mapper for ${match.advisor.displayName}: ${userMappings.length} cell mappings`);
             
             // Process each cell mapping - need to check against KPI names to determine pay type
-            for (const [colIndex, kpiId] of userColMappings.entries()) {
+            for (const { colIndex, kpiId } of userMappings) {
               // Find the KPI definition to determine pay type from naming convention
               const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
               const kpiName = kpiDef?.name?.toLowerCase() || "";
