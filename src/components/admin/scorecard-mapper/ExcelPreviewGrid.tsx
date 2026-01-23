@@ -36,7 +36,7 @@ export interface ColumnTemplate {
   id: string;
   col_index: number;
   kpi_name: string;
-  pay_type_filter: string | null;
+  row_offset: number;
 }
 
 interface ExcelPreviewGridProps {
@@ -124,50 +124,27 @@ export const ExcelPreviewGrid = ({
     return undefined;
   };
   
-  // Detect the pay type of a row by looking at the first column value
-  const getRowPayType = (rowIndex: number): string | null => {
-    const row = rows[rowIndex];
-    if (!row) return null;
-    
-    // Check first few columns for pay type indicator
-    for (let i = 0; i < Math.min(row.length, 3); i++) {
-      const cellValue = String(row[i] || "").toLowerCase().trim();
-      if (cellValue === "customer" || cellValue === "customer pay") return "customer";
-      if (cellValue === "warranty") return "warranty";
-      if (cellValue === "internal") return "internal";
-      if (cellValue === "total" || cellValue === "totals") return "total";
-    }
-    return null;
-  };
-  
   // Check if a cell should show template-based mapping (column template applies to all advisors)
-  const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; payType: string | null } | null => {
+  // Uses row_offset: the template's offset from the owner's anchor row
+  const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; rowOffset: number } | null => {
     const templates = templatesByColIndex.get(colIndex);
     if (!templates || templates.length === 0) return null;
     
-    // Only apply to advisor rows that are mapped to users
+    // Find the owning advisor for this row
     const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
-    const effectiveAdvisorIdx = advisorRowIndices.includes(rowIndex) ? rowIndex : owningAdvisorIdx;
+    // If this is the advisor row itself, treat it as offset 0
+    const effectiveOwnerIdx = advisorRowIndices.includes(rowIndex) ? rowIndex : owningAdvisorIdx;
     
-    if (effectiveAdvisorIdx === null) return null;
-    if (!isUserMapped(effectiveAdvisorIdx)) return null;
+    if (effectiveOwnerIdx === null) return null;
+    if (!isUserMapped(effectiveOwnerIdx)) return null;
     
-    // Get the pay type for this row
-    const rowPayType = getRowPayType(rowIndex);
+    // Calculate the offset from the owner's anchor row
+    const currentOffset = rowIndex - effectiveOwnerIdx;
     
-    // Find a template that matches this row's pay type
+    // Find a template that matches this exact offset
     for (const template of templates) {
-      if (template.pay_type_filter) {
-        // Template has a filter - only match if row pay type matches
-        if (rowPayType === template.pay_type_filter.toLowerCase()) {
-          return { kpiName: template.kpi_name, payType: template.pay_type_filter };
-        }
-      } else {
-        // Template has no filter - only apply to rows that have no pay type (like header rows)
-        // OR if this is the only template for the column and it's a "Total" row
-        if (!rowPayType || rowPayType === "total") {
-          return { kpiName: template.kpi_name, payType: null };
-        }
+      if (template.row_offset === currentOffset) {
+        return { kpiName: template.kpi_name, rowOffset: template.row_offset };
       }
     }
     
@@ -456,8 +433,8 @@ export const ExcelPreviewGrid = ({
                           </span>
                           <span className="text-[10px] text-purple-700 dark:text-purple-300 truncate">
                             → {templateMapping.kpiName}
-                            {templateMapping.payType && (
-                              <span className="text-muted-foreground ml-1">({templateMapping.payType})</span>
+                            {templateMapping.rowOffset !== 0 && (
+                              <span className="text-muted-foreground ml-1">(+{templateMapping.rowOffset})</span>
                             )}
                           </span>
                         </div>
