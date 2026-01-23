@@ -1816,7 +1816,7 @@ export const ScorecardVisualMapper = () => {
                   headerRowIndex={parsedData.headerRowIndex}
                   canClickCells={!!selectedKpiOwnerId}
                   activeOwnerId={selectedKpiOwnerId}
-                  templateColumnIndices={columnTemplates?.map(t => t.col_index) || []}
+                  columnTemplates={columnTemplates || []}
                 />
               </div>
             </div>
