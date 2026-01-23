@@ -592,9 +592,9 @@ export const ScorecardImportPreviewDialog = ({
                   <TableHead>Status</TableHead>
                   {/* Show mapped KPI columns from Visual Mapper if available */}
                   {cellMappings && cellMappings.length > 0 ? (
-                    // Get unique KPI names from mappings
-                    [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
-                      <TableHead key={kpiName} className="text-xs">
+                    // Get unique KPI names from mappings - show ALL, not sliced
+                    [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
+                      <TableHead key={kpiName} className="text-xs whitespace-nowrap">
                         {kpiName}
                       </TableHead>
                     ))
@@ -681,8 +681,8 @@ export const ScorecardImportPreviewDialog = ({
                       </TableCell>
                       {/* Show mapped KPI values from Visual Mapper if available */}
                       {cellMappings && cellMappings.length > 0 ? (
-                        [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
-                          <TableCell key={kpiName} className="text-xs">
+                        [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
+                          <TableCell key={kpiName} className="text-xs whitespace-nowrap">
                             {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
                               ? previewValues[kpiName]!.toLocaleString()
                               : "-"}
@@ -746,8 +746,8 @@ export const ScorecardImportPreviewDialog = ({
                         <Badge className="bg-purple-500/20 text-purple-700">Dept Totals</Badge>
                       </TableCell>
                       {cellMappings && cellMappings.length > 0 ? (
-                        [...new Set(cellMappings.map(cm => cm.kpi_name))].slice(0, 4).map(kpiName => (
-                          <TableCell key={kpiName} className="text-xs">
+                        [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
+                          <TableCell key={kpiName} className="text-xs whitespace-nowrap">
                             {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
                               ? previewValues[kpiName]!.toLocaleString()
                               : "-"}
