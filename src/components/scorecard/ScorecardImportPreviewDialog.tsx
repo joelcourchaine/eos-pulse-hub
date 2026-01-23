@@ -293,15 +293,16 @@ export const ScorecardImportPreviewDialog = ({
       // Build a lookup of cell mappings by user_id -> list of mappings.
       // IMPORTANT: multiple KPIs can live on the same column (distinguished by pay type / row offset),
       // so we must NOT key solely by col_index.
-      const userCellMappingsLookup = new Map<
-        string,
-        Array<{ colIndex: number; kpiId: string; rowIndex: number | null }>
-      >();
+       const userCellMappingsLookup = new Map<
+         string,
+         Array<{ colIndex: number; kpiId: string; rowOffset: number | null }>
+       >();
       if (cellMappings && cellMappings.length > 0) {
         for (const cm of cellMappings) {
           if (!cm.user_id) continue;
           const list = userCellMappingsLookup.get(cm.user_id) ?? [];
-          list.push({ colIndex: cm.col_index, kpiId: cm.kpi_id, rowIndex: cm.row_index });
+           // NOTE: in our Visual Mapper model, `row_index` stores a RELATIVE row offset (rowIndex - ownerAnchorRow).
+           list.push({ colIndex: cm.col_index, kpiId: cm.kpi_id, rowOffset: cm.row_index });
           userCellMappingsLookup.set(cm.user_id, list);
         }
       }
@@ -325,23 +326,16 @@ export const ScorecardImportPreviewDialog = ({
           
           console.log(`[Import] Processing Dept Totals user: ${mappedUserId} with ${userMappings.length} cell mappings`);
           
-          for (const { colIndex, kpiId } of userMappings) {
-            // Find the KPI definition to determine pay type from naming convention
-            const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
-            const kpiName = kpiDef?.name?.toLowerCase() || "";
-            
-            // Determine which pay type row to read from based on KPI name
-            let payTypeToRead: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
-            if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
-              payTypeToRead = 'customer';
-            } else if (kpiName.includes("warranty")) {
-              payTypeToRead = 'warranty';
-            } else if (kpiName.includes("internal")) {
-              payTypeToRead = 'internal';
-            }
-            
-            // Read from departmentTotalsByIndex instead of advisor metrics
-            const value = parseResult.departmentTotalsByIndex[payTypeToRead]?.[colIndex];
+           for (const { colIndex, kpiId, rowOffset } of userMappings) {
+             const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
+
+             // CRITICAL: Use Visual Mapper rowOffset -> payType mapping (not KPI-name inference).
+             const offsetKey = rowOffset ?? 0;
+             const payTypeToRead =
+               (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey] ??
+               "total";
+
+             const value = parseResult.departmentTotalsByIndex[payTypeToRead]?.[colIndex];
             
             if (typeof value === 'number') {
               console.log(`[Import] Dept Totals: Mapping col ${colIndex} (${payTypeToRead}) -> ${kpiDef?.name}: ${value}`);
@@ -405,23 +399,14 @@ export const ScorecardImportPreviewDialog = ({
             console.log(`[Import] Using Visual Mapper for ${match.advisor.displayName}: ${userMappings.length} cell mappings`);
             
             // Process each cell mapping - need to check against KPI names to determine pay type
-            for (const { colIndex, kpiId } of userMappings) {
-              // Find the KPI definition to determine pay type from naming convention
-              const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
-              const kpiName = kpiDef?.name?.toLowerCase() || "";
-              
-              // Determine which pay type row to read from based on KPI name
-              // CP = Customer Pay, Total = Total row
-              let payTypeToRead: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
-              if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
-                payTypeToRead = 'customer';
-              } else if (kpiName.includes("warranty")) {
-                payTypeToRead = 'warranty';
-              } else if (kpiName.includes("internal")) {
-                payTypeToRead = 'internal';
-              }
-              
-              const metricsByIdx = match.advisor.metricsByIndex[payTypeToRead];
+             for (const { colIndex, kpiId, rowOffset } of userMappings) {
+               const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
+
+               // CRITICAL: Use Visual Mapper rowOffset -> payType mapping (not KPI-name inference).
+               const offsetKey = rowOffset ?? 0;
+               const payTypeToRead = (match.advisor as any).payTypeByRowOffset?.[offsetKey] ?? "total";
+
+               const metricsByIdx = match.advisor.metricsByIndex[payTypeToRead];
               const value = metricsByIdx?.[colIndex];
               
               if (typeof value === 'number') {
@@ -620,17 +605,11 @@ export const ScorecardImportPreviewDialog = ({
                     const userMappings = cellMappings.filter(cm => cm.user_id === assignedUserId);
                     
                     for (const mapping of userMappings) {
-                      const kpiName = mapping.kpi_name.toLowerCase();
-                      // Determine pay type from KPI name
-                      let payType: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
-                      if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
-                        payType = 'customer';
-                      } else if (kpiName.includes("warranty")) {
-                        payType = 'warranty';
-                      } else if (kpiName.includes("internal")) {
-                        payType = 'internal';
-                      }
-                      
+                      // CRITICAL: Use Visual Mapper row offsets to pick the correct pay-type row.
+                      // In our mapping model, mapping.row_index stores a RELATIVE row offset.
+                      const offsetKey = (mapping.row_index ?? 0) as number;
+                      const payType = (match.advisor as any).payTypeByRowOffset?.[offsetKey] ?? "total";
+
                       const value = match.advisor.metricsByIndex[payType]?.[mapping.col_index];
                       if (typeof value === 'number') {
                         previewValues[mapping.kpi_name] = value;
@@ -721,15 +700,10 @@ export const ScorecardImportPreviewDialog = ({
                   if (cellMappings) {
                     const userMappings = cellMappings.filter(cm => cm.user_id === totalsUser.userId);
                     for (const mapping of userMappings) {
-                      const kpiName = mapping.kpi_name.toLowerCase();
-                      let payType: 'customer' | 'warranty' | 'internal' | 'total' = 'total';
-                      if (kpiName.startsWith("cp ") || kpiName.includes("customer pay")) {
-                        payType = 'customer';
-                      } else if (kpiName.includes("warranty")) {
-                        payType = 'warranty';
-                      } else if (kpiName.includes("internal")) {
-                        payType = 'internal';
-                      }
+                      // CRITICAL: Use Visual Mapper row offsets to pick the correct pay-type row.
+                      const offsetKey = (mapping.row_index ?? 0) as number;
+                      const payType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey] ?? "total";
+
                       const value = parseResult.departmentTotalsByIndex[payType]?.[mapping.col_index];
                       if (typeof value === 'number') {
                         previewValues[mapping.kpi_name] = value;

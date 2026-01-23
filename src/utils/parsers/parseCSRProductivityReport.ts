@@ -26,6 +26,11 @@ export interface AdvisorData {
   employeeId: string; // "1099"
   metrics: PayTypeMetrics;
   metricsByIndex: PayTypeMetricsByIndex; // Same data but keyed by column index
+  /**
+   * Maps a relative row offset (rowIndex - advisorAnchorRowIndex) to the pay type label found on that row.
+   * This is what the Visual Mapper's relative mapping model relies on.
+   */
+  payTypeByRowOffset: Record<number, "customer" | "warranty" | "internal" | "total">;
 }
 
 export interface CSRParseResult {
@@ -35,6 +40,8 @@ export interface CSRParseResult {
   advisors: AdvisorData[];
   departmentTotals: PayTypeMetrics;
   departmentTotalsByIndex: PayTypeMetricsByIndex; // Same data but keyed by column index
+  /** Pay type lookup by relative row offset for the department totals section (anchor = the totals header row). */
+  departmentTotalsPayTypeByRowOffset: Record<number, "customer" | "warranty" | "internal" | "total">;
   columnHeaders: string[];
   columnHeadersWithIndex: Array<{ header: string; index: number }>; // Headers with their column indices
 }
@@ -240,6 +247,7 @@ export const parseCSRProductivityReport = (
         // Parse advisor sections
         const advisors: AdvisorData[] = [];
         let currentAdvisor: AdvisorData | null = null;
+        let currentAdvisorAnchorRowIndex: number | null = null;
         let departmentTotals: PayTypeMetrics = {
           customer: {},
           warranty: {},
@@ -253,6 +261,11 @@ export const parseCSRProductivityReport = (
           internal: {},
           total: {}
         };
+        const departmentTotalsPayTypeByRowOffset: Record<
+          number,
+          "customer" | "warranty" | "internal" | "total"
+        > = {};
+        let departmentTotalsAnchorRowIndex: number | null = null;
         let inDepartmentTotals = false;
         
         for (let i = headerInfo.rowIndex + 1; i < rows.length; i++) {
@@ -305,8 +318,10 @@ export const parseCSRProductivityReport = (
                 warranty: {},
                 internal: {},
                 total: {}
-              }
+              },
+              payTypeByRowOffset: {},
             };
+            currentAdvisorAnchorRowIndex = i;
             inDepartmentTotals = false;
             console.log(`[CSR Parse] Found advisor: ${advisorInfo.displayName} (${advisorInfo.employeeId})`);
             continue;
@@ -321,6 +336,8 @@ export const parseCSRProductivityReport = (
               currentAdvisor = null;
             }
             inDepartmentTotals = true;
+            departmentTotalsAnchorRowIndex = i;
+            currentAdvisorAnchorRowIndex = null;
             console.log(`[CSR Parse] Entering department totals section`);
             continue;
           }
@@ -331,6 +348,18 @@ export const parseCSRProductivityReport = (
             const metrics = inDepartmentTotals ? departmentTotals : currentAdvisor?.metrics;
             const metricsByIdx = inDepartmentTotals ? departmentTotalsByIndex : currentAdvisor?.metricsByIndex;
             if (metrics && metricsByIdx) {
+              // Track rowOffset -> payType so downstream import can use Visual Mapper's relative offsets.
+              // Only do this when we have an anchor row.
+              if (inDepartmentTotals) {
+                if (departmentTotalsAnchorRowIndex !== null) {
+                  const rowOffset = i - departmentTotalsAnchorRowIndex;
+                  departmentTotalsPayTypeByRowOffset[rowOffset] = payType as any;
+                }
+              } else if (currentAdvisor && currentAdvisorAnchorRowIndex !== null) {
+                const rowOffset = i - currentAdvisorAnchorRowIndex;
+                currentAdvisor.payTypeByRowOffset[rowOffset] = payType as any;
+              }
+
               // Extract values for each column
               headerInfo.headers.forEach((header, colIndex) => {
                 if (colIndex === headerInfo.payTypeIndex) return;
@@ -375,6 +404,7 @@ export const parseCSRProductivityReport = (
           advisors,
           departmentTotals,
           departmentTotalsByIndex,
+          departmentTotalsPayTypeByRowOffset,
           columnHeaders: headerInfo.headers.filter(h => 
             h.toLowerCase().trim() !== "pay type" && h.trim() !== ""
           ),
