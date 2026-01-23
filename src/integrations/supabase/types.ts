@@ -2247,6 +2247,45 @@ export type Database = {
           },
         ]
       }
+      scorecard_profile_store_reports: {
+        Row: {
+          id: string
+          import_profile_id: string
+          report_path: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          import_profile_id: string
+          report_path: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          import_profile_id?: string
+          report_path?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scorecard_profile_store_reports_import_profile_id_fkey"
+            columns: ["import_profile_id"]
+            isOneToOne: false
+            referencedRelation: "scorecard_import_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scorecard_profile_store_reports_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scorecard_user_aliases: {
         Row: {
           alias_name: string
