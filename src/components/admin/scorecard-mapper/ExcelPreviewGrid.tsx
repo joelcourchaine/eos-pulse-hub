@@ -110,6 +110,25 @@ export const ExcelPreviewGrid = ({
     
     return undefined;
   };
+  
+  // Check if a cell should show template-based mapping (column template applies to all advisors)
+  const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; payType: string | null } | null => {
+    if (!templateColSet.has(colIndex)) return null;
+    
+    // Only apply to advisor rows that are mapped to users
+    const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
+    const effectiveAdvisorIdx = advisorRowIndices.includes(rowIndex) ? rowIndex : owningAdvisorIdx;
+    
+    if (effectiveAdvisorIdx === null) return null;
+    if (!isUserMapped(effectiveAdvisorIdx)) return null;
+    
+    // Get the column mapping info for this template column
+    const colMapping = columnMappings?.find(m => m?.columnIndex === colIndex);
+    if (colMapping?.targetKpiName) {
+      return { kpiName: colMapping.targetKpiName, payType: colMapping.payTypeFilter };
+    }
+    return null;
+  };
 
   // Find which advisor "owns" a given data row (the advisor row that precedes it)
   const getOwningAdvisorRowIndex = (rowIndex: number): number | null => {
@@ -278,13 +297,15 @@ export const ExcelPreviewGrid = ({
                   const isMappedCol = isColumnMapped(colIndex);
                   const isSelectedCol = selectedColumn === colIndex;
                   const cellMapping = getCellMapping(rowIndex, colIndex);
+                  const templateMapping = getTemplateMapping(rowIndex, colIndex);
                   const isCellMapped = !!cellMapping;
+                  const isTemplateMapped = !!templateMapping && !isCellMapped; // Template applies but no specific cell mapping
                   const isSelectedCell = selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
                   
                   // Check if this cell is on a template column (will be auto-mapped)
                   const isTemplateColumn = templateColSet.has(colIndex);
-                  // Highlight template cells on advisor rows that are NOT yet mapped
-                  const isTemplatePreviewCell = isTemplateColumn && isAdvisorRow && !isHeaderRow && !isCellMapped;
+                  // Highlight template cells on advisor rows that are NOT yet mapped to a user
+                  const isTemplatePreviewCell = isTemplateColumn && isAdvisorRow && !isHeaderRow && !isUserRowMapped && !isCellMapped;
                   
                   // Detect owner/advisor name cells.
                   // Reports vary a lot (extra columns, metadata blocks, inconsistent spacing), so we normalize first.
@@ -325,9 +346,12 @@ export const ExcelPreviewGrid = ({
                         isSelectedCol && "bg-primary/5",
                         canSelectAsOwner && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
                         canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                        // Template-based mapping (from column templates) - solid purple
+                        isTemplateMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
+                        // Direct cell mapping - also solid purple
                         isCellMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
                         isSelectedCell && "ring-2 ring-primary ring-inset",
-                        // Template preview highlighting - shows cells that will be auto-mapped
+                        // Template preview highlighting - shows cells that WILL be auto-mapped when user is linked
                         isTemplatePreviewCell && "bg-amber-100/70 dark:bg-amber-900/40 ring-2 ring-amber-400 dark:ring-amber-600 ring-dashed",
                       )}
                       onClick={() => {
@@ -379,6 +403,18 @@ export const ExcelPreviewGrid = ({
                           </span>
                           <span className="text-[10px] text-purple-700 dark:text-purple-300 truncate">
                             → {cellMapping.kpiName}
+                          </span>
+                        </div>
+                      ) : isTemplateMapped ? (
+                        <div className="flex flex-col min-w-0">
+                          <span className={cn(typeof cell === "number" && "font-mono")}>
+                            {formatCellValue(cell)}
+                          </span>
+                          <span className="text-[10px] text-purple-700 dark:text-purple-300 truncate">
+                            → {templateMapping.kpiName}
+                            {templateMapping.payType && (
+                              <span className="text-muted-foreground ml-1">({templateMapping.payType})</span>
+                            )}
                           </span>
                         </div>
                       ) : (
