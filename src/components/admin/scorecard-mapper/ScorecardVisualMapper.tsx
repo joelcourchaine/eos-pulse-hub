@@ -192,14 +192,30 @@ export const ScorecardVisualMapper = () => {
         const row = rows[i];
         if (!row || row.length === 0) continue;
 
-        const firstCell = String(row[0] || "").trim();
-
-        // Check if this is an advisor header row
-        const advisorMatch = firstCell.match(/Advisor\s+(\d+)\s*-\s*(.+)/i);
-        if (advisorMatch) {
-          const dataRowIndex = dataRows.length;
-          advisorRowIndices.push(dataRowIndex);
-          advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
+        // Scan first few columns for advisor pattern (some reports have extra leading columns)
+        let foundAdvisor = false;
+        for (let colIdx = 0; colIdx < Math.min(row.length, 5); colIdx++) {
+          const cellValue = String(row[colIdx] || "").trim();
+          
+          // Check for advisor pattern: "Advisor 1104 - Daniel Park"
+          // Also support alphanumeric IDs like "Advisor ABC123 - Name"
+          const advisorMatch = cellValue.match(/Advisor\s+([A-Za-z0-9]+)\s*[-–—]\s*(.+)/i);
+          if (advisorMatch) {
+            const dataRowIndex = dataRows.length;
+            advisorRowIndices.push(dataRowIndex);
+            advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
+            foundAdvisor = true;
+            break;
+          }
+          
+          // Also check for "All Repair Orders" totals row
+          if (/\ball\s+repair\s+orders?\b/i.test(cellValue)) {
+            const dataRowIndex = dataRows.length;
+            advisorRowIndices.push(dataRowIndex);
+            advisorNames.push({ rowIndex: dataRowIndex, name: "All Repair Orders" });
+            foundAdvisor = true;
+            break;
+          }
         }
 
         const normalizedRow = row.map((cell: any) => {
