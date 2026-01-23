@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { format, parseISO, getDaysInMonth, getDate, isBefore, isAfter, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
+import { format, parseISO, isWithinInterval } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { TravelPeriod, TravelDestination } from "@/hooks/useTravelPeriods";
 
@@ -7,6 +7,7 @@ interface CallInfo {
   rowId: string;
   rowIndex: number;
   call_date: string;
+  monthKey: string; // The month column this call appears in
 }
 
 interface TravelOverlayProps {
@@ -64,7 +65,7 @@ export function TravelOverlay({
     };
   }, [containerRef]);
 
-  // Calculate bar positions for each travel period - now per-row
+  // Calculate bar positions for each travel period - positioned in the column where the call appears
   const bars = useMemo(() => {
     const result: {
       travel: TravelPeriod;
@@ -76,76 +77,38 @@ export function TravelOverlay({
       rowId: string;
     }[] = [];
 
+    // Build a map of month key to column index
+    const monthToColumnIndex = new Map<string, number>();
+    months.forEach((m, idx) => {
+      monthToColumnIndex.set(m.key, idx);
+    });
+
     travelPeriods.forEach(travel => {
       const travelStart = parseISO(travel.start_date);
       const travelEnd = parseISO(travel.end_date);
       const color = getDestinationColor(travel.destination);
 
       // Find calls that fall within this travel period
-      const affectedRows = new Set<number>();
-      const affectedRowIds: string[] = [];
-      
       calls.forEach(call => {
         const callDate = parseISO(call.call_date);
         if (isWithinInterval(callDate, { start: travelStart, end: travelEnd })) {
-          if (!affectedRows.has(call.rowIndex)) {
-            affectedRows.add(call.rowIndex);
-            affectedRowIds.push(call.rowId);
-          }
-        }
-      });
+          // Position the bar in the column where this call appears (based on monthKey)
+          const columnIndex = monthToColumnIndex.get(call.monthKey);
+          if (columnIndex === undefined) return;
 
-      // Calculate horizontal position based on the month columns
-      // Find which month the travel starts in and ends in
-      let leftPx = STICKY_COLUMNS_WIDTH;
-      let rightPx = STICKY_COLUMNS_WIDTH;
-      
-      for (let i = 0; i < months.length; i++) {
-        const monthDate = months[i].date;
-        const monthStart = startOfMonth(monthDate);
-        const monthEnd = endOfMonth(monthDate);
-        const daysInMonth = getDaysInMonth(monthDate);
-        const columnLeft = STICKY_COLUMNS_WIDTH + (i * MONTH_COLUMN_WIDTH);
-        const columnRight = columnLeft + MONTH_COLUMN_WIDTH;
-
-        // Check if travel start falls in this month
-        if (!isBefore(travelStart, monthStart) && !isAfter(travelStart, monthEnd)) {
-          const dayOfMonth = getDate(travelStart);
-          const dayOffset = (dayOfMonth - 1) / daysInMonth;
-          leftPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
-        } else if (isBefore(travelStart, monthStart) && leftPx === STICKY_COLUMNS_WIDTH) {
-          leftPx = columnLeft;
-        }
-
-        // Check if travel end falls in this month
-        if (!isBefore(travelEnd, monthStart) && !isAfter(travelEnd, monthEnd)) {
-          const dayOfMonth = getDate(travelEnd);
-          const dayOffset = dayOfMonth / daysInMonth;
-          rightPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
-        } else if (isAfter(travelEnd, monthEnd)) {
-          rightPx = columnRight;
-        }
-      }
-
-      const width = Math.max(rightPx - leftPx, 4);
-
-      // Create a bar for each affected row
-      if (affectedRowIds.length > 0) {
-        affectedRowIds.forEach((rowId, idx) => {
-          const affectedRowArray = Array.from(affectedRows);
-          const rowIndex = affectedRowArray[idx];
+          const columnLeft = STICKY_COLUMNS_WIDTH + (columnIndex * MONTH_COLUMN_WIDTH);
           
           result.push({
             travel,
-            left: leftPx,
-            width,
-            top: rowIndex * rowHeight,
+            left: columnLeft,
+            width: MONTH_COLUMN_WIDTH,
+            top: call.rowIndex * rowHeight,
             height: rowHeight,
             color,
-            rowId,
+            rowId: call.rowId,
           });
-        });
-      }
+        }
+      });
     });
 
     return result;
