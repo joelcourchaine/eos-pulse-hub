@@ -95,45 +95,35 @@ export function TravelOverlay({
         }
       });
 
-      // Calculate horizontal position
-      let leftPx = 0;
-      let foundStart = false;
+      // Calculate horizontal position based on the month columns
+      // Find which month the travel starts in and ends in
+      let leftPx = STICKY_COLUMNS_WIDTH;
+      let rightPx = STICKY_COLUMNS_WIDTH;
       
       for (let i = 0; i < months.length; i++) {
-        const monthStart = startOfMonth(months[i].date);
-        const monthEnd = endOfMonth(months[i].date);
-        const daysInMonth = getDaysInMonth(months[i].date);
-        const columnLeft = STICKY_COLUMNS_WIDTH + (i * MONTH_COLUMN_WIDTH);
-
-        if (!foundStart) {
-          if (isBefore(travelStart, monthStart)) {
-            leftPx = columnLeft;
-            foundStart = true;
-          } else if (!isAfter(travelStart, monthEnd)) {
-            const dayOfMonth = getDate(travelStart);
-            const dayOffset = (dayOfMonth - 1) / daysInMonth;
-            leftPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
-            foundStart = true;
-          }
-        }
-      }
-
-      let rightPx = leftPx;
-      
-      for (let i = 0; i < months.length; i++) {
-        const monthStart = startOfMonth(months[i].date);
-        const monthEnd = endOfMonth(months[i].date);
-        const daysInMonth = getDaysInMonth(months[i].date);
+        const monthDate = months[i].date;
+        const monthStart = startOfMonth(monthDate);
+        const monthEnd = endOfMonth(monthDate);
+        const daysInMonth = getDaysInMonth(monthDate);
         const columnLeft = STICKY_COLUMNS_WIDTH + (i * MONTH_COLUMN_WIDTH);
         const columnRight = columnLeft + MONTH_COLUMN_WIDTH;
 
-        if (isAfter(travelEnd, monthEnd)) {
-          rightPx = columnRight;
-        } else if (!isBefore(travelEnd, monthStart)) {
+        // Check if travel start falls in this month
+        if (!isBefore(travelStart, monthStart) && !isAfter(travelStart, monthEnd)) {
+          const dayOfMonth = getDate(travelStart);
+          const dayOffset = (dayOfMonth - 1) / daysInMonth;
+          leftPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
+        } else if (isBefore(travelStart, monthStart) && leftPx === STICKY_COLUMNS_WIDTH) {
+          leftPx = columnLeft;
+        }
+
+        // Check if travel end falls in this month
+        if (!isBefore(travelEnd, monthStart) && !isAfter(travelEnd, monthEnd)) {
           const dayOfMonth = getDate(travelEnd);
           const dayOffset = dayOfMonth / daysInMonth;
           rightPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
-          break;
+        } else if (isAfter(travelEnd, monthEnd)) {
+          rightPx = columnRight;
         }
       }
 
@@ -198,15 +188,13 @@ export function TravelOverlay({
             <Tooltip key={`${travel.id}-${rowId}`}>
               <TooltipTrigger asChild>
                 <div
-                  className="absolute pointer-events-auto cursor-pointer transition-opacity hover:opacity-90"
+                  className="absolute pointer-events-auto cursor-pointer transition-opacity hover:opacity-90 rounded-sm"
                   style={{
                     left: clippedLeft,
                     width: clippedWidth,
                     top: adjustedTop,
                     height: height,
-                    backgroundColor: color + '35', // ~21% opacity
-                    borderLeft: adjustedLeft >= STICKY_COLUMNS_WIDTH ? `2px solid ${color}` : 'none',
-                    borderRight: `2px solid ${color}`,
+                    backgroundColor: color + '40', // ~25% opacity
                   }}
                   onClick={() => onEditTravel(travel)}
                 />
