@@ -794,6 +794,19 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
           months={travelMonths}
           containerRef={containerRef}
           onEditTravel={handleOpenTravelDialog}
+          calls={displayRows.flatMap((row, rowIndex) => {
+            const callsForRow: { rowId: string; rowIndex: number; call_date: string }[] = [];
+            row.calls.forEach((call) => {
+              if (call) {
+                callsForRow.push({
+                  rowId: row.rowId,
+                  rowIndex,
+                  call_date: call.call_date,
+                });
+              }
+            });
+            return callsForRow;
+          })}
         />
       </div>
 

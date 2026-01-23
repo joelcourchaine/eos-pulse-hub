@@ -1,8 +1,13 @@
-import { useMemo, useState, useEffect, useRef } from "react";
-import { format, parseISO, getDaysInMonth, getDate, isBefore, isAfter, startOfMonth, endOfMonth } from "date-fns";
-import { cn } from "@/lib/utils";
+import { useMemo, useState, useEffect } from "react";
+import { format, parseISO, getDaysInMonth, getDate, isBefore, isAfter, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { TravelPeriod, TravelDestination } from "@/hooks/useTravelPeriods";
+
+interface CallInfo {
+  rowId: string;
+  rowIndex: number;
+  call_date: string;
+}
 
 interface TravelOverlayProps {
   travelPeriods: TravelPeriod[];
@@ -12,12 +17,14 @@ interface TravelOverlayProps {
   containerRef: React.RefObject<HTMLDivElement>;
   onEditTravel: (travel: TravelPeriod) => void;
   headerHeight?: number;
+  calls?: CallInfo[]; // All calls with their row info
+  rowHeight?: number;
 }
 
 // Fixed column widths matching ConsultingGrid
 const STICKY_COLUMNS_WIDTH = 600; // Dealership(280) + Dept(120) + Contact(120) + Value(80)
 const MONTH_COLUMN_WIDTH = 130;
-const DELETE_COLUMN_WIDTH = 50;
+const ROW_HEIGHT = 32; // h-8 = 2rem = 32px
 
 export function TravelOverlay({
   travelPeriods,
@@ -27,9 +34,11 @@ export function TravelOverlay({
   containerRef,
   onEditTravel,
   headerHeight = 32,
+  calls = [],
+  rowHeight = ROW_HEIGHT,
 }: TravelOverlayProps) {
   const [scrollLeft, setScrollLeft] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(0);
+  const [scrollTop, setScrollTop] = useState(0);
 
   // Listen to scroll position of the container
   useEffect(() => {
@@ -41,33 +50,52 @@ export function TravelOverlay({
 
     const handleScroll = () => {
       setScrollLeft((scrollArea as HTMLElement).scrollLeft);
+      setScrollTop((scrollArea as HTMLElement).scrollTop);
     };
 
-    const resizeObserver = new ResizeObserver(() => {
-      setContainerHeight(container.offsetHeight);
-    });
-
     scrollArea.addEventListener('scroll', handleScroll);
-    resizeObserver.observe(container);
 
     // Initial values
     setScrollLeft((scrollArea as HTMLElement).scrollLeft);
-    setContainerHeight(container.offsetHeight);
+    setScrollTop((scrollArea as HTMLElement).scrollTop);
 
     return () => {
       scrollArea.removeEventListener('scroll', handleScroll);
-      resizeObserver.disconnect();
     };
   }, [containerRef]);
 
-  // Calculate bar positions for each travel period
+  // Calculate bar positions for each travel period - now per-row
   const bars = useMemo(() => {
-    return travelPeriods.map(travel => {
+    const result: {
+      travel: TravelPeriod;
+      left: number;
+      width: number;
+      top: number;
+      height: number;
+      color: string;
+      rowId: string;
+    }[] = [];
+
+    travelPeriods.forEach(travel => {
       const travelStart = parseISO(travel.start_date);
       const travelEnd = parseISO(travel.end_date);
       const color = getDestinationColor(travel.destination);
 
-      // Find start position
+      // Find calls that fall within this travel period
+      const affectedRows = new Set<number>();
+      const affectedRowIds: string[] = [];
+      
+      calls.forEach(call => {
+        const callDate = parseISO(call.call_date);
+        if (isWithinInterval(callDate, { start: travelStart, end: travelEnd })) {
+          if (!affectedRows.has(call.rowIndex)) {
+            affectedRows.add(call.rowIndex);
+            affectedRowIds.push(call.rowId);
+          }
+        }
+      });
+
+      // Calculate horizontal position
       let leftPx = 0;
       let foundStart = false;
       
@@ -78,13 +106,10 @@ export function TravelOverlay({
         const columnLeft = STICKY_COLUMNS_WIDTH + (i * MONTH_COLUMN_WIDTH);
 
         if (!foundStart) {
-          // Check if travel starts in this month or before
           if (isBefore(travelStart, monthStart)) {
-            // Travel started before this month, start at column edge
             leftPx = columnLeft;
             foundStart = true;
           } else if (!isAfter(travelStart, monthEnd)) {
-            // Travel starts in this month
             const dayOfMonth = getDate(travelStart);
             const dayOffset = (dayOfMonth - 1) / daysInMonth;
             leftPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
@@ -93,7 +118,6 @@ export function TravelOverlay({
         }
       }
 
-      // Find end position (width)
       let rightPx = leftPx;
       
       for (let i = 0; i < months.length; i++) {
@@ -104,10 +128,8 @@ export function TravelOverlay({
         const columnRight = columnLeft + MONTH_COLUMN_WIDTH;
 
         if (isAfter(travelEnd, monthEnd)) {
-          // Travel extends beyond this month
           rightPx = columnRight;
         } else if (!isBefore(travelEnd, monthStart)) {
-          // Travel ends in this month
           const dayOfMonth = getDate(travelEnd);
           const dayOffset = dayOfMonth / daysInMonth;
           rightPx = columnLeft + (dayOffset * MONTH_COLUMN_WIDTH);
@@ -115,16 +137,29 @@ export function TravelOverlay({
         }
       }
 
-      const width = Math.max(rightPx - leftPx, 4); // Minimum 4px width
+      const width = Math.max(rightPx - leftPx, 4);
 
-      return {
-        travel,
-        left: leftPx,
-        width,
-        color,
-      };
+      // Create a bar for each affected row
+      if (affectedRowIds.length > 0) {
+        affectedRowIds.forEach((rowId, idx) => {
+          const affectedRowArray = Array.from(affectedRows);
+          const rowIndex = affectedRowArray[idx];
+          
+          result.push({
+            travel,
+            left: leftPx,
+            width,
+            top: rowIndex * rowHeight,
+            height: rowHeight,
+            color,
+            rowId,
+          });
+        });
+      }
     });
-  }, [travelPeriods, months, getDestinationColor]);
+
+    return result;
+  }, [travelPeriods, months, getDestinationColor, calls, rowHeight]);
 
   if (bars.length === 0) return null;
 
@@ -137,12 +172,19 @@ export function TravelOverlay({
           zIndex: 5,
         }}
       >
-        {bars.map(({ travel, left, width, color }) => {
-          // Adjust left position based on scroll
+        {bars.map(({ travel, left, width, top, height, color, rowId }) => {
+          // Adjust position based on scroll
           const adjustedLeft = left - scrollLeft;
+          const adjustedTop = top - scrollTop;
           
-          // Check if bar is visible
-          if (adjustedLeft + width < STICKY_COLUMNS_WIDTH || adjustedLeft > containerRef.current?.offsetWidth) {
+          // Check if bar is visible horizontally
+          if (adjustedLeft + width < STICKY_COLUMNS_WIDTH || adjustedLeft > (containerRef.current?.offsetWidth || 0)) {
+            return null;
+          }
+
+          // Check if bar is visible vertically
+          const containerHeight = containerRef.current?.offsetHeight || 0;
+          if (adjustedTop + height < 0 || adjustedTop > containerHeight - headerHeight) {
             return null;
           }
 
@@ -153,34 +195,21 @@ export function TravelOverlay({
           if (clippedWidth <= 0) return null;
 
           return (
-            <Tooltip key={travel.id}>
+            <Tooltip key={`${travel.id}-${rowId}`}>
               <TooltipTrigger asChild>
                 <div
                   className="absolute pointer-events-auto cursor-pointer transition-opacity hover:opacity-90"
                   style={{
                     left: clippedLeft,
                     width: clippedWidth,
-                    top: 0,
-                    bottom: 0,
-                    backgroundColor: color + '30', // 19% opacity in hex
+                    top: adjustedTop,
+                    height: height,
+                    backgroundColor: color + '35', // ~21% opacity
                     borderLeft: adjustedLeft >= STICKY_COLUMNS_WIDTH ? `2px solid ${color}` : 'none',
                     borderRight: `2px solid ${color}`,
                   }}
                   onClick={() => onEditTravel(travel)}
-                >
-                  {/* Destination label badge */}
-                  {clippedWidth >= 50 && (
-                    <div 
-                      className="absolute top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap shadow-sm"
-                      style={{ 
-                        backgroundColor: color,
-                        color: 'white',
-                      }}
-                    >
-                      {travel.destination}
-                    </div>
-                  )}
-                </div>
+                />
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
                 <div className="space-y-1">
