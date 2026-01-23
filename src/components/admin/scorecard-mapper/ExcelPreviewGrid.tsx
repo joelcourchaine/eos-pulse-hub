@@ -80,9 +80,14 @@ export const ExcelPreviewGrid = ({
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  // Create a Set and Map for faster lookup of template columns
+  // Group templates by col_index for lookup (multiple templates per column possible)
+  const templatesByColIndex = new Map<number, ColumnTemplate[]>();
+  columnTemplates.forEach(t => {
+    const existing = templatesByColIndex.get(t.col_index) || [];
+    existing.push(t);
+    templatesByColIndex.set(t.col_index, existing);
+  });
   const templateColSet = new Set(columnTemplates.map(t => t.col_index));
-  const templateByColIndex = new Map(columnTemplates.map(t => [t.col_index, t]));
 
   const isColumnMapped = (colIndex: number) => {
     return columnMappings?.some(m => m?.columnIndex === colIndex && m?.targetKpiName) ?? false;
@@ -137,8 +142,8 @@ export const ExcelPreviewGrid = ({
   
   // Check if a cell should show template-based mapping (column template applies to all advisors)
   const getTemplateMapping = (rowIndex: number, colIndex: number): { kpiName: string; payType: string | null } | null => {
-    const template = templateByColIndex.get(colIndex);
-    if (!template) return null;
+    const templates = templatesByColIndex.get(colIndex);
+    if (!templates || templates.length === 0) return null;
     
     // Only apply to advisor rows that are mapped to users
     const owningAdvisorIdx = getOwningAdvisorRowIndex(rowIndex);
@@ -147,16 +152,26 @@ export const ExcelPreviewGrid = ({
     if (effectiveAdvisorIdx === null) return null;
     if (!isUserMapped(effectiveAdvisorIdx)) return null;
     
-    // Check if this row's pay type matches the template's filter
-    if (template.pay_type_filter) {
-      const rowPayType = getRowPayType(rowIndex);
-      // Only show template on matching pay type row
-      if (rowPayType !== template.pay_type_filter.toLowerCase()) {
-        return null;
+    // Get the pay type for this row
+    const rowPayType = getRowPayType(rowIndex);
+    
+    // Find a template that matches this row's pay type
+    for (const template of templates) {
+      if (template.pay_type_filter) {
+        // Template has a filter - only match if row pay type matches
+        if (rowPayType === template.pay_type_filter.toLowerCase()) {
+          return { kpiName: template.kpi_name, payType: template.pay_type_filter };
+        }
+      } else {
+        // Template has no filter - only apply to rows that have no pay type (like header rows)
+        // OR if this is the only template for the column and it's a "Total" row
+        if (!rowPayType || rowPayType === "total") {
+          return { kpiName: template.kpi_name, payType: null };
+        }
       }
     }
     
-    return { kpiName: template.kpi_name, payType: template.pay_type_filter };
+    return null;
   };
 
   // Find which advisor "owns" a given data row (the advisor row that precedes it)

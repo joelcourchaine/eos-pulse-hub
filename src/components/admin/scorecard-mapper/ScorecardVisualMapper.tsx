@@ -677,18 +677,19 @@ export const ScorecardVisualMapper = () => {
 
   // Save column template mutation (called automatically when saving cell mapping)
   const saveColumnTemplateMutation = useMutation({
-    mutationFn: async (template: { colIndex: number; kpiName: string }) => {
+    mutationFn: async (template: { colIndex: number; kpiName: string; payTypeFilter?: string | null }) => {
       if (!selectedProfileId) throw new Error("No profile selected");
       
       const { data: user } = await supabase.auth.getUser();
       
-      // Upsert the template (col_index + kpi_name is unique per profile)
+      // Upsert the template (col_index + kpi_name + pay_type_filter is unique per profile)
       const { error } = await supabase
         .from("scorecard_column_templates")
         .upsert({
           import_profile_id: selectedProfileId,
           col_index: template.colIndex,
           kpi_name: template.kpiName,
+          pay_type_filter: template.payTypeFilter || null,
           created_by: user.user?.id,
         }, {
           onConflict: "import_profile_id,col_index,kpi_name",
@@ -697,7 +698,8 @@ export const ScorecardVisualMapper = () => {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["column-templates", selectedProfileId] });
-      toast.success(`Template saved: Column ${variables.colIndex + 1} → ${variables.kpiName}`);
+      const payTypeLabel = variables.payTypeFilter ? ` (${variables.payTypeFilter})` : "";
+      toast.success(`Template saved: Column ${variables.colIndex + 1} → ${variables.kpiName}${payTypeLabel}`);
     },
     onError: (error) => {
       console.error("Failed to save column template:", error);
@@ -1000,12 +1002,32 @@ export const ScorecardVisualMapper = () => {
     setCellPopoverOpen(true);
   };
 
+  // Detect the pay type of a row by looking at the first column values
+  const detectPayTypeFromRow = (rowIndex: number): string | null => {
+    if (!parsedData) return null;
+    const row = parsedData.rows[rowIndex];
+    if (!row) return null;
+    
+    // Check first few columns for pay type indicator
+    for (let i = 0; i < Math.min(row.length, 3); i++) {
+      const cellValue = String(row[i] || "").toLowerCase().trim();
+      if (cellValue === "customer" || cellValue === "customer pay") return "customer";
+      if (cellValue === "warranty") return "warranty";
+      if (cellValue === "internal") return "internal";
+      if (cellValue === "total" || cellValue === "totals") return "total";
+    }
+    return null;
+  };
+
   const handleCellKpiMappingSave = (mapping: {
     rowIndex: number;
     colIndex: number;
     kpiId: string;
     kpiName: string;
   }) => {
+    // Detect pay type from the row being mapped
+    const payTypeFilter = detectPayTypeFromRow(mapping.rowIndex);
+    
     // Update local state immediately for responsive UI
     // Store as relative mapping: userId + colIndex (no rowIndex)
     const relativeMapping: CellKpiMapping = {
@@ -1036,10 +1058,11 @@ export const ScorecardVisualMapper = () => {
     saveCellMappingMutation.mutate(mapping);
     
     // Also save as a column template for future users
-    // This creates a profile-level template: "Column X contains KPI Y"
+    // This creates a profile-level template: "Column X contains KPI Y (for pay_type Z)"
     saveColumnTemplateMutation.mutate({
       colIndex: mapping.colIndex,
       kpiName: mapping.kpiName,
+      payTypeFilter: payTypeFilter,
     });
   };
 
