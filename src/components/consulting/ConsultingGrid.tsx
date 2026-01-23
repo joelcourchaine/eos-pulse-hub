@@ -708,6 +708,7 @@ export function ConsultingGrid({ showAdhoc }: ConsultingGridProps) {
                   return (
                     <TableHead 
                       key={m.key} 
+                      data-month-key={m.key}
                       className={cn(
                         "w-[130px] text-center min-w-[130px] py-1 text-xs cursor-pointer transition-colors",
                         isCurrentMonth && "bg-destructive/10",

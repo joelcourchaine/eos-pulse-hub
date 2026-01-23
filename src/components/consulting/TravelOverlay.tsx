@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, parseISO, isWithinInterval } from "date-fns";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { TravelPeriod, TravelDestination } from "@/hooks/useTravelPeriods";
@@ -22,9 +22,8 @@ interface TravelOverlayProps {
   rowHeight?: number;
 }
 
-// Fixed column widths matching ConsultingGrid
-const STICKY_COLUMNS_WIDTH = 600; // Dealership(280) + Dept(120) + Contact(120) + Value(80)
-const MONTH_COLUMN_WIDTH = 130;
+// NOTE: We intentionally DO NOT hardcode column widths here.
+// Month columns are measured from the actual DOM so horizontal scrolling stays perfectly aligned.
 const ROW_HEIGHT = 32; // h-8 = 2rem = 32px
 
 export function TravelOverlay({
@@ -38,8 +37,28 @@ export function TravelOverlay({
   calls = [],
   rowHeight = ROW_HEIGHT,
 }: TravelOverlayProps) {
-  const [scrollLeft, setScrollLeft] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
+  const [monthColumns, setMonthColumns] = useState<Record<string, { left: number; width: number }>>({});
+
+  const computeMonthColumns = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+
+    const next: Record<string, { left: number; width: number }> = {};
+    for (const m of months) {
+      const el = container.querySelector(`[data-month-key="${m.key}"]`) as HTMLElement | null;
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      next[m.key] = {
+        // Visible left within the container (accounts for horizontal scroll)
+        left: rect.left - containerRect.left,
+        width: rect.width,
+      };
+    }
+    setMonthColumns(next);
+  }, [containerRef, months]);
 
   // Listen to scroll position of the container
   useEffect(() => {
@@ -50,20 +69,31 @@ export function TravelOverlay({
     if (!scrollArea) return;
 
     const handleScroll = () => {
-      setScrollLeft((scrollArea as HTMLElement).scrollLeft);
       setScrollTop((scrollArea as HTMLElement).scrollTop);
+      // Keep month column measurements synced with horizontal scrolling
+      computeMonthColumns();
     };
 
     scrollArea.addEventListener('scroll', handleScroll);
 
     // Initial values
-    setScrollLeft((scrollArea as HTMLElement).scrollLeft);
     setScrollTop((scrollArea as HTMLElement).scrollTop);
+    computeMonthColumns();
 
     return () => {
       scrollArea.removeEventListener('scroll', handleScroll);
     };
-  }, [containerRef]);
+  }, [containerRef, computeMonthColumns]);
+
+  // Re-measure columns on resize (responsive widths)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const ro = new ResizeObserver(() => computeMonthColumns());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [containerRef, computeMonthColumns]);
 
   // Calculate bar positions for each travel period - positioned in the column where the call appears
   const bars = useMemo(() => {
@@ -77,12 +107,6 @@ export function TravelOverlay({
       rowId: string;
     }[] = [];
 
-    // Build a map of month key to column index
-    const monthToColumnIndex = new Map<string, number>();
-    months.forEach((m, idx) => {
-      monthToColumnIndex.set(m.key, idx);
-    });
-
     travelPeriods.forEach(travel => {
       const travelStart = parseISO(travel.start_date);
       const travelEnd = parseISO(travel.end_date);
@@ -92,16 +116,13 @@ export function TravelOverlay({
       calls.forEach(call => {
         const callDate = parseISO(call.call_date);
         if (isWithinInterval(callDate, { start: travelStart, end: travelEnd })) {
-          // Position the bar in the column where this call appears (based on monthKey)
-          const columnIndex = monthToColumnIndex.get(call.monthKey);
-          if (columnIndex === undefined) return;
-
-          const columnLeft = STICKY_COLUMNS_WIDTH + (columnIndex * MONTH_COLUMN_WIDTH);
+          const col = monthColumns[call.monthKey];
+          if (!col) return;
           
           result.push({
             travel,
-            left: columnLeft,
-            width: MONTH_COLUMN_WIDTH,
+            left: col.left,
+            width: col.width,
             top: call.rowIndex * rowHeight,
             height: rowHeight,
             color,
@@ -112,7 +133,7 @@ export function TravelOverlay({
     });
 
     return result;
-  }, [travelPeriods, months, getDestinationColor, calls, rowHeight]);
+  }, [travelPeriods, getDestinationColor, calls, rowHeight, monthColumns]);
 
   if (bars.length === 0) return null;
 
@@ -126,14 +147,13 @@ export function TravelOverlay({
         }}
       >
         {bars.map(({ travel, left, width, top, height, color, rowId }) => {
-          // Adjust position based on scroll
-          const adjustedLeft = left - scrollLeft;
+          // Left is already "visible" within the container (computed from DOM),
+          // so we only need to adjust vertical position by scrollTop.
+          const adjustedLeft = left;
           const adjustedTop = top - scrollTop;
           
           // Check if bar is visible horizontally
-          if (adjustedLeft + width < STICKY_COLUMNS_WIDTH || adjustedLeft > (containerRef.current?.offsetWidth || 0)) {
-            return null;
-          }
+          if (adjustedLeft + width < 0 || adjustedLeft > (containerRef.current?.offsetWidth || 0)) return null;
 
           // Check if bar is visible vertically
           const containerHeight = containerRef.current?.offsetHeight || 0;
@@ -141,8 +161,8 @@ export function TravelOverlay({
             return null;
           }
 
-          // Clip bar to visible area (after sticky columns)
-          const clippedLeft = Math.max(adjustedLeft, STICKY_COLUMNS_WIDTH);
+          // Clip bar to visible area (container bounds)
+          const clippedLeft = Math.max(adjustedLeft, 0);
           const clippedWidth = width - (clippedLeft - adjustedLeft);
 
           if (clippedWidth <= 0) return null;
