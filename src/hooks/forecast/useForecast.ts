@@ -333,6 +333,18 @@ export function useForecast(departmentId: string | undefined, year: number) {
               baseline_value: u.baselineValue ?? existing.baseline_value,
               is_locked: u.isLocked ?? existing.is_locked,
             });
+          } else {
+            // Entry doesn't exist in cache but update was requested
+            // This can happen if cache is stale - add it to ensure UI consistency
+            map.set(k, {
+              id: `temp_update_${u.month}_${u.metricName}`,
+              forecast_id: forecast?.id ?? '',
+              month: u.month,
+              metric_name: u.metricName,
+              forecast_value: u.forecastValue,
+              baseline_value: u.baselineValue ?? null,
+              is_locked: u.isLocked ?? false,
+            });
           }
         }
 
