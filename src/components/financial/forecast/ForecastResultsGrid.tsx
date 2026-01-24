@@ -56,6 +56,7 @@ interface ForecastResultsGridProps {
   priorYear: number;
   onCellEdit?: (month: string, metricName: string, value: number) => void;
   onToggleLock?: (month: string, metricName: string) => void;
+  onLockRow?: (metricName: string, lock: boolean) => void;
   onMonthNavigate?: (direction: 'prev' | 'next') => void;
   onSubMetricEdit?: (subMetricKey: string, parentKey: string, newAnnualValue: number) => void;
   onMainMetricAnnualEdit?: (metricKey: string, newAnnualValue: number) => void;
@@ -98,6 +99,7 @@ export function ForecastResultsGrid({
   priorYear,
   onCellEdit,
   onToggleLock,
+  onLockRow,
   onMonthNavigate,
   onSubMetricEdit,
   onMainMetricAnnualEdit,
@@ -362,6 +364,19 @@ export function ForecastResultsGrid({
     
     const isDeptProfit = metric.key === 'department_profit';
     
+    // Check if all months for this metric are locked (for row lock indicator)
+    const allMonthsLocked = !isSubMetric && months.every(month => {
+      const monthData = monthlyValues.get(month);
+      const metricData = monthData?.get(metric.key);
+      return metricData?.is_locked ?? false;
+    });
+    
+    const someMonthsLocked = !isSubMetric && months.some(month => {
+      const monthData = monthlyValues.get(month);
+      const metricData = monthData?.get(metric.key);
+      return metricData?.is_locked ?? false;
+    });
+    
     return (
       <tr 
         key={metric.key} 
@@ -372,7 +387,7 @@ export function ForecastResultsGrid({
           isDeptProfit && "bg-primary/10 border-t-2 border-t-primary/30"
         )}
       >
-        <td className="py-2 pr-4 w-[160px]">
+        <td className="py-2 pr-4 w-[200px]">
           <div className={cn("flex items-center gap-2", isSubMetric && "pl-6")}>
             {hasChildren && (
               <Button
@@ -402,12 +417,47 @@ export function ForecastResultsGrid({
               </SubMetricQuestionTooltip>
             ) : (
               <span className={cn(
+                "flex-1",
                 metric.isDriver && "font-medium text-primary",
                 isSubMetric && "text-muted-foreground text-xs",
                 isDeptProfit && "font-semibold text-primary"
               )}>
                 {metric.label}
               </span>
+            )}
+            
+            {/* Row lock button - only for main metrics in monthly view */}
+            {!isSubMetric && view === 'monthly' && onLockRow && (
+              <TooltipProvider>
+                <Tooltip delayDuration={150}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-5 w-5 p-0 ml-auto",
+                        allMonthsLocked && "text-amber-600 dark:text-amber-400",
+                        someMonthsLocked && !allMonthsLocked && "text-amber-400/60 dark:text-amber-500/60"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onLockRow(metric.key, !allMonthsLocked);
+                      }}
+                    >
+                      {allMonthsLocked ? (
+                        <Lock className="h-3.5 w-3.5" />
+                      ) : (
+                        <Unlock className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {allMonthsLocked 
+                      ? 'Unlock all months for this metric' 
+                      : 'Lock all months for this metric'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </td>
