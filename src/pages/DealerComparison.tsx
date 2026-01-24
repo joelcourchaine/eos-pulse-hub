@@ -1590,6 +1590,12 @@ export default function DealerComparison() {
             </h1>
             <p className="text-muted-foreground">
               <span className="font-medium">{brandDisplayName}</span>
+              {selectedDepartmentNames.length > 0 && (
+                <>
+                  {" • "}
+                  <span className="font-medium">{selectedDepartmentNames.join(", ")}</span>
+                </>
+              )}
               {" • "}Comparing {uniqueStoreIds.length} stores across {selectedMetrics.length} {metricType === "dept_info" ? "questions" : "metrics"}
               {metricType !== "dept_info" && selectedMonth && ` • ${selectedMonth.substring(0, 7) === selectedMonth ? 
                 format(new Date(selectedMonth + '-15'), 'MMMM yyyy') : 
