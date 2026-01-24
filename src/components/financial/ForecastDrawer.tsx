@@ -628,16 +628,16 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     overridesSignature,
   ]);
 
-  // Handle cell edits
+  // Handle cell edits - do NOT auto-lock; only store the value
   const handleCellEdit = (month: string, metricName: string, value: number) => {
     if (view === 'quarter') {
       // Distribute to months
       const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
       distributions.forEach((d) => {
-        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value, isLocked: true });
+        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
       });
     } else {
-      updateEntry.mutate({ month, metricName, forecastValue: value, isLocked: true });
+      updateEntry.mutate({ month, metricName, forecastValue: value });
     }
   };
 
@@ -768,32 +768,31 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const metricDef = metricDefinitions.find(m => m.key === metricKey);
     const isPercent = metricDef?.type === 'percent';
     
-    // Special handling for GP%: recalculate GP Net for each month based on locked Total Sales
+    // Special handling for GP%: recalculate GP Net for each month based on current Total Sales
+    // Do NOT auto-lock - user must explicitly lock if desired
     if (metricKey === 'gp_percent') {
-      const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
+      const updates: { month: string; metricName: string; forecastValue: number }[] = [];
       
-      // For each month, calculate GP Net from the locked/current Total Sales × target GP%
+      // For each month, calculate GP Net from the current Total Sales × target GP%
       months.forEach((month) => {
         const monthData = monthlyValues.get(month);
         const totalSalesEntry = monthData?.get('total_sales');
-        // Use the current value (locked or calculated) for Total Sales
+        // Use the current value for Total Sales
         const totalSalesValue = totalSalesEntry?.value ?? 0;
         
-        // Lock GP% at the target value for this month
+        // Set GP% for this month (NOT locked)
         updates.push({
           month,
           metricName: 'gp_percent',
           forecastValue: newAnnualValue,
-          isLocked: true,
         });
         
-        // Calculate and lock GP Net = Total Sales × (target GP% / 100)
+        // Calculate GP Net = Total Sales × (target GP% / 100) (NOT locked)
         const calculatedGpNet = totalSalesValue * (newAnnualValue / 100);
         updates.push({
           month,
           metricName: 'gp_net',
           forecastValue: calculatedGpNet,
-          isLocked: true,
         });
       });
       
@@ -898,8 +897,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
     if (totalWeight === 0 && !isPercent) return;
     
-    // Build all updates at once
-    const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
+    // Build all updates at once - do NOT auto-lock
+    const updates: { month: string; metricName: string; forecastValue: number }[] = [];
     
     weights.forEach((w) => {
       const monthStr = `${forecastYear}-${String(w.month_number).padStart(2, '0')}`;
@@ -914,7 +913,6 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         month: monthStr,
         metricName: metricKey,
         forecastValue: monthValue,
-        isLocked: true,
       });
     });
     
