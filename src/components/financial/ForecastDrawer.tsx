@@ -748,19 +748,50 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const metricDef = metricDefinitions.find(m => m.key === metricKey);
     const isPercent = metricDef?.type === 'percent';
     
-    // Special handling for GP%: recalculate GP Net based on new GP%
+    // Special handling for GP%: recalculate GP Net for each month based on locked Total Sales
     if (metricKey === 'gp_percent') {
-      // Get current Total Sales from annual values
-      const totalSalesData = annualValues.get('total_sales');
-      const currentTotalSales = totalSalesData?.value ?? 0;
+      const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
       
-      // Calculate new GP Net = Total Sales × (new GP% / 100)
-      const newGpNet = currentTotalSales * (newAnnualValue / 100);
+      // For each month, calculate GP Net from the locked/current Total Sales × target GP%
+      months.forEach((month) => {
+        const monthData = monthlyValues.get(month);
+        const totalSalesEntry = monthData?.get('total_sales');
+        // Use the current value (locked or calculated) for Total Sales
+        const totalSalesValue = totalSalesEntry?.value ?? 0;
+        
+        // Lock GP% at the target value for this month
+        updates.push({
+          month,
+          metricName: 'gp_percent',
+          forecastValue: newAnnualValue,
+          isLocked: true,
+        });
+        
+        // Calculate and lock GP Net = Total Sales × (target GP% / 100)
+        const calculatedGpNet = totalSalesValue * (newAnnualValue / 100);
+        updates.push({
+          month,
+          metricName: 'gp_net',
+          forecastValue: calculatedGpNet,
+          isLocked: true,
+        });
+      });
       
-      // Get current GP Net to calculate scale factor
+      // Bulk update all months for both GP% and GP Net
+      bulkUpdateEntries.mutate(updates);
+      
+      // Get current GP Net to calculate scale factor for sub-metrics
       const currentGpNetData = annualValues.get('gp_net');
       const currentGpNet = currentGpNetData?.value ?? 0;
-      const scaleFactor = currentGpNet > 0 ? newGpNet / currentGpNet : 1;
+      
+      // Calculate new annual GP Net (sum of all monthly calculated values)
+      const newAnnualGpNet = months.reduce((sum, month) => {
+        const monthData = monthlyValues.get(month);
+        const totalSalesValue = monthData?.get('total_sales')?.value ?? 0;
+        return sum + (totalSalesValue * (newAnnualValue / 100));
+      }, 0);
+      
+      const scaleFactor = currentGpNet > 0 ? newAnnualGpNet / currentGpNet : 1;
       
       // Scale all GP Net sub-metrics proportionally
       const gpNetSubMetrics = subMetricForecasts?.get('gp_net') || [];
