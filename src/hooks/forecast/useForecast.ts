@@ -215,14 +215,19 @@ export function useForecast(departmentId: string | undefined, year: number) {
     }) => {
       if (!forecast?.id) throw new Error('No forecast');
 
+      console.log('[updateEntry] called with:', { month, metricName, forecastValue, isLocked });
+
       // Check if entry exists
       const existing = entries?.find(e => e.month === month && e.metric_name === metricName);
+      console.log('[updateEntry] existing entry:', existing ? { id: existing.id, is_locked: existing.is_locked } : 'none');
 
       if (existing) {
         const updates: Partial<ForecastEntry> = {};
         if (forecastValue !== undefined) updates.forecast_value = forecastValue;
         if (baselineValue !== undefined) updates.baseline_value = baselineValue;
         if (isLocked !== undefined) updates.is_locked = isLocked;
+
+        console.log('[updateEntry] updating with:', updates);
 
         const { error } = await supabase
           .from('forecast_entries')
@@ -231,6 +236,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
         
         if (error) throw error;
       } else {
+        console.log('[updateEntry] inserting new entry with is_locked:', isLocked ?? false);
         const { error } = await supabase
           .from('forecast_entries')
           .insert({
@@ -244,8 +250,11 @@ export function useForecast(departmentId: string | undefined, year: number) {
         
         if (error) throw error;
       }
+      
+      return { month, metricName, isLocked };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      console.log('[updateEntry] success, result:', result);
       queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
     },
   });
