@@ -532,8 +532,15 @@ export function useForecastCalculations({
 
         let value: number;
 
-        if (isLocked && existingEntry?.forecast_value !== null) {
-          // Use locked value
+        // Priority: locked entries > stored forecast values > baseline/calculated
+        // This ensures user-entered values persist even if not locked
+        const hasStoredForecastValue = existingEntry?.forecast_value !== null && existingEntry?.forecast_value !== undefined;
+
+        if (isLocked && hasStoredForecastValue) {
+          // Use locked value - highest priority
+          value = existingEntry.forecast_value;
+        } else if (hasStoredForecastValue && !useBaselineDirectly) {
+          // Use stored forecast value even if not locked (user manually entered it)
           value = existingEntry.forecast_value;
         } else if (useBaselineDirectly) {
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
