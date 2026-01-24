@@ -1822,6 +1822,7 @@ export default function DealerComparison() {
         comparisonMode={comparisonMode}
         filterName={filterName}
         brandDisplayName={brandDisplayName}
+        selectedDepartmentNames={selectedDepartmentNames}
       />
     </div>
   );

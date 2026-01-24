@@ -43,6 +43,7 @@ interface EmailRequest {
   comparisonMode: string;
   filterName?: string;
   brandDisplayName?: string;
+  selectedDepartmentNames?: string[];
 }
 
 function formatValue(value: number | null, metricName: string): string {
@@ -125,6 +126,7 @@ const handler = async (req: Request): Promise<Response> => {
       comparisonMode,
       filterName,
       brandDisplayName,
+      selectedDepartmentNames,
     }: EmailRequest = await req.json();
 
     console.log("Sending dealer comparison email to:", recipientEmails);
@@ -150,6 +152,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Build title based on filter name
     const reportTitle = filterName ? filterName : (metricType === "dept_info" ? "Service Dept Info Comparison" : "Dealer Comparison Report");
     const brandLine = brandDisplayName || "All Brands";
+    const departmentLine = selectedDepartmentNames && selectedDepartmentNames.length > 0 
+      ? selectedDepartmentNames.join(", ") 
+      : "";
 
     let html = "";
 
@@ -211,7 +216,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
           <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
           <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-            <strong>${brandLine}</strong> • ${storesArray.length} stores compared • ${uniqueQuestions.length} questions
+            <strong>${brandLine}</strong>${departmentLine ? ` • <strong>${departmentLine}</strong>` : ''} • ${storesArray.length} stores compared • ${uniqueQuestions.length} questions
           </p>
           
           <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
@@ -268,7 +273,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
           <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
           <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-            <strong>${brandLine}</strong> • ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
+            <strong>${brandLine}</strong>${departmentLine ? ` • <strong>${departmentLine}</strong>` : ''} • ${periodDescription} • ${comparisonDescription} • ${stores.length} stores compared
           </p>
           
           <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">

@@ -53,6 +53,7 @@ interface EmailComparisonDialogProps {
   comparisonMode: string;
   filterName?: string;
   brandDisplayName?: string;
+  selectedDepartmentNames?: string[];
 }
 
 export function EmailComparisonDialog({
@@ -72,6 +73,7 @@ export function EmailComparisonDialog({
   comparisonMode,
   filterName,
   brandDisplayName,
+  selectedDepartmentNames,
 }: EmailComparisonDialogProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
@@ -194,6 +196,7 @@ export function EmailComparisonDialog({
           comparisonMode,
           filterName,
           brandDisplayName,
+          selectedDepartmentNames,
         },
       });
 
