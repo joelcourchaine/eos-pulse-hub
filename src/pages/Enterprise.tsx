@@ -362,6 +362,40 @@ export default function Enterprise() {
     return brands.filter(b => brandIdsInUserGroup.has(b.id));
   }, [brands, stores, isSuperAdmin]);
 
+  // Cascading filter: Available brands filtered by selected groups
+  const availableBrandsForFilter = useMemo(() => {
+    if (!availableBrands || !stores) return availableBrands || [];
+    if (selectedGroupIds.length === 0) return availableBrands;
+    
+    // Only show brands that have stores in the selected groups
+    const brandIdsInSelectedGroups = new Set(
+      stores
+        .filter(s => s.group_id && selectedGroupIds.includes(s.group_id))
+        .map(s => s.brand_id)
+        .filter(Boolean)
+    );
+    return availableBrands.filter(b => brandIdsInSelectedGroups.has(b.id));
+  }, [availableBrands, stores, selectedGroupIds]);
+
+  // Cascading filter: Available stores filtered by selected groups AND brands
+  const availableStoresForFilter = useMemo(() => {
+    if (!stores) return [];
+    
+    let filtered = [...stores];
+    
+    // Filter by selected groups (if any)
+    if (selectedGroupIds.length > 0) {
+      filtered = filtered.filter(s => s.group_id && selectedGroupIds.includes(s.group_id));
+    }
+    
+    // Filter by selected brands (if any)
+    if (selectedBrandIds.length > 0) {
+      filtered = filtered.filter(s => s.brand_id && selectedBrandIds.includes(s.brand_id));
+    }
+    
+    return filtered;
+  }, [stores, selectedGroupIds, selectedBrandIds]);
+
   // For non-super-admins, stores are already filtered by RLS to their group
   const availableStores = useMemo(() => {
     if (!stores) return [];
@@ -371,23 +405,31 @@ export default function Enterprise() {
   const filteredStores = useMemo(() => {
     if (!stores) return [];
     
+    let baseStores = [...stores];
+    
+    // Always apply group filter if groups are selected (cascading down)
+    if (selectedGroupIds.length > 0) {
+      baseStores = baseStores.filter(s => s.group_id && selectedGroupIds.includes(s.group_id));
+    }
+    
     switch (filterMode) {
+      case "group":
+        // Return all stores in selected groups
+        return selectedGroupIds.length > 0 ? baseStores : [];
+        
       case "brand":
         if (selectedBrandIds.length === 0) return [];
-        return stores.filter(store => 
+        return baseStores.filter(store => 
           store.brand_id && selectedBrandIds.includes(store.brand_id)
         );
-      case "group":
-        if (selectedGroupIds.length === 0) return [];
-        return stores.filter(store => 
-          store.group_id && selectedGroupIds.includes(store.group_id)
-        );
-      case "custom":
-        return stores.filter(store => selectedStoreIds.includes(store.id));
+        
+      case "custom": // "Stores" tab
+        return baseStores.filter(store => selectedStoreIds.includes(store.id));
+        
       default:
         return [];
     }
-  }, [stores, filterMode, selectedBrandIds, selectedGroupIds, selectedStoreIds]);
+  }, [stores, filterMode, selectedGroupIds, selectedBrandIds, selectedStoreIds]);
 
   const storeIds = useMemo(() => {
     if (filteredStores.length > 0) {
@@ -951,32 +993,10 @@ export default function Enterprise() {
                 onValueChange={(v) => setFilterMode(v as FilterMode)}
               >
                 <TabsList className={`grid w-full ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  <TabsTrigger value="brand">Brand</TabsTrigger>
                   {isSuperAdmin && <TabsTrigger value="group">Group</TabsTrigger>}
-                  <TabsTrigger value="custom">Custom</TabsTrigger>
+                  <TabsTrigger value="brand">Brand</TabsTrigger>
+                  <TabsTrigger value="custom">Stores</TabsTrigger>
                 </TabsList>
-
-                <TabsContent value="brand" className="mt-4">
-                  <ScrollArea className="h-[300px] pr-4">
-                    <div className="space-y-3">
-                      {availableBrands?.map((brand) => (
-                        <div key={brand.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`brand-${brand.id}`}
-                            checked={selectedBrandIds.includes(brand.id)}
-                            onCheckedChange={() => toggleBrandSelection(brand.id)}
-                          />
-                          <label
-                            htmlFor={`brand-${brand.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          >
-                            {brand.name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </TabsContent>
 
                 <TabsContent value="group" className="mt-4">
                   <ScrollArea className="h-[300px] pr-4">
@@ -1000,10 +1020,42 @@ export default function Enterprise() {
                   </ScrollArea>
                 </TabsContent>
 
-                <TabsContent value="custom" className="mt-4">
-                  <ScrollArea className="h-[300px] pr-4">
+                <TabsContent value="brand" className="mt-4">
+                  {selectedGroupIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Showing brands with stores in selected group(s)
+                    </p>
+                  )}
+                  <ScrollArea className="h-[280px] pr-4">
                     <div className="space-y-3">
-                      {availableStores?.map((store) => (
+                      {availableBrandsForFilter?.map((brand) => (
+                        <div key={brand.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`brand-${brand.id}`}
+                            checked={selectedBrandIds.includes(brand.id)}
+                            onCheckedChange={() => toggleBrandSelection(brand.id)}
+                          />
+                          <label
+                            htmlFor={`brand-${brand.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {brand.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                <TabsContent value="custom" className="mt-4">
+                  {(selectedGroupIds.length > 0 || selectedBrandIds.length > 0) && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Filtered by {selectedGroupIds.length > 0 ? 'group' : ''}{selectedGroupIds.length > 0 && selectedBrandIds.length > 0 ? ' & ' : ''}{selectedBrandIds.length > 0 ? 'brand' : ''} selection
+                    </p>
+                  )}
+                  <ScrollArea className="h-[280px] pr-4">
+                    <div className="space-y-3">
+                      {availableStoresForFilter?.map((store) => (
                         <div key={store.id} className="flex items-center space-x-2">
                           <Checkbox
                             id={`store-${store.id}`}
@@ -1015,9 +1067,14 @@ export default function Enterprise() {
                             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                           >
                             {store.name}
+                            {store.brands && (
+                              <span className="text-muted-foreground ml-1">
+                                ({(store.brands as any).name})
+                              </span>
+                            )}
                             {store.store_groups && (
                               <span className="text-muted-foreground ml-1">
-                                ({(store.store_groups as any).name})
+                                • {(store.store_groups as any).name}
                               </span>
                             )}
                           </label>
