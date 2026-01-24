@@ -1662,13 +1662,22 @@ export default function Enterprise() {
                     <Button
                       onClick={() => {
                         let brandDisplayName = "All Brands";
-                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                        if (selectedBrandIds.length > 0) {
                           const selectedBrandNames = brands
                             ?.filter(b => selectedBrandIds.includes(b.id))
                             .map(b => b.name) || [];
                           brandDisplayName = selectedBrandNames.length === 1 
                             ? selectedBrandNames[0] 
                             : selectedBrandNames.join(", ");
+                        } else if (filteredStores.length > 0) {
+                          // Derive brand names from filtered stores
+                          const storeBrandIds = new Set(filteredStores.map(s => s.brand_id).filter(Boolean));
+                          const storeBrandNames = brands?.filter(b => storeBrandIds.has(b.id)).map(b => b.name) || [];
+                          if (storeBrandNames.length === 1) {
+                            brandDisplayName = storeBrandNames[0];
+                          } else if (storeBrandNames.length > 1) {
+                            brandDisplayName = storeBrandNames.join(", ");
+                          }
                         }
                         
                         setCombinedTrendParams({
@@ -1744,13 +1753,22 @@ export default function Enterprise() {
                         
                         // Determine brand display name
                         let brandDisplayName = "All Brands";
-                        if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                        if (selectedBrandIds.length > 0) {
                           const selectedBrandNames = brands
                             ?.filter(b => selectedBrandIds.includes(b.id))
                             .map(b => b.name) || [];
                           brandDisplayName = selectedBrandNames.length === 1 
                             ? selectedBrandNames[0] 
                             : selectedBrandNames.join(", ");
+                        } else if (filteredStores.length > 0) {
+                          // Derive brand names from filtered stores
+                          const storeBrandIds = new Set(filteredStores.map(s => s.brand_id).filter(Boolean));
+                          const storeBrandNames = brands?.filter(b => storeBrandIds.has(b.id)).map(b => b.name) || [];
+                          if (storeBrandNames.length === 1) {
+                            brandDisplayName = storeBrandNames[0];
+                          } else if (storeBrandNames.length > 1) {
+                            brandDisplayName = storeBrandNames.join(", ");
+                          }
                         }
                         
                         // Pass full selection IDs including parent key for sub-metrics
@@ -1789,13 +1807,21 @@ export default function Enterprise() {
                             : format(today, 'yyyy-MM');
                           
                           let brandDisplayName = "All Brands";
-                          if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                          if (selectedBrandIds.length > 0) {
                             const selectedBrandNames = brands
                               ?.filter(b => selectedBrandIds.includes(b.id))
                               .map(b => b.name) || [];
                             brandDisplayName = selectedBrandNames.length === 1 
                               ? selectedBrandNames[0] 
                               : selectedBrandNames.join(", ");
+                          } else if (filteredStores.length > 0) {
+                            const storeBrandIds = new Set(filteredStores.map(s => s.brand_id).filter(Boolean));
+                            const storeBrandNames = brands?.filter(b => storeBrandIds.has(b.id)).map(b => b.name) || [];
+                            if (storeBrandNames.length === 1) {
+                              brandDisplayName = storeBrandNames[0];
+                            } else if (storeBrandNames.length > 1) {
+                              brandDisplayName = storeBrandNames.join(", ");
+                            }
                           }
                           
                           // For reports, keep selection IDs (especially sub:*), so we can:
@@ -1829,13 +1855,21 @@ export default function Enterprise() {
                           const end = format(today, 'yyyy-MM');
                           
                           let brandDisplayName = "All Brands";
-                          if (filterMode === "brand" && selectedBrandIds.length > 0) {
+                          if (selectedBrandIds.length > 0) {
                             const selectedBrandNames = brands
                               ?.filter(b => selectedBrandIds.includes(b.id))
                               .map(b => b.name) || [];
                             brandDisplayName = selectedBrandNames.length === 1 
                               ? selectedBrandNames[0] 
                               : selectedBrandNames.join(", ");
+                          } else if (filteredStores.length > 0) {
+                            const storeBrandIds = new Set(filteredStores.map(s => s.brand_id).filter(Boolean));
+                            const storeBrandNames = brands?.filter(b => storeBrandIds.has(b.id)).map(b => b.name) || [];
+                            if (storeBrandNames.length === 1) {
+                              brandDisplayName = storeBrandNames[0];
+                            } else if (storeBrandNames.length > 1) {
+                              brandDisplayName = storeBrandNames.join(", ");
+                            }
                           }
                           
                           setKpiTrendParams({
