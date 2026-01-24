@@ -628,17 +628,16 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     overridesSignature,
   ]);
 
-  // Handle cell edits - lock the specific cell so its value is preserved by calculations
+  // Handle cell edits - do NOT auto-lock; locking is only via explicit user action
   const handleCellEdit = (month: string, metricName: string, value: number) => {
     if (view === 'quarter') {
-      // Distribute to months and lock each
+      // Distribute to months (no auto-lock)
       const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
       distributions.forEach((d) => {
-        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value, isLocked: true });
+        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
       });
     } else {
-      // Lock only this specific cell, not the whole row
-      updateEntry.mutate({ month, metricName, forecastValue: value, isLocked: true });
+      updateEntry.mutate({ month, metricName, forecastValue: value });
     }
   };
 
