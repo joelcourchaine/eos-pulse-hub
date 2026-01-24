@@ -654,19 +654,37 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
     
     months.forEach((month) => {
-      const monthData = monthlyValues.get(month);
-      const metricData = monthData?.get(metricName);
-      const currentValue = metricData?.value ?? 0;
+      // When unlocking, preserve the stored forecast_value from the database entry
+      // Don't use monthlyValues which comes from the calculation engine
+      const existingEntry = entries.find(e => e.month === month && e.metric_name === metricName);
+      const storedValue = existingEntry?.forecast_value;
       
-      updates.push({
-        month,
-        metricName,
-        forecastValue: currentValue,
-        isLocked: lock,
-      });
+      // When locking, use the current calculated value; when unlocking, keep the stored value
+      if (lock) {
+        const monthData = monthlyValues.get(month);
+        const metricData = monthData?.get(metricName);
+        const currentValue = metricData?.value ?? 0;
+        updates.push({
+          month,
+          metricName,
+          forecastValue: currentValue,
+          isLocked: true,
+        });
+      } else if (storedValue !== null && storedValue !== undefined) {
+        // Only update the lock status, preserve the stored value
+        updates.push({
+          month,
+          metricName,
+          forecastValue: storedValue,
+          isLocked: false,
+        });
+      }
+      // If no stored value and unlocking, skip - nothing to preserve
     });
     
-    bulkUpdateEntries.mutate(updates);
+    if (updates.length > 0) {
+      bulkUpdateEntries.mutate(updates);
+    }
   };
 
   // Handle month navigation
