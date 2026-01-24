@@ -1,92 +1,38 @@
-
 # Remove Automatic Previous Quarter Loading on Scroll
 
+## Status: ✅ COMPLETED
+
 ## Overview
-This change removes the infinite scroll behavior that automatically loads previous quarter data when users scroll to the far left in the standard weekly/monthly scorecard view.
+This change removed the infinite scroll behavior that automatically loaded previous quarter data when users scrolled to the far left in the standard weekly/monthly scorecard view.
 
-## Current Behavior
-When viewing the scorecard in weekly or monthly mode (not Quarter Trend or Monthly Trend):
-- Scrolling to the left edge triggers automatic loading of previous quarters
-- Up to 4 previous quarters can be loaded sequentially
-- Loaded quarters appear as additional columns to the left of the current quarter
-- A toast notification appears each time a quarter is loaded
+## Changes Made
 
-## Proposed Change
-Disable the automatic scroll-triggered loading entirely for the standard quarterly view. Users will only see the current quarter's weeks/months.
+### Removed State Variables
+- `loadedPreviousQuarters` - Array tracking loaded previous quarters
+- `isLoadingMore` - Loading state for infinite scroll
+- `previousQuarterWeeklyEntries` - Entries from previous quarters (weekly)
+- `previousQuarterMonthlyEntries` - Entries from previous quarters (monthly)
+- `previousQuarterTargets` - Targets from previous quarters
+- `tryLoadPreviousRef` - Ref for triggering load from UI
 
-## Implementation Details
+### Removed Functions
+- `loadPreviousQuarterData()` - The async function that fetched previous quarter data
 
-### File to Modify
-`src/components/scorecard/ScorecardGrid.tsx`
+### Removed UI Elements
+- "Load Previous Quarter" button
+- Loading indicators for infinite scroll
+- Previous quarter column headers
+- Previous quarter data cells
+- "Showing: Q1 2025, Q2 2025 + Q3 2025" indicator text
 
-### Changes
+### Simplified Scroll Effect
+- Replaced complex infinite scroll detection with simple scroll metrics sync for scrollbar components
 
-**1. Disable the scroll listener useEffect (lines 608-731)**
-
-Remove or disable the entire `useEffect` block that sets up scroll, wheel, and pointer event listeners for detecting left-edge scrolling:
-
-```typescript
-// Remove this entire useEffect block:
-useEffect(() => {
-  const container = scrollContainerRef.current;
-  if (!container) return;
-  if (isQuarterTrendMode || isMonthlyTrendMode) return;
-  
-  // ... all the scroll detection logic
-  // ... tryLoadPrevious function
-  // ... event listeners
-}, [/* dependencies */]);
-```
-
-**2. Clean up unused state variables**
-
-The following state and variables become unused and can be removed for cleaner code:
-
-```typescript
-// Remove these state declarations:
-const [loadedPreviousQuarters, setLoadedPreviousQuarters] = useState<{ year: number; quarter: number }[]>([]);
-const [isLoadingMore, setIsLoadingMore] = useState(false);
-const [previousQuarterWeeklyEntries, setPreviousQuarterWeeklyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
-const [previousQuarterMonthlyEntries, setPreviousQuarterMonthlyEntries] = useState<{ [key: string]: ScorecardEntry }>({});
-const [previousQuarterTargets, setPreviousQuarterTargets] = useState<{ [key: string]: number }>({});
-const tryLoadPreviousRef = useRef<null | (() => void)>(null);
-```
-
-**3. Remove computed values for previous quarters**
-
-```typescript
-// Remove these computed values:
-const previousQuartersWeeks = ...
-const previousQuartersMonths = ...
-const allWeeksWithQuarterInfo = ...
-```
-
-**4. Remove the loadPreviousQuarterData function (lines 733-970)**
-
-This entire function is no longer needed.
-
-**5. Update the state reset in the loadScorecardData effect**
-
-Remove the lines that reset previous quarter state when quarter/year changes:
-
-```typescript
-// Remove from the useEffect cleanup:
-setLoadedPreviousQuarters([]);
-setPreviousQuarterWeeklyEntries({});
-setPreviousQuarterMonthlyEntries({});
-```
-
-**6. Remove any table rendering that references previous quarter data**
-
-Any table header/body rendering that iterates over `previousQuartersWeeks`, `previousQuartersMonths`, or `allWeeksWithQuarterInfo` should be updated to only render the current quarter's periods.
+### Updated Sticky Positioning
+- Simplified sticky column positioning (now fixed at `left: 200` instead of dynamic calculation)
 
 ## User Experience After Change
-- The scorecard will display only the current quarter's weeks (13 weeks in weekly view) or months (3 months in monthly view)
-- No additional quarters will load when scrolling
-- Quarter Trend and Monthly Trend views remain unchanged (they already show historical data statically)
+- The scorecard displays only the current quarter's weeks (13 weeks in weekly view) or months (3 months in monthly view)
+- No additional quarters load when scrolling
+- Quarter Trend and Monthly Trend views remain unchanged (they show historical data statically)
 - Users can still switch quarters manually using the quarter selector dropdown
-
-## Technical Notes
-- This is a significant simplification of the component
-- Reduces complexity and potential scroll-related bugs
-- The Quarter Trend view (quarter = 0) and Monthly Trend view (quarter = -1) already show historical data without infinite scroll, so those remain functional
