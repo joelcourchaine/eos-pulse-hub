@@ -1110,21 +1110,21 @@ export function useForecastCalculations({
           });
 
           if (isGpNetOverridden) {
-            // OVERRIDE CASE: distribute the overridden annual $ across months using the baseline pattern.
-            let totalBaselineWeight = 0;
-            months.forEach((_, monthIndex) => {
-              const monthNumber = monthIndex + 1;
-              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-              totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
+            // OVERRIDE CASE:
+            // Distribute overridden annual GP Net across months using the *Sales* monthly pattern.
+            // Why: if we distribute using the old GP Net baseline pattern, then GP% = GP Net / Sales
+            // will vary month-to-month (sometimes wildly) even when the user intention is a consistent
+            // margin. Using the Sales pattern keeps the ratio stable.
+            let annualSales = 0;
+            months.forEach((forecastMonth) => {
+              annualSales += matchingSales.monthlyValues.get(forecastMonth) ?? 0;
             });
 
-            months.forEach((forecastMonth, monthIndex) => {
-              const monthNumber = monthIndex + 1;
-              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-              const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+            months.forEach((forecastMonth) => {
+              const salesValue = matchingSales.monthlyValues.get(forecastMonth) ?? 0;
 
-              const gpNetValue = totalBaselineWeight > 0
-                ? (subBaseline / totalBaselineWeight) * (overriddenAnnual as number)
+              const gpNetValue = annualSales > 0
+                ? (salesValue / annualSales) * (overriddenAnnual as number)
                 : (overriddenAnnual as number) / 12;
 
               forecastMonthlyValues.set(forecastMonth, gpNetValue);
