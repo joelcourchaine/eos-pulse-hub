@@ -641,11 +641,31 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
   };
 
-  // Handle lock toggle
+  // Handle lock toggle for individual cell
   const handleToggleLock = (month: string, metricName: string) => {
     const entry = entries.find(e => e.month === month && e.metric_name === metricName);
     const currentLocked = entry?.is_locked ?? false;
     updateEntry.mutate({ month, metricName, isLocked: !currentLocked });
+  };
+
+  // Handle locking/unlocking entire row (all months for a metric)
+  const handleLockRow = (metricName: string, lock: boolean) => {
+    const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
+    
+    months.forEach((month) => {
+      const monthData = monthlyValues.get(month);
+      const metricData = monthData?.get(metricName);
+      const currentValue = metricData?.value ?? 0;
+      
+      updates.push({
+        month,
+        metricName,
+        forecastValue: currentValue,
+        isLocked: lock,
+      });
+    });
+    
+    bulkUpdateEntries.mutate(updates);
   };
 
   // Handle month navigation
@@ -1172,6 +1192,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               priorYear={priorYear}
               onCellEdit={handleCellEdit}
               onToggleLock={handleToggleLock}
+              onLockRow={handleLockRow}
               onMonthNavigate={handleMonthNavigate}
               onSubMetricEdit={handleSubMetricEdit}
               onMainMetricAnnualEdit={handleMainMetricAnnualEdit}
