@@ -1,38 +1,123 @@
-# Remove Automatic Previous Quarter Loading on Scroll
 
-## Status: ✅ COMPLETED
+# Enable Annual GP% Target to Recalculate Monthly GP Net
 
 ## Overview
-This change removed the infinite scroll behavior that automatically loaded previous quarter data when users scrolled to the far left in the standard weekly/monthly scorecard view.
+When you've locked in all your monthly Total Sales values and want to set a target GP% for the year, clicking on the annual GP% cell will let you enter your desired percentage. The system will then automatically calculate the GP Net for each month using the formula: `Monthly GP Net = Locked Total Sales × (Target GP% / 100)`.
 
-## Changes Made
+This ensures every month achieves your target gross profit margin.
 
-### Removed State Variables
-- `loadedPreviousQuarters` - Array tracking loaded previous quarters
-- `isLoadingMore` - Loading state for infinite scroll
-- `previousQuarterWeeklyEntries` - Entries from previous quarters (weekly)
-- `previousQuarterMonthlyEntries` - Entries from previous quarters (monthly)
-- `previousQuarterTargets` - Targets from previous quarters
-- `tryLoadPreviousRef` - Ref for triggering load from UI
+## Current Behavior vs. Requested Behavior
 
-### Removed Functions
-- `loadPreviousQuarterData()` - The async function that fetched previous quarter data
+| Aspect | Current | After Change |
+|--------|---------|--------------|
+| Clicking annual GP% | Scales existing GP Net sub-metrics proportionally | Recalculates all monthly GP Net values from locked Total Sales |
+| Monthly GP% values | Can vary month-to-month | All set to the same target percentage |
+| Monthly GP Net values | Scaled proportionally | Calculated as: Total Sales × Target GP% |
 
-### Removed UI Elements
-- "Load Previous Quarter" button
-- Loading indicators for infinite scroll
-- Previous quarter column headers
-- Previous quarter data cells
-- "Showing: Q1 2025, Q2 2025 + Q3 2025" indicator text
+## How It Will Work
 
-### Simplified Scroll Effect
-- Replaced complex infinite scroll detection with simple scroll metrics sync for scrollbar components
+1. **Click on the 2026 GP%** cell (currently showing 69.0%)
+2. **Enter your target GP%** (e.g., 70.0%)
+3. **System automatically:**
+   - Locks the GP% value for all 12 months at 70.0%
+   - For each month, calculates: `GP Net = Locked Total Sales × 0.70`
+   - Locks the calculated GP Net values
+   - Recalculates all dependent metrics (Net Selling Gross, Department Profit, etc.)
 
-### Updated Sticky Positioning
-- Simplified sticky column positioning (now fixed at `left: 200` instead of dynamic calculation)
+## Example Calculation
+With your current locked Total Sales:
+- Feb: $103K × 70% = $72.1K GP Net
+- Mar: $125K × 70% = $87.5K GP Net
+- Apr: $125K × 70% = $87.5K GP Net
+- (and so on for all months...)
 
-## User Experience After Change
-- The scorecard displays only the current quarter's weeks (13 weeks in weekly view) or months (3 months in monthly view)
-- No additional quarters load when scrolling
-- Quarter Trend and Monthly Trend views remain unchanged (they show historical data statically)
-- Users can still switch quarters manually using the quarter selector dropdown
+---
+
+## Technical Details
+
+### File to Modify
+`src/components/financial/ForecastDrawer.tsx`
+
+### Changes to `handleMainMetricAnnualEdit`
+
+**Enhanced GP% handling logic:**
+
+When `metricKey === 'gp_percent'`:
+
+1. **Get locked Total Sales for each month** from `monthlyValues` map
+2. **For each of the 12 months**, build update objects:
+   - Lock GP% at the entered target value
+   - Calculate GP Net as `lockedTotalSales × (targetGpPercent / 100)`
+   - Lock GP Net at the calculated value
+3. **Bulk update** all 24 entries (12 months × 2 metrics) using `bulkUpdateEntries.mutate()`
+
+```typescript
+// Inside handleMainMetricAnnualEdit, when metricKey === 'gp_percent':
+
+if (metricKey === 'gp_percent') {
+  const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
+  
+  // For each month, use locked Total Sales to calculate GP Net at target GP%
+  months.forEach((month) => {
+    const monthData = monthlyValues.get(month);
+    const totalSalesEntry = monthData?.get('total_sales');
+    const lockedTotalSales = totalSalesEntry?.value ?? 0;
+    
+    // Lock GP% at target value
+    updates.push({
+      month,
+      metricName: 'gp_percent',
+      forecastValue: newAnnualValue, // Target GP%
+      isLocked: true,
+    });
+    
+    // Calculate and lock GP Net
+    const calculatedGpNet = lockedTotalSales * (newAnnualValue / 100);
+    updates.push({
+      month,
+      metricName: 'gp_net',
+      forecastValue: calculatedGpNet,
+      isLocked: true,
+    });
+  });
+  
+  bulkUpdateEntries.mutate(updates);
+  
+  // Scale GP Net sub-metrics proportionally (existing logic)
+  // ...
+  
+  return;
+}
+```
+
+### Calculation Flow
+
+```text
+User enters 70% GP Target
+         ↓
+┌─────────────────────────────────────┐
+│ For each month (Jan-Dec):           │
+│                                     │
+│  1. Get locked Total Sales          │
+│     (e.g., Feb = $103,000)          │
+│                                     │
+│  2. Calculate GP Net:               │
+│     $103,000 × 0.70 = $72,100       │
+│                                     │
+│  3. Lock both values:               │
+│     GP% = 70.0% (locked)            │
+│     GP Net = $72,100 (locked)       │
+└─────────────────────────────────────┘
+         ↓
+Dependent metrics auto-recalculate:
+  - Net Selling Gross = GP Net - Sales Expense
+  - Department Profit = NSG - Fixed Expense
+  - Return on Gross % = Dept Profit / GP Net
+```
+
+### Edge Cases Handled
+
+1. **Months without locked Total Sales**: Uses the currently calculated (weight-distributed) Total Sales value
+2. **GP Net sub-metrics**: Continue to scale proportionally based on the new annual GP Net total
+3. **Downstream metrics**: Automatically recalculate via the existing `useForecastCalculations` hook
+4. **Undo behavior**: User can reset the forecast to baseline using the existing Reset button
