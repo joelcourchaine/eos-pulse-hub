@@ -273,20 +273,27 @@ export function useForecast(departmentId: string | undefined, year: number) {
       for (const update of updates) {
         const existing = existingEntries.find((e) => e.month === update.month && e.metric_name === update.metricName);
 
-        if (existing && !existing.is_locked) {
-          const op = (async () => {
-            const { error } = await supabase
-              .from('forecast_entries')
-              .update({
-                forecast_value: update.forecastValue,
-                ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
-                ...(update.isLocked !== undefined && { is_locked: update.isLocked }),
-              })
-              .eq('id', existing.id);
-            if (error) throw error;
-          })();
-          updateOps.push(op);
-        } else if (!existing) {
+        if (existing) {
+          // Allow update if:
+          // 1. Entry is not locked, OR
+          // 2. The update is explicitly setting isLocked: true (overwriting with a new locked value)
+          const canUpdate = !existing.is_locked || update.isLocked === true;
+          
+          if (canUpdate) {
+            const op = (async () => {
+              const { error } = await supabase
+                .from('forecast_entries')
+                .update({
+                  forecast_value: update.forecastValue,
+                  ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
+                  ...(update.isLocked !== undefined && { is_locked: update.isLocked }),
+                })
+                .eq('id', existing.id);
+              if (error) throw error;
+            })();
+            updateOps.push(op);
+          }
+        } else {
           insertRows.push({
             forecast_id: forecast.id,
             month: update.month,
