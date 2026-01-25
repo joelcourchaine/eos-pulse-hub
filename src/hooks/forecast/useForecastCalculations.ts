@@ -482,7 +482,7 @@ export function useForecastCalculations({
         return totalSales * (targetGpPercent / 100);
       };
 
-      // Sales expense should stay at the same % of GP Net unless explicitly locked.
+      // Sales expense should stay at the same % of GP Net unless explicitly locked or stored.
       // This ensures Net Selling Gross responds correctly when GP% / GP Net changes.
       const getCalculatedSalesExpense = (): number => {
         const lockedSalesExp = lockedValues['sales_expense'];
@@ -490,9 +490,25 @@ export function useForecastCalculations({
           return lockedSalesExp;
         }
 
+        // Check for stored (non-locked) sales_expense value - this handles the case where
+        // user edited annual sales_expense_percent and we calculated monthly dollar amounts
+        const salesExpEntry = entriesMap.get(`${month}:sales_expense`);
+        if (salesExpEntry?.forecast_value !== null && salesExpEntry?.forecast_value !== undefined && !useBaselineDirectly) {
+          return salesExpEntry.forecast_value;
+        }
+
         const basePct = baselineMonthlyValues.sales_expense_percent;
         const gpNet = getCalculatedGpNet();
         return gpNet > 0 ? gpNet * (basePct / 100) : 0;
+      };
+
+      // Sales expense percent - check for stored value from annual edit
+      const getCalculatedSalesExpensePercent = (): number => {
+        const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
+        if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined && !useBaselineDirectly) {
+          return salesExpPctEntry.forecast_value;
+        }
+        return baselineMonthlyValues.sales_expense_percent;
       };
 
       // First pass: calculate all driver/base metrics
@@ -503,7 +519,7 @@ export function useForecastCalculations({
       calculatedValues['gp_net'] = getCalculatedGpNet();
       calculatedValues['gp_percent'] = targetGpPercent;
       calculatedValues['sales_expense'] = getCalculatedSalesExpense();
-      calculatedValues['sales_expense_percent'] = baselineMonthlyValues.sales_expense_percent;
+      calculatedValues['sales_expense_percent'] = getCalculatedSalesExpensePercent();
       calculatedValues['total_fixed_expense'] = baselineMonthData?.get('total_fixed_expense') ?? baselineMonthlyValues.total_fixed_expense ?? 0;
       calculatedValues['parts_transfer'] = baselineMonthData?.get('parts_transfer') ?? baselineMonthlyValues.parts_transfer ?? 0;
       calculatedValues['adjusted_selling_gross'] = baselineMonthData?.get('adjusted_selling_gross') ?? 0;
