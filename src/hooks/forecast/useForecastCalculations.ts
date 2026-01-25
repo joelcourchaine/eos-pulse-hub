@@ -528,8 +528,8 @@ export function useForecastCalculations({
         console.log('[getCalculatedSalesExpensePercent]', month, 'useBaselineDirectly:', useBaselineDirectly);
         const hasStoredValue = salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined;
         
-        if (hasStoredValue && !useBaselineDirectly) {
-          console.log('[getCalculatedSalesExpensePercent]', month, 'using stored value:', salesExpPctEntry.forecast_value);
+        // CRITICAL: Stored values from annual edits should ALWAYS take precedence
+        if (hasStoredValue) {
           return salesExpPctEntry.forecast_value;
         }
         console.log('[getCalculatedSalesExpensePercent]', month, 'using baseline:', baselineMonthlyValues.sales_expense_percent);
