@@ -729,6 +729,16 @@ export function useForecastCalculations({
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
+        console.log('[calculateAnnualValues] sales_expense_percent:', {
+          storedValues,
+          allStoredSameValue,
+          allSameValue,
+          uniformValue,
+          salesExp,
+          gpNet,
+          calculatedPercent: gpNet > 0 ? (salesExp / gpNet) * 100 : 0,
+        });
+        
         if (isPercentMetric && allSameValue && uniformValue !== null) {
           finalValue = uniformValue;
         } else {
