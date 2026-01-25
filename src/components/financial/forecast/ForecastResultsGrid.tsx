@@ -365,6 +365,17 @@ export function ForecastResultsGrid({
     const annualValue = isSubMetric && subMetricData ? subMetricData.annualValue : annualData?.value;
     const annualBaseline = isSubMetric && subMetricData ? subMetricData.baselineAnnualValue : annualData?.baseline_value;
     
+    // Debug logging for sales_expense_percent
+    if (metric.key === 'sales_expense_percent') {
+      console.log('[ForecastResultsGrid] renderMetricRow for sales_expense_percent:', {
+        isSubMetric,
+        hasChildren,
+        isDerived: metric.isDerived,
+        annualValue,
+        onMainMetricAnnualEditExists: !!onMainMetricAnnualEdit,
+      });
+    }
+    
     const isDeptProfit = metric.key === 'department_profit';
     
     // Check if all months for this metric are locked (for row lock indicator)
