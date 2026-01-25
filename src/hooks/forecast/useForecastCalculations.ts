@@ -188,6 +188,7 @@ export function useForecastCalculations({
   // Create entries map for quick lookup
   const entriesMap = useMemo(() => {
     console.log('[useForecastCalculations] Building entriesMap with', entries.length, 'entries');
+    console.log('[useForecastCalculations] entries array identity:', entries);
     const map = new Map<string, ForecastEntry>();
     entries.forEach(e => {
       map.set(`${e.month}:${e.metric_name}`, e);
@@ -513,6 +514,7 @@ export function useForecastCalculations({
           value: salesExpPctEntry.forecast_value,
           locked: salesExpPctEntry.is_locked
         } : 'NOT FOUND');
+        console.log('[getCalculatedSalesExpensePercent]', month, 'useBaselineDirectly:', useBaselineDirectly);
         const hasStoredValue = salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined;
         
         if (hasStoredValue && !useBaselineDirectly) {
