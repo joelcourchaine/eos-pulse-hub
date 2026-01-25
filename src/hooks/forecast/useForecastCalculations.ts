@@ -505,10 +505,6 @@ export function useForecastCalculations({
       // Sales expense percent - check for stored value from annual edit
       const getCalculatedSalesExpensePercent = (): number => {
         const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
-        if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined) {
-          console.log(`[Forecast Calc] ${month} sales_expense_percent from stored:`, salesExpPctEntry.forecast_value);
-        }
-        
         if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined && !useBaselineDirectly) {
           return salesExpPctEntry.forecast_value;
         }
@@ -662,10 +658,11 @@ export function useForecastCalculations({
     const annualResults = new Map<string, CalculationResult>();
     
     // First, sum all currency values to calculate derived percentages correctly
-    const totals: Record<string, { value: number; baseline: number; locked: boolean; allLocked: boolean; lockedValues: number[] }> = {};
+    // Also track ALL stored values (not just locked) to detect uniform percentages
+    const totals: Record<string, { value: number; baseline: number; locked: boolean; allLocked: boolean; lockedValues: number[]; storedValues: number[] }> = {};
     
     METRIC_DEFINITIONS.forEach(metric => {
-      totals[metric.key] = { value: 0, baseline: 0, locked: false, allLocked: true, lockedValues: [] };
+      totals[metric.key] = { value: 0, baseline: 0, locked: false, allLocked: true, lockedValues: [], storedValues: [] };
     });
     
     months.forEach(month => {
@@ -675,6 +672,8 @@ export function useForecastCalculations({
         if (metricData) {
           totals[metric.key].value += metricData.value;
           totals[metric.key].baseline += metricData.baseline_value;
+          // Track all stored values for percentage metrics
+          totals[metric.key].storedValues.push(metricData.value);
           if (metricData.is_locked) {
             totals[metric.key].locked = true;
             totals[metric.key].lockedValues.push(metricData.value);
@@ -686,16 +685,27 @@ export function useForecastCalculations({
     });
     
     // Now calculate proper values - percentages should be calculated from totals, not averaged
-    // Exception: if a percentage metric has ALL months locked to the same value, use that value for the forecast
+    // Exception: if a percentage metric has ALL months set to the same value (locked OR stored), use that value for the forecast
     METRIC_DEFINITIONS.forEach(metric => {
       let finalValue = totals[metric.key].value;
       let finalBaseline = totals[metric.key].baseline;
       
-      // For percentage metrics, check if all months are locked to the same value
+      // For percentage metrics, check if all months are set to the same value (locked OR stored)
       const isPercentMetric = metric.type === 'percent';
       const allMonthsLocked = totals[metric.key].allLocked && totals[metric.key].lockedValues.length === 12;
-      const allSameValue = allMonthsLocked && 
+      const allLockedSameValue = allMonthsLocked && 
         totals[metric.key].lockedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
+      
+      // Also check if all stored values (locked or not) are the same for percentage metrics
+      const storedValues = totals[metric.key].storedValues;
+      const allStoredSameValue = isPercentMetric && storedValues.length === 12 &&
+        storedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
+      
+      // Use stored value if all months have the same percentage value (either locked or just stored)
+      const allSameValue = allLockedSameValue || allStoredSameValue;
+      const uniformValue = allLockedSameValue 
+        ? totals[metric.key].lockedValues[0] 
+        : (allStoredSameValue ? storedValues[0] : null);
       
       // Always recalculate percentage baselines from currency totals
       if (metric.key === 'gp_percent') {
@@ -703,9 +713,9 @@ export function useForecastCalculations({
         const gpNet = totals['gp_net']?.value ?? 0;
         const totalSales = totals['total_sales']?.value ?? 0;
         
-        // For forecast value: use locked value if all months locked to same, otherwise calculate
-        if (isPercentMetric && allSameValue) {
-          finalValue = totals[metric.key].lockedValues[0];
+        // For forecast value: use uniform stored value if all months same, otherwise calculate
+        if (isPercentMetric && allSameValue && uniformValue !== null) {
+          finalValue = uniformValue;
         } else {
           finalValue = totalSales > 0 ? (gpNet / totalSales) * 100 : 0;
         }
@@ -719,8 +729,8 @@ export function useForecastCalculations({
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
-        if (isPercentMetric && allSameValue) {
-          finalValue = totals[metric.key].lockedValues[0];
+        if (isPercentMetric && allSameValue && uniformValue !== null) {
+          finalValue = uniformValue;
         } else {
           finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
         }
@@ -733,8 +743,8 @@ export function useForecastCalculations({
         const semiFixed = totals['semi_fixed_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
-        if (isPercentMetric && allSameValue) {
-          finalValue = totals[metric.key].lockedValues[0];
+        if (isPercentMetric && allSameValue && uniformValue !== null) {
+          finalValue = uniformValue;
         } else {
           finalValue = gpNet > 0 ? (semiFixed / gpNet) * 100 : 0;
         }
@@ -747,8 +757,8 @@ export function useForecastCalculations({
         const deptProfit = totals['department_profit']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
-        if (isPercentMetric && allSameValue) {
-          finalValue = totals[metric.key].lockedValues[0];
+        if (isPercentMetric && allSameValue && uniformValue !== null) {
+          finalValue = uniformValue;
         } else {
           finalValue = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
         }
