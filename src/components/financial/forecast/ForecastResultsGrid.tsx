@@ -668,10 +668,10 @@ export function ForecastResultsGrid({
         ) : (
           <td className={cn(
             "text-right py-2 px-2 font-medium bg-muted/50",
-            // GP% and GP Net are specially editable even with children (to enable bidirectional editing)
-            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net') && "cursor-pointer"
+            // GP%, GP Net, and Sales Expense % are specially editable (bidirectional editing)
+            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent') && "cursor-pointer"
           )}>
-            {/* Editable annual cell for main metrics without sub-metrics (non-derived), or GP%/GP Net (special case) */}
+            {/* Editable annual cell for main metrics without sub-metrics (non-derived), or GP%/GP Net/Sales Expense % (special cases) */}
             {editingAnnualMainMetric === metric.key ? (
               <Input
                 type="number"
@@ -683,8 +683,8 @@ export function ForecastResultsGrid({
                 autoFocus
               />
             ) : annualValue !== undefined ? (
-              // Allow editing for: metrics without children and not derived, OR gp_percent/gp_net (bidirectional)
-              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net') && onMainMetricAnnualEdit ? (
+              // Allow editing for: metrics without children and not derived, OR gp_percent/gp_net/sales_expense_percent (bidirectional)
+              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent') && onMainMetricAnnualEdit ? (
                 view === 'annual' ? (
                   // Annual view: show full values directly
                   <span 
@@ -714,6 +714,8 @@ export function ForecastResultsGrid({
                             ? 'Click to edit GP% (will scale GP Net sub-metrics)' 
                             : metric.key === 'gp_net'
                             ? 'Click to edit GP Net (will scale sub-metrics)'
+                            : metric.key === 'sales_expense_percent'
+                            ? 'Click to edit Sales Expense % (will calculate required dollar amount)'
                             : 'Click to edit annual total'}
                         </p>
                       </TooltipContent>
