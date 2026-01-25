@@ -840,7 +840,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       console.log('[handleMainMetricAnnualEdit] GP% bulkUpdateEntries completed');
         
         // Force a query refetch to ensure UI updates
-        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+        await queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
       
       // Mark as recently locked and clear after 2 seconds
       setRecentlyLockedMetrics(prev => new Set(prev).add('gp_percent').add('gp_net'));
@@ -992,7 +992,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         console.log('[handleMainMetricAnnualEdit] V2 bulkUpdateEntries completed');
         
         // Force a query refetch to ensure UI updates
-        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+        await queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
         
         // Update the driver state to reflect the new annual dollar amount
         const newAnnualSalesExpense = months.reduce((sum, month) => {
@@ -1057,7 +1057,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         await bulkUpdateEntries.mutateAsync(updates);
         
         // Force a query refetch to ensure UI updates immediately
-        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+        await queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
         
         // Update the driver state to reflect the new annual dollar amount
         setSalesExpense(newAnnualValue);
@@ -1101,7 +1101,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     console.log('[handleMainMetricAnnualEdit] Standard metric bulkUpdateEntries completed');
     
     // Force a query refetch to ensure UI updates
-    queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+    await queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
     
     markDirty();
   };
