@@ -734,6 +734,17 @@ export function useForecastCalculations({
       const allStoredSameValue = isPercentMetric && storedValues.length === 12 &&
         storedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
       
+      // Debug logging for sales_expense_percent
+      if (metric.key === 'sales_expense_percent') {
+        console.log('[calculateAnnualValues] storedValues check:', {
+          storedValuesLength: storedValues.length,
+          storedValues: storedValues,
+          firstValue: storedValues[0],
+          allMatch: storedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01),
+          differences: storedValues.map((v, i) => ({ month: i+1, value: v, diff: Math.abs(v - storedValues[0]) }))
+        });
+      }
+      
       // Use stored value if all months have the same percentage value (either locked or just stored)
       const allSameValue = allLockedSameValue || allStoredSameValue;
       const uniformValue = allLockedSameValue 
