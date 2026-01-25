@@ -505,7 +505,19 @@ export function useForecastCalculations({
       // Sales expense percent - check for stored value from annual edit
       const getCalculatedSalesExpensePercent = (): number => {
         const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
-        if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined && !useBaselineDirectly) {
+        const hasStoredValue = salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined;
+        
+        if (month === '2026-01') {
+          console.log('[getCalculatedSalesExpensePercent] 2026-01:', {
+            entryExists: !!salesExpPctEntry,
+            forecast_value: salesExpPctEntry?.forecast_value,
+            hasStoredValue,
+            useBaselineDirectly,
+            baselineValue: baselineMonthlyValues.sales_expense_percent,
+          });
+        }
+        
+        if (hasStoredValue && !useBaselineDirectly) {
           return salesExpPctEntry.forecast_value;
         }
         return baselineMonthlyValues.sales_expense_percent;
