@@ -507,16 +507,6 @@ export function useForecastCalculations({
         const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
         const hasStoredValue = salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined;
         
-        if (month === '2026-01') {
-          console.log('[getCalculatedSalesExpensePercent] 2026-01:', {
-            entryExists: !!salesExpPctEntry,
-            forecast_value: salesExpPctEntry?.forecast_value,
-            hasStoredValue,
-            useBaselineDirectly,
-            baselineValue: baselineMonthlyValues.sales_expense_percent,
-          });
-        }
-        
         if (hasStoredValue && !useBaselineDirectly) {
           return salesExpPctEntry.forecast_value;
         }
@@ -740,16 +730,6 @@ export function useForecastCalculations({
         // Sales Exp % = Sales Expense / GP Net * 100
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
-        
-        console.log('[calculateAnnualValues] sales_expense_percent:', {
-          storedValues,
-          allStoredSameValue,
-          allSameValue,
-          uniformValue,
-          salesExp,
-          gpNet,
-          calculatedPercent: gpNet > 0 ? (salesExp / gpNet) * 100 : 0,
-        });
         
         if (isPercentMetric && allSameValue && uniformValue !== null) {
           finalValue = uniformValue;
