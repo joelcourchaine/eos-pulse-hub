@@ -566,8 +566,22 @@ export function useForecastCalculations({
         // This ensures user-entered values persist even if not locked
         const hasStoredForecastValue = existingEntry?.forecast_value !== null && existingEntry?.forecast_value !== undefined;
 
+        // Debug log for sales_expense_percent to trace the value assignment
+        if (metric.key === 'sales_expense_percent' && month === '2026-01') {
+          console.log('[useForecastCalculations] METRIC LOOP sales_expense_percent 2026-01:', {
+            entryKey,
+            existingEntry: existingEntry ? { forecast_value: existingEntry.forecast_value, is_locked: existingEntry.is_locked } : 'NOT FOUND',
+            isLocked,
+            hasStoredForecastValue,
+            useBaselineDirectly,
+          });
+        }
+
         if (isLocked && hasStoredForecastValue) {
           // Use locked value - highest priority
+          if (metric.key === 'sales_expense_percent' && month === '2026-01') {
+            console.log('[useForecastCalculations] sales_expense_percent 2026-01 USING LOCKED VALUE:', existingEntry.forecast_value);
+          }
           value = existingEntry.forecast_value;
         } else if (hasStoredForecastValue && !useBaselineDirectly) {
           // Use stored forecast value even if not locked (user manually entered it)
@@ -582,6 +596,9 @@ export function useForecastCalculations({
         } else if (metric.calculate) {
           // Use brand-specific calculation from metric definition
           // BUT only if there's no stored value (checked above)
+          if (metric.key === 'sales_expense_percent' && month === '2026-01') {
+            console.log('[useForecastCalculations] sales_expense_percent 2026-01 RECALCULATING (should not happen if locked!):', metric.calculate(calculatedValues));
+          }
           value = metric.calculate(calculatedValues);
         } else if (calculatedValues[metric.key] !== undefined) {
           // Fallback to pre-calculated value if available
