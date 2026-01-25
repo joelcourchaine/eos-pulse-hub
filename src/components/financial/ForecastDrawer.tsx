@@ -918,7 +918,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       try {
         console.log('[handleMainMetricAnnualEdit] V2 months:', months?.length, 'monthlyValues:', monthlyValues?.size);
         
-        const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+        const updates: { month: string; metricName: string; forecastValue: number; isLocked?: boolean }[] = [];
         
         if (!months || months.length === 0) {
           console.error('[handleMainMetricAnnualEdit] V2 ERROR: months is empty!');
@@ -929,19 +929,21 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           const monthData = monthlyValues.get(month);
           const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
           
-          // Set Sales Expense % for this month
+          // Set Sales Expense % for this month - LOCK IT to prevent recalculation
           updates.push({
             month,
             metricName: 'sales_expense_percent',
             forecastValue: newAnnualValue,
+            isLocked: true,
           });
           
-          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100)
+          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100) - also lock
           const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
           updates.push({
             month,
             metricName: 'sales_expense',
             forecastValue: calculatedSalesExpense,
+            isLocked: true,
           });
         });
         
