@@ -61,6 +61,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   };
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
+  const [recentlyLockedMetrics, setRecentlyLockedMetrics] = useState<Set<string>>(new Set());
 
   // Driver states - simplified to single growth slider
   const [growth, setGrowth] = useState(0);
@@ -651,6 +652,14 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Handle locking/unlocking entire row (all months for a metric)
   const handleLockRow = (metricName: string, lock: boolean) => {
     console.log('[handleLockRow] called with metricName:', metricName, 'lock:', lock, 'STACK:', new Error().stack?.split('\n').slice(1,5).join('\n'));
+    
+    // Prevent accidental unlocking immediately after annual edit
+    if (!lock && recentlyLockedMetrics.has(metricName)) {
+      console.log('[handleLockRow] Preventing unlock - metric was just locked by annual edit');
+      toast.info('This metric was just locked. Wait a moment before unlocking.');
+      return;
+    }
+    
     const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
     
     months.forEach((month) => {
@@ -819,6 +828,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       // Bulk update all months for both GP% and GP Net
       bulkUpdateEntries.mutate(updates);
       
+      // Mark as recently locked and clear after 2 seconds
+      setRecentlyLockedMetrics(prev => new Set(prev).add('gp_percent').add('gp_net'));
+      setTimeout(() => {
+        setRecentlyLockedMetrics(prev => {
+          const next = new Set(prev);
+          next.delete('gp_percent');
+          next.delete('gp_net');
+          return next;
+        });
+      }, 2000);
+      
       // Get current GP Net to calculate scale factor for sub-metrics
       const currentGpNetData = annualValues.get('gp_net');
       const currentGpNet = currentGpNetData?.value ?? 0;
@@ -954,6 +974,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         
         // Bulk update all months for both Sales Expense % and Sales Expense $
         bulkUpdateEntries.mutate(updates);
+        
+        // Mark as recently locked and clear after 2 seconds
+        setRecentlyLockedMetrics(prev => new Set(prev).add('sales_expense_percent').add('sales_expense'));
+        setTimeout(() => {
+          setRecentlyLockedMetrics(prev => {
+            const next = new Set(prev);
+            next.delete('sales_expense_percent');
+            next.delete('sales_expense');
+            return next;
+          });
+        }, 2000);
         
         // Update the driver state to reflect the new annual dollar amount
         const newAnnualSalesExpense = months.reduce((sum, month) => {
