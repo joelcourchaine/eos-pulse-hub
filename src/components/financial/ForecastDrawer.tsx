@@ -790,7 +790,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Distribute the annual value across months using the current weight distribution
   // For percentage metrics, set the same value for all months
   // Special handling for GP%: recalculate GP Net and scale sub-metrics proportionally
-  const handleMainMetricAnnualEdit = (metricKey: string, newAnnualValue: number) => {
+  const handleMainMetricAnnualEdit = async (metricKey: string, newAnnualValue: number) => {
     if (!weights || weights.length === 0) return;
     
     // Find the metric definition to check if it's a percentage
@@ -826,7 +826,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       });
       
       // Bulk update all months for both GP% and GP Net
-      bulkUpdateEntries.mutate(updates);
+      await bulkUpdateEntries.mutateAsync(updates);
+      console.log('[handleMainMetricAnnualEdit] GP% bulkUpdateEntries completed');
       
       // Mark as recently locked and clear after 2 seconds
       setRecentlyLockedMetrics(prev => new Set(prev).add('gp_percent').add('gp_net'));
@@ -885,6 +886,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         return updated;
       });
       
+      toast.success(`GP% set to ${newAnnualValue}% (GP Net and sub-metrics adjusted accordingly)`);
       markDirty();
       return;
     }
@@ -973,7 +975,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         console.log('[handleMainMetricAnnualEdit] V2 first update:', updates[0]);
         
         // Bulk update all months for both Sales Expense % and Sales Expense $
-        bulkUpdateEntries.mutate(updates);
+        await bulkUpdateEntries.mutateAsync(updates);
+        console.log('[handleMainMetricAnnualEdit] V2 bulkUpdateEntries completed');
         
         // Mark as recently locked and clear after 2 seconds
         setRecentlyLockedMetrics(prev => new Set(prev).add('sales_expense_percent').add('sales_expense'));
@@ -994,8 +997,10 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         setSalesExpense(newAnnualSalesExpense);
         
         console.log('[handleMainMetricAnnualEdit] V2 completed successfully');
+        toast.success(`Sales Expense % set to ${newAnnualValue}% and locked for all months`);
       } catch (error) {
         console.error('[handleMainMetricAnnualEdit] V2 ERROR:', error);
+        toast.error('Failed to update Sales Expense %: ' + (error instanceof Error ? error.message : String(error)));
       }
       
       markDirty();
@@ -1026,7 +1031,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     });
     
     // Bulk update all months at once instead of 12 separate mutations
-    bulkUpdateEntries.mutate(updates);
+    await bulkUpdateEntries.mutateAsync(updates);
+    console.log('[handleMainMetricAnnualEdit] Standard metric bulkUpdateEntries completed');
     
     markDirty();
   };
