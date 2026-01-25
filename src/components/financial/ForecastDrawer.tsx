@@ -650,6 +650,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Handle locking/unlocking entire row (all months for a metric)
   const handleLockRow = (metricName: string, lock: boolean) => {
+    console.log('[handleLockRow] called with metricName:', metricName, 'lock:', lock);
     const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
     
     months.forEach((month) => {
@@ -682,6 +683,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     });
     
     if (updates.length > 0) {
+      console.log('[handleLockRow] calling bulkUpdateEntries with', updates.length, 'updates');
       bulkUpdateEntries.mutate(updates);
     }
   };
@@ -913,7 +915,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     
     // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
     if (metricKey === 'sales_expense_percent') {
-      console.log('[handleMainMetricAnnualEdit] V2 sales_expense_percent called with:', newAnnualValue);
+      console.log('[handleMainMetricAnnualEdit] V2 sales_expense_percent called with:', newAnnualValue, 'STACK:', new Error().stack?.split('\n').slice(1,5).join('\n'));
       
       try {
         console.log('[handleMainMetricAnnualEdit] V2 months:', months?.length, 'monthlyValues:', monthlyValues?.size);
