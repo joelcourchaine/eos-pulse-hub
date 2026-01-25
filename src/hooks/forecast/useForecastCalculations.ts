@@ -402,19 +402,28 @@ export function useForecastCalculations({
         }
       });
 
+      // Also check for STORED values (not necessarily locked) for key metrics
+      // This allows annual edits without auto-lock to still be respected
+      const hasStoredSalesExpensePercent = (() => {
+        const entry = entriesMap.get(`${month}:sales_expense_percent`);
+        return entry?.forecast_value !== null && entry?.forecast_value !== undefined;
+      })();
+
       // Calculate baseline comparison values for useBaselineDirectly check
       const baselineSalesExpenseCalc = annualBaseline['sales_expense'] || 0;
       
       // Use baseline directly when no changes to avoid rounding differences
-      // But NOT if any driver metrics are locked (user made manual edits)
+      // But NOT if any driver metrics are locked OR if sales_expense_percent has stored values
       const hasAnyLockedDrivers = lockedValues['gp_percent'] !== undefined || 
         lockedValues['total_sales'] !== undefined || 
         lockedValues['gp_net'] !== undefined ||
         lockedValues['sales_expense'] !== undefined ||
         lockedValues['sales_expense_percent'] !== undefined;
+      const hasStoredDriverValues = hasStoredSalesExpensePercent;
       const useBaselineDirectly = growth === 0 
         && Math.abs(salesExpense - baselineSalesExpenseCalc) < 1 // Within $1
-        && !hasAnyLockedDrivers;
+        && !hasAnyLockedDrivers
+        && !hasStoredDriverValues;
 
       // For stores without sub-metrics: when GP% is locked (user changed it),
       // we need to scale BOTH Total Sales and GP Net together.
