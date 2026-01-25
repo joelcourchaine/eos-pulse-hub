@@ -367,16 +367,7 @@ export function ForecastResultsGrid({
     
     // Debug logging for sales_expense_percent
     if (metric.key === 'sales_expense_percent') {
-      const isEditable = ((!hasChildren && !metric.isDerived) || ['gp_percent', 'gp_net', 'sales_expense_percent'].includes(metric.key));
-      console.log('[ForecastResultsGrid] renderMetricRow for sales_expense_percent:', {
-        isSubMetric,
-        hasChildren,
-        isDerived: metric.isDerived,
-        annualValue,
-        onMainMetricAnnualEditExists: !!onMainMetricAnnualEdit,
-        isEditable,
-        finalCondition: isEditable && !!onMainMetricAnnualEdit,
-      });
+      // Debug logs removed - cell is correctly editable
     }
     
     const isDeptProfit = metric.key === 'department_profit';
