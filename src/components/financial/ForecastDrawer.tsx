@@ -913,46 +913,55 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     
     // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
     if (metricKey === 'sales_expense_percent') {
-      console.log('[handleMainMetricAnnualEdit] sales_expense_percent called with:', newAnnualValue);
-      console.log('[handleMainMetricAnnualEdit] months array:', months);
-      console.log('[handleMainMetricAnnualEdit] monthlyValues size:', monthlyValues.size);
+      console.log('[handleMainMetricAnnualEdit] V2 sales_expense_percent called with:', newAnnualValue);
       
-      const updates: { month: string; metricName: string; forecastValue: number }[] = [];
-      
-      months.forEach((month) => {
-        console.log('[handleMainMetricAnnualEdit] processing month:', month);
-        const monthData = monthlyValues.get(month);
-        console.log('[handleMainMetricAnnualEdit] monthData for', month, ':', monthData ? 'found' : 'NOT FOUND');
-        const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
-        console.log('[handleMainMetricAnnualEdit] gpNetValue for', month, ':', gpNetValue);
+      try {
+        console.log('[handleMainMetricAnnualEdit] V2 months:', months?.length, 'monthlyValues:', monthlyValues?.size);
         
-        // Set Sales Expense % for this month
-        updates.push({
-          month,
-          metricName: 'sales_expense_percent',
-          forecastValue: newAnnualValue,
+        const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+        
+        if (!months || months.length === 0) {
+          console.error('[handleMainMetricAnnualEdit] V2 ERROR: months is empty!');
+          return;
+        }
+        
+        months.forEach((month) => {
+          const monthData = monthlyValues.get(month);
+          const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+          
+          // Set Sales Expense % for this month
+          updates.push({
+            month,
+            metricName: 'sales_expense_percent',
+            forecastValue: newAnnualValue,
+          });
+          
+          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100)
+          const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
+          updates.push({
+            month,
+            metricName: 'sales_expense',
+            forecastValue: calculatedSalesExpense,
+          });
         });
         
-        // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100)
-        const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
-        updates.push({
-          month,
-          metricName: 'sales_expense',
-          forecastValue: calculatedSalesExpense,
-        });
-      });
-      
-      console.log('[handleMainMetricAnnualEdit] calling bulkUpdateEntries with', updates.length, 'updates');
-      
-      // Bulk update all months for both Sales Expense % and Sales Expense $
-      bulkUpdateEntries.mutate(updates);
-      
-      // Update the driver state to reflect the new annual dollar amount
-      const newAnnualSalesExpense = months.reduce((sum, month) => {
-        const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
-        return sum + (gpNetValue * (newAnnualValue / 100));
-      }, 0);
-      setSalesExpense(newAnnualSalesExpense);
+        console.log('[handleMainMetricAnnualEdit] V2 calling bulkUpdateEntries with', updates.length, 'updates');
+        console.log('[handleMainMetricAnnualEdit] V2 first update:', updates[0]);
+        
+        // Bulk update all months for both Sales Expense % and Sales Expense $
+        bulkUpdateEntries.mutate(updates);
+        
+        // Update the driver state to reflect the new annual dollar amount
+        const newAnnualSalesExpense = months.reduce((sum, month) => {
+          const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
+          return sum + (gpNetValue * (newAnnualValue / 100));
+        }, 0);
+        setSalesExpense(newAnnualSalesExpense);
+        
+        console.log('[handleMainMetricAnnualEdit] V2 completed successfully');
+      } catch (error) {
+        console.error('[handleMainMetricAnnualEdit] V2 ERROR:', error);
+      }
       
       markDirty();
       return;
