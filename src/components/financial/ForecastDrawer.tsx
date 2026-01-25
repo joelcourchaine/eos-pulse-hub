@@ -913,6 +913,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     
     // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
     if (metricKey === 'sales_expense_percent') {
+      console.log('[ForecastDrawer] Handling sales_expense_percent annual edit:', newAnnualValue);
+      
       const updates: { month: string; metricName: string; forecastValue: number }[] = [];
       
       months.forEach((month) => {
@@ -934,6 +936,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           forecastValue: calculatedSalesExpense,
         });
       });
+      
+      console.log('[ForecastDrawer] Prepared', updates.length, 'updates for sales_expense_percent');
       
       // Bulk update all months for both Sales Expense % and Sales Expense $
       bulkUpdateEntries.mutate(updates);
