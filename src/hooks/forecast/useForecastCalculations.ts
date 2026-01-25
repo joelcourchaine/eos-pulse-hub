@@ -705,11 +705,16 @@ export function useForecastCalculations({
         if (metricData) {
           totals[metric.key].value += metricData.value;
           totals[metric.key].baseline += metricData.baseline_value;
-          // Track all stored values for percentage metrics
-          totals[metric.key].storedValues.push(metricData.value);
+          
+          // For storedValues: use the user-entered forecast value if it exists, not the calculated one
+          // This ensures that if a user enters 65% for all months, we detect it as uniform
+          const storedEntry = entriesMap.get(`${month}:${metric.key}`);
+          const storedForecastValue = storedEntry?.forecast_value;
+          totals[metric.key].storedValues.push(storedForecastValue != null ? storedForecastValue : metricData.value);
+          
           if (metricData.is_locked) {
             totals[metric.key].locked = true;
-            totals[metric.key].lockedValues.push(metricData.value);
+            totals[metric.key].lockedValues.push(storedForecastValue != null ? storedForecastValue : metricData.value);
           } else {
             totals[metric.key].allLocked = false;
           }
@@ -733,17 +738,6 @@ export function useForecastCalculations({
       const storedValues = totals[metric.key].storedValues;
       const allStoredSameValue = isPercentMetric && storedValues.length === 12 &&
         storedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01);
-      
-      // Debug logging for sales_expense_percent
-      if (metric.key === 'sales_expense_percent') {
-        console.log('[calculateAnnualValues] storedValues check:', {
-          storedValuesLength: storedValues.length,
-          storedValues: storedValues,
-          firstValue: storedValues[0],
-          allMatch: storedValues.every((v, _, arr) => Math.abs(v - arr[0]) < 0.01),
-          differences: storedValues.map((v, i) => ({ month: i+1, value: v, diff: Math.abs(v - storedValues[0]) }))
-        });
-      }
       
       // Use stored value if all months have the same percentage value (either locked or just stored)
       const allSameValue = allLockedSameValue || allStoredSameValue;
@@ -773,26 +767,10 @@ export function useForecastCalculations({
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
-        console.log('[calculateAnnualValues] sales_expense_percent DEBUG:', {
-          isPercentMetric,
-          allSameValue,
-          uniformValue,
-          allLockedSameValue,
-          allStoredSameValue,
-          storedValuesCount: storedValues.length,
-          storedValues: storedValues.slice(0, 5),
-          salesExp,
-          gpNet,
-          calculatedFromTotals: gpNet > 0 ? (salesExp / gpNet) * 100 : 0,
-        });
-        
         if (isPercentMetric && allSameValue && uniformValue !== null) {
-          console.log('[calculateAnnualValues] sales_expense_percent USING UNIFORM:', uniformValue);
           finalValue = uniformValue;
         } else {
-          const calculated = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
-          console.log('[calculateAnnualValues] sales_expense_percent USING CALCULATED:', calculated);
-          finalValue = calculated;
+          finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
         }
         
         const baselineSalesExp = totals['sales_expense']?.baseline ?? 0;
