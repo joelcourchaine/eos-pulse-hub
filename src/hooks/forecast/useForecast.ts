@@ -330,10 +330,12 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
     onSuccess: (payload) => {
       console.log('[bulkUpdateEntries] onSuccess called with', payload.updates.length, 'updates');
+      console.log('[bulkUpdateEntries] First few updates:', payload.updates.slice(0, 3));
       
       // Update cache in-place to prevent refetch loops
       const key = ['forecast-entries', forecast?.id] as const;
       queryClient.setQueryData(key, (prev: ForecastEntry[] | undefined) => {
+        console.log('[bulkUpdateEntries] Cache update: prev had', prev?.length ?? 0, 'entries');
         const current = prev ?? [];
         const map = new Map<string, ForecastEntry>(
           current.map((e) => [`${e.month}:${e.metric_name}`, e])
@@ -342,6 +344,13 @@ export function useForecast(departmentId: string | undefined, year: number) {
         for (const u of payload.updates) {
           const k = `${u.month}:${u.metricName}`;
           const existing = map.get(k);
+          if (u.metricName === 'sales_expense_percent' && u.month === '2026-01') {
+            console.log('[bulkUpdateEntries] Updating 2026-01 sales_expense_percent:', {
+              existing: existing ? { value: existing.forecast_value, locked: existing.is_locked } : 'none',
+              newValue: u.forecastValue,
+              newLocked: u.isLocked
+            });
+          }
           if (existing) {
             map.set(k, {
               ...existing,
