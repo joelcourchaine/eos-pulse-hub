@@ -378,8 +378,9 @@ export function useForecast(departmentId: string | undefined, year: number) {
         return Array.from(map.values());
       });
 
-      // Force refetch to ensure UI sees the updates
-      queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+      // NOTE: Do NOT invalidate/refetch here - the in-place cache update above is sufficient
+      // Invalidating causes a race condition where the refetch overwrites the cache before
+      // the calculation engine can read the updated values
     },
   });
 
