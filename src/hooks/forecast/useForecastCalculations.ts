@@ -505,6 +505,10 @@ export function useForecastCalculations({
       // Sales expense percent - check for stored value from annual edit
       const getCalculatedSalesExpensePercent = (): number => {
         const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
+        if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined) {
+          console.log(`[Forecast Calc] ${month} sales_expense_percent from stored:`, salesExpPctEntry.forecast_value);
+        }
+        
         if (salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined && !useBaselineDirectly) {
           return salesExpPctEntry.forecast_value;
         }

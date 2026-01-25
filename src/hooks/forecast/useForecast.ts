@@ -324,6 +324,8 @@ export function useForecast(departmentId: string | undefined, year: number) {
       return { updates, insertRows };
     },
     onSuccess: (payload) => {
+      console.log('[useForecast] bulkUpdateEntries onSuccess:', { updateCount: payload.updates.length, insertCount: payload.insertRows.length });
+      
       // Update cache in-place to prevent refetch loops
       const key = ['forecast-entries', forecast?.id] as const;
       queryClient.setQueryData(key, (prev: ForecastEntry[] | undefined) => {
@@ -378,6 +380,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
       });
 
       // Force refetch to ensure UI sees the updates
+      console.log('[useForecast] Invalidating forecast-entries query');
       queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
     },
   });
