@@ -187,9 +187,13 @@ export function useForecastCalculations({
 
   // Create entries map for quick lookup
   const entriesMap = useMemo(() => {
+    console.log('[useForecastCalculations] Building entriesMap with', entries.length, 'entries');
     const map = new Map<string, ForecastEntry>();
     entries.forEach(e => {
       map.set(`${e.month}:${e.metric_name}`, e);
+      if (e.metric_name === 'sales_expense_percent' && e.month === '2026-01') {
+        console.log('[useForecastCalculations] entriesMap has 2026-01 sales_expense_percent:', e.forecast_value, 'locked:', e.is_locked);
+      }
     });
     return map;
   }, [entries]);
@@ -505,11 +509,17 @@ export function useForecastCalculations({
       // Sales expense percent - check for stored value from annual edit
       const getCalculatedSalesExpensePercent = (): number => {
         const salesExpPctEntry = entriesMap.get(`${month}:sales_expense_percent`);
+        console.log('[getCalculatedSalesExpensePercent]', month, 'entry:', salesExpPctEntry ? {
+          value: salesExpPctEntry.forecast_value,
+          locked: salesExpPctEntry.is_locked
+        } : 'NOT FOUND');
         const hasStoredValue = salesExpPctEntry?.forecast_value !== null && salesExpPctEntry?.forecast_value !== undefined;
         
         if (hasStoredValue && !useBaselineDirectly) {
+          console.log('[getCalculatedSalesExpensePercent]', month, 'using stored value:', salesExpPctEntry.forecast_value);
           return salesExpPctEntry.forecast_value;
         }
+        console.log('[getCalculatedSalesExpensePercent]', month, 'using baseline:', baselineMonthlyValues.sales_expense_percent);
         return baselineMonthlyValues.sales_expense_percent;
       };
 
