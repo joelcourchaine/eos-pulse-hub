@@ -914,11 +914,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
     if (metricKey === 'sales_expense_percent') {
       console.log('[handleMainMetricAnnualEdit] sales_expense_percent called with:', newAnnualValue);
+      console.log('[handleMainMetricAnnualEdit] months array:', months);
+      console.log('[handleMainMetricAnnualEdit] monthlyValues size:', monthlyValues.size);
+      
       const updates: { month: string; metricName: string; forecastValue: number }[] = [];
       
       months.forEach((month) => {
+        console.log('[handleMainMetricAnnualEdit] processing month:', month);
         const monthData = monthlyValues.get(month);
+        console.log('[handleMainMetricAnnualEdit] monthData for', month, ':', monthData ? 'found' : 'NOT FOUND');
         const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+        console.log('[handleMainMetricAnnualEdit] gpNetValue for', month, ':', gpNetValue);
         
         // Set Sales Expense % for this month
         updates.push({
