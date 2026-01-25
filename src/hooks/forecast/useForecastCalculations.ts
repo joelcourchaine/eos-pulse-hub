@@ -762,10 +762,26 @@ export function useForecastCalculations({
         const salesExp = totals['sales_expense']?.value ?? 0;
         const gpNet = totals['gp_net']?.value ?? 0;
         
+        console.log('[calculateAnnualValues] sales_expense_percent DEBUG:', {
+          isPercentMetric,
+          allSameValue,
+          uniformValue,
+          allLockedSameValue,
+          allStoredSameValue,
+          storedValuesCount: storedValues.length,
+          storedValues: storedValues.slice(0, 5),
+          salesExp,
+          gpNet,
+          calculatedFromTotals: gpNet > 0 ? (salesExp / gpNet) * 100 : 0,
+        });
+        
         if (isPercentMetric && allSameValue && uniformValue !== null) {
+          console.log('[calculateAnnualValues] sales_expense_percent USING UNIFORM:', uniformValue);
           finalValue = uniformValue;
         } else {
-          finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+          const calculated = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+          console.log('[calculateAnnualValues] sales_expense_percent USING CALCULATED:', calculated);
+          finalValue = calculated;
         }
         
         const baselineSalesExp = totals['sales_expense']?.baseline ?? 0;
