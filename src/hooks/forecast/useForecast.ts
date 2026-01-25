@@ -336,11 +336,11 @@ export function useForecast(departmentId: string | undefined, year: number) {
       queryClient.setQueryData(key, (prev: ForecastEntry[] | undefined) => {
         const current = prev ?? [];
         const map = new Map<string, ForecastEntry>(
-          current.map((e) => [`${e.month}::${e.metric_name}`, e])
+          current.map((e) => [`${e.month}:${e.metric_name}`, e])
         );
 
         for (const u of payload.updates) {
-          const k = `${u.month}::${u.metricName}`;
+          const k = `${u.month}:${u.metricName}`;
           const existing = map.get(k);
           if (existing) {
             map.set(k, {
@@ -367,7 +367,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
         // We don't have IDs for inserted rows here (DB generated), but we also don't need them
         // for calculations. Add placeholder IDs so UI stays consistent until next real fetch.
         for (const ins of payload.insertRows) {
-          const k = `${ins.month}::${ins.metric_name}`;
+          const k = `${ins.month}:${ins.metric_name}`;
           if (!map.has(k)) {
             map.set(k, {
               id: `temp_${ins.month}_${ins.metric_name}`,

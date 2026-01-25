@@ -559,6 +559,7 @@ export function useForecastCalculations({
           value = existingEntry.forecast_value;
         } else if (hasStoredForecastValue && !useBaselineDirectly) {
           // Use stored forecast value even if not locked (user manually entered it)
+          // This is critical for metrics like sales_expense_percent that were edited via annual cell
           value = existingEntry.forecast_value;
         } else if (useBaselineDirectly) {
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
@@ -568,6 +569,7 @@ export function useForecastCalculations({
           value = calculatedValues[metric.key];
         } else if (metric.calculate) {
           // Use brand-specific calculation from metric definition
+          // BUT only if there's no stored value (checked above)
           value = metric.calculate(calculatedValues);
         } else if (calculatedValues[metric.key] !== undefined) {
           // Fallback to pre-calculated value if available
