@@ -838,6 +838,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       // Bulk update all months for both GP% and GP Net
       await bulkUpdateEntries.mutateAsync(updates);
       console.log('[handleMainMetricAnnualEdit] GP% bulkUpdateEntries completed');
+        
+        // Force a query refetch to ensure UI updates
+        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
       
       // Mark as recently locked and clear after 2 seconds
       setRecentlyLockedMetrics(prev => new Set(prev).add('gp_percent').add('gp_net'));
@@ -988,6 +991,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         await bulkUpdateEntries.mutateAsync(updates);
         console.log('[handleMainMetricAnnualEdit] V2 bulkUpdateEntries completed');
         
+        // Force a query refetch to ensure UI updates
+        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+        
         // Update the driver state to reflect the new annual dollar amount
         const newAnnualSalesExpense = months.reduce((sum, month) => {
           const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
@@ -1050,6 +1056,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         // Bulk update all months for both Sales Expense $ and Sales Expense %
         await bulkUpdateEntries.mutateAsync(updates);
         
+        // Force a query refetch to ensure UI updates immediately
+        queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+        
         // Update the driver state to reflect the new annual dollar amount
         setSalesExpense(newAnnualValue);
         
@@ -1090,6 +1099,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     // Bulk update all months at once instead of 12 separate mutations
     await bulkUpdateEntries.mutateAsync(updates);
     console.log('[handleMainMetricAnnualEdit] Standard metric bulkUpdateEntries completed');
+    
+    // Force a query refetch to ensure UI updates
+    queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
     
     markDirty();
   };
