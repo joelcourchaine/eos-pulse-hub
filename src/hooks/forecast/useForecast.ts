@@ -265,6 +265,8 @@ export function useForecast(departmentId: string | undefined, year: number) {
   const bulkUpdateEntries = useMutation({
     mutationFn: async (updates: { month: string; metricName: string; forecastValue: number | null; baselineValue?: number | null; isLocked?: boolean }[]) => {
       if (!forecast?.id) throw new Error('No forecast');
+      
+      console.log('[bulkUpdateEntries] Starting mutation with', updates.length, 'updates');
 
       // Separate updates and inserts
       const updateOps: Promise<void>[] = [];
@@ -278,6 +280,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
       }[] = [];
 
       const existingEntries = entries ?? [];
+      console.log('[bulkUpdateEntries] existingEntries count:', existingEntries.length);
 
       for (const update of updates) {
         const existing = existingEntries.find((e) => e.month === update.month && e.metric_name === update.metricName);
@@ -314,6 +317,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
         }
       }
 
+      console.log('[bulkUpdateEntries] Executing', updateOps.length, 'updates and inserting', insertRows.length, 'rows');
       await Promise.all(updateOps);
 
       if (insertRows.length > 0) {
@@ -321,9 +325,11 @@ export function useForecast(departmentId: string | undefined, year: number) {
         if (error) throw error;
       }
 
+      console.log('[bulkUpdateEntries] Mutation completed successfully');
       return { updates, insertRows };
     },
     onSuccess: (payload) => {
+      console.log('[bulkUpdateEntries] onSuccess called with', payload.updates.length, 'updates');
       
       // Update cache in-place to prevent refetch loops
       const key = ['forecast-entries', forecast?.id] as const;
