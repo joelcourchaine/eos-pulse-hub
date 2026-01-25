@@ -288,8 +288,9 @@ export function useForecast(departmentId: string | undefined, year: number) {
         if (existing) {
           // Allow update if:
           // 1. Entry is not locked, OR
-          // 2. The update is explicitly setting isLocked: true (overwriting with a new locked value)
-          const canUpdate = !existing.is_locked || update.isLocked === true;
+          // 2. The update is explicitly setting a lock status (either true or false)
+          //    This allows both locking and unlocking operations
+          const canUpdate = !existing.is_locked || update.isLocked !== undefined;
           
           if (canUpdate) {
             const op = (async () => {
