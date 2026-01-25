@@ -650,7 +650,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
 
   // Handle locking/unlocking entire row (all months for a metric)
   const handleLockRow = (metricName: string, lock: boolean) => {
-    console.log('[handleLockRow] called with metricName:', metricName, 'lock:', lock);
+    console.log('[handleLockRow] called with metricName:', metricName, 'lock:', lock, 'STACK:', new Error().stack?.split('\n').slice(1,5).join('\n'));
     const updates: { month: string; metricName: string; forecastValue: number; isLocked: boolean }[] = [];
     
     months.forEach((month) => {
