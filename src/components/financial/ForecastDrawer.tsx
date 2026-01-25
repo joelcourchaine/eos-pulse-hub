@@ -911,6 +911,44 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       return;
     }
     
+    // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
+    if (metricKey === 'sales_expense_percent') {
+      const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+      
+      months.forEach((month) => {
+        const monthData = monthlyValues.get(month);
+        const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+        
+        // Set Sales Expense % for this month
+        updates.push({
+          month,
+          metricName: 'sales_expense_percent',
+          forecastValue: newAnnualValue,
+        });
+        
+        // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100)
+        const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
+        updates.push({
+          month,
+          metricName: 'sales_expense',
+          forecastValue: calculatedSalesExpense,
+        });
+      });
+      
+      // Bulk update all months for both Sales Expense % and Sales Expense $
+      bulkUpdateEntries.mutate(updates);
+      
+      // Update the driver state to reflect the new annual dollar amount
+      const newAnnualSalesExpense = months.reduce((sum, month) => {
+        const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
+        return sum + (gpNetValue * (newAnnualValue / 100));
+      }, 0);
+      setSalesExpense(newAnnualSalesExpense);
+      
+      markDirty();
+      return;
+    }
+    
     // Calculate total weight
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
     if (totalWeight === 0 && !isPercent) return;
