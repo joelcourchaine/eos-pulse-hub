@@ -409,7 +409,9 @@ export function useForecastCalculations({
       // But NOT if any driver metrics are locked (user made manual edits)
       const hasAnyLockedDrivers = lockedValues['gp_percent'] !== undefined || 
         lockedValues['total_sales'] !== undefined || 
-        lockedValues['gp_net'] !== undefined;
+        lockedValues['gp_net'] !== undefined ||
+        lockedValues['sales_expense'] !== undefined ||
+        lockedValues['sales_expense_percent'] !== undefined;
       const useBaselineDirectly = growth === 0 
         && Math.abs(salesExpense - baselineSalesExpenseCalc) < 1 // Within $1
         && !hasAnyLockedDrivers;
