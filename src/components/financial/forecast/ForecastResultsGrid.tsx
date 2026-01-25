@@ -280,6 +280,7 @@ export function ForecastResultsGrid({
 
   // Main metric annual value editing (for metrics without sub-metrics)
   const handleMainMetricAnnualClick = (metricKey: string, currentValue: number, metricType: 'currency' | 'percent' | 'number') => {
+    console.log('[ForecastResultsGrid] handleMainMetricAnnualClick called for', metricKey, 'with value', currentValue);
     setEditingAnnualMainMetric(metricKey);
     if (metricType === 'percent') {
       setEditValue(currentValue.toFixed(1));
@@ -289,8 +290,10 @@ export function ForecastResultsGrid({
   };
 
   const handleMainMetricAnnualBlur = (metricKey: string) => {
+    console.log('[ForecastResultsGrid] handleMainMetricAnnualBlur called for', metricKey, 'editValue:', editValue);
     if (editingAnnualMainMetric === metricKey) {
       const newValue = parseFloat(editValue);
+      console.log('[ForecastResultsGrid] parsed value:', newValue, 'calling onMainMetricAnnualEdit');
       if (!isNaN(newValue) && onMainMetricAnnualEdit) {
         onMainMetricAnnualEdit(metricKey, newValue);
       }
