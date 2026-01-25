@@ -19,7 +19,7 @@ import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { FormattedCurrency, formatCurrency } from '@/components/ui/formatted-currency';
+import { FormattedCurrency, formatCurrency, formatFullCurrency } from '@/components/ui/formatted-currency';
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
@@ -1000,6 +1000,64 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       } catch (error) {
         console.error('[handleMainMetricAnnualEdit] V2 ERROR:', error);
         toast.error('Failed to update Sales Expense %: ' + (error instanceof Error ? error.message : String(error)));
+      }
+      
+      markDirty();
+      return;
+    }
+    
+    // Special handling for Sales Expense $ (dollar amount): calculate percentage based on GP Net
+    if (metricKey === 'sales_expense') {
+      console.log('[handleMainMetricAnnualEdit] sales_expense (dollar) called with:', newAnnualValue);
+      
+      try {
+        const updates: { month: string; metricName: string; forecastValue: number; isLocked?: boolean }[] = [];
+        
+        months.forEach((month) => {
+          const monthData = monthlyValues.get(month);
+          const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+          
+          // Calculate this month's proportional share of the annual dollar amount
+          // Use GP Net as the distribution basis (months with higher GP Net get more expense)
+          const totalAnnualGpNet = months.reduce((sum, m) => {
+            return sum + (monthlyValues.get(m)?.get('gp_net')?.value ?? 0);
+          }, 0);
+          
+          const monthSalesExpense = totalAnnualGpNet > 0 
+            ? newAnnualValue * (gpNetValue / totalAnnualGpNet)
+            : newAnnualValue / 12;
+          
+          // Set Sales Expense $ for this month and explicitly unlock
+          updates.push({
+            month,
+            metricName: 'sales_expense',
+            forecastValue: monthSalesExpense,
+            isLocked: false,
+          });
+          
+          // Calculate Sales Expense % = (Sales Expense $ / GP Net) × 100 and explicitly unlock
+          const calculatedPercent = gpNetValue > 0 ? (monthSalesExpense / gpNetValue) * 100 : 0;
+          updates.push({
+            month,
+            metricName: 'sales_expense_percent',
+            forecastValue: calculatedPercent,
+            isLocked: false,
+          });
+        });
+        
+        console.log('[handleMainMetricAnnualEdit] sales_expense calling bulkUpdateEntries with', updates.length, 'updates');
+        
+        // Bulk update all months for both Sales Expense $ and Sales Expense %
+        await bulkUpdateEntries.mutateAsync(updates);
+        
+        // Update the driver state to reflect the new annual dollar amount
+        setSalesExpense(newAnnualValue);
+        
+        console.log('[handleMainMetricAnnualEdit] sales_expense completed successfully');
+        toast.success(`Sales Expense set to ${formatFullCurrency(newAnnualValue)} for the year`);
+      } catch (error) {
+        console.error('[handleMainMetricAnnualEdit] sales_expense ERROR:', error);
+        toast.error('Failed to update Sales Expense: ' + (error instanceof Error ? error.message : String(error)));
       }
       
       markDirty();
