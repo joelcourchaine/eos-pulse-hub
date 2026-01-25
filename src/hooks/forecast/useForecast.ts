@@ -376,6 +376,9 @@ export function useForecast(departmentId: string | undefined, year: number) {
 
         return Array.from(map.values());
       });
+
+      // Force refetch to ensure UI sees the updates
+      queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
     },
   });
 
