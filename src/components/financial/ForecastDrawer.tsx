@@ -963,19 +963,21 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           const monthData = monthlyValues.get(month);
           const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
           
-          // Set Sales Expense % for this month - do NOT auto-lock, user can lock manually
+          // Set Sales Expense % for this month and explicitly unlock any previous locks
           updates.push({
             month,
             metricName: 'sales_expense_percent',
             forecastValue: newAnnualValue,
+            isLocked: false, // Explicitly unlock to clear any previous locks
           });
           
-          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100) - do NOT auto-lock
+          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100) and explicitly unlock
           const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
           updates.push({
             month,
             metricName: 'sales_expense',
             forecastValue: calculatedSalesExpense,
+            isLocked: false, // Explicitly unlock to clear any previous locks
           });
         });
         
