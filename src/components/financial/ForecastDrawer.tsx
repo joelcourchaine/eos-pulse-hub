@@ -953,21 +953,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           const monthData = monthlyValues.get(month);
           const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
           
-          // Set Sales Expense % for this month - LOCK IT to prevent recalculation
+          // Set Sales Expense % for this month - do NOT auto-lock, user can lock manually
           updates.push({
             month,
             metricName: 'sales_expense_percent',
             forecastValue: newAnnualValue,
-            isLocked: true,
           });
           
-          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100) - also lock
+          // Calculate Sales Expense $ = GP Net × (Sales Expense % / 100) - do NOT auto-lock
           const calculatedSalesExpense = gpNetValue * (newAnnualValue / 100);
           updates.push({
             month,
             metricName: 'sales_expense',
             forecastValue: calculatedSalesExpense,
-            isLocked: true,
           });
         });
         
@@ -978,17 +976,6 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         await bulkUpdateEntries.mutateAsync(updates);
         console.log('[handleMainMetricAnnualEdit] V2 bulkUpdateEntries completed');
         
-        // Mark as recently locked and clear after 2 seconds
-        setRecentlyLockedMetrics(prev => new Set(prev).add('sales_expense_percent').add('sales_expense'));
-        setTimeout(() => {
-          setRecentlyLockedMetrics(prev => {
-            const next = new Set(prev);
-            next.delete('sales_expense_percent');
-            next.delete('sales_expense');
-            return next;
-          });
-        }, 2000);
-        
         // Update the driver state to reflect the new annual dollar amount
         const newAnnualSalesExpense = months.reduce((sum, month) => {
           const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
@@ -997,7 +984,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         setSalesExpense(newAnnualSalesExpense);
         
         console.log('[handleMainMetricAnnualEdit] V2 completed successfully');
-        toast.success(`Sales Expense % set to ${newAnnualValue}% and locked for all months`);
+        toast.success(`Sales Expense % set to ${newAnnualValue}% for all months`);
       } catch (error) {
         console.error('[handleMainMetricAnnualEdit] V2 ERROR:', error);
         toast.error('Failed to update Sales Expense %: ' + (error instanceof Error ? error.message : String(error)));
