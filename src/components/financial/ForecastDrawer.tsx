@@ -578,7 +578,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       currentMonthlyValues.forEach((metrics, month) => {
         metrics.forEach((result, metricKey) => {
           const entry = currentEntries.find((e) => e.month === month && e.metric_name === metricKey);
+          
+          // Skip if locked OR if there's a stored forecast_value
+          // This prevents auto-save from overwriting manual edits (e.g., from annual column edits)
           if (entry?.is_locked) return;
+          
+          // Skip auto-save for metrics that can be set via annual edit if they have a stored value
+          // This prevents auto-save from overwriting manual annual edits
+          const manualEditableMetrics = ['sales_expense_percent', 'sales_expense', 'gp_percent', 'gp_net', 'total_sales'];
+          if (manualEditableMetrics.includes(metricKey) && entry && entry.forecast_value !== null && entry.forecast_value !== undefined) {
+            return; // Preserve manual edits
+          }
 
           const nextForecast = result.value;
           const nextBaseline = result.baseline_value;
