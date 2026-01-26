@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow } from "date-fns";
+import { AdminLoginChart } from "./AdminLoginChart";
 
 export const AdminOverviewTab = () => {
   const { data: roleBreakdown, isLoading: rolesLoading } = useQuery({
@@ -56,8 +57,10 @@ export const AdminOverviewTab = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <Card>
+    <div className="space-y-6">
+      <AdminLoginChart />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
         <CardHeader>
           <CardTitle>Users by Role</CardTitle>
         </CardHeader>
@@ -117,6 +120,7 @@ export const AdminOverviewTab = () => {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
