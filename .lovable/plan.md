@@ -1,83 +1,57 @@
 
-
-# Add Honda Sub-Metric Cell Mappings
+# Add Admin Login Activity Chart
 
 ## Overview
-Insert sub-metric cell reference mappings for Honda brand financial statement imports. The Honda5 sheet contains detailed breakdowns for Parts, Service, and Body Shop departments.
+Create a new chart component that visualizes user login activity over time, with selectable time ranges (1D, 1W, 1M, 6M, 1Y). This chart will be added to the Admin Overview tab to provide administrators with a visual representation of user engagement trends.
 
-## Data Summary
+## Files to Change
 
-| Department | Metrics | Sub-metrics per Metric | Total Rows |
-|------------|---------|------------------------|------------|
-| Parts Department | total_sales, gp_net, gp_percent | 15 each | 45 |
-| Service Department | total_sales, gp_net, gp_percent | 10 each | 30 |
-| Body Shop Department | total_sales, gp_net, gp_percent | 6 each | 18 |
-| **Total** | | | **93** |
+### 1. Create New File: `src/components/admin/AdminLoginChart.tsx`
+A new React component featuring:
+- Interactive time range selector (1D, 1W, 1M, 6M, 1Y buttons)
+- Area chart using Recharts library (already installed)
+- Queries the `profiles` table for `last_sign_in_at` timestamps
+- Buckets data by hour (1D), day (1W/1M), or week (6M/1Y)
+- Shows total unique users count in the header
+- Gradient fill for visual appeal
+- Loading skeleton while data fetches
 
-## Sheet Structure (Honda5)
+### 2. Modify: `src/components/admin/AdminOverviewTab.tsx`
+- Add import for the new `AdminLoginChart` component
+- Restructure the layout to place the chart at the top spanning full width
+- Keep existing "Users by Role" and "Recent Logins" cards in a 2-column grid below
 
-### Column Layout
-- **Column C**: Total Sales values
-- **Column E**: GP Net values  
-- **Column G**: GP Percent values
+## Technical Details
 
-### Row Ranges
-- **Parts Department**: Rows 44-59 (skipping row 55)
-- **Service Department**: Rows 63-73 (skipping row 69)
-- **Body Shop Department**: Rows 77-83 (skipping row 81)
+### Data Query Logic
+The component queries `profiles.last_sign_in_at` within the selected date range:
+- Filters out null values and system users
+- Groups logins into time buckets based on selected range
+- Uses `date-fns` for date manipulation (already imported in codebase)
 
-## Implementation
+### Time Range Bucketing
+| Range | Bucket Size | Format |
+|-------|-------------|--------|
+| 1D | Hour | HH:mm |
+| 1W | Day | MMM d |
+| 1M | Day | MMM d |
+| 6M | Week | MMM d |
+| 1Y | Week | MMM d |
 
-### Database Migration
-Execute SQL INSERT statements to add 93 sub-metric mappings with:
-- `brand`: 'Honda'
-- `sheet_name`: 'Honda5'
-- `is_sub_metric`: true
-- `parent_metric_key`: 'total_sales', 'gp_net', or 'gp_percent'
-- `metric_key`: Format `sub:{parent}:{order}:{name}` (e.g., `sub:total_sales:001:Parts - Wholesale - Body Shop`)
+### Chart Styling
+- Uses Recharts `AreaChart` with gradient fill
+- Primary color theming via CSS variables
+- Responsive container for all screen sizes
 
-## Sub-Metric Details
-
-### Parts Department (15 line items)
-1. Parts - Wholesale - Body Shop
-2. Parts - Wholesale - Mechanical Repair Shop
-3. Retail Counter
-4. Cust. Rep. Orders Serv.
-5. Cust Rep. Orders Body Shop
-6. Warranty
-7. Internal
-8. Accessories - Honda
-9. Accessories - Other
-10. Parts Discount Earned
-11. Parts Inventory Adjust.
-12. Tires
-13. Gas (Fuel), Oil & Grease
-14. Battery - 12 Volt
-15. Miscellaneous
-
-### Service Department (10 line items)
-1. Labour - Customer
-2. Express Service
-3. Warranty
-4. Internal
-5. P.D.I.
-6. Unapplied Time
-7. Detail - Customer Pay
-8. Detail - Internal
-9. Tire Storage
-10. Sublet Repairs
-
-### Body Shop Department (6 line items)
-1. Labour - Customer
-2. Internal
-3. Warranty
-4. Unapplied Time
-5. Supplies - Body and Paint
-6. Sublet Repairs
-
-## Notes
-- These mappings follow the existing sub-metric format used for other brands (e.g., Mazda)
-- The `parseFinancialExcel.ts` parser already supports sub-metric mappings with `is_sub_metric: true`
-- GP percent values will be automatically converted from decimal (0.28) to percentage (28%) during import
-- No code changes required - the existing parser infrastructure handles these mappings automatically
-
+## Layout After Changes
+```text
++------------------------------------------+
+|         Admin Login Chart (full width)   |
+|  [1D] [1W] [1M] [6M] [1Y]               |
+|  ~~~~~~~~ Area Chart ~~~~~~~~            |
++------------------------------------------+
++-------------------+  +-------------------+
+|  Users by Role    |  |  Recent Logins   |
+|  (existing card)  |  |  (existing card) |
++-------------------+  +-------------------+
+```
