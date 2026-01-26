@@ -3,12 +3,7 @@ import { cn } from "@/lib/utils";
 import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,25 +90,25 @@ export const MonthDropZone = ({
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [validationStatus, setValidationStatus] = useState<'match' | 'mismatch' | 'imported' | null>(null);
+  const [validationStatus, setValidationStatus] = useState<"match" | "mismatch" | "imported" | null>(null);
   const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
 
   // Supported brands for Excel processing
-  const SUPPORTED_BRANDS = ['Nissan', 'Ford', 'GMC', 'Stellantis', 'Mazda'];
+  const SUPPORTED_BRANDS = ["Nissan", "Ford", "GMC", "Stellantis", "Mazda", "Honda"];
   const isSupportedBrand = storeBrand && SUPPORTED_BRANDS.includes(storeBrand);
-  const isStellantis = storeBrand?.toLowerCase() === 'stellantis';
+  const isStellantis = storeBrand?.toLowerCase() === "stellantis";
 
   // Re-validate on mount if there's an existing attachment for supported brands
   useEffect(() => {
     const checkExistingValidation = async () => {
       if (!attachment || !storeId || !isSupportedBrand) return;
-      if (attachment.file_type !== 'excel' && attachment.file_type !== 'csv') return;
+      if (attachment.file_type !== "excel" && attachment.file_type !== "csv") return;
 
       try {
         // Fetch the file from storage
         const { data: fileData, error: downloadError } = await supabase.storage
-          .from('financial-attachments')
+          .from("financial-attachments")
           .download(attachment.file_path);
 
         if (downloadError || !fileData) return;
@@ -127,15 +122,15 @@ export const MonthDropZone = ({
 
         // Get all departments for this store
         const { data: storeDepartments } = await supabase
-          .from('departments')
-          .select('id, name')
-          .eq('store_id', storeId);
+          .from("departments")
+          .select("id, name")
+          .eq("store_id", storeId);
 
         if (!storeDepartments || storeDepartments.length === 0) return;
 
         // Create lookup map
         const departmentsByName: Record<string, string> = {};
-        storeDepartments.forEach(dept => {
+        storeDepartments.forEach((dept) => {
           departmentsByName[dept.name] = dept.id;
         });
 
@@ -143,24 +138,20 @@ export const MonthDropZone = ({
         const parsedData = await parseFinancialExcel(file, mappings);
 
         // Validate against database
-        const validationResults = await validateAgainstDatabase(
-          parsedData,
-          departmentsByName,
-          monthIdentifier
-        );
+        const validationResults = await validateAgainstDatabase(parsedData, departmentsByName, monthIdentifier);
 
         // Determine overall status
-        const hasMismatch = validationResults.some(r => r.status === 'mismatch');
-        const allMatch = validationResults.every(r => r.status === 'match' || r.status === 'error');
+        const hasMismatch = validationResults.some((r) => r.status === "mismatch");
+        const allMatch = validationResults.every((r) => r.status === "match" || r.status === "error");
 
         setValidationDetails(validationResults);
         if (hasMismatch) {
-          setValidationStatus('mismatch');
+          setValidationStatus("mismatch");
         } else if (allMatch) {
-          setValidationStatus('match');
+          setValidationStatus("match");
         }
       } catch (error) {
-        console.error('Error checking existing validation:', error);
+        console.error("Error checking existing validation:", error);
       }
     };
 
@@ -179,19 +170,11 @@ export const MonthDropZone = ({
     setIsDragOver(false);
   }, []);
 
-  const processBrandExcel = async (
-    file: File,
-    filePath: string,
-    userId: string,
-    brand: string
-  ) => {
+  const processBrandExcel = async (file: File, filePath: string, userId: string, brand: string) => {
     if (!storeId) return;
 
     // Get all departments for this store
-    const { data: storeDepartments } = await supabase
-      .from('departments')
-      .select('id, name')
-      .eq('store_id', storeId);
+    const { data: storeDepartments } = await supabase.from("departments").select("id, name").eq("store_id", storeId);
 
     if (!storeDepartments || storeDepartments.length === 0) return;
 
@@ -201,8 +184,8 @@ export const MonthDropZone = ({
     const normalizeDeptName = (name: string) =>
       name
         .toLowerCase()
-        .replace(/department/g, '')
-        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/department/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
         .trim();
 
     const departmentsByName: Record<string, string> = {};
@@ -221,57 +204,57 @@ export const MonthDropZone = ({
     });
 
     // Special handling for Stellantis - check if it's a data dump format
-    const isStellantisFile = brand.toLowerCase() === 'stellantis';
+    const isStellantisFile = brand.toLowerCase() === "stellantis";
     let parsedData: ParsedFinancialData;
 
     if (isStellantisFile) {
       // Always fetch cell mappings
       const mappings = await fetchCellMappings(brand);
-      
+
       // Get department names for parsing
-      const deptNames = storeDepartments.map(d => d.name);
-      
+      const deptNames = storeDepartments.map((d) => d.name);
+
       // For Stellantis, ALWAYS try the data dump parser first (reads from dload/Data sheet)
       // This ensures we get the freshest data even if Chrysler sheets exist
-      console.log('[Excel Import] Stellantis file detected - trying data dump parser first');
-      
+      console.log("[Excel Import] Stellantis file detected - trying data dump parser first");
+
       // Parse using specialized Stellantis parser (it looks for dload/Data sheet)
       const dataDumpResult = await parseStellantisExcel(file, deptNames);
-      
+
       // Also add mappings for the Stellantis parser's department names
       const stellantisDeptNames = [
-        'New Vehicle Department',
-        'Used Vehicle Department',
-        'Service Department',
-        'Parts Department',
-        'Body Shop Department'
+        "New Vehicle Department",
+        "Used Vehicle Department",
+        "Service Department",
+        "Parts Department",
+        "Body Shop Department",
       ];
-      
+
       for (const stellantisDeptName of stellantisDeptNames) {
         if (departmentsByName[stellantisDeptName]) continue;
-        
+
         const normalized = normalizeDeptName(stellantisDeptName);
         const match = departmentsByNormalized.get(normalized);
         if (match) {
           departmentsByName[stellantisDeptName] = match.id;
         }
       }
-      
+
       // Count how many main metrics we got from the data dump
       let dataDumpMetricCount = 0;
       for (const deptMetrics of Object.values(dataDumpResult.metrics)) {
         dataDumpMetricCount += Object.keys(deptMetrics).length;
       }
       console.log(`[Excel Import] Data dump parser found ${dataDumpMetricCount} main metrics`);
-      
+
       // Start with data dump results
       parsedData = dataDumpResult;
-      
+
       // If we have cell mappings, try to fill in any missing metrics from Chrysler sheets
       if (mappings.length > 0) {
-        console.log('[Excel Import] Attempting to fill missing metrics from cell mappings');
+        console.log("[Excel Import] Attempting to fill missing metrics from cell mappings");
         const fallbackData = await parseFinancialExcel(file, mappings);
-        
+
         // Add mapping-department aliases
         const mappingDeptNames = Array.from(new Set(mappings.map((m) => m.department_name).filter(Boolean)));
         for (const mappingDeptName of mappingDeptNames) {
@@ -282,7 +265,7 @@ export const MonthDropZone = ({
             departmentsByName[mappingDeptName] = match.id;
           }
         }
-        
+
         // Merge fallback metrics into parsed data (only for missing metrics)
         for (const [deptName, deptMetrics] of Object.entries(fallbackData.metrics)) {
           if (!parsedData.metrics[deptName]) {
@@ -291,15 +274,17 @@ export const MonthDropZone = ({
           } else {
             // Only add metrics that are missing or null
             for (const [metricKey, value] of Object.entries(deptMetrics)) {
-              if (parsedData.metrics[deptName][metricKey] === undefined || 
-                  parsedData.metrics[deptName][metricKey] === null) {
+              if (
+                parsedData.metrics[deptName][metricKey] === undefined ||
+                parsedData.metrics[deptName][metricKey] === null
+              ) {
                 parsedData.metrics[deptName][metricKey] = value;
                 console.log(`[Excel Import] Filled ${deptName}.${metricKey} from cell mappings: ${value}`);
               }
             }
           }
         }
-        
+
         // Also merge sub-metrics from cell mappings if data dump didn't provide any
         for (const [deptName, subMetricList] of Object.entries(fallbackData.subMetrics)) {
           if (!parsedData.subMetrics[deptName] || parsedData.subMetrics[deptName].length === 0) {
@@ -333,7 +318,7 @@ export const MonthDropZone = ({
       }
 
       if (unresolved.length > 0) {
-        console.warn('[Excel Import] Some mapping departments could not be matched to store departments', {
+        console.warn("[Excel Import] Some mapping departments could not be matched to store departments", {
           storeId,
           storeBrand,
           unresolved,
@@ -344,36 +329,27 @@ export const MonthDropZone = ({
       // Parse the Excel file
       parsedData = await parseFinancialExcel(file, mappings);
     }
-    
+
     // Debug: Log what was parsed
-    console.log('[MonthDropZone] parsedData.metrics:', JSON.stringify(parsedData.metrics, null, 2));
-    console.log('[MonthDropZone] parsedData.metrics keys:', Object.keys(parsedData.metrics));
-    console.log('[MonthDropZone] departmentsByName:', JSON.stringify(departmentsByName, null, 2));
+    console.log("[MonthDropZone] parsedData.metrics:", JSON.stringify(parsedData.metrics, null, 2));
+    console.log("[MonthDropZone] parsedData.metrics keys:", Object.keys(parsedData.metrics));
+    console.log("[MonthDropZone] departmentsByName:", JSON.stringify(departmentsByName, null, 2));
 
     // Validate against database
-    const validationResults = await validateAgainstDatabase(
-      parsedData,
-      departmentsByName,
-      monthIdentifier
-    );
+    const validationResults = await validateAgainstDatabase(parsedData, departmentsByName, monthIdentifier);
 
     // Determine overall status
-    const hasImported = validationResults.some(r => r.status === 'imported');
-    const hasMismatch = validationResults.some(r => r.status === 'mismatch');
-    const allMatch = validationResults.every(r => r.status === 'match' || r.status === 'error');
-    
+    const hasImported = validationResults.some((r) => r.status === "imported");
+    const hasMismatch = validationResults.some((r) => r.status === "mismatch");
+    const allMatch = validationResults.every((r) => r.status === "match" || r.status === "error");
+
     // Check if there are any sub-metrics to import
-    const hasSubMetrics = Object.values(parsedData.subMetrics).some(arr => arr.length > 0);
+    const hasSubMetrics = Object.values(parsedData.subMetrics).some((arr) => arr.length > 0);
 
     // Always import data when a file is dropped - this updates/refreshes all values
     // Even if validation shows 'match', we still import to ensure sub-metrics are updated
     // and any changes in the Excel file are reflected in the database
-    const importResult = await importFinancialData(
-      parsedData,
-      departmentsByName,
-      monthIdentifier,
-      userId
-    );
+    const importResult = await importFinancialData(parsedData, departmentsByName, monthIdentifier, userId);
 
     if (importResult.success) {
       toast({
@@ -395,55 +371,53 @@ export const MonthDropZone = ({
 
       // Check if attachment already exists for this department
       const { data: existingAttachment } = await supabase
-        .from('financial_attachments')
-        .select('id')
-        .eq('department_id', dept.id)
-        .eq('month_identifier', monthIdentifier)
+        .from("financial_attachments")
+        .select("id")
+        .eq("department_id", dept.id)
+        .eq("month_identifier", monthIdentifier)
         .maybeSingle();
 
       if (!existingAttachment) {
         // Create new attachment record pointing to same file
-        await supabase
-          .from('financial_attachments')
-          .insert({
-            department_id: dept.id,
-            month_identifier: monthIdentifier,
-            file_name: file.name,
-            file_path: filePath,
-            file_type: 'excel',
-            file_size: file.size,
-            uploaded_by: userId,
-          });
+        await supabase.from("financial_attachments").insert({
+          department_id: dept.id,
+          month_identifier: monthIdentifier,
+          file_name: file.name,
+          file_path: filePath,
+          file_type: "excel",
+          file_size: file.size,
+          uploaded_by: userId,
+        });
       } else {
         // Update existing attachment to point to new file
         await supabase
-          .from('financial_attachments')
+          .from("financial_attachments")
           .update({
             file_name: file.name,
             file_path: filePath,
-            file_type: 'excel',
+            file_type: "excel",
             file_size: file.size,
             uploaded_by: userId,
           })
-          .eq('id', existingAttachment.id);
+          .eq("id", existingAttachment.id);
       }
     }
 
     // Set validation status
     setValidationDetails(validationResults);
     if (hasImported) {
-      setValidationStatus('imported');
+      setValidationStatus("imported");
     } else if (hasMismatch) {
-      setValidationStatus('mismatch');
+      setValidationStatus("mismatch");
     } else if (allMatch) {
-      setValidationStatus('match');
+      setValidationStatus("match");
     }
   };
 
   // Re-import existing attachment
   const handleReimport = async () => {
     if (!attachment || !storeId || !storeBrand) return;
-    if (attachment.file_type !== 'excel' && attachment.file_type !== 'csv') {
+    if (attachment.file_type !== "excel" && attachment.file_type !== "csv") {
       toast({
         title: "Cannot re-import",
         description: "Only Excel files can be re-imported",
@@ -457,12 +431,14 @@ export const MonthDropZone = ({
     setValidationDetails([]);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       // Fetch the file from storage
       const { data: fileData, error: downloadError } = await supabase.storage
-        .from('financial-attachments')
+        .from("financial-attachments")
         .download(attachment.file_path);
 
       if (downloadError || !fileData) {
@@ -507,16 +483,16 @@ export const MonthDropZone = ({
       // Check extension FIRST since MIME types for .xlsm files are unreliable across browsers/OS
       const getFileType = (f: File) => {
         const ext = f.name.split(".").pop()?.toLowerCase();
-        
+
         // Extension-based check first (more reliable, especially for .xlsm)
         if (ext && ["xlsx", "xls", "xlsm"].includes(ext)) return "excel" as const;
         if (ext === "csv") return "csv" as const;
         if (ext === "pdf") return "pdf" as const;
-        
+
         // Fall back to MIME type check
         const byMime = ACCEPTED_TYPES[f.type as keyof typeof ACCEPTED_TYPES];
         if (byMime) return byMime;
-        
+
         return null;
       };
 
@@ -537,7 +513,9 @@ export const MonthDropZone = ({
 
       try {
         // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
         if (!user) {
           throw new Error("Not authenticated");
         }
@@ -547,30 +525,22 @@ export const MonthDropZone = ({
         const filePath = `${departmentId}/${monthIdentifier}/${Date.now()}.${fileExt}`;
 
         // Upload to storage
-        const { error: uploadError } = await supabase.storage
-          .from("financial-attachments")
-          .upload(filePath, file);
+        const { error: uploadError } = await supabase.storage.from("financial-attachments").upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
         // Delete existing attachment if any (upsert behavior)
         if (attachment) {
           // Delete from storage
-          await supabase.storage
-            .from("financial-attachments")
-            .remove([attachment.file_path]);
-          
+          await supabase.storage.from("financial-attachments").remove([attachment.file_path]);
+
           // Delete from database
-          await supabase
-            .from("financial_attachments")
-            .delete()
-            .eq("id", attachment.id);
+          await supabase.from("financial_attachments").delete().eq("id", attachment.id);
         }
 
         // Save reference in database
-        const { error: dbError } = await supabase
-          .from("financial_attachments")
-          .upsert({
+        const { error: dbError } = await supabase.from("financial_attachments").upsert(
+          {
             department_id: departmentId,
             month_identifier: monthIdentifier,
             file_name: file.name,
@@ -578,14 +548,16 @@ export const MonthDropZone = ({
             file_type: fileType,
             file_size: file.size,
             uploaded_by: user.id,
-          }, {
-            onConflict: 'department_id,month_identifier'
-          });
+          },
+          {
+            onConflict: "department_id,month_identifier",
+          },
+        );
 
         if (dbError) throw dbError;
 
         // If this is a supported brand store and it's an Excel file, process it
-        if (isSupportedBrand && (fileType === 'excel' || fileType === 'csv')) {
+        if (isSupportedBrand && (fileType === "excel" || fileType === "csv")) {
           await processBrandExcel(file, filePath, user.id, storeBrand);
         }
 
@@ -606,7 +578,7 @@ export const MonthDropZone = ({
         setIsUploading(false);
       }
     },
-    [departmentId, monthIdentifier, attachment, onAttachmentChange, toast, storeId, storeBrand]
+    [departmentId, monthIdentifier, attachment, onAttachmentChange, toast, storeId, storeBrand],
   );
 
   const handleRemoveAttachment = async () => {
@@ -614,15 +586,10 @@ export const MonthDropZone = ({
 
     try {
       // Delete from storage
-      await supabase.storage
-        .from("financial-attachments")
-        .remove([attachment.file_path]);
+      await supabase.storage.from("financial-attachments").remove([attachment.file_path]);
 
       // Delete from database
-      const { error } = await supabase
-        .from("financial_attachments")
-        .delete()
-        .eq("id", attachment.id);
+      const { error } = await supabase.from("financial_attachments").delete().eq("id", attachment.id);
 
       if (error) throw error;
 
@@ -671,60 +638,62 @@ export const MonthDropZone = ({
   };
 
   // Get the validation result for the current department
-  const currentDeptValidation = validationDetails.find(r => r.departmentId === departmentId);
-  const currentDeptHasMismatch = currentDeptValidation?.status === 'mismatch';
+  const currentDeptValidation = validationDetails.find((r) => r.departmentId === departmentId);
+  const currentDeptHasMismatch = currentDeptValidation?.status === "mismatch";
   const currentDeptDiscrepancies = currentDeptValidation?.discrepancies || [];
 
   const getMismatchTooltipContent = () => {
     // Show discrepancies for the current department if it has any
     if (currentDeptHasMismatch && currentDeptDiscrepancies.length > 0) {
-      return currentDeptDiscrepancies.map(d => 
-        `${d.metric}: Excel=${d.excelValue ?? 'null'} vs DB=${d.dbValue ?? 'null'}`
-      ).join('\n');
+      return currentDeptDiscrepancies
+        .map((d) => `${d.metric}: Excel=${d.excelValue ?? "null"} vs DB=${d.dbValue ?? "null"}`)
+        .join("\n");
     }
-    
+
     // If overall status is mismatch but not this dept, show summary
-    if (validationStatus === 'mismatch') {
-      const mismatchDepts = validationDetails.filter(r => r.status === 'mismatch');
+    if (validationStatus === "mismatch") {
+      const mismatchDepts = validationDetails.filter((r) => r.status === "mismatch");
       if (mismatchDepts.length > 0) {
-        return mismatchDepts.map(r => {
-          const discrepancyCount = r.discrepancies?.length || 0;
-          return `${r.departmentName}: ${discrepancyCount} discrepancy(ies)`;
-        }).join('\n');
+        return mismatchDepts
+          .map((r) => {
+            const discrepancyCount = r.discrepancies?.length || 0;
+            return `${r.departmentName}: ${discrepancyCount} discrepancy(ies)`;
+          })
+          .join("\n");
       }
     }
-    
+
     return null;
   };
 
   const getCurrentDeptMismatchCount = () => {
     return currentDeptDiscrepancies.length;
   };
-  
+
   // Determine the icon color based on the CURRENT department's status
   const getIconBackgroundColor = () => {
     // If this specific department has a mismatch, show orange
     if (currentDeptHasMismatch) {
-      return 'bg-orange-500 hover:bg-orange-600';
+      return "bg-orange-500 hover:bg-orange-600";
     }
     // If this department was validated and matches, show green
-    if (currentDeptValidation?.status === 'match' || currentDeptValidation?.status === 'imported') {
-      return 'bg-green-500 hover:bg-green-600';
+    if (currentDeptValidation?.status === "match" || currentDeptValidation?.status === "imported") {
+      return "bg-green-500 hover:bg-green-600";
     }
     // If overall status is match/imported but this dept wasn't specifically checked, show green
-    if (validationStatus === 'match' || validationStatus === 'imported') {
-      return 'bg-green-500 hover:bg-green-600';
+    if (validationStatus === "match" || validationStatus === "imported") {
+      return "bg-green-500 hover:bg-green-600";
     }
     // Default: no validation done yet, use primary color
-    return 'bg-primary hover:bg-primary/80';
+    return "bg-primary hover:bg-primary/80";
   };
 
   const hasCopyOptions = copySourceOptions.length > 0 && onCopyFromSource;
   const hasContextMenuOptions = hasCopyOptions || onClearMonthData;
-  
+
   // Separate average and month options
-  const averageOptions = copySourceOptions.filter(opt => opt.isAverage);
-  const monthOptions = copySourceOptions.filter(opt => !opt.isAverage);
+  const averageOptions = copySourceOptions.filter((opt) => opt.isAverage);
+  const monthOptions = copySourceOptions.filter((opt) => !opt.isAverage);
 
   const handleCopyFrom = async (sourceIdentifier: string) => {
     if (!onCopyFromSource) return;
@@ -733,10 +702,7 @@ export const MonthDropZone = ({
 
   const content = (
     <div
-      className={cn(
-        "relative",
-        className
-      )}
+      className={cn("relative", className)}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -745,7 +711,7 @@ export const MonthDropZone = ({
         className={cn(
           "transition-all duration-200",
           isDragOver && "ring-2 ring-primary ring-inset bg-primary/10 rounded",
-          isCopying && "opacity-50 pointer-events-none"
+          isCopying && "opacity-50 pointer-events-none",
         )}
       >
         {children}
@@ -787,10 +753,9 @@ export const MonthDropZone = ({
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
                     <DropdownMenuTrigger asChild>
-                      <button className={cn(
-                        "text-white rounded-full p-0.5 transition-colors",
-                        getIconBackgroundColor()
-                      )}>
+                      <button
+                        className={cn("text-white rounded-full p-0.5 transition-colors", getIconBackgroundColor())}
+                      >
                         {getFileIcon(attachment.file_type)}
                       </button>
                     </DropdownMenuTrigger>
@@ -807,7 +772,7 @@ export const MonthDropZone = ({
                         </p>
                       </>
                     )}
-                    {!currentDeptHasMismatch && validationStatus === 'mismatch' && (
+                    {!currentDeptHasMismatch && validationStatus === "mismatch" && (
                       <>
                         <p className="text-xs font-semibold mt-2 text-amber-500">
                           Other departments have discrepancies
@@ -817,29 +782,24 @@ export const MonthDropZone = ({
                         </p>
                       </>
                     )}
-                    {currentDeptValidation?.status === 'match' && (
+                    {currentDeptValidation?.status === "match" && (
                       <p className="text-xs mt-1 text-green-500">All data matches</p>
                     )}
-                    {currentDeptValidation?.status === 'imported' && (
+                    {currentDeptValidation?.status === "imported" && (
                       <p className="text-xs mt-1 text-green-500">Data imported successfully</p>
                     )}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleViewAttachment}>
-                  View / Download
-                </DropdownMenuItem>
-                {isSupportedBrand && (attachment.file_type === 'excel' || attachment.file_type === 'csv') && (
+                <DropdownMenuItem onClick={handleViewAttachment}>View / Download</DropdownMenuItem>
+                {isSupportedBrand && (attachment.file_type === "excel" || attachment.file_type === "csv") && (
                   <DropdownMenuItem onClick={handleReimport}>
                     <RefreshCw className="h-3 w-3 mr-2" />
                     Re-import Data
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem 
-                  onClick={handleRemoveAttachment}
-                  className="text-destructive focus:text-destructive"
-                >
+                <DropdownMenuItem onClick={handleRemoveAttachment} className="text-destructive focus:text-destructive">
                   Remove
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -864,17 +824,15 @@ export const MonthDropZone = ({
 
   return (
     <ContextMenu>
-      <ContextMenuTrigger asChild>
-        {content}
-      </ContextMenuTrigger>
-      
+      <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+
       <ContextMenuContent className="w-56">
         {/* Copy options */}
         {hasCopyOptions && (
           <>
             {/* Average option (YTD) first */}
             {averageOptions.map((option) => (
-              <ContextMenuItem 
+              <ContextMenuItem
                 key={option.identifier}
                 onClick={() => handleCopyFrom(option.identifier)}
                 className="font-medium"
@@ -883,11 +841,9 @@ export const MonthDropZone = ({
                 Copy from {option.label}
               </ContextMenuItem>
             ))}
-            
-            {averageOptions.length > 0 && monthOptions.length > 0 && (
-              <ContextMenuSeparator />
-            )}
-            
+
+            {averageOptions.length > 0 && monthOptions.length > 0 && <ContextMenuSeparator />}
+
             {/* Month options in a submenu if there are many */}
             {monthOptions.length > 6 ? (
               <ContextMenuSub>
@@ -897,10 +853,7 @@ export const MonthDropZone = ({
                 </ContextMenuSubTrigger>
                 <ContextMenuSubContent className="w-48 max-h-[300px] overflow-y-auto">
                   {monthOptions.map((option) => (
-                    <ContextMenuItem 
-                      key={option.identifier}
-                      onClick={() => handleCopyFrom(option.identifier)}
-                    >
+                    <ContextMenuItem key={option.identifier} onClick={() => handleCopyFrom(option.identifier)}>
                       {option.label}
                     </ContextMenuItem>
                   ))}
@@ -908,10 +861,7 @@ export const MonthDropZone = ({
               </ContextMenuSub>
             ) : (
               monthOptions.map((option) => (
-                <ContextMenuItem 
-                  key={option.identifier}
-                  onClick={() => handleCopyFrom(option.identifier)}
-                >
+                <ContextMenuItem key={option.identifier} onClick={() => handleCopyFrom(option.identifier)}>
                   <Copy className="h-4 w-4 mr-2" />
                   Copy from {option.label}
                 </ContextMenuItem>
@@ -919,15 +869,12 @@ export const MonthDropZone = ({
             )}
           </>
         )}
-        
+
         {/* Clear month data option */}
         {onClearMonthData && (
           <>
             {hasCopyOptions && <ContextMenuSeparator />}
-            <ContextMenuItem 
-              onClick={onClearMonthData}
-              className="text-destructive focus:text-destructive"
-            >
+            <ContextMenuItem onClick={onClearMonthData} className="text-destructive focus:text-destructive">
               <Trash2 className="h-4 w-4 mr-2" />
               Clear Month Data
             </ContextMenuItem>
