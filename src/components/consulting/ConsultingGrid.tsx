@@ -866,6 +866,13 @@ function DisplayRowComponent({
   const [editingContact, setEditingContact] = useState(false);
   const [tempContact, setTempContact] = useState(row.client.contact_names || '');
 
+  // Check if this row has no calls scheduled across all months
+  const hasNoCalls = useMemo(() => {
+    let callCount = 0;
+    row.calls.forEach((call) => { if (call) callCount++; });
+    return callCount === 0;
+  }, [row.calls]);
+
   const currentDepts = row.store_id 
     ? allDepartments.filter(d => d.store_id === row.store_id) 
     : [];
@@ -901,10 +908,16 @@ function DisplayRowComponent({
       <ContextMenuTrigger asChild>
         <TableRow className={cn(
           "h-8",
-          row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20"
+          row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20",
+          hasNoCalls && !row.client.is_adhoc && "bg-red-50/50 dark:bg-red-950/20"
         )}>
           {/* Dealership */}
-          <TableCell className="sticky left-0 bg-background z-10 py-0.5">
+          <TableCell className={cn(
+            "sticky left-0 z-10 py-0.5",
+            hasNoCalls && !row.client.is_adhoc 
+              ? "bg-red-50/50 dark:bg-red-950/20" 
+              : "bg-background"
+          )}>
             {row.client.is_adhoc ? (
               <div className="flex items-center gap-2">
                 <span className="font-medium">{row.client.name}</span>
