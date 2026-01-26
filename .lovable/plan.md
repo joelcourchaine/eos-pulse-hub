@@ -1,57 +1,52 @@
 
-# Highlight Stores with No Calls Scheduled
+# Add Honda Financial Cell Mappings
 
 ## Overview
-Add visual highlighting to the Consulting Scheduler grid to make it easy to identify stores/clients that have no calls scheduled across all visible months.
+Insert cell reference mappings for Honda brand financial statement imports. The Honda statement structure places Service and Parts departments on the "Honda3" sheet.
 
-## Implementation Approach
+## Data to Insert
 
-### 1. Calculate "No Calls" Status
-In the `DisplayRowComponent`, we'll check if the row has any scheduled calls by iterating through the `calls` Map and checking if all values are null.
+### Honda Service Department (Sheet: Honda3, Column J)
+| Metric Key | Cell Reference |
+|------------|----------------|
+| total_sales | J5 |
+| gp_net | J6 |
+| sales_expense | J29 |
+| total_direct_expenses | J53 |
+| total_fixed_expense | J70 |
 
-### 2. Apply Visual Highlighting
-Apply a subtle but noticeable background color to rows with no scheduled calls. This will use a red/warning tint to draw attention to these stores that need scheduling attention.
+### Honda Parts Department (Sheet: Honda3, Column F)
+| Metric Key | Cell Reference |
+|------------|----------------|
+| total_sales | F5 |
+| gp_net | F6 |
+| sales_expense | F29 |
+| total_direct_expenses | F53 |
+| total_fixed_expense | F70 |
 
-## Technical Details
+## Implementation
 
-### File to Modify
-- `src/components/consulting/ConsultingGrid.tsx`
+### Database Migration
+Execute the following SQL to insert the 10 new mappings:
 
-### Changes
+```sql
+-- Honda Service Department (Sheet: Honda3, Column J)
+INSERT INTO public.financial_cell_mappings (brand, department_name, metric_key, sheet_name, cell_reference) VALUES
+('Honda', 'Service Department', 'total_sales', 'Honda3', 'J5'),
+('Honda', 'Service Department', 'gp_net', 'Honda3', 'J6'),
+('Honda', 'Service Department', 'sales_expense', 'Honda3', 'J29'),
+('Honda', 'Service Department', 'total_direct_expenses', 'Honda3', 'J53'),
+('Honda', 'Service Department', 'total_fixed_expense', 'Honda3', 'J70');
 
-**1. Add logic to detect rows with no calls**
-Inside `DisplayRowComponent`, add a computed value to check if the row has any calls:
-```typescript
-const hasNoCalls = useMemo(() => {
-  let callCount = 0;
-  row.calls.forEach((call) => { if (call) callCount++; });
-  return callCount === 0;
-}, [row.calls]);
+-- Honda Parts Department (Sheet: Honda3, Column F)
+INSERT INTO public.financial_cell_mappings (brand, department_name, metric_key, sheet_name, cell_reference) VALUES
+('Honda', 'Parts Department', 'total_sales', 'Honda3', 'F5'),
+('Honda', 'Parts Department', 'gp_net', 'Honda3', 'F6'),
+('Honda', 'Parts Department', 'sales_expense', 'Honda3', 'F29'),
+('Honda', 'Parts Department', 'total_direct_expenses', 'Honda3', 'F53'),
+('Honda', 'Parts Department', 'total_fixed_expense', 'Honda3', 'F70');
 ```
 
-**2. Apply conditional styling to the TableRow**
-Update the `TableRow` className to include highlighting when `hasNoCalls` is true:
-```typescript
-<TableRow className={cn(
-  "h-8",
-  row.client.is_adhoc && "bg-amber-50/50 dark:bg-amber-950/20",
-  hasNoCalls && !row.client.is_adhoc && "bg-red-50/50 dark:bg-red-950/20"
-)}>
-```
-
-**3. Update the sticky Dealership cell background**
-The sticky left cell needs matching background to maintain visual consistency:
-```typescript
-<TableCell className={cn(
-  "sticky left-0 z-10 py-0.5",
-  hasNoCalls && !row.client.is_adhoc 
-    ? "bg-red-50/50 dark:bg-red-950/20" 
-    : "bg-background"
-)}>
-```
-
-## Visual Result
-- Stores with no scheduled calls will have a subtle red/pink tinted background
-- Ad-hoc clients retain their amber highlighting (takes priority)
-- The highlighting will be visible across the entire row, including the sticky dealership column
-- This makes it immediately obvious which stores need attention for scheduling
+## Notes
+- These mappings align with Honda's metric structure which includes `total_direct_expenses` (used to calculate `semi_fixed_expense` as `total_direct_expenses - sales_expense` for November 2025+)
+- No code changes required - the existing `parseFinancialExcel.ts` parser will automatically use these mappings when importing Honda financial statements
