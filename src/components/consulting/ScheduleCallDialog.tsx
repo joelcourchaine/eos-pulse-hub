@@ -317,13 +317,14 @@ export function ScheduleCallDialog({
                       {date ? format(date, "MMM d, yyyy") : "Pick a date"}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto p-0" side="top" align="start" sideOffset={4}>
                     <Calendar
                       mode="single"
                       selected={date}
                       onSelect={setDate}
                       defaultMonth={month}
                       initialFocus
+                      className="pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
