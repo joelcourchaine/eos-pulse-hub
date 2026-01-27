@@ -1052,8 +1052,37 @@ export function useForecastCalculations({
           let forecastValue: number;
           
           if (isPercentageParent) {
-            // For percentage parents, sub-metrics stay the same (they're component percentages)
-            forecastValue = subBaseline;
+            // For percentage parents, scale sub-metrics proportionally when parent changes
+            // This ensures that editing parent Sales Expense % scales all sub-metrics
+            const parentMonthly = monthlyVals.get(forecastMonth)?.get(parentKey);
+            const parentBaselineData = baselineData.get(priorMonth);
+            const parentBaseline = parentMonthly?.baseline_value ?? parentBaselineData?.get(parentKey) ?? 0;
+            const parentForecast = parentMonthly?.value ?? 0;
+            
+            const parentUnchanged = Math.abs(parentForecast - parentBaseline) < 0.01;
+            
+            if (parentUnchanged || parentBaseline === 0) {
+              // No change to parent, use baseline directly
+              forecastValue = subBaseline;
+            } else {
+              // Parent has changed - scale sub-metric proportionally
+              // For percentages: if parent went from 60% to 65%, that's a 65/60 = 1.0833x multiplier
+              const scaleFactor = parentForecast / parentBaseline;
+              forecastValue = subBaseline * scaleFactor;
+            }
+            
+            // Debug logging for percentage parent scaling
+            if (import.meta.env.DEV && parentKey === 'sales_expense_percent' && monthIndex === 0) {
+              console.debug('[forecast] sales_expense_percent sub-metric calc', {
+                subName: sub.name,
+                forecastMonth,
+                subBaseline,
+                parentForecast,
+                parentBaseline,
+                parentUnchanged: Math.abs(parentForecast - parentBaseline) < 0.01,
+                forecastValue,
+              });
+            }
           } else {
             // For currency parents, scale sub-metrics proportionally
             // IMPORTANT: use the *same* baseline value used by the parent metric row to avoid false variances
@@ -1078,7 +1107,7 @@ export function useForecastCalculations({
               forecastValue = parentForecast * ratio;
             }
 
-            // Debug the most common “why didn’t my sub-metric move?” scenario.
+            // Debug the most common "why didn't my sub-metric move?" scenario.
             if (import.meta.env.DEV && parentKey === 'sales_expense' && monthIndex === 0) {
               console.debug('[forecast] sales_expense sub-metric calc', {
                 subName: sub.name,
