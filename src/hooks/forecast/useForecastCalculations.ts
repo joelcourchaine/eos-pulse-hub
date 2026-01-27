@@ -1803,6 +1803,12 @@ export function useForecastCalculations({
       const salesExpenseSubs = subMetricForecasts.get('sales_expense') ?? [];
       const hasSalesExpSubOverrides = salesExpenseSubs.some(sub => sub.isOverridden);
       
+      // Check if the PARENT sales_expense_percent has a stored forecast value different from baseline
+      // This handles GMC stores where sub-metrics are synthesized (not explicitly overridden)
+      const parentSalesExpPercent = adjustedMetrics.get('sales_expense_percent');
+      const parentSalesExpPercentChanged = parentSalesExpPercent && 
+        Math.abs((parentSalesExpPercent.value ?? 0) - (parentSalesExpPercent.baseline_value ?? 0)) > 0.01;
+      
       // Calculate Sales Expense adjustment based on override source
       let adjustedSalesExpense = salesExpenseValue;
       
@@ -1812,6 +1818,11 @@ export function useForecastCalculations({
         if (salesExpFromSubs !== undefined) {
           adjustedSalesExpense = salesExpFromSubs;
         }
+      } else if (parentSalesExpPercentChanged && gpNetValue > 0) {
+        // Parent Sales Expense % changed (e.g., GMC stores with synthesized sub-metrics)
+        // Calculate new Sales Expense $ from the changed % target
+        const newSalesExpPercent = parentSalesExpPercent?.value ?? 0;
+        adjustedSalesExpense = gpNetValue * (newSalesExpPercent / 100);
       } else if (hasGpPercentOverrides) {
         // Scale Sales Expense with GP Net to keep Sales Exp % constant
         // salesExpense / gpNet should stay constant
