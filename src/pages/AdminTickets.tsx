@@ -217,8 +217,19 @@ const AdminTickets = () => {
         ticket={selectedTicket}
         open={!!selectedTicket}
         onOpenChange={(open) => !open && setSelectedTicket(null)}
-        onUpdate={() => {
-          queryClient.invalidateQueries({ queryKey: ["help-tickets"] });
+        onUpdate={async () => {
+          await queryClient.invalidateQueries({ queryKey: ["help-tickets"] });
+          // Refetch the updated ticket to sync the sheet state
+          if (selectedTicket) {
+            const { data } = await supabase
+              .from("help_tickets")
+              .select("*")
+              .eq("id", selectedTicket.id)
+              .single();
+            if (data) {
+              setSelectedTicket(data as HelpTicket);
+            }
+          }
         }}
       />
     </div>
