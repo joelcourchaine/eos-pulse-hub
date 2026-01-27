@@ -357,10 +357,14 @@ export const ExcelPreviewGrid = ({
                     ? /[-–—:]/.test(normalized) && /\S/.test(normalized.split(/[-–—:]/).slice(1).join("-").trim())
                     : false;
 
-                  // Also detect "All Repair Orders" or similar totals rows
-                  const isTotalsRow = /\ball\s+repair\s+orders\b/i.test(normalized) || 
-                                      /\btotal[s]?\b/i.test(normalized) && normalized.length < 30;
+                  // Also detect "All Repair Orders" or similar totals rows - but ONLY in first column
+                  // This prevents marking data cells with "Total" in their values as advisor cells
+                  const isTotalsRow = isFirstCol && (
+                    /\ball\s+repair\s+orders\b/i.test(normalized) || 
+                    (/\btotal\s+repair\s+orders?\b/i.test(normalized))
+                  );
 
+                  // Only treat as advisor cell if in first column or has the advisor pattern
                   const isAdvisorCell = (hasAdvisorWord && hasSeparator && hasNameAfterSeparator) || isTotalsRow;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
