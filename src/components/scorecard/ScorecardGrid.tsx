@@ -3153,12 +3153,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 {previousYearMonths.map((month) => (
                   <TableHead 
                     key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/30 sticky top-0 z-10"
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/30 sticky top-0 z-10"
                   >
-                    <div className="flex flex-col items-center">
-                      <div>{month.label}</div>
-                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                    </div>
+                    <ScorecardMonthDropZone
+                      monthIdentifier={month.identifier}
+                      onFileDrop={handleMonthFileDrop}
+                      className="w-full h-full py-[7.2px]"
+                      importLog={importLogs[month.identifier]}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div>{month.label}</div>
+                        <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                      </div>
+                    </ScorecardMonthDropZone>
                   </TableHead>
                 ))}
                 {/* Previous Year Quarter Avg */}
@@ -3178,12 +3185,19 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 {months.map((month) => (
                   <TableHead 
                     key={month.identifier} 
-                    className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                    className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/50 sticky top-0 z-10"
                   >
-                    <div className="flex flex-col items-center">
-                      <div>{month.label}</div>
-                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                    </div>
+                    <ScorecardMonthDropZone
+                      monthIdentifier={month.identifier}
+                      onFileDrop={handleMonthFileDrop}
+                      className="w-full h-full py-[7.2px]"
+                      importLog={importLogs[month.identifier]}
+                    >
+                      <div className="flex flex-col items-center">
+                        <div>{month.label}</div>
+                        <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                      </div>
+                    </ScorecardMonthDropZone>
                   </TableHead>
                 ))}
                 <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
