@@ -44,6 +44,33 @@ const findColumnKey = (columns: ColumnDefinition[], patterns: string[]): string 
   return null;
 };
 
+// Helper to check if a column should display as currency
+const isCurrencyColumn = (col: ColumnDefinition): boolean => {
+  const label = col.label.toLowerCase();
+  return label.includes("value") || label.includes("amount") || label.includes("total");
+};
+
+// Helper to check if a column should be narrow (9 chars wide)
+const isNarrowColumn = (col: ColumnDefinition): boolean => {
+  const label = col.label.toLowerCase();
+  return label.includes("ro #") || label.includes("ro#") || 
+         label.includes("value") || label.includes("amount") || 
+         label.includes("# of days") || label.includes("days");
+};
+
+// Format value as currency for display
+const formatAsCurrency = (value: string): string => {
+  if (!value) return "";
+  const num = parseFloat(value.replace(/[^0-9.-]/g, ""));
+  if (isNaN(num)) return value;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+};
+
 // Helper to parse various date formats (for legacy data)
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
@@ -243,7 +270,7 @@ export function Top10ItemRow({
       {columns.map((col) => (
         <ContextMenu key={col.key}>
           <ContextMenuTrigger asChild>
-            <TableCell className="p-1">
+            <TableCell className={cn("p-1", isNarrowColumn(col) && "w-[9ch]")}>
               {canEdit ? (
                 isDateColumn(col.key) ? (
                   <Popover>
@@ -274,7 +301,7 @@ export function Top10ItemRow({
                   <Input
                     value={localData[col.key] || ""}
                     onChange={(e) => handleChange(col.key, e.target.value)}
-                    className="h-8 text-sm"
+                    className={cn("h-8 text-sm", isNarrowColumn(col) && "w-[9ch]")}
                     placeholder={col.label}
                   />
                 )
@@ -282,6 +309,8 @@ export function Top10ItemRow({
                 <span className="text-sm">
                   {isDateColumn(col.key) && localData[col.key] && parseStoredDate(localData[col.key])
                     ? format(parseStoredDate(localData[col.key])!, "MMM d, yyyy")
+                    : isCurrencyColumn(col)
+                    ? formatAsCurrency(localData[col.key])
                     : localData[col.key] || "-"}
                 </span>
               )}
