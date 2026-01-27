@@ -1641,8 +1641,8 @@ setStoreUsers(data || []);
 
   const formatValue = (value: number | null, type: string, kpiName?: string) => {
     if (value === null || value === undefined) return "";
-    // CP Hours Per RO and Total ELR should always show 2 decimal places
-    if (kpiName === "CP Hours Per RO" || kpiName === "Total ELR") {
+    // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR") {
       return Number(value).toFixed(2);
     }
     // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, CP Hours, and Customer Pay Hours should show whole numbers
@@ -1654,8 +1654,8 @@ setStoreUsers(data || []);
   };
 
   const formatTarget = (value: number, type: string, kpiName?: string) => {
-    // CP Hours Per RO and Total ELR should always show 2 decimal places
-    if (kpiName === "CP Hours Per RO") {
+    // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO") {
       return Number(value).toFixed(2);
     }
     if (kpiName === "Total ELR") {
@@ -1675,6 +1675,10 @@ setStoreUsers(data || []);
   };
 
   const formatQuarterAverage = (value: number, type: string, kpiName?: string) => {
+    // CP Hours Per RO (including "Total CP Hours Per RO") should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO") {
+      return Number(value).toFixed(2);
+    }
     // CP Labour Sales, CP Hours, and CP RO's should show no decimal places in quarter averages
     if (kpiName === "CP Labour Sales") {
       return `$${Math.round(value).toLocaleString()}`;
