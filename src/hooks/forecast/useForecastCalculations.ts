@@ -830,7 +830,7 @@ export function useForecastCalculations({
     });
     
     return annualResults;
-  }, [months, METRIC_DEFINITIONS]);
+  }, [months, METRIC_DEFINITIONS, entriesMap]);
 
   // Distribute quarter edit to months using weights
   const distributeQuarterToMonths = useCallback((
