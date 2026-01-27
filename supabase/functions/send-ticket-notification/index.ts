@@ -55,7 +55,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Sending notification email for ticket #", ticket.ticket_number);
 
-    const appBaseUrl = Deno.env.get("APP_BASE_URL") || "https://app.dealergrowth.solutions";
+    const appBaseUrl = (Deno.env.get("APP_BASE_URL") || "https://app.dealergrowth.solutions").replace(/\/+$/, '');
     const adminLink = `${appBaseUrl}/admin/tickets`;
 
     const priorityColor = priorityColors[ticket.priority] || "#3b82f6";

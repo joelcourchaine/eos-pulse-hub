@@ -327,7 +327,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send notification email to document owner
     if (RESEND_API_KEY && ownerEmail) {
-      const appUrl = Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions';
+      const appUrl = (Deno.env.get("APP_BASE_URL") || 'https://dealergrowth.solutions').replace(/\/+$/, '');
       
       console.log(`Sending signature notification email to: ${ownerEmail}`);
       
