@@ -329,7 +329,16 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     return issues.find(i => i.id === issueId)?.severity;
   };
 
-  const getSeverityBorderColor = (severity: string) => {
+  // Check if an issue has any linked todos (in motion)
+  const issueHasLinkedTodo = (issueId: string) => {
+    return todos.some(todo => todo.issue_id === issueId);
+  };
+
+  const getSeverityBorderColor = (severity: string, isInMotion: boolean = false) => {
+    // If issue is in motion (has linked todo), use muted gray background
+    if (isInMotion) {
+      return "border-muted-foreground/30 bg-muted/50";
+    }
     switch (severity) {
       case "low": return "border-success/50 bg-success/10";
       case "high": return "border-destructive/50 bg-destructive/10";
@@ -413,7 +422,9 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                   <p>No issues yet</p>
                 </div>
               ) : (
-                issues.map((issue) => (
+                issues.map((issue) => {
+                  const isInMotion = issueHasLinkedTodo(issue.id);
+                  return (
                   <ContextMenu key={issue.id}>
                     <ContextMenuTrigger>
                       <div
@@ -421,7 +432,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                         onDragStart={() => handleDragStart(issue)}
                         onDragOver={(e) => handleDragOver(e, issue)}
                         onDragEnd={handleDragEnd}
-                        className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity)}`}
+                        className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity, isInMotion)}`}
                       >
                         <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <div className="flex-1 min-w-0">
@@ -432,8 +443,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                             </p>
                           )}
                           <div className="flex items-center gap-2 mt-2">
-                            <Badge variant={issue.status === "open" ? "default" : "secondary"}>
-                              {issue.status}
+                            <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
+                              {isInMotion ? "in progress" : issue.status}
                             </Badge>
                             <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
                               <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
@@ -492,7 +503,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
-                ))
+                  );
+                })
               )}
             </div>
           </Card>
