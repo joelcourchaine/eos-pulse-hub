@@ -1,98 +1,70 @@
 
 
-# Fix: Synthesize Sales Expense % Sub-Metrics for GMC/Nissan Stores
+# Fix: Preserve User-Entered Sales Expense % Values
 
-## Problem Summary
+## Problem
 
-When editing the annual **Sales Expense %** in the forecast for GMC/Chevrolet, Nissan, and other stores, the changes don't propagate to the sub-metrics because:
+When you edit the annual **Sales Expense %**, the value is being immediately overwritten by the recalculation logic in the `monthlyValues` useMemo. This happens because:
 
-| Store Type | What's in Database | What the Forecast Needs |
-|------------|-------------------|------------------------|
-| Stellantis/Ford | `sales_expense` AND `sales_expense_percent` sub-metrics | Works correctly |
-| GMC/Nissan | Only `sales_expense` sub-metrics | Missing `sales_expense_percent` sub-metrics |
+1. The `monthlyValues` calculation recalculates `sales_expense_percent` unconditionally (line 1854-1860)
+2. The `monthlyValues` useMemo doesn't have `entriesMap` in its dependencies, so it doesn't react to stored user entries
 
-The forecast calculation engine already has sophisticated logic to handle `sales_expense_percent` sub-metric overrides and derive the corresponding `sales_expense` dollar values. However, this logic only activates when percentage sub-metrics exist in the baseline data.
-
-## Solution
-
-Synthesize `sales_expense_percent` sub-metrics from the existing `sales_expense` sub-metrics. For each `sales_expense` line item, we calculate its percentage as:
-
-```
-Sales Expense % = (Sales Expense $ / GP Net) × 100
-```
-
-This happens in `useForecastCalculations.ts` where sub-metric baselines are grouped by parent key. When we detect that `sales_expense` sub-metrics exist but `sales_expense_percent` sub-metrics don't, we synthesize the percentages.
-
-## Technical Changes
+## Changes Required
 
 ### File: `src/hooks/forecast/useForecastCalculations.ts`
 
-**Location**: Inside `calculateSubMetricForecasts` function, after grouping sub-metrics by parent (around line 880-895)
+### Change 1: Preserve user-entered Sales Expense % values (Lines 1854-1860)
 
-**Change**: Add logic to synthesize `sales_expense_percent` sub-metrics when they're missing but `sales_expense` sub-metrics exist.
-
+**Current code:**
 ```typescript
-// After grouping sub-metrics by parent key
-const byParent = new Map<string, SubMetricBaseline[]>();
-// ... existing grouping logic ...
-
-// Synthesize sales_expense_percent sub-metrics if missing
-const hasSalesExpenseSubs = byParent.has('sales_expense') && (byParent.get('sales_expense')?.length ?? 0) > 0;
-const hasSalesExpensePercentSubs = byParent.has('sales_expense_percent') && (byParent.get('sales_expense_percent')?.length ?? 0) > 0;
-
-if (hasSalesExpenseSubs && !hasSalesExpensePercentSubs) {
-  // GMC/Nissan case: synthesize sales_expense_percent from sales_expense
-  const salesExpenseSubs = byParent.get('sales_expense')!;
-  const synthesizedPercentSubs: SubMetricBaseline[] = [];
-  
-  for (const salesExpSub of salesExpenseSubs) {
-    // Create a matching percentage sub-metric
-    const percentSub: SubMetricBaseline = {
-      parentKey: 'sales_expense_percent',
-      name: salesExpSub.name,
-      orderIndex: salesExpSub.orderIndex,
-      monthlyValues: new Map(),
-    };
-    
-    // Calculate percentage for each month: (Sales Exp $ / GP Net) × 100
-    salesExpSub.monthlyValues.forEach((salesExpValue, month) => {
-      const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
-      const percentValue = gpNetForMonth > 0 
-        ? (salesExpValue / gpNetForMonth) * 100 
-        : 0;
-      percentSub.monthlyValues.set(month, percentValue);
-    });
-    
-    synthesizedPercentSubs.push(percentSub);
-  }
-  
-  byParent.set('sales_expense_percent', synthesizedPercentSubs);
+// Update sales_expense_percent
+const salesExpPercentCurrent = adjustedMetrics.get('sales_expense_percent');
+if (salesExpPercentCurrent && gpNetValue > 0) {
+  adjustedMetrics.set('sales_expense_percent', {
+    ...salesExpPercentCurrent,
+    value: (adjustedSalesExpense / gpNetValue) * 100,
+  });
 }
 ```
 
-This change means:
-1. The existing logic in `calculateSubMetricForecasts` that processes `sales_expense_percent` sub-metrics will now activate for GMC/Nissan stores
-2. When a user edits the annual Sales Expense % in the forecast column, the override flow will work:
-   - User sets new % → stored as override
-   - Each synthesized `sales_expense_percent` sub-metric scales proportionally
-   - The existing reverse-calculation logic derives new `sales_expense` dollar amounts from the % targets
-3. No changes needed to `ForecastDrawer.tsx` - the existing `handleMainMetricAnnualEdit` logic will just work
+**New code:**
+```typescript
+// Update sales_expense_percent - BUT preserve user-entered values
+const salesExpPercentCurrent = adjustedMetrics.get('sales_expense_percent');
+const storedSalesExpPercent = entriesMap.get(`${month}:sales_expense_percent`);
+const hasUserEnteredSalesExpPercent = storedSalesExpPercent?.forecast_value !== null && 
+  storedSalesExpPercent?.forecast_value !== undefined;
 
-## Why This Approach Is Better
+if (salesExpPercentCurrent && gpNetValue > 0 && !hasUserEnteredSalesExpPercent) {
+  // Only recalculate if user hasn't explicitly set a value
+  adjustedMetrics.set('sales_expense_percent', {
+    ...salesExpPercentCurrent,
+    value: (adjustedSalesExpense / gpNetValue) * 100,
+  });
+}
+```
 
-1. **Minimal code change**: Only ~25 lines added in one location
-2. **Leverages existing infrastructure**: The calculation engine already handles percentage→dollar reverse calculations
-3. **Consistent behavior**: GMC stores will behave exactly like Stellantis/Ford stores
-4. **No data migration needed**: We synthesize on-the-fly, no need to backfill database entries
-5. **Follows your existing pattern**: The financial summary already derives percentages from dollar amounts when displaying sub-metrics
+### Change 2: Add `entriesMap` to `monthlyValues` dependencies (Line 1905)
 
-## Testing Checklist
+**Current:**
+```typescript
+}, [baseMonthlyValues, subMetricForecasts, subMetricOverrides, months, annualBaseline, baselineData, forecastYear]);
+```
 
-- [ ] Open forecast for a GMC store (Murray Chev, Winnipeg Chevrolet)
-- [ ] Verify Sales Expense sub-metrics are visible (SALARIES-SUPERVISION, etc.)
-- [ ] Verify Sales Expense % sub-metrics are now visible (synthesized)
-- [ ] Edit the annual Sales Expense % value (e.g., change from 60% to 65%)
-- [ ] Confirm all monthly Sales Expense $ sub-metrics scale proportionally
-- [ ] Confirm the parent Sales Expense total matches the new target
-- [ ] Verify Stellantis/Ford stores still work correctly (no regression)
+**New:**
+```typescript
+}, [baseMonthlyValues, subMetricForecasts, subMetricOverrides, months, annualBaseline, baselineData, forecastYear, entriesMap]);
+```
+
+## Why This Works
+
+- When a user edits the annual Sales Expense %, the `handleMainMetricAnnualEdit` function saves `forecast_value` entries for each month
+- With these changes, the `monthlyValues` recalculation will:
+  1. Detect that user has explicitly set the `sales_expense_percent` value (via `entriesMap`)
+  2. Skip the automatic recalculation that was overwriting the user's input
+  3. Allow the sub-metric scaling and parent synchronization to work correctly
+
+## Note on Fix 1
+
+The first fix mentioned (adding `entriesMap` to `calculateAnnualValues` dependencies) is already in place at line 833.
 
