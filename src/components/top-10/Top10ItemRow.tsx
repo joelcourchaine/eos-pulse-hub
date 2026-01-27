@@ -297,6 +297,20 @@ export function Top10ItemRow({
                       />
                     </PopoverContent>
                   </Popover>
+                ) : isCurrencyColumn(col) ? (
+                  <Input
+                    value={localData[col.key] || ""}
+                    onChange={(e) => handleChange(col.key, e.target.value)}
+                    onBlur={(e) => {
+                      // Format as number on blur (strip non-numeric chars except decimal)
+                      const num = parseFloat(e.target.value.replace(/[^0-9.-]/g, ""));
+                      if (!isNaN(num)) {
+                        handleChange(col.key, String(num));
+                      }
+                    }}
+                    className={cn("h-8 text-sm", isNarrowColumn(col) && "w-[9ch]")}
+                    placeholder={col.label}
+                  />
                 ) : (
                   <Input
                     value={localData[col.key] || ""}
