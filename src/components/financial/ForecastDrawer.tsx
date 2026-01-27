@@ -950,7 +950,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     
     // Special handling for Sales Expense %: calculate dollar amounts based on GP Net
     if (metricKey === 'sales_expense_percent') {
-      console.log('[handleMainMetricAnnualEdit] V2 sales_expense_percent called with:', newAnnualValue, 'STACK:', new Error().stack?.split('\n').slice(1,5).join('\n'));
+      console.log('[handleMainMetricAnnualEdit] V2 sales_expense_percent called with:', newAnnualValue);
       
       try {
         console.log('[handleMainMetricAnnualEdit] V2 months:', months?.length, 'monthlyValues:', monthlyValues?.size);
@@ -964,7 +964,16 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         
         months.forEach((month) => {
           const monthData = monthlyValues.get(month);
-          const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+          let gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+          
+          // If gpNetValue is 0, try to get from baseline data
+          // This handles cases where forecast entries exist with null values but baseline data is available
+          if (gpNetValue === 0) {
+            const priorYearMonth = `${forecastYear - 1}-${month.split('-')[1]}`;
+            const baselineMonthData = baselineData.get(priorYearMonth);
+            gpNetValue = baselineMonthData?.get('gp_net') ?? 0;
+            console.log('[handleMainMetricAnnualEdit] gp_net was 0, using baseline for', month, ':', gpNetValue);
+          }
           
           // Set Sales Expense % for this month and explicitly unlock any previous locks
           updates.push({
@@ -996,7 +1005,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         
         // Update the driver state to reflect the new annual dollar amount
         const newAnnualSalesExpense = months.reduce((sum, month) => {
-          const gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
+          let gpNetValue = monthlyValues.get(month)?.get('gp_net')?.value ?? 0;
+          // Also use baseline fallback for annual sum calculation
+          if (gpNetValue === 0) {
+            const priorYearMonth = `${forecastYear - 1}-${month.split('-')[1]}`;
+            const baselineMonthData = baselineData.get(priorYearMonth);
+            gpNetValue = baselineMonthData?.get('gp_net') ?? 0;
+          }
           return sum + (gpNetValue * (newAnnualValue / 100));
         }, 0);
         setSalesExpense(newAnnualSalesExpense);
@@ -1019,16 +1034,26 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       try {
         const updates: { month: string; metricName: string; forecastValue: number; isLocked?: boolean }[] = [];
         
+        // Helper function to get GP Net for a month (with baseline fallback)
+        const getGpNetForMonth = (m: string): number => {
+          let gpNet = monthlyValues.get(m)?.get('gp_net')?.value ?? 0;
+          // If gpNet is 0, try to get from baseline data
+          if (gpNet === 0) {
+            const priorYearMonth = `${forecastYear - 1}-${m.split('-')[1]}`;
+            const baselineMonthData = baselineData.get(priorYearMonth);
+            gpNet = baselineMonthData?.get('gp_net') ?? 0;
+          }
+          return gpNet;
+        };
+        
+        // Calculate total annual GP Net for distribution
+        const totalAnnualGpNet = months.reduce((sum, m) => sum + getGpNetForMonth(m), 0);
+        
         months.forEach((month) => {
-          const monthData = monthlyValues.get(month);
-          const gpNetValue = monthData?.get('gp_net')?.value ?? 0;
+          const gpNetValue = getGpNetForMonth(month);
           
           // Calculate this month's proportional share of the annual dollar amount
           // Use GP Net as the distribution basis (months with higher GP Net get more expense)
-          const totalAnnualGpNet = months.reduce((sum, m) => {
-            return sum + (monthlyValues.get(m)?.get('gp_net')?.value ?? 0);
-          }, 0);
-          
           const monthSalesExpense = totalAnnualGpNet > 0 
             ? newAnnualValue * (gpNetValue / totalAnnualGpNet)
             : newAnnualValue / 12;
