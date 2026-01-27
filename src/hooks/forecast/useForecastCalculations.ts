@@ -1851,9 +1851,14 @@ export function useForecastCalculations({
         });
       }
       
-      // Update sales_expense_percent
+      // Update sales_expense_percent - BUT preserve user-entered values
       const salesExpPercentCurrent = adjustedMetrics.get('sales_expense_percent');
-      if (salesExpPercentCurrent && gpNetValue > 0) {
+      const storedSalesExpPercent = entriesMap.get(`${month}:sales_expense_percent`);
+      const hasUserEnteredSalesExpPercent = storedSalesExpPercent?.forecast_value !== null && 
+        storedSalesExpPercent?.forecast_value !== undefined;
+
+      if (salesExpPercentCurrent && gpNetValue > 0 && !hasUserEnteredSalesExpPercent) {
+        // Only recalculate if user hasn't explicitly set a value
         adjustedMetrics.set('sales_expense_percent', {
           ...salesExpPercentCurrent,
           value: (adjustedSalesExpense / gpNetValue) * 100,
@@ -1902,7 +1907,7 @@ export function useForecastCalculations({
     });
     
     return adjusted;
-  }, [baseMonthlyValues, subMetricForecasts, subMetricOverrides, months, annualBaseline, baselineData, forecastYear]);
+  }, [baseMonthlyValues, subMetricForecasts, subMetricOverrides, months, annualBaseline, baselineData, forecastYear, entriesMap]);
   
   const quarterlyValues = calculateQuarterlyValues(monthlyValues);
   const annualValues = calculateAnnualValues(monthlyValues);
