@@ -1500,14 +1500,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         }, 0);
       }
 
-      const values = data
-        ?.filter(entry => 
-          entry.metric_name === metricKey && 
-          quarterMonthIds.includes(entry.month)
-        )
-        .map(entry => entry.value || 0) || [];
+      // For each month, get direct value or fall back to sub-metric sum
+      let total = 0;
+      for (const monthId of quarterMonthIds) {
+        // First try direct value
+        const directEntry = data?.find(e => e.month === monthId && e.metric_name === metricKey);
+        if (directEntry?.value !== null && directEntry?.value !== undefined) {
+          total += Number(directEntry.value);
+        } else {
+          // Fall back to sub-metric sum
+          const subMetricPrefix = `sub:${metricKey}:`;
+          const subMetrics = data?.filter(e => 
+            e.month === monthId && 
+            e.metric_name.startsWith(subMetricPrefix) && 
+            e.value !== null && e.value !== undefined
+          ) || [];
+          if (subMetrics.length > 0) {
+            total += subMetrics.reduce((sum, e) => sum + Number(e.value), 0);
+          }
+        }
+      }
       
-      return values.reduce((sum, val) => sum + val, 0);
+      return total;
     };
 
     // Calculate averages per metric per quarter
@@ -1572,17 +1586,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           return;
         }
 
-        const values = data
-          ?.filter(entry => 
-            entry.metric_name === metric.key && 
-            quarterMonthIds.includes(entry.month)
-          )
-          .map(entry => entry.value || 0) || [];
+        // Count months with data (including sub-metrics)
+        let metricMonthsWithData = 0;
+        let total = 0;
+        for (const monthId of quarterMonthIds) {
+          // First try direct value
+          const directEntry = data?.find(e => e.month === monthId && e.metric_name === metric.key);
+          if (directEntry?.value !== null && directEntry?.value !== undefined) {
+            total += Number(directEntry.value);
+            metricMonthsWithData++;
+          } else {
+            // Fall back to sub-metric sum
+            const subMetricPrefix = `sub:${metric.key}:`;
+            const subMetrics = data?.filter(e => 
+              e.month === monthId && 
+              e.metric_name.startsWith(subMetricPrefix) && 
+              e.value !== null && e.value !== undefined
+            ) || [];
+            if (subMetrics.length > 0) {
+              total += subMetrics.reduce((sum, e) => sum + Number(e.value), 0);
+              metricMonthsWithData++;
+            }
+          }
+        }
         
-        if (values.length > 0) {
-          // For dollar metrics, sum all values and divide by actual months with data
-          const total = values.reduce((sum, val) => sum + val, 0);
-          const avg = total / monthCount;
+        if (metricMonthsWithData > 0) {
+          const avg = total / metricMonthsWithData;
           averages[`${metric.key}-Q${prevYearQuarter.quarter}-${prevYearQuarter.year}`] = avg;
         }
       }
@@ -1647,16 +1676,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           return;
         }
 
-        const values = data
-          ?.filter(entry => 
-            entry.metric_name === metric.key && 
-            currentQuarterMonthIds.includes(entry.month)
-          )
-          .map(entry => entry.value || 0) || [];
+        // Count months with data (including sub-metrics)
+        let metricMonthsWithData = 0;
+        let total = 0;
+        for (const monthId of currentQuarterMonthIds) {
+          // First try direct value
+          const directEntry = data?.find(e => e.month === monthId && e.metric_name === metric.key);
+          if (directEntry?.value !== null && directEntry?.value !== undefined) {
+            total += Number(directEntry.value);
+            metricMonthsWithData++;
+          } else {
+            // Fall back to sub-metric sum
+            const subMetricPrefix = `sub:${metric.key}:`;
+            const subMetrics = data?.filter(e => 
+              e.month === monthId && 
+              e.metric_name.startsWith(subMetricPrefix) && 
+              e.value !== null && e.value !== undefined
+            ) || [];
+            if (subMetrics.length > 0) {
+              total += subMetrics.reduce((sum, e) => sum + Number(e.value), 0);
+              metricMonthsWithData++;
+            }
+          }
+        }
         
-        if (values.length > 0) {
-          const total = values.reduce((sum, val) => sum + val, 0);
-          const avg = total / currentMonthCount;
+        if (metricMonthsWithData > 0) {
+          const avg = total / metricMonthsWithData;
           averages[`${metric.key}-Q${currentYearQuarter.quarter}-${currentYearQuarter.year}`] = avg;
         }
       }
