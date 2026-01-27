@@ -18,6 +18,7 @@ import {
   Ticket,
   Building2,
   GitCompare,
+  FileSpreadsheet,
 } from "lucide-react";
 
 export const AdminNavDropdown = () => {
@@ -41,6 +42,7 @@ export const AdminNavDropdown = () => {
       label: "Configuration",
       items: [
         { name: "KPI Rules", icon: Target, path: "/admin/kpi-rules" },
+        { name: "Scorecard Mapper", icon: FileSpreadsheet, path: "/admin/scorecard-mapper" },
       ],
     },
     {
