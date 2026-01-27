@@ -3778,11 +3778,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           let value = getValueWithSubMetricFallback(metric.key, month.identifier);
                           
                           // Helper function to get value for a metric (handles calculated fields + sub-metric fallback)
-                          // For base metrics used in calculations, we skip sub-metric sums because
-                          // sub-metrics may only represent a portion of the total (e.g., expense line items)
+                          // Note: For deductions like sales_expense, we MUST allow sub-metric sums because some stores
+                          // only have sub-metrics without a parent total.
                           const getValueForMetric = (metricKey: string, isForCalculation: boolean = false): number | undefined => {
-                            // For calculation bases, skip sub-metric sum fallback to use only stored values
-                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier, isForCalculation);
+                            // Always try to get the value with sub-metric fallback for deductions
+                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier, false);
                             if (fallbackValue !== null && fallbackValue !== undefined) {
                               return fallbackValue;
                             }
@@ -3796,20 +3796,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             // Handle dollar subtraction/complex calculations
                             if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
-                              // Pass true for isForCalculation to ensure we use stored values, not sub-metric sums
                               const baseValue = getValueForMetric(sourceMetric.calculation.base, true);
                               if (baseValue === null || baseValue === undefined) return undefined;
                               
                               let calculatedValue = baseValue;
                               for (const deduction of sourceMetric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction, true);
+                                // For deductions, allow sub-metric sums (pass false)
+                                const deductionValue = getValueForMetric(deduction, false);
                                 calculatedValue -= (deductionValue || 0);
                               }
                               
                               // Handle additions for complex calculations
                               if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
                                 for (const addition of sourceMetric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition, true);
+                                  const additionValue = getValueForMetric(addition, false);
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
@@ -3840,20 +3840,21 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const shouldCalculate = shouldUseCalculationForMonth(metric.key, month.identifier);
                           const isDollarCalculated = shouldCalculate && metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
-                            // Pass true to use stored values, not sub-metric sums
+                            // Pass true to use stored values for base, but allow sub-metric sums for deductions
                             const baseValue = getValueForMetric(metric.calculation.base, true);
                             
                             if (baseValue !== null && baseValue !== undefined) {
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction, true);
+                                // For deductions, allow sub-metric sums (pass false)
+                                const deductionValue = getValueForMetric(deduction, false);
                                 calculatedValue -= (deductionValue || 0);
                               }
                               
                               // Handle additions for complex calculations
                               if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
                                 for (const addition of metric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition, true);
+                                  const additionValue = getValueForMetric(addition, false);
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
@@ -3987,13 +3988,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const metricIndex = FINANCIAL_METRICS.findIndex(m => m.key === metric.key);
                           
                           // Helper function to get value for a metric (handles calculated fields + sub-metric fallback)
-                          // For base metrics used in calculations, we skip sub-metric sums because
-                          // sub-metrics may only represent a portion of the total (e.g., expense line items)
+                          // Note: For deductions like sales_expense, we MUST allow sub-metric sums because some stores
+                          // only have sub-metrics without a parent total. Only skip sub-metric sums for specific metrics
+                          // like total_direct_expenses where sub-metrics represent only a portion.
                           const getValueForMetric = (metricKey: string, isForCalculation: boolean = false): number | undefined => {
-                            // For calculation bases, skip sub-metric sum fallback to use only stored values
-                            // This prevents issues where sub-metrics (like total_direct_expenses line items)
-                            // only represent part of the total and would produce incorrect calculations
-                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier, isForCalculation);
+                            // For calculation bases (like gp_net), we skip sub-metric sum fallback
+                            // But for deductions (like sales_expense), we NEED the sub-metric sum if no direct entry exists
+                            // The skipSubMetricSum logic in getValueWithSubMetricFallback already handles total_direct_expenses specially
+                            const fallbackValue = getValueWithSubMetricFallback(metricKey, month.identifier, false);
                             if (fallbackValue !== null && fallbackValue !== undefined) {
                               return fallbackValue;
                             }
@@ -4007,13 +4009,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             // Handle dollar subtraction/complex calculations
                             if (sourceMetric.type === "dollar" && 'type' in sourceMetric.calculation && (sourceMetric.calculation.type === 'subtract' || sourceMetric.calculation.type === 'complex')) {
-                              // Pass true for isForCalculation to ensure we use stored values, not sub-metric sums
                               const baseValue = getValueForMetric(sourceMetric.calculation.base, true);
                               if (baseValue === null || baseValue === undefined) return undefined;
                               
                               let calculatedValue = baseValue;
                               for (const deduction of sourceMetric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction, true);
+                                // For deductions, allow sub-metric sums (pass false)
+                                const deductionValue = getValueForMetric(deduction, false);
                                 // Treat missing deductions as 0 (no expense = 0)
                                 calculatedValue -= (deductionValue || 0);
                               }
@@ -4021,7 +4023,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               // Handle additions for complex calculations
                               if (sourceMetric.calculation.type === 'complex' && 'additions' in sourceMetric.calculation) {
                                 for (const addition of sourceMetric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition, true);
+                                  const additionValue = getValueForMetric(addition, false);
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
@@ -4052,23 +4054,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const shouldCalculate = shouldUseCalculationForMonth(metric.key, month.identifier);
                           const isDollarCalculated = shouldCalculate && metric.type === "dollar" && metric.calculation && 'type' in metric.calculation && (metric.calculation.type === 'subtract' || metric.calculation.type === 'complex');
                           if (isDollarCalculated && metric.calculation && 'type' in metric.calculation) {
-                            // Pass true to use stored values, not sub-metric sums for calculation bases
+                            // Pass true to use stored values for base, but allow sub-metric sums for deductions
                             const baseValue = getValueForMetric(metric.calculation.base, true);
-                            
-                            // Debug logging for calculated metrics
-                            if (['net', 'department_profit', 'return_on_gross'].includes(metric.key)) {
-                              console.log(`[Calc Debug] ${metric.key} for ${month.identifier}:`, {
-                                base: metric.calculation.base,
-                                baseValue,
-                                deductions: metric.calculation.deductions,
-                                additions: 'additions' in metric.calculation ? metric.calculation.additions : [],
-                              });
-                            }
                             
                             if (baseValue !== null && baseValue !== undefined) {
                               let calculatedValue = baseValue;
                               for (const deduction of metric.calculation.deductions) {
-                                const deductionValue = getValueForMetric(deduction, true);
+                                // For deductions, allow sub-metric sums (pass false)
+                                const deductionValue = getValueForMetric(deduction, false);
                                 // Treat missing deductions as 0 (no expense = 0)
                                 calculatedValue -= (deductionValue || 0);
                               }
@@ -4076,18 +4069,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               // Handle additions for complex calculations
                               if (metric.calculation.type === 'complex' && 'additions' in metric.calculation) {
                                 for (const addition of metric.calculation.additions) {
-                                  const additionValue = getValueForMetric(addition, true);
-                                  if (['net'].includes(metric.key)) {
-                                    console.log(`[Calc Debug] ${metric.key} addition ${addition}:`, additionValue);
-                                  }
+                                  const additionValue = getValueForMetric(addition, false);
                                   calculatedValue += (additionValue || 0);
                                 }
                               }
                               
                               value = calculatedValue;
-                              if (['net', 'department_profit'].includes(metric.key)) {
-                                console.log(`[Calc Debug] ${metric.key} final value:`, value);
-                              }
                             } else {
                               value = undefined;
                             }
