@@ -90,6 +90,7 @@ interface ScorecardGridProps {
 
 // Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
 const YEAR_STARTS: { [key: number]: Date } = {
+  2024: new Date(2024, 0, 1),   // Jan 1, 2024 (Monday)
   2025: new Date(2024, 11, 30), // Dec 30, 2024
   2026: new Date(2025, 11, 29), // Dec 29, 2025 (Monday)
   2027: new Date(2026, 11, 28), // Dec 28, 2026 (Monday)
@@ -2704,6 +2705,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="2024">2024</SelectItem>
                 <SelectItem value={(new Date().getFullYear() - 1).toString()}>
                   {new Date().getFullYear() - 1}
                 </SelectItem>
