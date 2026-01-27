@@ -40,6 +40,8 @@ interface ScorecardMonthDropZoneProps {
   className?: string;
   /** Most recent import log for this month */
   importLog?: ScorecardImportLog | null;
+  /** Called when user wants to re-import from an existing file */
+  onReimport?: (filePath: string, fileName: string, monthIdentifier: string) => void;
 }
 
 export const ScorecardMonthDropZone = ({
@@ -48,9 +50,11 @@ export const ScorecardMonthDropZone = ({
   onFileDrop,
   className,
   importLog,
+  onReimport,
 }: ScorecardMonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isReimporting, setIsReimporting] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const { toast } = useToast();
 
@@ -183,6 +187,31 @@ export const ScorecardMonthDropZone = ({
     window.open(signedUrl, "_blank", "noreferrer");
   }, [importLog?.report_file_path, toast]);
 
+  const handleReimport = useCallback(async () => {
+    if (!importLog?.report_file_path || !onReimport) {
+      toast({
+        title: "Cannot re-import",
+        description: "No file available for re-import or re-import not supported.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsReimporting(true);
+    try {
+      onReimport(importLog.report_file_path, importLog.file_name, monthIdentifier);
+      setShowDetailsDialog(false);
+    } catch (error: any) {
+      toast({
+        title: "Re-import failed",
+        description: error.message || "Failed to re-import file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReimporting(false);
+    }
+  }, [importLog?.report_file_path, importLog?.file_name, monthIdentifier, onReimport, toast]);
+
   const getStatusColor = () => {
     if (!importLog) return "";
     if (importLog.status === "success") return "bg-green-500 hover:bg-green-600";
@@ -308,6 +337,23 @@ export const ScorecardMonthDropZone = ({
                 >
                   View / Download report
                 </Button>
+                {onReimport && importLog.report_file_path && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={handleReimport}
+                    disabled={isReimporting}
+                  >
+                    {isReimporting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Re-importing...
+                      </>
+                    ) : (
+                      "Re-import with new KPIs"
+                    )}
+                  </Button>
+                )}
               </div>
               
               {importLog.user_mappings && Object.keys(importLog.user_mappings).length > 0 && (
