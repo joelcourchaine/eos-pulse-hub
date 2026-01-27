@@ -897,6 +897,40 @@ export function useForecastCalculations({
       byParent.get(sub.parentKey)!.push(sub);
     });
 
+    // Synthesize sales_expense_percent sub-metrics if missing but sales_expense exists
+    // This handles GMC/Nissan stores that only import dollar sub-metrics
+    const hasSalesExpenseSubs = byParent.has('sales_expense') && (byParent.get('sales_expense')?.length ?? 0) > 0;
+    const hasSalesExpensePercentSubs = byParent.has('sales_expense_percent') && (byParent.get('sales_expense_percent')?.length ?? 0) > 0;
+
+    if (hasSalesExpenseSubs && !hasSalesExpensePercentSubs) {
+      const salesExpenseSubs = byParent.get('sales_expense')!;
+      const synthesizedPercentSubs: SubMetricBaseline[] = [];
+      
+      for (const salesExpSub of salesExpenseSubs) {
+        // Create a matching percentage sub-metric
+        const percentSub: SubMetricBaseline = {
+          parentKey: 'sales_expense_percent',
+          name: salesExpSub.name,
+          orderIndex: salesExpSub.orderIndex,
+          monthlyValues: new Map(),
+        };
+        
+        // Calculate percentage for each month: (Sales Exp $ / GP Net) × 100
+        salesExpSub.monthlyValues.forEach((salesExpValue, month) => {
+          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
+          const percentValue = gpNetForMonth > 0 
+            ? (salesExpValue / gpNetForMonth) * 100 
+            : 0;
+          percentSub.monthlyValues.set(month, percentValue);
+        });
+        
+        synthesizedPercentSubs.push(percentSub);
+      }
+      
+      byParent.set('sales_expense_percent', synthesizedPercentSubs);
+      console.log('[calculateSubMetricForecasts] Synthesized', synthesizedPercentSubs.length, 'sales_expense_percent sub-metrics from sales_expense');
+    }
+
     // Normalize names for reliable cross-parent matching (handles casing/whitespace differences)
     const normalizeName = (name: string) => name.trim().toLowerCase();
 
