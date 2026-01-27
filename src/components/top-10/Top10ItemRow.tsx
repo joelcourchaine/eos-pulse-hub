@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Trash2, CalendarIcon } from "lucide-react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
   ContextMenu,
@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/context-menu";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { MiniConfetti } from "@/components/ui/mini-confetti";
-import { differenceInDays, parse, isValid } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { differenceInDays, parse, isValid, format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface ColumnDefinition {
   key: string;
@@ -41,18 +44,22 @@ const findColumnKey = (columns: ColumnDefinition[], patterns: string[]): string 
   return null;
 };
 
-// Helper to parse various date formats
+// Helper to parse various date formats (for legacy data)
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   
   // Try common date formats
   const formats = [
+    "yyyy-MM-dd", // ISO format (new storage format)
     "MM/dd/yyyy",
     "M/d/yyyy",
     "MM-dd-yyyy",
-    "yyyy-MM-dd",
     "MM/dd/yy",
     "M/d/yy",
+    "dd/MM/yyyy",
+    "d/M/yyyy",
+    "dd/MM/yy",
+    "d/M/yy",
   ];
   
   for (const fmt of formats) {
@@ -69,6 +76,16 @@ const parseDate = (dateStr: string): Date | null => {
   }
   
   return null;
+};
+
+// Helper to parse stored ISO dates (for date picker)
+const parseStoredDate = (dateStr: string): Date | undefined => {
+  if (!dateStr) return undefined;
+  // Try ISO format first (new storage format)
+  const isoDate = parse(dateStr, "yyyy-MM-dd", new Date());
+  if (isValid(isoDate)) return isoDate;
+  // Fall back to legacy parsing for existing data
+  return parseDate(dateStr) || undefined;
 };
 
 export function Top10ItemRow({
@@ -93,6 +110,35 @@ export function Top10ItemRow({
   // Find date and days columns for auto-calculation
   const roDateColKey = findColumnKey(columns, ["ro date", "date opened", "open date"]);
   const daysColKey = findColumnKey(columns, ["# of days", "days", "age", "days open"]);
+
+  // Check if a column is a date column
+  const isDateColumn = (colKey: string) => colKey === roDateColKey;
+
+  // Handle date selection from calendar picker
+  const handleDateSelect = useCallback(
+    (key: string, date: Date | undefined) => {
+      const formatted = date ? format(date, "yyyy-MM-dd") : "";
+      let newData = { ...localData, [key]: formatted };
+
+      // Auto-calculate "# of days" when date changes
+      if (key === roDateColKey && daysColKey && date) {
+        const today = new Date();
+        const daysDiff = differenceInDays(today, date);
+        newData[daysColKey] = daysDiff >= 0 ? String(daysDiff) : "";
+      }
+
+      setLocalData(newData);
+
+      // Debounced auto-save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      saveTimeoutRef.current = setTimeout(() => {
+        onUpdate(newData);
+      }, 500);
+    },
+    [localData, onUpdate, roDateColKey, daysColKey]
+  );
 
   // Sync local data when props change AND auto-calculate days if missing
   useEffect(() => {
@@ -194,14 +240,45 @@ export function Top10ItemRow({
           <ContextMenuTrigger asChild>
             <TableCell className="p-1">
               {canEdit ? (
-                <Input
-                  value={localData[col.key] || ""}
-                  onChange={(e) => handleChange(col.key, e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder={col.label}
-                />
+                isDateColumn(col.key) ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "h-8 w-full justify-start text-left text-sm font-normal",
+                          !localData[col.key] && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localData[col.key] && parseStoredDate(localData[col.key])
+                          ? format(parseStoredDate(localData[col.key])!, "MMM d, yyyy")
+                          : col.label}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={parseStoredDate(localData[col.key])}
+                        onSelect={(date) => handleDateSelect(col.key, date)}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  <Input
+                    value={localData[col.key] || ""}
+                    onChange={(e) => handleChange(col.key, e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder={col.label}
+                  />
+                )
               ) : (
-                <span className="text-sm">{localData[col.key] || "-"}</span>
+                <span className="text-sm">
+                  {isDateColumn(col.key) && localData[col.key] && parseStoredDate(localData[col.key])
+                    ? format(parseStoredDate(localData[col.key])!, "MMM d, yyyy")
+                    : localData[col.key] || "-"}
+                </span>
               )}
             </TableCell>
           </ContextMenuTrigger>
