@@ -65,6 +65,11 @@ const parseDate = (dateStr: string): Date | null => {
   for (const fmt of formats) {
     const parsed = parse(dateStr, fmt, new Date());
     if (isValid(parsed)) {
+      // Fix 2-digit year parsing (0025 -> 2025)
+      const year = parsed.getFullYear();
+      if (year < 100) {
+        parsed.setFullYear(year + 2000);
+      }
       return parsed;
     }
   }
