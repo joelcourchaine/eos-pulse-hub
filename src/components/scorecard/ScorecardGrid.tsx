@@ -2465,6 +2465,52 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     });
   }, [toast]);
 
+  // Handler for re-importing a previously imported file with updated KPI mappings
+  const handleReimport = useCallback(async (filePath: string, fileName: string, monthIdentifier: string) => {
+    try {
+      toast({
+        title: "Downloading file...",
+        description: "Fetching the original report for re-import",
+      });
+
+      // Download the file from storage
+      const { data, error } = await supabase.storage
+        .from("scorecard-imports")
+        .download(filePath);
+
+      if (error || !data) {
+        throw new Error(error?.message || "Failed to download file");
+      }
+
+      // Convert blob to File
+      const file = new File([data], fileName, { 
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+      });
+
+      // Parse the file
+      const result = await parseCSRProductivityReport(file);
+      result.month = monthIdentifier;
+
+      // Open the import preview dialog
+      setDroppedParseResult(result);
+      setDroppedFileName(fileName);
+      setDroppedFile(file);
+      setImportMonth(monthIdentifier);
+      setImportPreviewOpen(true);
+
+      toast({
+        title: "Ready to re-import",
+        description: `Found ${result.advisors.length} advisors. Review and confirm to apply new KPI mappings.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Re-import failed",
+        description: error.message || "Failed to re-import file",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   const handleOwnerDragStart = (ownerId: string | null) => {
     setDraggedOwnerId(ownerId);
   };
@@ -3071,6 +3117,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                         <ScorecardMonthDropZone
                           monthIdentifier={period.identifier}
                           onFileDrop={handleMonthFileDrop}
+                          onReimport={handleReimport}
                           className="w-full h-full py-[7.2px]"
                           importLog={importLogs[period.identifier]}
                         >
@@ -3158,6 +3205,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <ScorecardMonthDropZone
                       monthIdentifier={month.identifier}
                       onFileDrop={handleMonthFileDrop}
+                      onReimport={handleReimport}
                       className="w-full h-full py-[7.2px]"
                       importLog={importLogs[month.identifier]}
                     >
@@ -3190,6 +3238,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                     <ScorecardMonthDropZone
                       monthIdentifier={month.identifier}
                       onFileDrop={handleMonthFileDrop}
+                      onReimport={handleReimport}
                       className="w-full h-full py-[7.2px]"
                       importLog={importLogs[month.identifier]}
                     >
