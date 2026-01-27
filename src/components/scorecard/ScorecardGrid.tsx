@@ -1722,7 +1722,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
   };
 
   const canEditTargets = () => {
-    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager';
+    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager' || userRole === 'fixed_ops_manager';
   };
 
   const handleTargetEdit = (kpiId: string) => {

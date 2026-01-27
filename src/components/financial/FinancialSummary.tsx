@@ -1852,7 +1852,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   };
 
   const canEditTargets = () => {
-    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager';
+    return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager' || userRole === 'fixed_ops_manager';
   };
 
   const handlePasteDataChange = (value: string) => {
