@@ -1,60 +1,98 @@
 
-# Add 2024 Year Access to GO Scorecard
 
-## Problem
+# Fix: Synthesize Sales Expense % Sub-Metrics for GMC/Nissan Stores
 
-The GO Scorecard year selector dropdown only shows years from 2025 onwards. The year options are dynamically generated based on the current date (showing `currentYear - 1`, `currentYear`, `currentYear + 1`), which in January 2026 means 2025, 2026, 2027. This prevents users from accessing 2024 data for historical comparison.
+## Problem Summary
 
-Additionally, the `YEAR_STARTS` fiscal calendar constant only defines start dates for 2025, 2026, and 2027.
+When editing the annual **Sales Expense %** in the forecast for GMC/Chevrolet, Nissan, and other stores, the changes don't propagate to the sub-metrics because:
+
+| Store Type | What's in Database | What the Forecast Needs |
+|------------|-------------------|------------------------|
+| Stellantis/Ford | `sales_expense` AND `sales_expense_percent` sub-metrics | Works correctly |
+| GMC/Nissan | Only `sales_expense` sub-metrics | Missing `sales_expense_percent` sub-metrics |
+
+The forecast calculation engine already has sophisticated logic to handle `sales_expense_percent` sub-metric overrides and derive the corresponding `sales_expense` dollar values. However, this logic only activates when percentage sub-metrics exist in the baseline data.
 
 ## Solution
 
-Update the Scorecard year selector to include 2024 and add the corresponding fiscal year start date.
+Synthesize `sales_expense_percent` sub-metrics from the existing `sales_expense` sub-metrics. For each `sales_expense` line item, we calculate its percentage as:
 
-## Changes Required
-
-### File: `src/components/scorecard/ScorecardGrid.tsx`
-
-#### Change 1: Add 2024 to YEAR_STARTS constant (around line 92)
-
-Add the fiscal year start for 2024 to support proper week/quarter calculations:
-
-```typescript
-const YEAR_STARTS: { [key: number]: Date } = {
-  2024: new Date(2024, 0, 1),    // Jan 1, 2024 (Monday) - NEW
-  2025: new Date(2024, 11, 30),  // Dec 30, 2024
-  2026: new Date(2025, 11, 29),  // Dec 29, 2025 (Monday)
-  2027: new Date(2026, 11, 28),  // Dec 28, 2026 (Monday)
-};
+```
+Sales Expense % = (Sales Expense $ / GP Net) × 100
 ```
 
-#### Change 2: Add 2024 to year selector dropdown (around line 2706)
+This happens in `useForecastCalculations.ts` where sub-metric baselines are grouped by parent key. When we detect that `sales_expense` sub-metrics exist but `sales_expense_percent` sub-metrics don't, we synthesize the percentages.
 
-Add a SelectItem for 2024 to the dropdown:
+## Technical Changes
+
+### File: `src/hooks/forecast/useForecastCalculations.ts`
+
+**Location**: Inside `calculateSubMetricForecasts` function, after grouping sub-metrics by parent (around line 880-895)
+
+**Change**: Add logic to synthesize `sales_expense_percent` sub-metrics when they're missing but `sales_expense` sub-metrics exist.
 
 ```typescript
-<SelectContent>
-  <SelectItem value="2024">2024</SelectItem>
-  <SelectItem value={(new Date().getFullYear() - 1).toString()}>
-    {new Date().getFullYear() - 1}
-  </SelectItem>
-  <SelectItem value={new Date().getFullYear().toString()}>
-    {new Date().getFullYear()}
-  </SelectItem>
-  <SelectItem value={(new Date().getFullYear() + 1).toString()}>
-    {new Date().getFullYear() + 1}
-  </SelectItem>
-</SelectContent>
+// After grouping sub-metrics by parent key
+const byParent = new Map<string, SubMetricBaseline[]>();
+// ... existing grouping logic ...
+
+// Synthesize sales_expense_percent sub-metrics if missing
+const hasSalesExpenseSubs = byParent.has('sales_expense') && (byParent.get('sales_expense')?.length ?? 0) > 0;
+const hasSalesExpensePercentSubs = byParent.has('sales_expense_percent') && (byParent.get('sales_expense_percent')?.length ?? 0) > 0;
+
+if (hasSalesExpenseSubs && !hasSalesExpensePercentSubs) {
+  // GMC/Nissan case: synthesize sales_expense_percent from sales_expense
+  const salesExpenseSubs = byParent.get('sales_expense')!;
+  const synthesizedPercentSubs: SubMetricBaseline[] = [];
+  
+  for (const salesExpSub of salesExpenseSubs) {
+    // Create a matching percentage sub-metric
+    const percentSub: SubMetricBaseline = {
+      parentKey: 'sales_expense_percent',
+      name: salesExpSub.name,
+      orderIndex: salesExpSub.orderIndex,
+      monthlyValues: new Map(),
+    };
+    
+    // Calculate percentage for each month: (Sales Exp $ / GP Net) × 100
+    salesExpSub.monthlyValues.forEach((salesExpValue, month) => {
+      const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
+      const percentValue = gpNetForMonth > 0 
+        ? (salesExpValue / gpNetForMonth) * 100 
+        : 0;
+      percentSub.monthlyValues.set(month, percentValue);
+    });
+    
+    synthesizedPercentSubs.push(percentSub);
+  }
+  
+  byParent.set('sales_expense_percent', synthesizedPercentSubs);
+}
 ```
 
----
+This change means:
+1. The existing logic in `calculateSubMetricForecasts` that processes `sales_expense_percent` sub-metrics will now activate for GMC/Nissan stores
+2. When a user edits the annual Sales Expense % in the forecast column, the override flow will work:
+   - User sets new % → stored as override
+   - Each synthesized `sales_expense_percent` sub-metric scales proportionally
+   - The existing reverse-calculation logic derives new `sales_expense` dollar amounts from the % targets
+3. No changes needed to `ForecastDrawer.tsx` - the existing `handleMainMetricAnnualEdit` logic will just work
 
-## Technical Details
+## Why This Approach Is Better
 
-- The fiscal year 2024 will use January 1, 2024 as its start date (which is a Monday)
-- This change only affects the Scorecard grid; the data queries will work as-is since they just filter by the year value
-- This enables users to view 2024 scorecard data for historical verification and Year-over-Year analysis
+1. **Minimal code change**: Only ~25 lines added in one location
+2. **Leverages existing infrastructure**: The calculation engine already handles percentage→dollar reverse calculations
+3. **Consistent behavior**: GMC stores will behave exactly like Stellantis/Ford stores
+4. **No data migration needed**: We synthesize on-the-fly, no need to backfill database entries
+5. **Follows your existing pattern**: The financial summary already derives percentages from dollar amounts when displaying sub-metrics
 
-## Impact
+## Testing Checklist
 
-After this change, users will be able to select 2024 from the year dropdown and view any scorecard data stored for that year.
+- [ ] Open forecast for a GMC store (Murray Chev, Winnipeg Chevrolet)
+- [ ] Verify Sales Expense sub-metrics are visible (SALARIES-SUPERVISION, etc.)
+- [ ] Verify Sales Expense % sub-metrics are now visible (synthesized)
+- [ ] Edit the annual Sales Expense % value (e.g., change from 60% to 65%)
+- [ ] Confirm all monthly Sales Expense $ sub-metrics scale proportionally
+- [ ] Confirm the parent Sales Expense total matches the new target
+- [ ] Verify Stellantis/Ford stores still work correctly (no regression)
+
