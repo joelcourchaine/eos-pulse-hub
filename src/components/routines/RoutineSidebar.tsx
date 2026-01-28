@@ -315,7 +315,7 @@ export const RoutineSidebar = ({
                   isActive={isActive}
                   onClick={() => setActiveCadence(cadence)}
                   tooltip={`${CADENCE_LABELS[cadence]}: ${totals.completed}/${totals.total}`}
-                  className="justify-between"
+                  className="justify-between group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full"
                 >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
