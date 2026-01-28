@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CreateTaskDialog } from "@/components/todos/CreateTaskDialog";
+import { LoadingTimeout } from "@/components/ui/loading-timeout";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -502,12 +503,20 @@ const MyTasks = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading your tasks...</p>
-        </div>
-      </div>
+      <LoadingTimeout
+        isLoading={true}
+        timeoutSeconds={15}
+        context="Loading your tasks"
+        diagnostics={{
+          hasUserId: !!userId,
+          storesCount: stores.length,
+          selectedStoreFilter,
+          selectedGroupFilter,
+        }}
+        onRetry={() => {
+          loadTasks();
+        }}
+      />
     );
   }
 
