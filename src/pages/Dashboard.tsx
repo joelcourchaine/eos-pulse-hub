@@ -1527,6 +1527,7 @@ const Dashboard = () => {
               departmentId={selectedDepartment}
               userId={user.id}
               canAddItems={isDepartmentManager || isFixedOpsManager || isStoreGM || isSuperAdmin}
+              canDeleteItems={isDepartmentManager || isFixedOpsManager || isStoreGM || isSuperAdmin}
             />
           )}
         </div>

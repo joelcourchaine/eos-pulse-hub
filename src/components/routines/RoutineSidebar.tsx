@@ -60,6 +60,7 @@ interface RoutineSidebarProps {
   departmentId: string;
   userId: string;
   canAddItems?: boolean;
+  canDeleteItems?: boolean;
 }
 
 const CADENCE_ORDER: Cadence[] = ["daily", "weekly", "monthly", "quarterly", "yearly"];
@@ -129,6 +130,7 @@ export const RoutineSidebar = ({
   departmentId,
   userId,
   canAddItems = false,
+  canDeleteItems = false,
 }: RoutineSidebarProps) => {
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -431,6 +433,7 @@ export const RoutineSidebar = ({
                     userId={userId}
                     onCountsChange={handleCountsChange}
                     canAddItems={canAddItems}
+                    canDeleteItems={canDeleteItems}
                   />
                 ))
               ) : (

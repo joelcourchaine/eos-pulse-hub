@@ -44,6 +44,7 @@ interface RoutineChecklistProps {
   userId: string;
   onCountsChange?: (routineId: string, completed: number, total: number) => void;
   canAddItems?: boolean;
+  canDeleteItems?: boolean;
 }
 
 export const RoutineChecklist = ({
@@ -52,11 +53,13 @@ export const RoutineChecklist = ({
   userId,
   onCountsChange,
   canAddItems = false,
+  canDeleteItems = false,
 }: RoutineChecklistProps) => {
   const { toast } = useToast();
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [localRoutine, setLocalRoutine] = useState(routine);
 
   // Parse items from JSONB - use local routine for live updates
@@ -212,6 +215,69 @@ export const RoutineChecklist = ({
     }
   };
 
+  const handleDelete = async (itemId: string) => {
+    setDeleting(itemId);
+    try {
+      // Fetch current items from database
+      const { data: routineData, error: fetchError } = await supabase
+        .from("department_routines")
+        .select("items")
+        .eq("id", routine.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const existingItems: RoutineItem[] = Array.isArray(routineData?.items)
+        ? (routineData.items as unknown as RoutineItem[])
+        : [];
+
+      // Remove the item
+      const updatedItems = existingItems.filter(item => item.id !== itemId);
+
+      // Update routine
+      const { error } = await supabase
+        .from("department_routines")
+        .update({ items: updatedItems as unknown as any })
+        .eq("id", routine.id);
+
+      if (error) throw error;
+
+      // Also delete any completion records for this item
+      await supabase
+        .from("routine_completions")
+        .delete()
+        .eq("routine_id", routine.id)
+        .eq("item_id", itemId);
+
+      toast({
+        title: "Task deleted",
+        description: "The task has been removed from this routine",
+      });
+
+      // Update local state
+      setCompletedItems((prev) => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+
+      // Refresh routine data
+      await refetchRoutine();
+      
+      // Update counts
+      onCountsChange?.(routine.id, completedItems.size, updatedItems.length);
+    } catch (error: any) {
+      console.error("Error deleting routine item:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete task",
+      });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -283,7 +349,10 @@ export const RoutineChecklist = ({
                   item={item}
                   isCompleted={completedItems.has(item.id)}
                   onToggle={handleToggle}
+                  onDelete={handleDelete}
                   disabled={toggling === item.id}
+                  canDelete={canDeleteItems}
+                  isDeleting={deleting === item.id}
                 />
               ))}
             </div>
