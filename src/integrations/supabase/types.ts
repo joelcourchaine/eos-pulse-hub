@@ -513,6 +513,57 @@ export type Database = {
         }
         Relationships: []
       }
+      department_routines: {
+        Row: {
+          cadence: string
+          created_at: string
+          department_id: string
+          id: string
+          is_active: boolean
+          items: Json
+          template_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cadence: string
+          created_at?: string
+          department_id: string
+          id?: string
+          is_active?: boolean
+          items?: Json
+          template_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string
+          created_at?: string
+          department_id?: string
+          id?: string
+          is_active?: boolean
+          items?: Json
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_routines_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "department_routines_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "routine_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       department_types: {
         Row: {
           created_at: string
@@ -1954,6 +2005,113 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_completions: {
+        Row: {
+          completed_at: string
+          completed_by: string | null
+          id: string
+          item_id: string
+          period_start: string
+          routine_id: string
+        }
+        Insert: {
+          completed_at?: string
+          completed_by?: string | null
+          id?: string
+          item_id: string
+          period_start: string
+          routine_id: string
+        }
+        Update: {
+          completed_at?: string
+          completed_by?: string | null
+          id?: string
+          item_id?: string
+          period_start?: string
+          routine_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_completions_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_completions_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_completions_routine_id_fkey"
+            columns: ["routine_id"]
+            isOneToOne: false
+            referencedRelation: "department_routines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      routine_templates: {
+        Row: {
+          cadence: string
+          created_at: string
+          created_by: string | null
+          department_type_id: string | null
+          description: string | null
+          id: string
+          items: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cadence: string
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          id?: string
+          items?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          id?: string
+          items?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routine_templates_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
             referencedColumns: ["id"]
           },
         ]
