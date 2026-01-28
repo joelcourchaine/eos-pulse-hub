@@ -295,10 +295,7 @@ export const RoutineSidebar = ({
             <CheckSquare className="h-5 w-5 text-primary" />
             <span className="font-semibold text-sm">My Routines</span>
           </div>
-          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center hidden">
-            <CheckSquare className="h-5 w-5 text-primary" />
-          </div>
-          <SidebarTrigger className="h-7 w-7 group-data-[collapsible=icon]:hidden" />
+          <SidebarTrigger className="h-7 w-7 shrink-0" />
         </div>
       </SidebarHeader>
 
