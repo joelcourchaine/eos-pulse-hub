@@ -277,7 +277,7 @@ export const RoutineSidebar = ({
   })();
 
   return (
-    <Sidebar side="right" collapsible="icon" className="border-l">
+    <Sidebar side="right" collapsible="icon" className="border-l !top-16 !h-[calc(100svh-4rem)]">
       <SidebarHeader className="border-b">
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
