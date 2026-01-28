@@ -56,6 +56,7 @@ interface RoutineDrawerProps {
   onOpenChange: (open: boolean) => void;
   departmentId: string;
   userId: string;
+  canAddItems?: boolean;
 }
 
 const CADENCE_ORDER: Cadence[] = ["daily", "weekly", "monthly", "quarterly", "yearly"];
@@ -102,6 +103,7 @@ export const RoutineDrawer = ({
   onOpenChange,
   departmentId,
   userId,
+  canAddItems = false,
 }: RoutineDrawerProps) => {
   const [routines, setRoutines] = useState<DepartmentRoutine[]>([]);
   const [completionCounts, setCompletionCounts] = useState<Record<string, { completed: number; total: number }>>({});
@@ -312,6 +314,7 @@ export const RoutineDrawer = ({
                         routine={routine}
                         periodStart={format(getPeriodStart(cadence), "yyyy-MM-dd")}
                         userId={userId}
+                        canAddItems={canAddItems}
                       />
                     ))
                   ) : (

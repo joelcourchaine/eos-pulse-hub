@@ -45,7 +45,7 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<any>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const { isSuperAdmin, isStoreGM, isDepartmentManager, loading: rolesLoading } = useUserRole(user?.id);
+  const { isSuperAdmin, isStoreGM, isDepartmentManager, isFixedOpsManager, loading: rolesLoading } = useUserRole(user?.id);
   const [departments, setDepartments] = useState<any[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>(""); // Don't load from localStorage until validated
   const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
@@ -1511,6 +1511,7 @@ const Dashboard = () => {
             <RoutineSidebar 
               departmentId={selectedDepartment}
               userId={user.id}
+              canAddItems={isDepartmentManager || isFixedOpsManager || isStoreGM || isSuperAdmin}
             />
           )}
         </div>

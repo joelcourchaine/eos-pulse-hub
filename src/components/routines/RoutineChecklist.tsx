@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RoutineItemRow } from "./RoutineItemRow";
+import { AddRoutineItemInline } from "./AddRoutineItemInline";
 import { Loader2, AlertTriangle, Clock } from "lucide-react";
 import { 
   getDueDate, 
@@ -13,7 +14,6 @@ import {
   type DueDayConfig, 
   type Cadence 
 } from "@/utils/routineDueDate";
-import { startOfDay, startOfWeek, startOfMonth, startOfQuarter, startOfYear } from "date-fns";
 
 interface ReportInfo {
   type: "internal" | "external" | "manual";
@@ -43,6 +43,7 @@ interface RoutineChecklistProps {
   periodStart: string;
   userId: string;
   onCountsChange?: (routineId: string, completed: number, total: number) => void;
+  canAddItems?: boolean;
 }
 
 export const RoutineChecklist = ({
@@ -50,15 +51,17 @@ export const RoutineChecklist = ({
   periodStart,
   userId,
   onCountsChange,
+  canAddItems = false,
 }: RoutineChecklistProps) => {
   const { toast } = useToast();
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [localRoutine, setLocalRoutine] = useState(routine);
 
-  // Parse items from JSONB
-  const items: RoutineItem[] = Array.isArray(routine.items)
-    ? routine.items
+  // Parse items from JSONB - use local routine for live updates
+  const items: RoutineItem[] = Array.isArray(localRoutine.items)
+    ? localRoutine.items
     : [];
 
   const sortedItems = [...items].sort((a, b) => a.order - b.order);
@@ -66,6 +69,11 @@ export const RoutineChecklist = ({
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
   const isComplete = completedCount === totalCount && totalCount > 0;
+
+  // Sync localRoutine when prop changes
+  useEffect(() => {
+    setLocalRoutine(routine);
+  }, [routine]);
 
   // Calculate due date
   const dueInfo = useMemo(() => {
@@ -128,6 +136,29 @@ export const RoutineChecklist = ({
       setLoading(false);
     }
   };
+
+  // Refetch routine items after adding a new one
+  const refetchRoutine = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("department_routines")
+        .select("*")
+        .eq("id", routine.id)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setLocalRoutine({
+          ...data,
+          items: Array.isArray(data.items) ? data.items as unknown as RoutineItem[] : [],
+          due_day_config: data.due_day_config as unknown as DueDayConfig | null,
+        });
+      }
+    } catch (error) {
+      console.error("Error refetching routine:", error);
+    }
+  }, [routine.id]);
 
   const handleToggle = async (itemId: string) => {
     const isCurrentlyCompleted = completedItems.has(itemId);
@@ -238,20 +269,29 @@ export const RoutineChecklist = ({
         <Progress value={progressPercent} className="h-2" />
       </CardHeader>
       <CardContent className="space-y-2">
-        {sortedItems.length === 0 ? (
+        {sortedItems.length === 0 && !canAddItems ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             No items in this routine
           </p>
         ) : (
-          sortedItems.map((item) => (
-            <RoutineItemRow
-              key={item.id}
-              item={item}
-              isCompleted={completedItems.has(item.id)}
-              onToggle={handleToggle}
-              disabled={toggling === item.id}
-            />
-          ))
+          <>
+            {sortedItems.map((item) => (
+              <RoutineItemRow
+                key={item.id}
+                item={item}
+                isCompleted={completedItems.has(item.id)}
+                onToggle={handleToggle}
+                disabled={toggling === item.id}
+              />
+            ))}
+            {canAddItems && (
+              <AddRoutineItemInline
+                routineId={localRoutine.id}
+                currentItems={items}
+                onItemAdded={refetchRoutine}
+              />
+            )}
+          </>
         )}
       </CardContent>
     </Card>
