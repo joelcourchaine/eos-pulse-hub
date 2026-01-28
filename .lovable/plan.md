@@ -1,71 +1,48 @@
 
 
-## Fix Routine Sidebar Vertical Positioning
+## Daily Outstanding Tasks - Red Circle Indicator
 
-The sidebar is currently positioned with `top: 4rem` (64px), but the dashboard header is taller than that - approximately 80-88px. This causes the first cadence icon to be hidden behind the header buttons.
+### Overview
+Change the "Daily" cadence to display a red circle with the count of outstanding (incomplete) tasks instead of the current "completed/total" badge format. Other cadences (weekly, monthly, quarterly, yearly) will keep the existing badge style.
 
----
+### Visual Change
+- **Before**: Daily shows "1/3" in a gray badge
+- **After**: Daily shows a red circle with "2" (the number of incomplete tasks)
+- When all daily tasks are complete (0 outstanding), show a green checkmark or no indicator
 
-### The Problem
+### Implementation Details
 
-```text
-Current:
-┌─────────────────────────────────────────────────┬──────┐
-│  Logo  │ Store Dropdown │  Admin │ User Icon    │ ■ ←── Hidden behind header!
-├─────────────────────────────────────────────────┼──────┤
-│                                                 │ Daily│
-│                                                 │ Week │
-```
+**File: `src/components/routines/RoutineSidebar.tsx`**
 
-The header has:
-- `py-4` = 16px top + 16px bottom padding
-- Logo height = 40px (`h-10`)
-- Total ≈ 72-80px+ (varies when buttons wrap)
+1. **Create a helper component for the red circle indicator**
+   - A small circular badge with red background and white text
+   - Only shows when there are outstanding tasks (greater than 0)
+   - When complete, shows a green checkmark badge instead
 
-Current sidebar: `top: 4rem` = 64px (too high)
+2. **Update the badge rendering logic (lines 339-346)**
+   - For "daily" cadence: render the red circle with outstanding count
+   - For other cadences: keep the existing completed/total badge format
 
----
-
-### The Fix
-
-Increase the sidebar's top offset from `4rem` (64px) to `5rem` (80px) to clear the header:
-
-**File:** `src/components/routines/RoutineSidebar.tsx`
-
-```tsx
-// Change from:
-className="border-l !top-16 !h-[calc(100svh-4rem)]"
-
-// Change to:
-className="border-l !top-20 !h-[calc(100svh-5rem)]"
-```
-
-| Property | Before | After |
-|----------|--------|-------|
-| `top` | `!top-16` (64px) | `!top-20` (80px) |
-| `height` | `100svh - 4rem` | `100svh - 5rem` |
-
-This pushes the sidebar down by an additional 16px, ensuring it starts cleanly below the header buttons and the first "Daily" icon is fully visible.
-
----
-
-### Visual Result
+### Technical Approach
 
 ```text
-After fix:
-┌─────────────────────────────────────────────────┐
-│  Logo  │ Store Dropdown │  Admin │ User Icon    │
-├─────────────────────────────────────────────────┼──────┐
-│                                                 │ Daily│ ← Now visible!
-│                                                 │ Week │
-│                                                 │ Month│
++--------------------------------------------------+
+|  Cadence Badge Logic                              |
++--------------------------------------------------+
+|                                                   |
+|  if (cadence === "daily")                        |
+|    └── if outstanding > 0                        |
+|          └── Red circle with outstanding count   |
+|    └── if outstanding === 0                      |
+|          └── Green checkmark badge               |
+|                                                   |
+|  else (weekly, monthly, quarterly, yearly)       |
+|    └── Current "X/Y" badge format                |
+|                                                   |
++--------------------------------------------------+
 ```
 
----
-
-### Files Changed
-
-| File | Change |
-|------|--------|
-| `src/components/routines/RoutineSidebar.tsx` | Update `top-16` → `top-20` and height calc from `4rem` → `5rem` |
+### Styling
+- Red circle: `bg-destructive text-destructive-foreground rounded-full min-w-5 h-5 flex items-center justify-center text-xs font-medium`
+- Ensures the circle remains properly sized for single and double-digit numbers
 
