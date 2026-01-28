@@ -42,12 +42,14 @@ interface RoutineChecklistProps {
   routine: Routine;
   periodStart: string;
   userId: string;
+  onCountsChange?: (routineId: string, completed: number, total: number) => void;
 }
 
 export const RoutineChecklist = ({
   routine,
   periodStart,
   userId,
+  onCountsChange,
 }: RoutineChecklistProps) => {
   const { toast } = useToast();
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
@@ -117,7 +119,9 @@ export const RoutineChecklist = ({
 
       if (error) throw error;
 
-      setCompletedItems(new Set(data?.map((c) => c.item_id) || []));
+      const next = new Set(data?.map((c) => c.item_id) || []);
+      setCompletedItems(next);
+      onCountsChange?.(routine.id, next.size, items.length);
     } catch (error: any) {
       console.error("Error fetching completions:", error);
     } finally {
@@ -144,6 +148,7 @@ export const RoutineChecklist = ({
         setCompletedItems((prev) => {
           const next = new Set(prev);
           next.delete(itemId);
+          onCountsChange?.(routine.id, next.size, items.length);
           return next;
         });
       } else {
@@ -157,7 +162,12 @@ export const RoutineChecklist = ({
 
         if (error) throw error;
 
-        setCompletedItems((prev) => new Set(prev).add(itemId));
+        setCompletedItems((prev) => {
+          const next = new Set(prev);
+          next.add(itemId);
+          onCountsChange?.(routine.id, next.size, items.length);
+          return next;
+        });
       }
     } catch (error: any) {
       console.error("Error toggling completion:", error);
