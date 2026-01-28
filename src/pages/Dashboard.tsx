@@ -30,6 +30,7 @@ import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
 import { Top10ListsPanel } from "@/components/top-10/Top10ListsPanel";
+import { RoutineDrawer } from "@/components/routines";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -84,6 +85,7 @@ const Dashboard = () => {
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
+  const [routineDrawerOpen, setRoutineDrawerOpen] = useState(false);
   
   // Handler to toggle mobile tasks view
   const handleViewFullDashboard = () => {
@@ -1144,6 +1146,17 @@ const Dashboard = () => {
                   Department Info
                 </Button>
               )}
+              {selectedDepartment && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setRoutineDrawerOpen(true)}
+                  className="w-full md:w-auto"
+                >
+                  <CheckSquare className="mr-2 h-4 w-4" />
+                  Routines
+                </Button>
+              )}
               <Dialog open={printDialogOpen} onOpenChange={(open) => {
                 setPrintDialogOpen(open);
                 if (open) {
@@ -1523,6 +1536,14 @@ const Dashboard = () => {
         departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
         managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
         isSuperAdmin={isSuperAdmin}
+      />
+    )}
+    {selectedDepartment && user && (
+      <RoutineDrawer
+        open={routineDrawerOpen}
+        onOpenChange={setRoutineDrawerOpen}
+        departmentId={selectedDepartment}
+        userId={user.id}
       />
     )}
     </>
