@@ -1,310 +1,239 @@
 
 
-## Routine Cadence System - Enhanced Implementation Plan
+## Due Date Configuration for Routines - Implementation Plan
 
-A comprehensive system for admins to create routine checklists (daily/weekly/monthly/quarterly/yearly) with rich descriptions, report navigation hints, and deployment capabilities. Department managers can check off items and customize routines to fit their rhythm.
+Add the ability to configure specific due dates for non-daily routines (weekly, monthly, quarterly, yearly) so managers know exactly when each routine needs to be completed.
 
 ---
 
 ### Overview
 
-This feature adds:
-1. **Admin Routines Tab** in SuperAdminDashboard for template management
-2. **Rich Item Metadata** with "why we do it" descriptions and optional report navigation
-3. **Routine Drawer** for managers to check off tasks organized by cadence
-4. **Deploy Functionality** similar to existing Top 10 template deployment
+Currently, routines simply track whether items are completed within a period (this week, this month, etc.) but don't specify a due date. This enhancement adds:
+- **Due day configuration** in admin templates
+- **Visual due date display** in the sidebar
+- **Overdue indicators** when past due
 
 ---
 
-### Database Schema
+### Due Date Options by Cadence
 
-**1. routine_templates** - Admin-managed master templates
+| Cadence | Due Day Options |
+|---------|-----------------|
+| Daily | N/A (always today) |
+| Weekly | Day of week: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday |
+| Monthly | Day of month: 1st, 2nd, ... 28th, Last Day, or "Last [weekday]" |
+| Quarterly | Day of quarter: 1st of quarter, 15th of last month, Last Day of Quarter |
+| Yearly | Specific date: Month + Day picker (e.g., December 31st) |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| title | text | Template name (e.g., "Service Manager Daily") |
-| description | text | Optional template description |
-| cadence | text | daily, weekly, monthly, quarterly, yearly |
-| items | jsonb | Array of items (see structure below) |
-| department_type_id | uuid | Target department type (nullable = all) |
-| created_by | uuid | Admin who created it |
-| created_at | timestamp | Creation time |
-| updated_at | timestamp | Last update |
+---
 
-**Item Structure in JSONB:**
+### Database Changes
+
+**Add columns to routine_templates:**
+
+```sql
+ALTER TABLE routine_templates ADD COLUMN due_day_config jsonb DEFAULT NULL;
+```
+
+**Add columns to department_routines:**
+
+```sql
+ALTER TABLE department_routines ADD COLUMN due_day_config jsonb DEFAULT NULL;
+```
+
+**due_day_config JSONB structure:**
+
 ```json
-{
-  "id": "item_123",
-  "title": "Check technician punch times",
-  "description": "Ensures all techs are clocking in on time and identifies attendance patterns",
-  "order": 1,
-  "report_info": {
-    "type": "internal",
-    "path": "/dashboard",
-    "instructions": "Navigate to Dashboard > Scorecard > View Technician Metrics"
-  }
-}
+// Weekly - day of week (1-7, Monday=1)
+{ "type": "day_of_week", "day": 5 }  // Friday
+
+// Monthly - day of month (1-31 or "last")
+{ "type": "day_of_month", "day": 15 }
+{ "type": "day_of_month", "day": "last" }
+{ "type": "last_weekday", "weekday": 5 }  // Last Friday of month
+
+// Quarterly - relative to quarter
+{ "type": "day_of_quarter", "day": "last" }  // Last day
+{ "type": "day_of_quarter", "month": 3, "day": 15 }  // 15th of last month
+
+// Yearly - specific month and day
+{ "type": "specific_date", "month": 12, "day": 31 }  // Dec 31
 ```
 
-**report_info options:**
-- `type: "internal"` - Links to an app route with path and instructions
-- `type: "external"` - Links to external system (e.g., DMS) with URL and instructions
-- `type: "manual"` - Just instructions text, no link
-
-**2. department_routines** - Department-specific instances
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| department_id | uuid | FK to departments |
-| template_id | uuid | FK to routine_templates (nullable if custom) |
-| title | text | Routine name |
-| cadence | text | daily, weekly, monthly, quarterly, yearly |
-| items | jsonb | Array of items (same structure as templates) |
-| is_active | boolean | Whether routine is active |
-| created_at | timestamp | Creation time |
-| updated_at | timestamp | Last update |
-
-**3. routine_completions** - Tracks check-offs per period
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| routine_id | uuid | FK to department_routines |
-| item_id | text | The item ID within the routine |
-| period_start | date | Start of the period (calculated based on cadence) |
-| completed_by | uuid | User who checked it |
-| completed_at | timestamp | When it was checked |
-
 ---
 
-### RLS Policies
+### Admin UI Changes
 
-**routine_templates:**
-- SELECT: All authenticated users
-- INSERT/UPDATE/DELETE: Super admins only
+**RoutineTemplateDialog.tsx - Add Due Date Section:**
 
-**department_routines:**
-- SELECT: Users in same store group + super admins
-- ALL: Super admins, store GMs, department managers with access
-
-**routine_completions:**
-- SELECT: Users in same store group + super admins
-- INSERT/DELETE: Users with department access
-
----
-
-### File Structure
+When cadence is selected (and not "daily"), show a due date configuration section:
 
 ```text
-src/components/routines/
-├── RoutineDrawer.tsx           # Main drawer with cadence tabs
-├── RoutineChecklist.tsx        # Checklist with progress ring
-├── RoutineItemRow.tsx          # Checkable item with hover tooltip
-├── RoutineItemTooltip.tsx      # Rich hover with why + report nav
-├── RoutineManagementDialog.tsx # Manager add/edit custom items
-└── index.ts
-
-src/components/admin/
-├── AdminRoutinesTab.tsx        # New tab in admin dashboard
-├── RoutineTemplateDialog.tsx   # Create/edit templates with items
-├── RoutineItemEditor.tsx       # Inline item editor with rich fields
-└── DeployRoutineDialog.tsx     # Deploy to store groups
+┌─────────────────────────────────────────────────────────┐
+│ Cadence *                      │ Department Type        │
+│ [Weekly ▼]                     │ [All Departments ▼]    │
+├─────────────────────────────────────────────────────────┤
+│ Due Date (Optional)                                     │
+│ When should this routine be completed each week?        │
+│                                                         │
+│ [  ] No specific due date (anytime during the period)  │
+│ [●] Due every: [ Friday ▼ ]                            │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Cadence-specific due date pickers:**
+
+- **Weekly**: Simple dropdown of weekdays
+- **Monthly**: Dropdown with numbers 1-28 + "Last Day" + "Last [weekday]"
+- **Quarterly**: Dropdown with "Last day of quarter", "15th of last month", etc.
+- **Yearly**: Month + Day pickers
 
 ---
 
-### Component Details
+### Display Changes
 
-#### 1. AdminRoutinesTab.tsx (follows AdminTop10Tab pattern)
+**RoutineSidebar / RoutineDrawer - Period Label:**
 
-- Table listing all routine templates
-- Columns: Title, Cadence, Department Type, Items Count, Created
-- Actions dropdown: Edit, Deploy to Group, View Deployments, Delete
-- "Create Template" button
-- Filter by cadence type
-
-#### 2. RoutineTemplateDialog.tsx
-
-Form with:
-- **Title** - Template name
-- **Description** - Optional overview
-- **Cadence** - Dropdown: Daily, Weekly, Monthly, Quarterly, Yearly
-- **Department Type** - Dropdown (All or specific type)
-- **Items Section** - Drag-and-drop list with inline editing
-
-For each item:
-- **Title** (required) - What to do
-- **Description** (optional) - Why we do it
-- **Report Info** (optional) - Expandable section with:
-  - Type: Internal App Route / External System / Manual Instructions
-  - Path/URL (if applicable)
-  - Instructions text
-
-#### 3. RoutineItemTooltip.tsx (similar to SubMetricQuestionTooltip)
-
-Uses HoverCard to show on hover:
+Current:
 ```text
-┌─────────────────────────────────────┐
-│ ⓘ Check technician punch times      │
-├─────────────────────────────────────┤
-│ WHY WE DO THIS                      │
-│ Ensures all techs are clocking in   │
-│ on time and identifies attendance   │
-│ patterns that need addressing.      │
-├─────────────────────────────────────┤
-│ 📍 HOW TO ACCESS                    │
-│ Navigate to Dashboard > Scorecard   │
-│ > View Technician Metrics           │
-│                                     │
-│ [Go to Report →]                    │
-└─────────────────────────────────────┘
+Week of Jan 27
 ```
 
-The "Go to Report" button uses `navigate()` for internal routes or opens new tab for external URLs.
-
-#### 4. RoutineDrawer.tsx
-
-- Triggered by "My Routines" button in dashboard header
-- Cadence tabs: Daily | Weekly | Monthly | Quarterly | Yearly
-- Each tab shows:
-  - Progress ring (X of Y complete)
-  - Period label (e.g., "Monday, Jan 27" for daily)
-  - List of routine checklists
-
-#### 5. RoutineChecklist.tsx
-
-- Card for each department_routine
-- Progress bar at top
-- List of RoutineItemRow components
-- "Add Item" button for managers (adds custom item)
-- Real-time updates via Supabase subscription
-
-#### 6. RoutineItemRow.tsx
-
-- Checkbox + Title
-- Info icon that triggers RoutineItemTooltip
-- Strikethrough animation on complete
-- Edit/Delete buttons on hover (for custom items only)
-
----
-
-### DeployRoutineDialog.tsx (follows DeployTop10Dialog pattern)
-
-1. Select store group
-2. Shows preview of target departments
-3. Options:
-   - Replace existing routines (same title)
-   - Skip existing (only create new)
-4. Deploy button
-
----
-
-### Dashboard Integration
-
-Add button to Dashboard header (next to existing controls):
-
-```tsx
-<Button variant="outline" onClick={() => setRoutineDrawerOpen(true)}>
-  <CheckSquare className="h-4 w-4 mr-2" />
-  My Routines
-  <Badge variant="secondary" className="ml-2">3/8</Badge>
-</Button>
+With due date:
+```text
+Week of Jan 27 • Due Friday
 ```
 
-Badge shows current cadence completion (e.g., 3 of 8 daily items done).
+Or if overdue:
+```text
+Week of Jan 27 • ⚠️ Due Friday (Overdue)
+```
 
----
+**RoutineChecklist - Due indicator:**
 
-### SuperAdminDashboard Update
-
-Add new tab to the TabsList:
-
-```tsx
-<TabsTrigger value="routines" className="flex items-center gap-1.5">
-  <CheckSquare className="h-4 w-4" />
-  Routines
-</TabsTrigger>
-
-<TabsContent value="routines">
-  <AdminRoutinesTab />
-</TabsContent>
+Add a small due date indicator at the top of each checklist card:
+```text
+┌────────────────────────────────┐
+│ Service Manager Daily   3 / 8 │
+│ Due: Friday, Jan 31           │
+│ ▓▓▓▓▓▓░░░░░░░░░░░░░░░░        │
+├────────────────────────────────┤
+│ [ ] Check technician times    │
+│ [x] Review RO aging           │
+│ ...                           │
+└────────────────────────────────┘
 ```
 
 ---
 
-### Technical Notes
+### Due Date Calculation Logic
 
-**Period Calculation:**
+**New utility function:**
+
 ```typescript
-import { startOfDay, startOfWeek, startOfMonth, startOfQuarter, startOfYear } from "date-fns";
-
-function getCurrentPeriodStart(cadence: string): Date {
-  const now = new Date();
+function getDueDate(
+  cadence: Cadence, 
+  periodStart: Date, 
+  dueConfig: DueDayConfig | null
+): Date | null {
+  if (!dueConfig) return null;
+  
   switch (cadence) {
-    case 'daily': return startOfDay(now);
-    case 'weekly': return startOfWeek(now, { weekStartsOn: 1 });
-    case 'monthly': return startOfMonth(now);
-    case 'quarterly': return startOfQuarter(now);
-    case 'yearly': return startOfYear(now);
+    case "weekly":
+      // Add days from Monday to the due day
+      return addDays(periodStart, dueConfig.day - 1);
+      
+    case "monthly":
+      if (dueConfig.day === "last") {
+        return endOfMonth(periodStart);
+      }
+      return setDate(periodStart, dueConfig.day);
+      
+    case "quarterly":
+      if (dueConfig.day === "last") {
+        return endOfQuarter(periodStart);
+      }
+      // Handle other quarterly configs...
+      
+    case "yearly":
+      return new Date(
+        periodStart.getFullYear(),
+        dueConfig.month - 1,
+        dueConfig.day
+      );
   }
+}
+
+function isOverdue(dueDate: Date): boolean {
+  return new Date() > dueDate;
 }
 ```
 
-**Realtime Updates:**
-```typescript
-// Subscribe to completions for live checkbox sync
-const channel = supabase
-  .channel('routine-completions')
-  .on('postgres_changes', {
-    event: '*',
-    schema: 'public',
-    table: 'routine_completions',
-    filter: `routine_id=eq.${routineId}`
-  }, handleCompletionChange)
-  .subscribe();
-```
+---
+
+### File Changes Summary
+
+| File | Change |
+|------|--------|
+| `supabase/migrations/xxx_add_routine_due_dates.sql` | Add `due_day_config` column to both tables |
+| `src/components/admin/RoutineTemplateDialog.tsx` | Add due date configuration UI |
+| `src/components/admin/DueDatePicker.tsx` | **New** - Reusable due date picker component |
+| `src/components/routines/RoutineSidebar.tsx` | Display due date in period label |
+| `src/components/routines/RoutineChecklist.tsx` | Show due date on card, overdue styling |
+| `src/components/routines/RoutineDrawer.tsx` | Display due date in period label |
+| `src/utils/routineDueDate.ts` | **New** - Due date calculation utilities |
 
 ---
 
 ### Implementation Phases
 
-**Phase 1: Database & Admin Tab**
-1. Create database tables with migration
-2. Set up RLS policies
-3. Build AdminRoutinesTab component
-4. Build RoutineTemplateDialog with item editor
+**Phase 1: Database & Admin Config**
+1. Add `due_day_config` column to both tables via migration
+2. Create `DueDatePicker.tsx` component for admin
+3. Integrate due date picker into `RoutineTemplateDialog.tsx`
+4. Deploy templates inherit due date config to department routines
 
-**Phase 2: Template Rich Features**
-1. Add RoutineItemEditor with description and report info fields
-2. Build RoutineItemTooltip component
-3. Implement DeployRoutineDialog
+**Phase 2: Display & Indicators**
+1. Create due date calculation utilities
+2. Update `RoutineSidebar.tsx` to show due dates
+3. Update `RoutineChecklist.tsx` with due badge
+4. Add overdue styling (amber/red indicators)
 
-**Phase 3: Manager Drawer Experience**
-1. Build RoutineDrawer component
-2. Implement RoutineChecklist with real-time sync
-3. Add RoutineItemRow with tooltips
-4. Integrate into Dashboard header
-
-**Phase 4: Customization**
-1. RoutineManagementDialog for adding custom items
-2. Edit/delete custom items
-3. Optional: Progress history view
+**Phase 3: Polish**
+1. Add due date to export/reports if needed
+2. Consider notifications for upcoming due dates (future)
 
 ---
 
-### Example Admin Template
+### Optional Enhancement: Due Time
 
-**Service Manager Daily Routine:**
+If needed, we could also add a time component:
+- "Due Friday by 5:00 PM"
 
-| Title | Why | Report Access |
-|-------|-----|---------------|
-| Check technician punch times | Ensures all techs are clocking in on time | Dashboard > Scorecard > Tech Metrics |
-| Review RO aging report (>3 days) | Prevents work from stalling and customer complaints | DMS > Service Reports > RO Aging |
-| 10-minute lot walk | Catch issues before customers complain, verify completed work | Manual - Walk the service drive |
-| Check parts special orders status | Prevent delays and keep customers informed | DMS > Parts > Special Orders |
-| Review CSI callbacks scheduled | Proactive service recovery opportunity | Dashboard > Issues Panel |
-| Check appointment board for tomorrow | Prepare capacity and identify potential conflicts | DMS > Service Schedule |
-| Daily huddle with advisors | Alignment, roadblocks, and wins | Manual - 8:00 AM standup |
+This would require adding a `due_time` field and more complex logic, but could be added later.
+
+---
+
+### Visual Examples
+
+**Weekly - Due Friday:**
+```text
+Period: Week of Jan 27
+Due: Friday, Jan 31
+Status: 2 days remaining
+```
+
+**Monthly - Due 15th:**
+```text
+Period: February 2026
+Due: Saturday, Feb 15
+Status: Overdue by 3 days (if past due)
+```
+
+**Quarterly - Due Last Day:**
+```text
+Period: Q1 2026
+Due: Tuesday, Mar 31
+Status: 45 days remaining
+```
 
