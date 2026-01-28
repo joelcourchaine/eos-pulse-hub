@@ -171,6 +171,19 @@ const SetPassword = () => {
 
       if (error) throw error;
 
+      // Record that password was successfully set (used for invite vs reset flow detection)
+      if (user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ password_set_at: new Date().toISOString() })
+          .eq('id', user.id);
+
+        if (profileError) {
+          console.error('Failed to update password_set_at:', profileError);
+          // Non-blocking - password was still set successfully
+        }
+      }
+
       setFlowState('success');
       toast.success("Password created successfully!");
       

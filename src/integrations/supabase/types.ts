@@ -1705,6 +1705,7 @@ export type Database = {
           invited_at: string | null
           is_system_user: boolean
           last_sign_in_at: string | null
+          password_set_at: string | null
           reports_to: string | null
           role: Database["public"]["Enums"]["app_role"]
           start_month: number | null
@@ -1723,6 +1724,7 @@ export type Database = {
           invited_at?: string | null
           is_system_user?: boolean
           last_sign_in_at?: string | null
+          password_set_at?: string | null
           reports_to?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null
@@ -1741,6 +1743,7 @@ export type Database = {
           invited_at?: string | null
           is_system_user?: boolean
           last_sign_in_at?: string | null
+          password_set_at?: string | null
           reports_to?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           start_month?: number | null

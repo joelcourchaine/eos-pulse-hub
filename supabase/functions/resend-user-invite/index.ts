@@ -242,10 +242,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get real email from profiles table (auth email may be masked in sandbox)
+    // Get real email and password_set_at from profiles table (auth email may be masked in sandbox)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('email')
+      .select('email, password_set_at')
       .eq('id', user_id)
       .single();
 
@@ -278,15 +278,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Check if user has confirmed their email
-    const isConfirmed = authUser.user.email_confirmed_at != null;
+    // Check if user has actually set their password (not just confirmed email)
+    // email_confirmed_at gets set when clicking the invite link, but password_set_at
+    // only gets set when the user actually completes password setup
+    const hasSetPassword = profile.password_set_at != null;
     
     // Determine redirect URL for the app
     const appUrl = 'https://dealergrowth.solutions';
 
-    if (isConfirmed) {
-      // User is already active, generate password reset link
-      console.log('User is already active, generating password reset link for:', realEmail);
+    if (hasSetPassword) {
+      // User has completed password setup before, generate password reset link
+      console.log('User has set password before, generating password reset link for:', realEmail);
       
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
@@ -392,7 +394,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: isConfirmed ? 'Password reset email sent successfully' : 'Invitation email sent successfully',
+        message: hasSetPassword ? 'Password reset email sent successfully' : 'Invitation email sent successfully',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
