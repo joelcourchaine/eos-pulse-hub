@@ -276,15 +276,29 @@ export const RoutineSidebar = ({
     return null;
   })();
 
+  // Calculate outstanding (incomplete) tasks per cadence
+  const getOutstanding = (cadence: Cadence) => {
+    const t = cadenceTotals[cadence];
+    return t.total - t.completed;
+  };
+
   return (
-    <Sidebar side="right" collapsible="icon" className="border-l !top-16 !h-[calc(100svh-4rem)]">
+    <Sidebar 
+      side="right" 
+      collapsible="icon" 
+      className="border-l !top-16 !h-[calc(100svh-4rem)]"
+      style={{ "--sidebar-width-icon": "5rem" } as React.CSSProperties}
+    >
       <SidebarHeader className="border-b">
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
             <CheckSquare className="h-5 w-5 text-primary" />
             <span className="font-semibold text-sm">My Routines</span>
           </div>
-          <SidebarTrigger className="h-7 w-7" />
+          <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:justify-center hidden">
+            <CheckSquare className="h-5 w-5 text-primary" />
+          </div>
+          <SidebarTrigger className="h-7 w-7 group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
 
@@ -294,6 +308,7 @@ export const RoutineSidebar = ({
           {CADENCE_ORDER.map((cadence) => {
             const Icon = CADENCE_ICONS[cadence];
             const totals = cadenceTotals[cadence];
+            const outstanding = getOutstanding(cadence);
             const isComplete = totals.total > 0 && totals.completed === totals.total;
             const isActive = activeCadence === cadence;
 
@@ -305,11 +320,10 @@ export const RoutineSidebar = ({
                   tooltip={`${CADENCE_LABELS[cadence]}: ${totals.completed}/${totals.total}`}
                   className="justify-between"
                 >
-                  <div className="flex items-center gap-2">
+                  {/* Expanded view */}
+                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
                     <Icon className="h-4 w-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      {CADENCE_LABELS[cadence]}
-                    </span>
+                    <span>{CADENCE_LABELS[cadence]}</span>
                   </div>
                   {totals.total > 0 && (
                     <Badge
@@ -319,6 +333,26 @@ export const RoutineSidebar = ({
                       {totals.completed}/{totals.total}
                     </Badge>
                   )}
+                  
+                  {/* Collapsed view - show icon + outstanding count */}
+                  <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center gap-1.5 w-full">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {outstanding > 0 ? (
+                      <Badge 
+                        variant="destructive" 
+                        className="h-5 min-w-5 px-1 text-[10px] font-semibold"
+                      >
+                        {outstanding}
+                      </Badge>
+                    ) : totals.total > 0 ? (
+                      <Badge 
+                        variant="default" 
+                        className="h-5 min-w-5 px-1 text-[10px]"
+                      >
+                        ✓
+                      </Badge>
+                    ) : null}
+                  </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
