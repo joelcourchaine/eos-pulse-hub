@@ -58,6 +58,7 @@ interface DepartmentRoutine {
 interface RoutineSidebarProps {
   departmentId: string;
   userId: string;
+  canAddItems?: boolean;
 }
 
 const CADENCE_ORDER: Cadence[] = ["daily", "weekly", "monthly", "quarterly", "yearly"];
@@ -126,6 +127,7 @@ function getPeriodLabel(cadence: Cadence): string {
 export const RoutineSidebar = ({
   departmentId,
   userId,
+  canAddItems = false,
 }: RoutineSidebarProps) => {
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -427,6 +429,7 @@ export const RoutineSidebar = ({
                     periodStart={format(getPeriodStart(activeCadence), "yyyy-MM-dd")}
                     userId={userId}
                     onCountsChange={handleCountsChange}
+                    canAddItems={canAddItems}
                   />
                 ))
               ) : (
