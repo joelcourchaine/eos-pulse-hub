@@ -336,7 +336,7 @@ export const RoutineTemplateDialog = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>Routine Items</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                  <Button type="button" variant="default" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); addItem(); }}>
                     <Plus className="h-4 w-4 mr-1" />
                     Add Item
                   </Button>
