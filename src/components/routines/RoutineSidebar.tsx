@@ -282,11 +282,16 @@ export const RoutineSidebar = ({
     return t.total - t.completed;
   };
 
-  // Handle cadence click - select and expand
+  // Handle cadence click - toggle if same, otherwise select and expand
   const handleCadenceClick = (cadence: Cadence) => {
-    setActiveCadence(cadence);
-    if (isCollapsed) {
-      setOpen(true);
+    if (activeCadence === cadence && !isCollapsed) {
+      // Clicking same cadence while expanded - collapse
+      setOpen(false);
+    } else {
+      setActiveCadence(cadence);
+      if (isCollapsed) {
+        setOpen(true);
+      }
     }
   };
 
@@ -295,7 +300,7 @@ export const RoutineSidebar = ({
       side="right" 
       collapsible="icon" 
       className="border-l !top-24 !h-[calc(100svh-6rem)]"
-      style={{ "--sidebar-width": "22rem", "--sidebar-width-icon": "10rem" } as React.CSSProperties}
+      style={{ "--sidebar-width": "28rem", "--sidebar-width-icon": "10rem" } as React.CSSProperties}
     >
       <SidebarHeader className="border-b">
         <div className="flex items-center justify-between px-2 py-1">
