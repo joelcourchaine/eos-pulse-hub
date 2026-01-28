@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
-import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck } from "lucide-react";
+import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -337,12 +337,24 @@ export const RoutineSidebar = ({
                     <span>{CADENCE_LABELS[cadence]}</span>
                   </div>
                   {totals.total > 0 && (
-                    <Badge
-                      variant={isComplete ? "default" : "secondary"}
-                      className="h-5 px-1.5 text-[10px]"
-                    >
-                      {totals.completed}/{totals.total}
-                    </Badge>
+                    cadence === "daily" ? (
+                      totals.total - totals.completed > 0 ? (
+                        <div className="bg-destructive text-destructive-foreground rounded-full min-w-5 h-5 flex items-center justify-center text-xs font-medium px-1.5">
+                          {totals.total - totals.completed}
+                        </div>
+                      ) : (
+                        <div className="bg-success text-success-foreground rounded-full min-w-5 h-5 flex items-center justify-center">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      )
+                    ) : (
+                      <Badge
+                        variant={isComplete ? "default" : "secondary"}
+                        className="h-5 px-1.5 text-[10px]"
+                      >
+                        {totals.completed}/{totals.total}
+                      </Badge>
+                    )
                   )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
