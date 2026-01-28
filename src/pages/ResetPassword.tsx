@@ -167,6 +167,17 @@ const ResetPassword = () => {
         throw new Error("Password update could not be verified. Please try again.");
       }
       
+      // Record that password was successfully set (used for invite vs reset flow detection)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ password_set_at: new Date().toISOString() })
+        .eq('id', user.id);
+
+      if (profileError) {
+        console.error('Failed to update password_set_at:', profileError);
+        // Non-blocking - password was still set successfully
+      }
+      
       console.log("Password successfully updated for user:", user.email);
       setFlowState('success');
 
