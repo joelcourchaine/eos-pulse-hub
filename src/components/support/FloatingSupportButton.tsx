@@ -38,11 +38,15 @@ export const FloatingSupportButton = () => {
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      {/*
+        Important: keep this widget from blocking clicks on underlying UI.
+        The wrapper is click-through; only the actual buttons receive pointer events.
+      */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 pointer-events-none">
         {/* Expanded menu */}
         <div
           className={cn(
-            "flex flex-col gap-2 transition-all duration-200 ease-out",
+            "flex flex-col gap-2 transition-all duration-200 ease-out pointer-events-auto",
             isExpanded
               ? "opacity-100 translate-y-0 pointer-events-auto"
               : "opacity-0 translate-y-2 pointer-events-none"
@@ -73,7 +77,7 @@ export const FloatingSupportButton = () => {
           onClick={() => setIsExpanded(!isExpanded)}
           size="icon"
           className={cn(
-            "h-14 w-14 rounded-full shadow-xl transition-all duration-200",
+            "h-14 w-14 rounded-full shadow-xl transition-all duration-200 pointer-events-auto",
             isExpanded && "bg-muted text-muted-foreground hover:bg-muted/80"
           )}
         >
