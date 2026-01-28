@@ -518,6 +518,7 @@ export type Database = {
           cadence: string
           created_at: string
           department_id: string
+          due_day_config: Json | null
           id: string
           is_active: boolean
           items: Json
@@ -529,6 +530,7 @@ export type Database = {
           cadence: string
           created_at?: string
           department_id: string
+          due_day_config?: Json | null
           id?: string
           is_active?: boolean
           items?: Json
@@ -540,6 +542,7 @@ export type Database = {
           cadence?: string
           created_at?: string
           department_id?: string
+          due_day_config?: Json | null
           id?: string
           is_active?: boolean
           items?: Json
@@ -2065,6 +2068,7 @@ export type Database = {
           created_by: string | null
           department_type_id: string | null
           description: string | null
+          due_day_config: Json | null
           id: string
           items: Json
           title: string
@@ -2076,6 +2080,7 @@ export type Database = {
           created_by?: string | null
           department_type_id?: string | null
           description?: string | null
+          due_day_config?: Json | null
           id?: string
           items?: Json
           title: string
@@ -2087,6 +2092,7 @@ export type Database = {
           created_by?: string | null
           department_type_id?: string | null
           description?: string | null
+          due_day_config?: Json | null
           id?: string
           items?: Json
           title?: string

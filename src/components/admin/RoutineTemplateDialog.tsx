@@ -29,6 +29,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, GripVertical, ChevronDown, ChevronRight, MapPin, ExternalLink, FileText } from "lucide-react";
 import type { RoutineItem, RoutineTemplate } from "./AdminRoutinesTab";
+import { DueDatePicker } from "./DueDatePicker";
+import type { DueDayConfig, Cadence } from "@/utils/routineDueDate";
 
 interface DepartmentType {
   id: string;
@@ -67,8 +69,9 @@ export const RoutineTemplateDialog = ({
 }: RoutineTemplateDialogProps) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [cadence, setCadence] = useState<string>("daily");
+  const [cadence, setCadence] = useState<Cadence>("daily");
   const [departmentTypeId, setDepartmentTypeId] = useState<string>("all");
+  const [dueDayConfig, setDueDayConfig] = useState<DueDayConfig | null>(null);
   const [items, setItems] = useState<RoutineItem[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
@@ -90,18 +93,27 @@ export const RoutineTemplateDialog = ({
     if (template) {
       setTitle(template.title);
       setDescription(template.description || "");
-      setCadence(template.cadence);
+      setCadence(template.cadence as Cadence);
       setDepartmentTypeId(template.department_type_id || "all");
+      setDueDayConfig((template as any).due_day_config || null);
       setItems(template.items?.length > 0 ? template.items : []);
     } else {
       setTitle("");
       setDescription("");
       setCadence("daily");
       setDepartmentTypeId("all");
+      setDueDayConfig(null);
       setItems([]);
     }
     setExpandedItems(new Set());
   }, [template, open]);
+
+  // Reset due day config when cadence changes to daily
+  useEffect(() => {
+    if (cadence === "daily") {
+      setDueDayConfig(null);
+    }
+  }, [cadence]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -118,6 +130,7 @@ export const RoutineTemplateDialog = ({
         description: description.trim() || null,
         cadence,
         department_type_id: departmentTypeId === "all" ? null : departmentTypeId,
+        due_day_config: dueDayConfig as unknown as Json,
         items: orderedItems as unknown as Json,
         ...(isEditMode ? {} : { created_by: user?.id }),
       };
@@ -279,7 +292,7 @@ export const RoutineTemplateDialog = ({
 
                 <div>
                   <Label htmlFor="cadence">Cadence *</Label>
-                  <Select value={cadence} onValueChange={setCadence}>
+                  <Select value={cadence} onValueChange={(v) => setCadence(v as Cadence)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select cadence" />
                     </SelectTrigger>
@@ -310,6 +323,15 @@ export const RoutineTemplateDialog = ({
                   </Select>
                 </div>
               </div>
+
+              {/* Due Date Configuration - only for non-daily cadences */}
+              {cadence !== "daily" && (
+                <DueDatePicker
+                  cadence={cadence}
+                  value={dueDayConfig}
+                  onChange={setDueDayConfig}
+                />
+              )}
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

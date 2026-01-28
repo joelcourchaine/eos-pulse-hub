@@ -1,10 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RoutineItemRow } from "./RoutineItemRow";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle, Clock } from "lucide-react";
+import { 
+  getDueDate, 
+  formatDueDate, 
+  getDueStatus,
+  type DueDayConfig, 
+  type Cadence 
+} from "@/utils/routineDueDate";
+import { startOfDay, startOfWeek, startOfMonth, startOfQuarter, startOfYear } from "date-fns";
 
 interface ReportInfo {
   type: "internal" | "external" | "manual";
@@ -26,6 +35,7 @@ interface Routine {
   cadence: string;
   items: RoutineItem[];
   is_active: boolean;
+  due_day_config?: DueDayConfig | null;
 }
 
 interface RoutineChecklistProps {
@@ -53,6 +63,24 @@ export const RoutineChecklist = ({
   const completedCount = completedItems.size;
   const totalCount = items.length;
   const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  const isComplete = completedCount === totalCount && totalCount > 0;
+
+  // Calculate due date
+  const dueInfo = useMemo(() => {
+    if (!routine.due_day_config) return null;
+    
+    const cadence = routine.cadence as Cadence;
+    // Parse periodStart string to get the Date
+    const periodDate = new Date(periodStart);
+    
+    const dueDate = getDueDate(cadence, periodDate, routine.due_day_config);
+    if (!dueDate) return null;
+    
+    const status = getDueStatus(dueDate);
+    const formattedDate = formatDueDate(dueDate);
+    
+    return { dueDate, status, formattedDate };
+  }, [routine.cadence, routine.due_day_config, periodStart]);
 
   useEffect(() => {
     fetchCompletions();
@@ -157,7 +185,7 @@ export const RoutineChecklist = ({
   }
 
   return (
-    <Card>
+    <Card className={dueInfo?.status.variant === "destructive" && !isComplete ? "border-destructive/50" : ""}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{routine.title}</CardTitle>
@@ -165,6 +193,38 @@ export const RoutineChecklist = ({
             {completedCount} / {totalCount}
           </span>
         </div>
+        
+        {/* Due date indicator */}
+        {dueInfo && !isComplete && (
+          <div className="flex items-center gap-2 mt-1">
+            {dueInfo.status.variant === "destructive" ? (
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+            ) : dueInfo.status.variant === "warning" ? (
+              <Clock className="h-3.5 w-3.5 text-amber-500" />
+            ) : (
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            <span className={`text-xs ${
+              dueInfo.status.variant === "destructive" 
+                ? "text-destructive font-medium" 
+                : dueInfo.status.variant === "warning"
+                ? "text-amber-600 dark:text-amber-500"
+                : "text-muted-foreground"
+            }`}>
+              Due: {dueInfo.formattedDate}
+              {dueInfo.status.variant === "destructive" && " (Overdue)"}
+            </span>
+          </div>
+        )}
+        
+        {isComplete && dueInfo && (
+          <div className="flex items-center gap-2 mt-1">
+            <Badge variant="default" className="text-[10px] py-0">
+              ✓ Complete
+            </Badge>
+          </div>
+        )}
+        
         <Progress value={progressPercent} className="h-2" />
       </CardHeader>
       <CardContent className="space-y-2">
