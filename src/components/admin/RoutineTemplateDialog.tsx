@@ -173,19 +173,30 @@ export const RoutineTemplateDialog = ({
       description: "",
       order: items.length + 1,
     };
-    setItems([...items, newItem]);
-    setExpandedItems(new Set([...expandedItems, newItem.id]));
+
+    // Use functional updates to avoid stale closures (e.g. when clicking while an input is focused)
+    setItems((prev) => {
+      const next = [...prev, { ...newItem, order: prev.length + 1 }];
+      return next;
+    });
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      next.add(newItem.id);
+      return next;
+    });
   };
 
   const removeItem = (id: string) => {
-    setItems(items.filter((item) => item.id !== id));
-    const newExpanded = new Set(expandedItems);
-    newExpanded.delete(id);
-    setExpandedItems(newExpanded);
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   };
 
   const updateItem = (id: string, updates: Partial<RoutineItem>) => {
-    setItems(items.map((item) => (item.id === id ? { ...item, ...updates } : item)));
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
   };
 
   const updateItemReportInfo = (
@@ -194,7 +205,7 @@ export const RoutineTemplateDialog = ({
     field: "path" | "url" | "instructions",
     value: string
   ) => {
-    setItems(items.map((item) => {
+    setItems((items) => items.map((item) => {
       if (item.id !== id) return item;
       
       if (reportType === "none") {
@@ -214,7 +225,7 @@ export const RoutineTemplateDialog = ({
   };
 
   const setReportType = (id: string, reportType: string) => {
-    setItems(items.map((item) => {
+    setItems((items) => items.map((item) => {
       if (item.id !== id) return item;
       
       if (reportType === "none") {
