@@ -96,7 +96,16 @@ export const RoutineTemplateDialog = ({
       setCadence(template.cadence as Cadence);
       setDepartmentTypeId(template.department_type_id || "all");
       setDueDayConfig((template as any).due_day_config || null);
-      setItems(template.items?.length > 0 ? template.items : []);
+      // Ensure items are properly sanitized - filter out any with missing/empty titles and ensure each has an id
+      const sanitizedItems = (template.items || [])
+        .filter((item): item is RoutineItem => item && typeof item === 'object')
+        .map((item, index) => ({
+          ...item,
+          id: item.id || generateItemId(),
+          title: item.title || "",
+          order: item.order || index + 1,
+        }));
+      setItems(sanitizedItems);
     } else {
       setTitle("");
       setDescription("");
@@ -245,7 +254,9 @@ export const RoutineTemplateDialog = ({
       toast.error("Add at least one item");
       return;
     }
-    if (items.some((item) => !item.title.trim())) {
+    const emptyItems = items.filter((item) => !item.title || !item.title.trim());
+    if (emptyItems.length > 0) {
+      console.log("Items with empty titles:", emptyItems);
       toast.error("All items must have a title");
       return;
     }
