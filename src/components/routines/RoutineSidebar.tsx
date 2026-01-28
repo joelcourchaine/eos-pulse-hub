@@ -286,16 +286,16 @@ export const RoutineSidebar = ({
     <Sidebar 
       side="right" 
       collapsible="icon" 
-        className="border-l !top-24 !h-[calc(100svh-6rem)]"
-      style={{ "--sidebar-width-icon": "6.5rem" } as React.CSSProperties}
+      className="border-l !top-24 !h-[calc(100svh-6rem)]"
+      style={{ "--sidebar-width-icon": "10rem" } as React.CSSProperties}
     >
       <SidebarHeader className="border-b">
         <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2">
             <CheckSquare className="h-5 w-5 text-primary" />
             <span className="font-semibold text-sm">My Routines</span>
           </div>
-          <SidebarTrigger className="h-7 w-7 shrink-0" />
+          <SidebarTrigger className="h-7 w-7 shrink-0 group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
 
@@ -315,10 +315,9 @@ export const RoutineSidebar = ({
                   isActive={isActive}
                   onClick={() => setActiveCadence(cadence)}
                   tooltip={`${CADENCE_LABELS[cadence]}: ${totals.completed}/${totals.total}`}
-                  className="justify-between group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!p-2"
+                  className="justify-between"
                 >
-                  {/* Expanded view */}
-                  <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+                  <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
                     <span>{CADENCE_LABELS[cadence]}</span>
                   </div>
@@ -330,26 +329,6 @@ export const RoutineSidebar = ({
                       {totals.completed}/{totals.total}
                     </Badge>
                   )}
-                  
-                  {/* Collapsed view - stack icon above badge */}
-                  <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center justify-center gap-0.5 w-full py-1">
-                    <Icon className="h-5 w-5 shrink-0" />
-                    {outstanding > 0 ? (
-                      <Badge 
-                        variant="destructive" 
-                        className="h-4 min-w-4 px-1 text-[9px] font-semibold"
-                      >
-                        {outstanding}
-                      </Badge>
-                    ) : totals.total > 0 ? (
-                      <Badge 
-                        variant="default" 
-                        className="h-4 min-w-4 px-1 text-[9px]"
-                      >
-                        ✓
-                      </Badge>
-                    ) : null}
-                  </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
