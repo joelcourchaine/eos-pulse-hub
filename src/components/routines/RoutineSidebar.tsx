@@ -308,14 +308,16 @@ export const RoutineSidebar = ({
       </SidebarHeader>
 
       <SidebarContent>
-        {/* Cadence Menu */}
+        {/* Cadence Menu - Show all when collapsed, only active when expanded */}
         <SidebarMenu className="p-2">
           {CADENCE_ORDER.map((cadence) => {
             const Icon = CADENCE_ICONS[cadence];
             const totals = cadenceTotals[cadence];
-            const outstanding = getOutstanding(cadence);
             const isComplete = totals.total > 0 && totals.completed === totals.total;
             const isActive = activeCadence === cadence;
+
+            // When expanded, only show the active cadence
+            if (!isCollapsed && !isActive) return null;
 
             return (
               <SidebarMenuItem key={cadence}>
@@ -332,7 +334,7 @@ export const RoutineSidebar = ({
                   {totals.total > 0 && (
                     <Badge
                       variant={isComplete ? "default" : "secondary"}
-                      className="h-5 px-1.5 text-[10px] group-data-[collapsible=icon]:hidden"
+                      className="h-5 px-1.5 text-[10px]"
                     >
                       {totals.completed}/{totals.total}
                     </Badge>
@@ -343,8 +345,8 @@ export const RoutineSidebar = ({
           })}
         </SidebarMenu>
 
-        {/* Routine Checklists - Hidden when collapsed */}
-        <div className="group-data-[collapsible=icon]:hidden flex-1 overflow-hidden">
+        {/* Routine Checklists - Only visible when expanded */}
+        {!isCollapsed && (
           <ScrollArea className="h-full">
             <div className="p-3 space-y-4">
               {/* Period Label & Due Date */}
@@ -382,7 +384,7 @@ export const RoutineSidebar = ({
               )}
             </div>
           </ScrollArea>
-        </div>
+        )}
       </SidebarContent>
     </Sidebar>
   );
