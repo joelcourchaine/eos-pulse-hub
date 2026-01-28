@@ -28,6 +28,14 @@ interface StoreGroup {
   name: string;
 }
 
+interface Store {
+  id: string;
+  name: string;
+  group_id: string;
+}
+
+type DeployMode = "group" | "store";
+
 interface DeployRoutineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,7 +47,9 @@ export const DeployRoutineDialog = ({
   onOpenChange,
   template,
 }: DeployRoutineDialogProps) => {
+  const [deployMode, setDeployMode] = useState<DeployMode>("group");
   const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState("");
 
   const { data: storeGroups, isLoading: groupsLoading } = useQuery({
     queryKey: ["admin-store-groups-deploy"],
@@ -53,27 +63,64 @@ export const DeployRoutineDialog = ({
     },
   });
 
+  const { data: stores, isLoading: storesLoading } = useQuery({
+    queryKey: ["admin-stores-deploy"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stores")
+        .select("id, name, group_id")
+        .order("name");
+      if (error) throw error;
+      return data as Store[];
+    },
+  });
+
   const deployMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedGroupId) throw new Error("Please select a store group");
-
-      // Get all departments in the selected store group
-      let query = supabase
-        .from("departments")
-        .select("id, name, department_type_id, stores!inner(group_id)")
-        .eq("stores.group_id", selectedGroupId);
-
-      // Filter by department type if specified
-      if (template.department_type_id) {
-        query = query.eq("department_type_id", template.department_type_id);
+      if (deployMode === "group" && !selectedGroupId) {
+        throw new Error("Please select a store group");
+      }
+      if (deployMode === "store" && !selectedStoreId) {
+        throw new Error("Please select a store");
       }
 
-      const { data: departments, error: deptError } = await query;
-      if (deptError) throw deptError;
+      let departments: { id: string; name: string; department_type_id: string | null }[] = [];
 
-      if (!departments || departments.length === 0) {
-        throw new Error("No matching departments found in this store group");
+      if (deployMode === "group") {
+        // Get all departments in the selected store group
+        let groupQuery = supabase
+          .from("departments")
+          .select("id, name, department_type_id, stores!inner(group_id)")
+          .eq("stores.group_id", selectedGroupId);
+
+        if (template.department_type_id) {
+          groupQuery = groupQuery.eq("department_type_id", template.department_type_id);
+        }
+
+        const { data, error } = await groupQuery;
+        if (error) throw error;
+        departments = data || [];
+      } else {
+        // Get departments in the selected store
+        let storeQuery = supabase
+          .from("departments")
+          .select("id, name, department_type_id")
+          .eq("store_id", selectedStoreId);
+
+        if (template.department_type_id) {
+          storeQuery = storeQuery.eq("department_type_id", template.department_type_id);
+        }
+
+        const { data, error } = await storeQuery;
+        if (error) throw error;
+        departments = data || [];
       }
+
+      const targetLabel = deployMode === "group" ? "store group" : "store";
+      if (departments.length === 0) {
+        throw new Error(`No matching departments found in this ${targetLabel}`);
+      }
+
 
       let created = 0;
       let updated = 0;
@@ -138,6 +185,7 @@ export const DeployRoutineDialog = ({
 
   const departmentTypeLabel = template.department_type?.name || "all";
   const cadenceLabel = template.cadence.charAt(0).toUpperCase() + template.cadence.slice(1);
+  const isValid = deployMode === "group" ? !!selectedGroupId : !!selectedStoreId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,30 +197,65 @@ export const DeployRoutineDialog = ({
           </DialogTitle>
           <DialogDescription>
             Deploy "{template.title}" ({cadenceLabel}) to{" "}
-            {departmentTypeLabel === "all" ? "all" : departmentTypeLabel} departments in a store group.
+            {departmentTypeLabel === "all" ? "all" : departmentTypeLabel} departments.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
-            <Label htmlFor="store-group">Store Group</Label>
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <Label>Deploy To</Label>
+            <Select value={deployMode} onValueChange={(v) => setDeployMode(v as DeployMode)}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a store group" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {groupsLoading ? (
-                  <div className="p-2 text-sm text-muted-foreground">Loading...</div>
-                ) : (
-                  storeGroups?.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))
-                )}
+                <SelectItem value="group">Entire Store Group</SelectItem>
+                <SelectItem value="store">Single Store</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {deployMode === "group" ? (
+            <div>
+              <Label htmlFor="store-group">Store Group</Label>
+              <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a store group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groupsLoading ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading...</div>
+                  ) : (
+                    storeGroups?.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="store">Store</Label>
+              <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a store" />
+                </SelectTrigger>
+                <SelectContent>
+                  {storesLoading ? (
+                    <div className="p-2 text-sm text-muted-foreground">Loading...</div>
+                  ) : (
+                    stores?.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="text-sm text-muted-foreground">
             <p>This will deploy {template.items?.length || 0} routine items.</p>
@@ -189,10 +272,10 @@ export const DeployRoutineDialog = ({
           </Button>
           <Button
             onClick={() => deployMutation.mutate()}
-            disabled={!selectedGroupId || deployMutation.isPending}
+            disabled={!isValid || deployMutation.isPending}
           >
             {deployMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Deploy to Group
+            {deployMode === "group" ? "Deploy to Group" : "Deploy to Store"}
           </Button>
         </DialogFooter>
       </DialogContent>
