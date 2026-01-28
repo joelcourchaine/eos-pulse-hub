@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
+import { AddRoutineWithTask } from "./AddRoutineWithTask";
 import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check } from "lucide-react";
 import {
   startOfDay,
@@ -438,6 +439,13 @@ export const RoutineSidebar = ({
                   <p className="text-muted-foreground text-sm">
                     No {activeCadence} routines assigned
                   </p>
+                  {canAddItems && (
+                    <AddRoutineWithTask
+                      departmentId={departmentId}
+                      cadence={activeCadence}
+                      onRoutineCreated={fetchRoutines}
+                    />
+                  )}
                 </div>
               )}
             </div>

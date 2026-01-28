@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
+import { AddRoutineWithTask } from "./AddRoutineWithTask";
 import { Loader2, CheckSquare, AlertTriangle } from "lucide-react";
 import {
   startOfDay,
@@ -323,6 +324,13 @@ export const RoutineDrawer = ({
                       <p className="text-muted-foreground text-sm">
                         No {cadence} routines assigned
                       </p>
+                      {canAddItems && (
+                        <AddRoutineWithTask
+                          departmentId={departmentId}
+                          cadence={cadence}
+                          onRoutineCreated={fetchRoutines}
+                        />
+                      )}
                     </div>
                   )}
                 </TabsContent>
