@@ -268,30 +268,37 @@ export const RoutineChecklist = ({
         
         <Progress value={progressPercent} className="h-2" />
       </CardHeader>
-      <CardContent className="space-y-2 max-h-[50vh] overflow-y-auto">
+      <CardContent className="max-h-[50vh]">
         {sortedItems.length === 0 && !canAddItems ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             No items in this routine
           </p>
         ) : (
-          <>
-            {sortedItems.map((item) => (
-              <RoutineItemRow
-                key={item.id}
-                item={item}
-                isCompleted={completedItems.has(item.id)}
-                onToggle={handleToggle}
-                disabled={toggling === item.id}
-              />
-            ))}
+          <div className="flex flex-col gap-2 max-h-[50vh]">
+            {/* Scrollable list */}
+            <div className="space-y-2 overflow-y-auto pr-1">
+              {sortedItems.map((item) => (
+                <RoutineItemRow
+                  key={item.id}
+                  item={item}
+                  isCompleted={completedItems.has(item.id)}
+                  onToggle={handleToggle}
+                  disabled={toggling === item.id}
+                />
+              ))}
+            </div>
+
+            {/* Pinned add-row so it never gets trapped under the bottom edge */}
             {canAddItems && (
-              <AddRoutineItemInline
-                routineId={localRoutine.id}
-                currentItems={items}
-                onItemAdded={refetchRoutine}
-              />
+              <div className="sticky bottom-0 pt-2 bg-background">
+                <AddRoutineItemInline
+                  routineId={localRoutine.id}
+                  currentItems={items}
+                  onItemAdded={refetchRoutine}
+                />
+              </div>
             )}
-          </>
+          </div>
         )}
       </CardContent>
     </Card>
