@@ -268,7 +268,7 @@ export const RoutineChecklist = ({
         
         <Progress value={progressPercent} className="h-2" />
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 max-h-[50vh] overflow-y-auto">
         {sortedItems.length === 0 && !canAddItems ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             No items in this routine
