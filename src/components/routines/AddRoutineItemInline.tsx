@@ -46,16 +46,27 @@ export const AddRoutineItemInline = ({
 
     setSaving(true);
     try {
-      // Create new item
+      // Fetch current items from database to avoid stale state
+      const { data: routineData, error: fetchError } = await supabase
+        .from("department_routines")
+        .select("items")
+        .eq("id", routineId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const existingItems: RoutineItem[] = Array.isArray(routineData?.items)
+        ? (routineData.items as unknown as RoutineItem[])
+        : [];
+
       const newItem: RoutineItem = {
         id: crypto.randomUUID(),
         title: trimmedTitle,
         description: "",
-        order: currentItems.length + 1,
+        order: existingItems.length + 1,
       };
 
-      // Update the routine with new items array
-      const updatedItems = [...currentItems, newItem];
+      const updatedItems = [...existingItems, newItem];
 
       const { error } = await supabase
         .from("department_routines")
