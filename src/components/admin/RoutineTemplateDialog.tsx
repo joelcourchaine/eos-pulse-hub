@@ -261,16 +261,14 @@ export const RoutineTemplateDialog = ({
       toast.error("Title is required");
       return;
     }
-    if (items.length === 0) {
-      toast.error("Add at least one item");
+    // Filter out items with empty titles instead of blocking save
+    const validItems = items.filter((item) => item.title && item.title.trim());
+    if (validItems.length === 0) {
+      toast.error("Add at least one item with a title");
       return;
     }
-    const emptyItems = items.filter((item) => !item.title || !item.title.trim());
-    if (emptyItems.length > 0) {
-      console.log("Items with empty titles:", emptyItems);
-      toast.error("All items must have a title");
-      return;
-    }
+    // Update items to only include valid ones before saving
+    setItems(validItems);
     mutation.mutate();
   };
 
