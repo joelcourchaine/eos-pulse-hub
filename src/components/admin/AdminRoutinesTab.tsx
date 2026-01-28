@@ -96,7 +96,7 @@ const getCadenceBadgeVariant = (cadence: string) => {
 export const AdminRoutinesTab = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<RoutineTemplate | null>(null);
-  const [deployTemplate, setDeployTemplate] = useState<RoutineTemplate | null>(null);
+  const [deployTemplate, setDeployTemplate] = useState<{ template: RoutineTemplate; mode: "group" | "store" } | null>(null);
   const [deleteTemplate, setDeleteTemplate] = useState<RoutineTemplate | null>(null);
   const [cadenceFilter, setCadenceFilter] = useState("all");
   const queryClient = useQueryClient();
@@ -242,9 +242,13 @@ export const AdminRoutinesTab = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setDeployTemplate(template)}>
+                          <DropdownMenuItem onClick={() => setDeployTemplate({ template, mode: "group" })}>
                             <Rocket className="h-4 w-4 mr-2" />
                             Deploy to Group
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setDeployTemplate({ template, mode: "store" })}>
+                            <Rocket className="h-4 w-4 mr-2" />
+                            Deploy to Store
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setEditTemplate(template)}>
                             <Pencil className="h-4 w-4 mr-2" />
@@ -288,7 +292,8 @@ export const AdminRoutinesTab = () => {
         <DeployRoutineDialog
           open={!!deployTemplate}
           onOpenChange={(open) => !open && setDeployTemplate(null)}
-          template={deployTemplate}
+          template={deployTemplate.template}
+          defaultMode={deployTemplate.mode}
         />
       )}
 

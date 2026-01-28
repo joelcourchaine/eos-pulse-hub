@@ -40,14 +40,16 @@ interface DeployRoutineDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: RoutineTemplate;
+  defaultMode?: DeployMode;
 }
 
 export const DeployRoutineDialog = ({
   open,
   onOpenChange,
   template,
+  defaultMode = "group",
 }: DeployRoutineDialogProps) => {
-  const [deployMode, setDeployMode] = useState<DeployMode>("group");
+  const [deployMode, setDeployMode] = useState<DeployMode>(defaultMode);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [selectedStoreId, setSelectedStoreId] = useState("");
 
