@@ -286,7 +286,7 @@ export const RoutineSidebar = ({
     <Sidebar 
       side="right" 
       collapsible="icon" 
-        className="border-l !top-28 !h-[calc(100svh-7rem)]"
+        className="border-l !top-24 !h-[calc(100svh-6rem)]"
       style={{ "--sidebar-width-icon": "6.5rem" } as React.CSSProperties}
     >
       <SidebarHeader className="border-b">
