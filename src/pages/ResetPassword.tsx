@@ -264,39 +264,40 @@ const ResetPassword = () => {
     );
   }
 
-  // Expired state
+  // Expired state - improved UX
   if (flowState === 'expired') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center flex items-center justify-center gap-2">
-              <AlertCircle className="h-6 w-6 text-destructive" />
+          <CardHeader className="space-y-1 text-center">
+            <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <CardTitle className="text-2xl font-bold">
               Link Expired
             </CardTitle>
+            <CardDescription className="text-base">
+              Your password reset link has expired or was already used.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Your password reset link has expired or was already used. Reset links can only be used once and expire after 24 hours.
+            <Alert className="border-muted bg-muted/50">
+              <AlertDescription className="text-sm">
+                Reset links expire after 24 hours and can only be used once. If your link was opened by email security software, it may have been consumed.
               </AlertDescription>
             </Alert>
             
-            <p className="text-sm text-muted-foreground text-center">
-              Please request a new password reset link below.
-            </p>
-            
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Button 
                 onClick={() => setFlowState('request')} 
                 className="w-full"
+                size="lg"
               >
                 Request New Reset Link
               </Button>
               <Button 
                 onClick={() => navigate("/auth")} 
-                variant="outline"
+                variant="ghost"
                 className="w-full"
               >
                 Back to Sign In
@@ -308,22 +309,44 @@ const ResetPassword = () => {
     );
   }
 
+  // Request state - visually distinct from login page
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            {flowState === 'set-password' ? "Set New Password" : "Reset Password"}
-          </CardTitle>
-          <CardDescription className="text-center">
-            {flowState === 'set-password'
-              ? userEmail 
-                ? `Enter a new password for ${userEmail}` 
-                : "Enter your new password below"
-              : flowState === 'email-sent'
-              ? "Check your email for the reset link"
-              : "Enter your email to receive a password reset link"}
-          </CardDescription>
+        <CardHeader className="space-y-1 text-center">
+          {flowState === 'set-password' ? (
+            <>
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <Loader2 className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Set New Password</CardTitle>
+              <CardDescription className="text-base">
+                {userEmail 
+                  ? `Create a new password for ${userEmail}` 
+                  : "Enter your new password below"}
+              </CardDescription>
+            </>
+          ) : flowState === 'email-sent' ? (
+            <>
+              <div className="mx-auto w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="h-8 w-8 text-success" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
+              <CardDescription className="text-base">
+                We've sent a reset link to your email
+              </CardDescription>
+            </>
+          ) : (
+            <>
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+              <CardDescription className="text-base">
+                Enter your email to receive a password reset link
+              </CardDescription>
+            </>
+          )}
         </CardHeader>
         <CardContent>
           {flowState === 'set-password' ? (
