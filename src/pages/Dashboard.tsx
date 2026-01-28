@@ -8,7 +8,7 @@ import goLogo from "@/assets/go-logo.png";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, BarChart3, Target, CheckSquare, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp } from "lucide-react";
+import { LogOut, BarChart3, Target, Calendar, Mail, CircleCheck, AlertCircle, XCircle, CircleDashed, Building2, Building, Users, ClipboardList, TrendingUp, CheckSquare } from "lucide-react";
 import { AdminNavDropdown } from "@/components/navigation/AdminNavDropdown";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
@@ -30,7 +30,8 @@ import { LogoUpload } from "@/components/stores/LogoUpload";
 import { DirectorNotes } from "@/components/dashboard/DirectorNotes";
 import { DepartmentQuestionnaireDialog } from "@/components/departments/DepartmentQuestionnaireDialog";
 import { Top10ListsPanel } from "@/components/top-10/Top10ListsPanel";
-import { RoutineDrawer } from "@/components/routines";
+import { RoutineSidebar } from "@/components/routines";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -85,7 +86,7 @@ const Dashboard = () => {
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
-  const [routineDrawerOpen, setRoutineDrawerOpen] = useState(false);
+  // Routine drawer removed - now using persistent RoutineSidebar
   
   // Handler to toggle mobile tasks view
   const handleViewFullDashboard = () => {
@@ -1056,7 +1057,10 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="min-h-screen bg-muted/30">
+      <SidebarProvider defaultOpen={true}>
+        <div className="min-h-screen flex w-full">
+          <SidebarInset className="flex-1 min-w-0">
+            <div className="min-h-screen bg-muted/30">
         {/* Header */}
         <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -1144,17 +1148,6 @@ const Dashboard = () => {
                 >
                   <ClipboardList className="mr-2 h-4 w-4" />
                   Department Info
-                </Button>
-              )}
-              {selectedDepartment && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setRoutineDrawerOpen(true)}
-                  className="w-full md:w-auto"
-                >
-                  <CheckSquare className="mr-2 h-4 w-4" />
-                  Routines
                 </Button>
               )}
               <Dialog open={printDialogOpen} onOpenChange={(open) => {
@@ -1510,7 +1503,18 @@ const Dashboard = () => {
           />
         )}
       </main>
-    </div>
+            </div>
+          </SidebarInset>
+          
+          {/* Persistent Routine Sidebar */}
+          {selectedDepartment && user && (
+            <RoutineSidebar 
+              departmentId={selectedDepartment}
+              userId={user.id}
+            />
+          )}
+        </div>
+      </SidebarProvider>
 
     {/* Management Dialogs */}
     <UserManagementDialog
@@ -1536,14 +1540,6 @@ const Dashboard = () => {
         departmentTypeId={departments.find(d => d.id === selectedDepartment)?.department_type_id}
         managerEmail={departments.find(d => d.id === selectedDepartment)?.profiles?.email}
         isSuperAdmin={isSuperAdmin}
-      />
-    )}
-    {selectedDepartment && user && (
-      <RoutineDrawer
-        open={routineDrawerOpen}
-        onOpenChange={setRoutineDrawerOpen}
-        departmentId={selectedDepartment}
-        userId={user.id}
       />
     )}
     </>
