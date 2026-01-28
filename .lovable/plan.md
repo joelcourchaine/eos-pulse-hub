@@ -1,172 +1,198 @@
 
 
-## Due Date Configuration for Routines - Implementation Plan
+## Persistent Routine Sidebar - Always Visible Tasks
 
-Add the ability to configure specific due dates for non-daily routines (weekly, monthly, quarterly, yearly) so managers know exactly when each routine needs to be completed.
-
----
-
-### Overview
-
-Currently, routines simply track whether items are completed within a period (this week, this month, etc.) but don't specify a due date. This enhancement adds:
-- **Due day configuration** in admin templates
-- **Visual due date display** in the sidebar
-- **Overdue indicators** when past due
+Transform routines from a hidden drawer into a **persistent right-side sidebar** that's always visible on the dashboard - just like the floating support button, but for your routine tasks.
 
 ---
 
-### Due Date Options by Cadence
-
-| Cadence | Due Day Options |
-|---------|-----------------|
-| Daily | N/A (always today) |
-| Weekly | Day of week: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday |
-| Monthly | Day of month: 1st, 2nd, ... 28th, Last Day, or "Last [weekday]" |
-| Quarterly | Day of quarter: 1st of quarter, 15th of last month, Last Day of Quarter |
-| Yearly | Specific date: Month + Day picker (e.g., December 31st) |
-
----
-
-### Database Changes
-
-**Add columns to routine_templates:**
-
-```sql
-ALTER TABLE routine_templates ADD COLUMN due_day_config jsonb DEFAULT NULL;
-```
-
-**Add columns to department_routines:**
-
-```sql
-ALTER TABLE department_routines ADD COLUMN due_day_config jsonb DEFAULT NULL;
-```
-
-**due_day_config JSONB structure:**
-
-```json
-// Weekly - day of week (1-7, Monday=1)
-{ "type": "day_of_week", "day": 5 }  // Friday
-
-// Monthly - day of month (1-31 or "last")
-{ "type": "day_of_month", "day": 15 }
-{ "type": "day_of_month", "day": "last" }
-{ "type": "last_weekday", "weekday": 5 }  // Last Friday of month
-
-// Quarterly - relative to quarter
-{ "type": "day_of_quarter", "day": "last" }  // Last day
-{ "type": "day_of_quarter", "month": 3, "day": 15 }  // 15th of last month
-
-// Yearly - specific month and day
-{ "type": "specific_date", "month": 12, "day": 31 }  // Dec 31
-```
-
----
-
-### Admin UI Changes
-
-**RoutineTemplateDialog.tsx - Add Due Date Section:**
-
-When cadence is selected (and not "daily"), show a due date configuration section:
+### What You'll Get
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│ Cadence *                      │ Department Type        │
-│ [Weekly ▼]                     │ [All Departments ▼]    │
-├─────────────────────────────────────────────────────────┤
-│ Due Date (Optional)                                     │
-│ When should this routine be completed each week?        │
-│                                                         │
-│ [  ] No specific due date (anytime during the period)  │
-│ [●] Due every: [ Friday ▼ ]                            │
-└─────────────────────────────────────────────────────────┘
+CURRENT (Drawer - Hidden by Default):
++------------------------------------------+
+|              Dashboard                   |
+|   [Click "Routines" button to open]      |
+|                                          |
++------------------------------------------+
+                                    +---------+
+                                    | Drawer  |
+                                    | slides  |
+                                    | in...   |
+                                    +---------+
+
+NEW (Sidebar - Always Visible):
++------------------------------------------+------------------+
+|              Dashboard                   |  MY ROUTINES  [<]|
+|                                          |                  |
+|   [All your content here]                |  D  W  M  Q  Y   |
+|                                          |  ─────────────── |
+|                                          |  [ ] Task 1      |
+|   [Content auto-adjusts width]           |  [x] Task 2      |
+|                                          |  [ ] Task 3      |
+|                                          |                  |
++------------------------------------------+------------------+
+
+COLLAPSED (Icon-only - Max Screen Space):
++-----------------------------------------------+----+
+|              Dashboard                        | D  |
+|                                               | W  |
+|   [Full width content when collapsed]         | M  |
+|                                               | Q  |
+|                                               | Y  |
++-----------------------------------------------+----+
 ```
-
-**Cadence-specific due date pickers:**
-
-- **Weekly**: Simple dropdown of weekdays
-- **Monthly**: Dropdown with numbers 1-28 + "Last Day" + "Last [weekday]"
-- **Quarterly**: Dropdown with "Last day of quarter", "15th of last month", etc.
-- **Yearly**: Month + Day pickers
 
 ---
 
-### Display Changes
+### Key Features
 
-**RoutineSidebar / RoutineDrawer - Period Label:**
+**Always There**
+- Sidebar is permanently visible on desktop (no button click needed)
+- Collapse to icons when you need more screen space
+- Expand back to see full checklists
 
-Current:
-```text
-Week of Jan 27
+**Quick Toggle**
+- Click the collapse arrow to hide/show
+- Keyboard shortcut: Ctrl/Cmd + B
+- State remembers your preference (cookies)
+
+**Mobile Friendly**
+- On mobile, becomes a slide-out sheet (like current drawer)
+- Opens via a trigger button
+
+**All 5 Cadences Always Visible**
+- Daily, Weekly, Monthly, Quarterly, Yearly tabs always shown
+- Even empty cadences display with "No routines assigned" message
+- Progress badges show completion (3/8) for each
+
+---
+
+### Implementation
+
+#### 1. Create RoutineSidebar Component
+
+**New file: `src/components/routines/RoutineSidebar.tsx`**
+
+Uses Shadcn Sidebar primitives configured for right-side placement:
+
+```tsx
+<Sidebar side="right" collapsible="icon" className="border-l">
+  <SidebarHeader>
+    <h3>My Routines</h3>
+    <SidebarTrigger /> {/* Collapse button */}
+  </SidebarHeader>
+  
+  <SidebarContent>
+    {/* Cadence tabs as menu items */}
+    <SidebarMenu>
+      {cadences.map(c => (
+        <SidebarMenuItem>
+          <SidebarMenuButton 
+            isActive={activeCadence === c.id}
+            tooltip={`${c.label}: ${c.completed}/${c.total}`}
+          >
+            <c.icon />
+            <span>{c.label}</span>
+            <Badge>{c.completed}/{c.total}</Badge>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
+    
+    {/* Routine checklists (hidden when collapsed) */}
+    <div className="group-data-[collapsible=icon]:hidden">
+      <RoutineChecklist ... />
+    </div>
+  </SidebarContent>
+</Sidebar>
 ```
 
-With due date:
-```text
-Week of Jan 27 • Due Friday
+Key properties:
+- `side="right"` - positions on right side
+- `collapsible="icon"` - collapses to 48px icon strip
+- Tooltips show full info when hovering collapsed state
+
+#### 2. Wrap Dashboard in SidebarProvider
+
+**File: `src/pages/Dashboard.tsx`**
+
+```tsx
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { RoutineSidebar } from "@/components/routines";
+
+const Dashboard = () => {
+  return (
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen flex w-full">
+        {/* Main dashboard content */}
+        <SidebarInset className="flex-1 min-w-0">
+          <div className="min-h-screen bg-muted/30">
+            <header>...</header>
+            <main>...</main>
+          </div>
+        </SidebarInset>
+        
+        {/* Persistent right sidebar */}
+        {selectedDepartment && user && (
+          <RoutineSidebar 
+            departmentId={selectedDepartment}
+            userId={user.id}
+          />
+        )}
+      </div>
+    </SidebarProvider>
+  );
+};
 ```
 
-Or if overdue:
-```text
-Week of Jan 27 • ⚠️ Due Friday (Overdue)
-```
+The `SidebarInset` component automatically adjusts the main content width when the sidebar expands/collapses.
 
-**RoutineChecklist - Due indicator:**
+#### 3. Remove "Routines" Button from Header
 
-Add a small due date indicator at the top of each checklist card:
+Since routines are now always visible:
+- Delete the "Routines" button from the header navigation
+- Delete the `routineDrawerOpen` state variable
+- Remove the `RoutineDrawer` component import and usage
+
+#### 4. Sidebar Content Structure
+
+**Expanded View (320px width):**
 ```text
 ┌────────────────────────────────┐
-│ Service Manager Daily   3 / 8 │
-│ Due: Friday, Jan 31           │
-│ ▓▓▓▓▓▓░░░░░░░░░░░░░░░░        │
+│  MY ROUTINES              [<]  │
 ├────────────────────────────────┤
-│ [ ] Check technician times    │
-│ [x] Review RO aging           │
-│ ...                           │
+│  ● Daily           [3/8]       │
+│  ○ Weekly          [2/5]       │
+│  ○ Monthly         [0/3]       │
+│  ○ Quarterly       [1/2]       │
+│  ○ Yearly          [0/1]       │
+├────────────────────────────────┤
+│  Tuesday, Jan 28               │
+│  ─────────────────────────     │
+│  Service Manager Daily   3/8   │
+│  ▓▓▓▓▓▓░░░░░░░░░░░░░░░        │
+│  ──────────────────────────    │
+│  [ ] Check technician times    │
+│  [x] Review RO aging           │
+│  [x] Parts order status        │
+│  [x] CSI follow-up calls       │
+│  [ ] Warranty claims review    │
+│  ...                           │
 └────────────────────────────────┘
 ```
 
----
-
-### Due Date Calculation Logic
-
-**New utility function:**
-
-```typescript
-function getDueDate(
-  cadence: Cadence, 
-  periodStart: Date, 
-  dueConfig: DueDayConfig | null
-): Date | null {
-  if (!dueConfig) return null;
-  
-  switch (cadence) {
-    case "weekly":
-      // Add days from Monday to the due day
-      return addDays(periodStart, dueConfig.day - 1);
-      
-    case "monthly":
-      if (dueConfig.day === "last") {
-        return endOfMonth(periodStart);
-      }
-      return setDate(periodStart, dueConfig.day);
-      
-    case "quarterly":
-      if (dueConfig.day === "last") {
-        return endOfQuarter(periodStart);
-      }
-      // Handle other quarterly configs...
-      
-    case "yearly":
-      return new Date(
-        periodStart.getFullYear(),
-        dueConfig.month - 1,
-        dueConfig.day
-      );
-  }
-}
-
-function isOverdue(dueDate: Date): boolean {
-  return new Date() > dueDate;
-}
+**Collapsed View (48px width):**
+```text
+┌──┐
+│[>│  (expand button)
+├──┤
+│ D│  (Daily - tooltip shows "Daily: 3/8")
+│ W│  (Weekly)
+│ M│  (Monthly)
+│ Q│  (Quarterly)
+│ Y│  (Yearly)
+└──┘
 ```
 
 ---
@@ -175,65 +201,37 @@ function isOverdue(dueDate: Date): boolean {
 
 | File | Change |
 |------|--------|
-| `supabase/migrations/xxx_add_routine_due_dates.sql` | Add `due_day_config` column to both tables |
-| `src/components/admin/RoutineTemplateDialog.tsx` | Add due date configuration UI |
-| `src/components/admin/DueDatePicker.tsx` | **New** - Reusable due date picker component |
-| `src/components/routines/RoutineSidebar.tsx` | Display due date in period label |
-| `src/components/routines/RoutineChecklist.tsx` | Show due date on card, overdue styling |
-| `src/components/routines/RoutineDrawer.tsx` | Display due date in period label |
-| `src/utils/routineDueDate.ts` | **New** - Due date calculation utilities |
+| `src/components/routines/RoutineSidebar.tsx` | **New** - Persistent right sidebar component |
+| `src/components/routines/index.ts` | Export `RoutineSidebar` |
+| `src/pages/Dashboard.tsx` | Wrap in SidebarProvider, add RoutineSidebar, remove Routines button |
 
 ---
 
-### Implementation Phases
+### Reusing Existing Components
 
-**Phase 1: Database & Admin Config**
-1. Add `due_day_config` column to both tables via migration
-2. Create `DueDatePicker.tsx` component for admin
-3. Integrate due date picker into `RoutineTemplateDialog.tsx`
-4. Deploy templates inherit due date config to department routines
+The sidebar will reuse everything already built:
+- `RoutineChecklist.tsx` - Fetches data, handles real-time sync, due date display
+- `RoutineItemRow.tsx` - Individual checkbox items
+- `RoutineItemTooltip.tsx` - Hover cards with "why" explanations
+- `routineDueDate.ts` - Due date calculations and formatting
 
-**Phase 2: Display & Indicators**
-1. Create due date calculation utilities
-2. Update `RoutineSidebar.tsx` to show due dates
-3. Update `RoutineChecklist.tsx` with due badge
-4. Add overdue styling (amber/red indicators)
-
-**Phase 3: Polish**
-1. Add due date to export/reports if needed
-2. Consider notifications for upcoming due dates (future)
+Only the container changes from a Drawer to a persistent Sidebar.
 
 ---
 
-### Optional Enhancement: Due Time
+### Mobile Behavior
 
-If needed, we could also add a time component:
-- "Due Friday by 5:00 PM"
-
-This would require adding a `due_time` field and more complex logic, but could be added later.
+On screens under 768px:
+- Sidebar automatically converts to a Sheet (slide-out drawer)
+- A small trigger button appears to open it
+- Same content, just different interaction pattern
+- Prevents taking up valuable mobile screen space
 
 ---
 
-### Visual Examples
+### Persistence
 
-**Weekly - Due Friday:**
-```text
-Period: Week of Jan 27
-Due: Friday, Jan 31
-Status: 2 days remaining
-```
-
-**Monthly - Due 15th:**
-```text
-Period: February 2026
-Due: Saturday, Feb 15
-Status: Overdue by 3 days (if past due)
-```
-
-**Quarterly - Due Last Day:**
-```text
-Period: Q1 2026
-Due: Tuesday, Mar 31
-Status: 45 days remaining
-```
+- Collapse state saved in cookies (`sidebar:state`)
+- Remembers your preference across sessions
+- Active cadence tab also preserved
 
