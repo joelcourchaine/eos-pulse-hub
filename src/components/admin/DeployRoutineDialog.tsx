@@ -139,12 +139,13 @@ export const DeployRoutineDialog = ({
           .maybeSingle();
 
         if (existing) {
-          // Update existing routine's items
+          // Update existing routine's items and due_day_config
           const { error: updateError } = await supabase
             .from("department_routines")
             .update({
               items: template.items as unknown as Json,
               template_id: template.id,
+              due_day_config: (template as any).due_day_config as unknown as Json ?? null,
             })
             .eq("id", existing.id);
 
@@ -160,6 +161,7 @@ export const DeployRoutineDialog = ({
               title: template.title,
               cadence: template.cadence,
               items: template.items as unknown as Json,
+              due_day_config: (template as any).due_day_config as unknown as Json ?? null,
               is_active: true,
             });
 

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
-import { Loader2, CheckSquare } from "lucide-react";
+import { Loader2, CheckSquare, AlertTriangle } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -18,6 +18,13 @@ import {
   startOfYear,
   format,
 } from "date-fns";
+import { 
+  formatDueConfig, 
+  getDueDate, 
+  isOverdue,
+  type DueDayConfig,
+  type Cadence as CadenceType
+} from "@/utils/routineDueDate";
 
 type Cadence = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 
@@ -41,6 +48,7 @@ interface DepartmentRoutine {
   cadence: string;
   items: RoutineItem[];
   is_active: boolean;
+  due_day_config?: DueDayConfig | null;
 }
 
 interface RoutineDrawerProps {
@@ -118,9 +126,10 @@ export const RoutineDrawer = ({
 
       if (error) throw error;
       
-      const typedData = (data || []).map(r => ({
+      const typedData: DepartmentRoutine[] = (data || []).map(r => ({
         ...r,
         items: Array.isArray(r.items) ? r.items as unknown as RoutineItem[] : [],
+        due_day_config: r.due_day_config as unknown as DueDayConfig | null,
       }));
       
       setRoutines(typedData);
@@ -265,22 +274,56 @@ export const RoutineDrawer = ({
               })}
             </TabsList>
 
-            {CADENCE_ORDER.map((cadence) => (
-              <TabsContent key={cadence} value={cadence} className="space-y-4 mt-4">
-                <div className="text-sm text-muted-foreground text-center mb-4">
-                  {getPeriodLabel(cadence)}
-                </div>
+            {CADENCE_ORDER.map((cadence) => {
+              // Check if any routine in this cadence has an overdue config
+              const hasOverdue = routinesByCadence[cadence].some((routine) => {
+                if (!routine.due_day_config) return false;
+                const periodDate = getPeriodStart(cadence);
+                const dueDate = getDueDate(cadence as CadenceType, periodDate, routine.due_day_config);
+                return dueDate && isOverdue(dueDate);
+              });
 
-                {routinesByCadence[cadence].map((routine) => (
-                  <RoutineChecklist
-                    key={routine.id}
-                    routine={routine}
-                    periodStart={format(getPeriodStart(cadence), "yyyy-MM-dd")}
-                    userId={userId}
-                  />
-                ))}
-              </TabsContent>
-            ))}
+              // Get shared due config text if all routines have the same config
+              const sharedDueText = (() => {
+                const configs = routinesByCadence[cadence]
+                  .map(r => r.due_day_config)
+                  .filter(Boolean);
+                if (configs.length === 0) return null;
+                const firstConfig = configs[0];
+                const allSame = configs.every(c => JSON.stringify(c) === JSON.stringify(firstConfig));
+                if (allSame && firstConfig) {
+                  return formatDueConfig(cadence as CadenceType, firstConfig);
+                }
+                return null;
+              })();
+
+              return (
+                <TabsContent key={cadence} value={cadence} className="space-y-4 mt-4">
+                  <div className="text-sm text-muted-foreground text-center mb-4 flex items-center justify-center gap-2">
+                    <span>{getPeriodLabel(cadence)}</span>
+                    {sharedDueText && (
+                      <>
+                        <span>•</span>
+                        <span className={hasOverdue ? "text-destructive font-medium flex items-center gap-1" : ""}>
+                          {hasOverdue && <AlertTriangle className="h-3.5 w-3.5" />}
+                          {sharedDueText}
+                          {hasOverdue && " (Overdue)"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  {routinesByCadence[cadence].map((routine) => (
+                    <RoutineChecklist
+                      key={routine.id}
+                      routine={routine}
+                      periodStart={format(getPeriodStart(cadence), "yyyy-MM-dd")}
+                      userId={userId}
+                    />
+                  ))}
+                </TabsContent>
+              );
+            })}
           </Tabs>
         )}
       </SheetContent>
