@@ -222,10 +222,6 @@ export const RoutineDrawer = ({
     }
   }, [routines, routinesByCadence]);
 
-  const availableCadences = CADENCE_ORDER.filter(
-    (c) => routinesByCadence[c].length > 0
-  );
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
@@ -240,28 +236,21 @@ export const RoutineDrawer = ({
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : routines.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <CheckSquare className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">No routines assigned yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Ask your admin to deploy routine templates
-            </p>
-          </div>
         ) : (
           <Tabs
             value={activeCadence}
             onValueChange={(v) => setActiveCadence(v as Cadence)}
             className="mt-4"
           >
-            <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${availableCadences.length}, 1fr)` }}>
-              {availableCadences.map((cadence) => {
+            <TabsList className="grid w-full grid-cols-5">
+              {CADENCE_ORDER.map((cadence) => {
                 const totals = cadenceTotals[cadence];
                 const isComplete = totals.total > 0 && totals.completed === totals.total;
+                const hasRoutines = routinesByCadence[cadence].length > 0;
                 return (
                   <TabsTrigger key={cadence} value={cadence} className="text-xs capitalize relative">
                     {cadence}
-                    {totals.total > 0 && (
+                    {hasRoutines && totals.total > 0 && (
                       <Badge
                         variant={isComplete ? "default" : "secondary"}
                         className="ml-1.5 h-5 px-1.5 text-[10px]"
@@ -275,8 +264,11 @@ export const RoutineDrawer = ({
             </TabsList>
 
             {CADENCE_ORDER.map((cadence) => {
+              const cadenceRoutines = routinesByCadence[cadence];
+              const hasRoutines = cadenceRoutines.length > 0;
+
               // Check if any routine in this cadence has an overdue config
-              const hasOverdue = routinesByCadence[cadence].some((routine) => {
+              const hasOverdue = cadenceRoutines.some((routine) => {
                 if (!routine.due_day_config) return false;
                 const periodDate = getPeriodStart(cadence);
                 const dueDate = getDueDate(cadence as CadenceType, periodDate, routine.due_day_config);
@@ -285,7 +277,7 @@ export const RoutineDrawer = ({
 
               // Get shared due config text if all routines have the same config
               const sharedDueText = (() => {
-                const configs = routinesByCadence[cadence]
+                const configs = cadenceRoutines
                   .map(r => r.due_day_config)
                   .filter(Boolean);
                 if (configs.length === 0) return null;
@@ -313,14 +305,23 @@ export const RoutineDrawer = ({
                     )}
                   </div>
 
-                  {routinesByCadence[cadence].map((routine) => (
-                    <RoutineChecklist
-                      key={routine.id}
-                      routine={routine}
-                      periodStart={format(getPeriodStart(cadence), "yyyy-MM-dd")}
-                      userId={userId}
-                    />
-                  ))}
+                  {hasRoutines ? (
+                    cadenceRoutines.map((routine) => (
+                      <RoutineChecklist
+                        key={routine.id}
+                        routine={routine}
+                        periodStart={format(getPeriodStart(cadence), "yyyy-MM-dd")}
+                        userId={userId}
+                      />
+                    ))
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <CheckSquare className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                      <p className="text-muted-foreground text-sm">
+                        No {cadence} routines assigned
+                      </p>
+                    </div>
+                  )}
                 </TabsContent>
               );
             })}
