@@ -1,237 +1,71 @@
 
 
-## Persistent Routine Sidebar - Always Visible Tasks
+## Fix Routine Sidebar Vertical Positioning
 
-Transform routines from a hidden drawer into a **persistent right-side sidebar** that's always visible on the dashboard - just like the floating support button, but for your routine tasks.
+The sidebar is currently positioned with `top: 4rem` (64px), but the dashboard header is taller than that - approximately 80-88px. This causes the first cadence icon to be hidden behind the header buttons.
 
 ---
 
-### What You'll Get
+### The Problem
 
 ```text
-CURRENT (Drawer - Hidden by Default):
-+------------------------------------------+
-|              Dashboard                   |
-|   [Click "Routines" button to open]      |
-|                                          |
-+------------------------------------------+
-                                    +---------+
-                                    | Drawer  |
-                                    | slides  |
-                                    | in...   |
-                                    +---------+
-
-NEW (Sidebar - Always Visible):
-+------------------------------------------+------------------+
-|              Dashboard                   |  MY ROUTINES  [<]|
-|                                          |                  |
-|   [All your content here]                |  D  W  M  Q  Y   |
-|                                          |  ─────────────── |
-|                                          |  [ ] Task 1      |
-|   [Content auto-adjusts width]           |  [x] Task 2      |
-|                                          |  [ ] Task 3      |
-|                                          |                  |
-+------------------------------------------+------------------+
-
-COLLAPSED (Icon-only - Max Screen Space):
-+-----------------------------------------------+----+
-|              Dashboard                        | D  |
-|                                               | W  |
-|   [Full width content when collapsed]         | M  |
-|                                               | Q  |
-|                                               | Y  |
-+-----------------------------------------------+----+
+Current:
+┌─────────────────────────────────────────────────┬──────┐
+│  Logo  │ Store Dropdown │  Admin │ User Icon    │ ■ ←── Hidden behind header!
+├─────────────────────────────────────────────────┼──────┤
+│                                                 │ Daily│
+│                                                 │ Week │
 ```
 
----
+The header has:
+- `py-4` = 16px top + 16px bottom padding
+- Logo height = 40px (`h-10`)
+- Total ≈ 72-80px+ (varies when buttons wrap)
 
-### Key Features
-
-**Always There**
-- Sidebar is permanently visible on desktop (no button click needed)
-- Collapse to icons when you need more screen space
-- Expand back to see full checklists
-
-**Quick Toggle**
-- Click the collapse arrow to hide/show
-- Keyboard shortcut: Ctrl/Cmd + B
-- State remembers your preference (cookies)
-
-**Mobile Friendly**
-- On mobile, becomes a slide-out sheet (like current drawer)
-- Opens via a trigger button
-
-**All 5 Cadences Always Visible**
-- Daily, Weekly, Monthly, Quarterly, Yearly tabs always shown
-- Even empty cadences display with "No routines assigned" message
-- Progress badges show completion (3/8) for each
+Current sidebar: `top: 4rem` = 64px (too high)
 
 ---
 
-### Implementation
+### The Fix
 
-#### 1. Create RoutineSidebar Component
+Increase the sidebar's top offset from `4rem` (64px) to `5rem` (80px) to clear the header:
 
-**New file: `src/components/routines/RoutineSidebar.tsx`**
-
-Uses Shadcn Sidebar primitives configured for right-side placement:
+**File:** `src/components/routines/RoutineSidebar.tsx`
 
 ```tsx
-<Sidebar side="right" collapsible="icon" className="border-l">
-  <SidebarHeader>
-    <h3>My Routines</h3>
-    <SidebarTrigger /> {/* Collapse button */}
-  </SidebarHeader>
-  
-  <SidebarContent>
-    {/* Cadence tabs as menu items */}
-    <SidebarMenu>
-      {cadences.map(c => (
-        <SidebarMenuItem>
-          <SidebarMenuButton 
-            isActive={activeCadence === c.id}
-            tooltip={`${c.label}: ${c.completed}/${c.total}`}
-          >
-            <c.icon />
-            <span>{c.label}</span>
-            <Badge>{c.completed}/{c.total}</Badge>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      ))}
-    </SidebarMenu>
-    
-    {/* Routine checklists (hidden when collapsed) */}
-    <div className="group-data-[collapsible=icon]:hidden">
-      <RoutineChecklist ... />
-    </div>
-  </SidebarContent>
-</Sidebar>
+// Change from:
+className="border-l !top-16 !h-[calc(100svh-4rem)]"
+
+// Change to:
+className="border-l !top-20 !h-[calc(100svh-5rem)]"
 ```
 
-Key properties:
-- `side="right"` - positions on right side
-- `collapsible="icon"` - collapses to 48px icon strip
-- Tooltips show full info when hovering collapsed state
+| Property | Before | After |
+|----------|--------|-------|
+| `top` | `!top-16` (64px) | `!top-20` (80px) |
+| `height` | `100svh - 4rem` | `100svh - 5rem` |
 
-#### 2. Wrap Dashboard in SidebarProvider
+This pushes the sidebar down by an additional 16px, ensuring it starts cleanly below the header buttons and the first "Daily" icon is fully visible.
 
-**File: `src/pages/Dashboard.tsx`**
+---
 
-```tsx
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { RoutineSidebar } from "@/components/routines";
+### Visual Result
 
-const Dashboard = () => {
-  return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full">
-        {/* Main dashboard content */}
-        <SidebarInset className="flex-1 min-w-0">
-          <div className="min-h-screen bg-muted/30">
-            <header>...</header>
-            <main>...</main>
-          </div>
-        </SidebarInset>
-        
-        {/* Persistent right sidebar */}
-        {selectedDepartment && user && (
-          <RoutineSidebar 
-            departmentId={selectedDepartment}
-            userId={user.id}
-          />
-        )}
-      </div>
-    </SidebarProvider>
-  );
-};
-```
-
-The `SidebarInset` component automatically adjusts the main content width when the sidebar expands/collapses.
-
-#### 3. Remove "Routines" Button from Header
-
-Since routines are now always visible:
-- Delete the "Routines" button from the header navigation
-- Delete the `routineDrawerOpen` state variable
-- Remove the `RoutineDrawer` component import and usage
-
-#### 4. Sidebar Content Structure
-
-**Expanded View (320px width):**
 ```text
-┌────────────────────────────────┐
-│  MY ROUTINES              [<]  │
-├────────────────────────────────┤
-│  ● Daily           [3/8]       │
-│  ○ Weekly          [2/5]       │
-│  ○ Monthly         [0/3]       │
-│  ○ Quarterly       [1/2]       │
-│  ○ Yearly          [0/1]       │
-├────────────────────────────────┤
-│  Tuesday, Jan 28               │
-│  ─────────────────────────     │
-│  Service Manager Daily   3/8   │
-│  ▓▓▓▓▓▓░░░░░░░░░░░░░░░        │
-│  ──────────────────────────    │
-│  [ ] Check technician times    │
-│  [x] Review RO aging           │
-│  [x] Parts order status        │
-│  [x] CSI follow-up calls       │
-│  [ ] Warranty claims review    │
-│  ...                           │
-└────────────────────────────────┘
-```
-
-**Collapsed View (48px width):**
-```text
-┌──┐
-│[>│  (expand button)
-├──┤
-│ D│  (Daily - tooltip shows "Daily: 3/8")
-│ W│  (Weekly)
-│ M│  (Monthly)
-│ Q│  (Quarterly)
-│ Y│  (Yearly)
-└──┘
+After fix:
+┌─────────────────────────────────────────────────┐
+│  Logo  │ Store Dropdown │  Admin │ User Icon    │
+├─────────────────────────────────────────────────┼──────┐
+│                                                 │ Daily│ ← Now visible!
+│                                                 │ Week │
+│                                                 │ Month│
 ```
 
 ---
 
-### File Changes Summary
+### Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/routines/RoutineSidebar.tsx` | **New** - Persistent right sidebar component |
-| `src/components/routines/index.ts` | Export `RoutineSidebar` |
-| `src/pages/Dashboard.tsx` | Wrap in SidebarProvider, add RoutineSidebar, remove Routines button |
-
----
-
-### Reusing Existing Components
-
-The sidebar will reuse everything already built:
-- `RoutineChecklist.tsx` - Fetches data, handles real-time sync, due date display
-- `RoutineItemRow.tsx` - Individual checkbox items
-- `RoutineItemTooltip.tsx` - Hover cards with "why" explanations
-- `routineDueDate.ts` - Due date calculations and formatting
-
-Only the container changes from a Drawer to a persistent Sidebar.
-
----
-
-### Mobile Behavior
-
-On screens under 768px:
-- Sidebar automatically converts to a Sheet (slide-out drawer)
-- A small trigger button appears to open it
-- Same content, just different interaction pattern
-- Prevents taking up valuable mobile screen space
-
----
-
-### Persistence
-
-- Collapse state saved in cookies (`sidebar:state`)
-- Remembers your preference across sessions
-- Active cadence tab also preserved
+| `src/components/routines/RoutineSidebar.tsx` | Update `top-16` → `top-20` and height calc from `4rem` → `5rem` |
 
