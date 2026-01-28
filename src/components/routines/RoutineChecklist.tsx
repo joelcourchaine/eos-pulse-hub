@@ -276,7 +276,7 @@ export const RoutineChecklist = ({
         ) : (
           <div className="flex flex-col gap-2 max-h-[50vh]">
             {/* Scrollable list */}
-            <div className="space-y-2 overflow-y-auto pr-1">
+            <div className="flex-1 space-y-2 overflow-y-auto pr-1">
               {sortedItems.map((item) => (
                 <RoutineItemRow
                   key={item.id}
@@ -288,9 +288,9 @@ export const RoutineChecklist = ({
               ))}
             </div>
 
-            {/* Pinned add-row so it never gets trapped under the bottom edge */}
+            {/* Footer add-row so it never gets trapped under the bottom edge */}
             {canAddItems && (
-              <div className="sticky bottom-0 pt-2 bg-background">
+              <div className="shrink-0 pt-2 bg-background relative z-10">
                 <AddRoutineItemInline
                   routineId={localRoutine.id}
                   currentItems={items}
