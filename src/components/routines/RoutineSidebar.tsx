@@ -127,7 +127,7 @@ export const RoutineSidebar = ({
   departmentId,
   userId,
 }: RoutineSidebarProps) => {
-  const { state } = useSidebar();
+  const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
   
   const [routines, setRoutines] = useState<DepartmentRoutine[]>([]);
@@ -282,12 +282,20 @@ export const RoutineSidebar = ({
     return t.total - t.completed;
   };
 
+  // Handle cadence click - select and expand
+  const handleCadenceClick = (cadence: Cadence) => {
+    setActiveCadence(cadence);
+    if (isCollapsed) {
+      setOpen(true);
+    }
+  };
+
   return (
     <Sidebar 
       side="right" 
       collapsible="icon" 
       className="border-l !top-24 !h-[calc(100svh-6rem)]"
-      style={{ "--sidebar-width-icon": "10rem" } as React.CSSProperties}
+      style={{ "--sidebar-width": "22rem", "--sidebar-width-icon": "10rem" } as React.CSSProperties}
     >
       <SidebarHeader className="border-b">
         <div className="flex items-center justify-between px-2 py-1">
@@ -313,7 +321,7 @@ export const RoutineSidebar = ({
               <SidebarMenuItem key={cadence}>
                 <SidebarMenuButton
                   isActive={isActive}
-                  onClick={() => setActiveCadence(cadence)}
+                  onClick={() => handleCadenceClick(cadence)}
                   tooltip={`${CADENCE_LABELS[cadence]}: ${totals.completed}/${totals.total}`}
                   className="justify-between group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full"
                 >
