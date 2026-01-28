@@ -141,6 +141,36 @@ export const RoutineSidebar = ({
     }
   }, [departmentId]);
 
+  // Real-time subscription for routine completions to update badges
+  useEffect(() => {
+    if (routines.length === 0) return;
+
+    const routineIds = routines.map(r => r.id);
+    
+    const channel = supabase
+      .channel('routine-sidebar-completions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'routine_completions',
+        },
+        (payload) => {
+          // Check if this completion is for one of our routines
+          const routineId = (payload.new as any)?.routine_id || (payload.old as any)?.routine_id;
+          if (routineId && routineIds.includes(routineId)) {
+            fetchCompletionCounts(routines);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [routines]);
+
   const fetchRoutines = async () => {
     setLoading(true);
     try {
