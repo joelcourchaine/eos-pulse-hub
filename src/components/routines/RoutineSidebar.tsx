@@ -135,6 +135,13 @@ export const RoutineSidebar = ({
   const [loading, setLoading] = useState(true);
   const [activeCadence, setActiveCadence] = useState<Cadence>("daily");
 
+  const handleCountsChange = (routineId: string, completed: number, total: number) => {
+    setCompletionCounts((prev) => ({
+      ...prev,
+      [routineId]: { completed, total },
+    }));
+  };
+
   useEffect(() => {
     if (departmentId) {
       fetchRoutines();
@@ -419,6 +426,7 @@ export const RoutineSidebar = ({
                     routine={routine}
                     periodStart={format(getPeriodStart(activeCadence), "yyyy-MM-dd")}
                     userId={userId}
+                    onCountsChange={handleCountsChange}
                   />
                 ))
               ) : (
