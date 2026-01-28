@@ -334,20 +334,20 @@ export const RoutineSidebar = ({
                     </Badge>
                   )}
                   
-                  {/* Collapsed view - show icon + outstanding count */}
-                  <div className="hidden group-data-[collapsible=icon]:flex items-center justify-center gap-1.5 w-full">
-                    <Icon className="h-4 w-4 shrink-0" />
+                  {/* Collapsed view - stack icon above badge */}
+                  <div className="hidden group-data-[collapsible=icon]:flex flex-col items-center justify-center gap-0.5 w-full py-1">
+                    <Icon className="h-5 w-5 shrink-0" />
                     {outstanding > 0 ? (
                       <Badge 
                         variant="destructive" 
-                        className="h-5 min-w-5 px-1 text-[10px] font-semibold"
+                        className="h-4 min-w-4 px-1 text-[9px] font-semibold"
                       >
                         {outstanding}
                       </Badge>
                     ) : totals.total > 0 ? (
                       <Badge 
                         variant="default" 
-                        className="h-5 min-w-5 px-1 text-[10px]"
+                        className="h-4 min-w-4 px-1 text-[9px]"
                       >
                         ✓
                       </Badge>
