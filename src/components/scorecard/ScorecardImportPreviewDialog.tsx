@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -126,35 +126,51 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeData?.group_id,
   });
 
-  // Fetch cell mappings from Visual Mapper for this import profile, filtered to current store's users
+  // Fetch cell mappings from Visual Mapper for this import profile - UNIVERSAL (not filtered by user)
+  // These mappings define the relative positions of KPIs and apply to ALL users
   // IMPORTANT: Always refetch fresh data when dialog opens to pick up newly added KPI mappings
   const { data: cellMappings } = useQuery({
-    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId],
+    queryKey: ["cell-mappings-for-import", importProfile?.id],
     queryFn: async () => {
-      if (!importProfile?.id || !storeUsers || storeUsers.length === 0) return [];
+      if (!importProfile?.id) return [];
       
-      // Get user IDs for the current store only
-      const currentStoreUserIds = storeUsers
-        .filter(u => u.store_id === storeId)
-        .map(u => u.id);
+      console.log("[Import Preview] Fetching UNIVERSAL cell mappings for profile:", importProfile.id);
       
-      if (currentStoreUserIds.length === 0) return [];
-      
-      console.log("[Import Preview] Fetching cell mappings for profile:", importProfile.id, "store:", storeId, "users:", currentStoreUserIds.length);
-      
+      // Fetch ALL cell mappings for this import profile - they are universal templates
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*")
-        .eq("import_profile_id", importProfile.id)
-        .in("user_id", currentStoreUserIds);
+        .eq("import_profile_id", importProfile.id);
       if (error) throw error;
-      console.log("[Import Preview] Fetched cell mappings:", data?.length || 0);
+      console.log("[Import Preview] Fetched universal cell mappings:", data?.length || 0);
       return data || [];
     },
-    enabled: open && !!importProfile?.id && !!storeUsers && storeUsers.length > 0,
+    enabled: open && !!importProfile?.id,
     staleTime: 0, // Always refetch to pick up newly added mappings
     refetchOnMount: "always",
   });
+
+  // Build a universal mapping template from cell mappings
+  // Key: "col_index:row_offset" -> { kpiName, colIndex, rowOffset }
+  // This allows us to apply the same mappings to ANY user
+  const universalMappingTemplate = useMemo(() => {
+    if (!cellMappings || cellMappings.length === 0) return new Map<string, { kpiName: string; colIndex: number; rowOffset: number }>();
+    
+    const template = new Map<string, { kpiName: string; colIndex: number; rowOffset: number }>();
+    for (const cm of cellMappings) {
+      const key = `${cm.col_index}:${cm.row_index ?? 0}`;
+      // Only add if not already present (first mapping wins - prevents duplicates)
+      if (!template.has(key)) {
+        template.set(key, {
+          kpiName: cm.kpi_name,
+          colIndex: cm.col_index,
+          rowOffset: cm.row_index ?? 0,
+        });
+      }
+    }
+    console.log("[Import Preview] Built universal mapping template with", template.size, "unique position mappings");
+    return template;
+  }, [cellMappings]);
 
   // Match advisors to users on mount
   useEffect(() => {
@@ -201,38 +217,11 @@ export const ScorecardImportPreviewDialog = ({
     matchAdvisors();
   }, [open, parseResult.advisors, storeId, storeData?.group_id]);
 
-  // Identify users with cell mappings - these should ALWAYS use their explicit mappings
-  // regardless of whether they also match an advisor name in the report.
-  // PRIORITY: Visual Mapper cell mappings take precedence over fuzzy matching.
+  // Note: totalsUserMappings is now only used for backward compatibility display
+  // With universal mappings, ALL matched users receive mappings, not just specific ones
   useEffect(() => {
-    if (!cellMappings || cellMappings.length === 0 || !storeUsers) {
-      setTotalsUserMappings([]);
-      return;
-    }
-
-    // Group cell mappings by user_id to identify ALL users with explicit Visual Mapper mappings
-    const mappingsByUser = new Map<string, number>();
-    for (const cm of cellMappings) {
-      if (!cm.user_id) continue;
-      mappingsByUser.set(cm.user_id, (mappingsByUser.get(cm.user_id) || 0) + 1);
-    }
-
-    // ALL users with cell mappings are processed via Visual Mapper, not fuzzy matching.
-    // They appear in the "Dept Totals" section of the preview (even if they match an advisor name).
-    const cellMappedUsers: Array<{ userId: string; userName: string; mappingsCount: number }> = [];
-    for (const [userId, count] of mappingsByUser.entries()) {
-      const user = storeUsers.find(u => u.id === userId);
-      if (user) {
-        cellMappedUsers.push({
-          userId,
-          userName: user.full_name || "Unknown User",
-          mappingsCount: count,
-        });
-      }
-    }
-
-    console.log("[Import Preview] Users with Visual Mapper cell mappings (take precedence):", cellMappedUsers.map(u => u.userName));
-    setTotalsUserMappings(cellMappedUsers);
+    // Clear totalsUserMappings since mappings are now universal
+    setTotalsUserMappings([]);
   }, [cellMappings, storeUsers]);
 
   const handleUserSelect = (advisorIndex: number, userId: string) => {
@@ -290,92 +279,105 @@ export const ScorecardImportPreviewDialog = ({
         actual_value: number;
       }[] = [];
 
-      // Build a lookup of cell mappings by user_id -> list of mappings.
-      // IMPORTANT: multiple KPIs can live on the same column (distinguished by pay type / row offset),
-      // so we must NOT key solely by col_index.
-       const userCellMappingsLookup = new Map<
-         string,
-         Array<{ colIndex: number; kpiId: string; rowOffset: number | null }>
-       >();
-      if (cellMappings && cellMappings.length > 0) {
-        for (const cm of cellMappings) {
-          if (!cm.user_id) continue;
-          const list = userCellMappingsLookup.get(cm.user_id) ?? [];
-           // NOTE: in our Visual Mapper model, `row_index` stores a RELATIVE row offset (rowIndex - ownerAnchorRow).
-           list.push({ colIndex: cm.col_index, kpiId: cm.kpi_id, rowOffset: cm.row_index });
-          userCellMappingsLookup.set(cm.user_id, list);
-        }
-      }
-
-      const hasCellMappings = userCellMappingsLookup.size > 0;
-      console.log("[Import] Using Visual Mapper cell mappings:", hasCellMappings, "- users with mappings:", userCellMappingsLookup.size);
-
-      // PRIORITY: Process users with Visual Mapper cell mappings FIRST.
-      // These mappings take precedence over fuzzy advisor matching.
-      // Build a Set of user IDs that have explicit cell mappings.
-      const cellMappedUserIds = new Set(userCellMappingsLookup.keys());
+      // Check if we have universal Visual Mapper cell mappings
+      const hasUniversalMappings = universalMappingTemplate.size > 0;
+      console.log("[Import] Using UNIVERSAL Visual Mapper mappings:", hasUniversalMappings, "- template size:", universalMappingTemplate.size);
 
       if (kpiDefinitions) {
-        // Process ALL users with explicit Visual Mapper cell mappings first.
-        // These users should NOT be processed via fuzzy advisor matching later.
-        for (const [mappedUserId, userMappings] of userCellMappingsLookup.entries()) {
-          console.log(`[Import] Processing user with Visual Mapper mappings: ${mappedUserId} with ${userMappings.length} cell mappings`);
+        // NEW APPROACH: Apply universal cell mappings to ALL matched users
+        // The mappings define (col_index, row_offset) -> kpi_name
+        // For each matched user, find their KPI by name and extract the value
+        
+        if (hasUniversalMappings) {
+          // Process ALL matched advisors using the universal template
+          for (const match of advisorMatches) {
+            const assignedUserId = match.selectedUserId || match.userId;
+            if (!assignedUserId) continue;
+
+            console.log(`[Import] Applying universal mappings to advisor: ${match.advisor.displayName} (${assignedUserId})`);
+            
+            // Get all KPIs assigned to this user
+            const userKpis = kpiDefinitions.filter(k => k.assigned_to === assignedUserId);
+            
+            // Apply each mapping from the universal template
+            for (const [, mapping] of universalMappingTemplate) {
+              const { kpiName, colIndex, rowOffset } = mapping;
+              
+              // Find this user's KPI with matching name
+              const userKpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+              if (!userKpi) {
+                console.log(`[Import] No KPI named "${kpiName}" found for user ${match.advisor.displayName}`);
+                continue;
+              }
+              
+              // Get the value from the advisor's data using the row offset
+              const payType = (match.advisor as any).payTypeByRowOffset?.[rowOffset];
+              let value: number | undefined;
+              
+              if (payType) {
+                value = match.advisor.metricsByIndex[payType]?.[colIndex];
+                console.log(`[Import] Universal mapping: ${kpiName} col ${colIndex} row_offset ${rowOffset} -> payType "${payType}" -> value ${value}`);
+              }
+              
+              if (typeof value === 'number') {
+                entriesToUpsert.push({
+                  kpi_id: userKpi.id,
+                  month,
+                  entry_type: "monthly",
+                  actual_value: value,
+                });
+              }
+            }
+          }
           
-          // Determine data source by checking where the row offsets point to.
-          // The row_index stored in cell mappings is relative to the anchor selected in Visual Mapper.
-          // If the user was anchored to "All Repair Orders" (dept totals), offsets map to departmentTotalsPayTypeByRowOffset.
-          // If the user was anchored to their own advisor row, offsets map to advisor.payTypeByRowOffset.
-          // We detect the correct source by checking if the row offset exists in each lookup.
-          
-          // Get the advisor match (if any) to have access to their payTypeByRowOffset
-          const advisorMatch = advisorMatches.find(m => 
-            (m.userId === mappedUserId || m.selectedUserId === mappedUserId)
+          // Also process users who are mapped to department totals (e.g., Jake mapped to "All Repair Orders")
+          // These users have an alias like "All Repair Orders -> Jake" but no individual advisor row
+          // Find users with KPIs who weren't processed above (no advisor match)
+          const processedUserIds = new Set(
+            advisorMatches
+              .filter(m => m.userId || m.selectedUserId)
+              .map(m => m.selectedUserId || m.userId)
           );
           
-          for (const { colIndex, kpiId, rowOffset } of userMappings) {
-            const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
-            const offsetKey = rowOffset ?? 0;
+          // Get all users with assigned KPIs in this department
+          const usersWithKpis = [...new Set(kpiDefinitions.filter(k => k.assigned_to).map(k => k.assigned_to!))];
+          
+          for (const kpiOwnerId of usersWithKpis) {
+            // Skip if already processed via advisor matching
+            if (processedUserIds.has(kpiOwnerId)) continue;
             
-            let value: number | undefined;
-            let dataSource: string;
+            // This user has KPIs but no advisor match - check if they're in the current store
+            const userProfile = storeUsers?.find(u => u.id === kpiOwnerId && u.store_id === storeId);
+            if (!userProfile) continue;
             
-            // Priority 1: Check if this offset maps to a valid pay type in department totals
-            // This handles the case where user was anchored to "All Repair Orders"
-            const deptTotalsPayType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey];
+            console.log(`[Import] Applying universal mappings to dept totals user: ${userProfile.full_name} (${kpiOwnerId})`);
             
-            // Priority 2: Check if this offset maps to a valid pay type in the matched advisor
-            const advisorPayType = advisorMatch 
-              ? (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] 
-              : undefined;
+            const userKpis = kpiDefinitions.filter(k => k.assigned_to === kpiOwnerId);
             
-            // Decide which source to use:
-            // - If ONLY dept totals has a valid mapping for this offset, use dept totals
-            // - If ONLY advisor has a valid mapping for this offset, use advisor
-            // - If BOTH have valid mappings, prefer dept totals (user explicitly mapped to totals row)
-            // - If NEITHER has a valid mapping, fall back to dept totals with "total" pay type
-            
-            if (deptTotalsPayType) {
-              // Use department totals data
-              value = parseResult.departmentTotalsByIndex[deptTotalsPayType]?.[colIndex];
-              dataSource = `Department Totals (${deptTotalsPayType})`;
-            } else if (advisorMatch && advisorPayType) {
-              // Use advisor data
-              value = advisorMatch.advisor.metricsByIndex[advisorPayType]?.[colIndex];
-              dataSource = `Advisor ${advisorMatch.advisor.displayName} (${advisorPayType})`;
-            } else {
-              // Fallback: try department totals with "total" pay type
-              value = parseResult.departmentTotalsByIndex["total"]?.[colIndex];
-              dataSource = `Department Totals (total - fallback)`;
-            }
-            
-            if (typeof value === 'number') {
-              console.log(`[Import] Cell Mapping: col ${colIndex} from ${dataSource} -> ${kpiDef?.name}: ${value}`);
-              entriesToUpsert.push({
-                kpi_id: kpiId,
-                month,
-                entry_type: "monthly",
-                actual_value: value,
-              });
+            // Apply each mapping from the universal template using department totals data
+            for (const [, mapping] of universalMappingTemplate) {
+              const { kpiName, colIndex, rowOffset } = mapping;
+              
+              const userKpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+              if (!userKpi) continue;
+              
+              // Get the value from department totals using the row offset
+              const payType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[rowOffset];
+              let value: number | undefined;
+              
+              if (payType) {
+                value = parseResult.departmentTotalsByIndex[payType]?.[colIndex];
+                console.log(`[Import] Dept totals mapping: ${kpiName} col ${colIndex} row_offset ${rowOffset} -> payType "${payType}" -> value ${value}`);
+              }
+              
+              if (typeof value === 'number') {
+                entriesToUpsert.push({
+                  kpi_id: userKpi.id,
+                  month,
+                  entry_type: "monthly",
+                  actual_value: value,
+                });
+              }
             }
           }
         }
@@ -417,48 +419,44 @@ export const ScorecardImportPreviewDialog = ({
           }
         }
 
-        // Process per-advisor data - ONLY for advisors who DON'T have explicit cell mappings.
-        // Users with cell mappings were already processed above.
-        for (const match of advisorMatches) {
-          const assignedUserId = match.selectedUserId || match.userId;
-          if (!assignedUserId) continue;
+        // LEGACY FALLBACK: Process per-advisor data when NO universal mappings exist
+        // This preserves backward compatibility for stores without Visual Mapper config
+        if (!hasUniversalMappings) {
+          for (const match of advisorMatches) {
+            const assignedUserId = match.selectedUserId || match.userId;
+            if (!assignedUserId) continue;
 
-          // SKIP if this user has Visual Mapper cell mappings - already processed above
-          if (cellMappedUserIds.has(assignedUserId)) {
-            console.log(`[Import] Skipping advisor ${match.advisor.displayName} - already processed via Visual Mapper cell mappings`);
-            continue;
-          }
-
-          // FALLBACK: Use standard column name mappings (legacy behavior for unmapped users)
-          const userKpis = kpiDefinitions.filter(k => k.assigned_to === assignedUserId);
-          
-          // Map advisor metrics to their KPIs by column name
-          for (const [columnName, value] of Object.entries(match.advisor.metrics.total)) {
-            const kpiName = getStandardKpiName(columnName, "total");
-            if (kpiName) {
-              const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
-              if (kpi) {
-                entriesToUpsert.push({
-                  kpi_id: kpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+            // Use standard column name mappings (legacy behavior)
+            const userKpis = kpiDefinitions.filter(k => k.assigned_to === assignedUserId);
+            
+            // Map advisor metrics to their KPIs by column name
+            for (const [columnName, value] of Object.entries(match.advisor.metrics.total)) {
+              const kpiName = getStandardKpiName(columnName, "total");
+              if (kpiName) {
+                const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+                if (kpi) {
+                  entriesToUpsert.push({
+                    kpi_id: kpi.id,
+                    month,
+                    entry_type: "monthly",
+                    actual_value: value,
+                  });
+                }
               }
             }
-          }
 
-          for (const [columnName, value] of Object.entries(match.advisor.metrics.customer)) {
-            const kpiName = getStandardKpiName(columnName, "customer");
-            if (kpiName) {
-              const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
-              if (kpi) {
-                entriesToUpsert.push({
-                  kpi_id: kpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+            for (const [columnName, value] of Object.entries(match.advisor.metrics.customer)) {
+              const kpiName = getStandardKpiName(columnName, "customer");
+              if (kpiName) {
+                const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+                if (kpi) {
+                  entriesToUpsert.push({
+                    kpi_id: kpi.id,
+                    month,
+                    entry_type: "monthly",
+                    actual_value: value,
+                  });
+                }
               }
             }
           }
@@ -519,16 +517,10 @@ export const ScorecardImportPreviewDialog = ({
     },
   });
 
-  // Calculate counts - exclude advisors who have cell mappings (they're in totalsUserMappings)
-  const cellMappedUserIds = new Set(totalsUserMappings.map(u => u.userId));
-  const advisorsWithoutCellMappings = advisorMatches.filter(m => {
-    const userId = m.userId || m.selectedUserId;
-    return !userId || !cellMappedUserIds.has(userId);
-  });
-  
-  const matchedCount = advisorsWithoutCellMappings.filter(m => m.userId || m.selectedUserId).length + totalsUserMappings.length;
-  const totalOwnerCount = advisorsWithoutCellMappings.length + totalsUserMappings.length;
-  const unmatchedCount = advisorsWithoutCellMappings.filter(m => !m.userId && !m.selectedUserId).length;
+  // Calculate counts - with universal mappings, all matched advisors get mappings
+  const matchedCount = advisorMatches.filter(m => m.userId || m.selectedUserId).length;
+  const totalOwnerCount = advisorMatches.length;
+  const unmatchedCount = advisorMatches.filter(m => !m.userId && !m.selectedUserId).length;
 
   // Format month for display
   const formatMonth = (m: string) => {
@@ -609,17 +601,26 @@ export const ScorecardImportPreviewDialog = ({
                      )}
                    </TableRow>
                  </TableHeader>
-                  <TableBody>
-                   {/* Filter out advisors who have explicit cell mappings - they'll be shown in the Visual Mapper section */}
-                   {advisorMatches
-                     .filter(match => {
-                       const assignedUserId = match.selectedUserId || match.userId;
-                       // Exclude advisors who have explicit cell mappings
-                       const hasCellMapping = cellMappings?.some(cm => cm.user_id === assignedUserId);
-                       return !hasCellMapping;
-                     })
-                     .map((match, index) => {
-                      // For advisors without cell mappings, show standard preview values
+                   <TableBody>
+                    {/* Show ALL advisors - universal mappings apply to everyone */}
+                    {advisorMatches.map((match, index) => {
+                      // Calculate preview values using the universal template
+                      const previewValues: Record<string, number | null> = {};
+                      
+                      if (universalMappingTemplate.size > 0) {
+                        for (const [, mapping] of universalMappingTemplate) {
+                          const { kpiName, colIndex, rowOffset } = mapping;
+                          // Get value from advisor's data using row offset
+                          const payType = (match.advisor as any).payTypeByRowOffset?.[rowOffset];
+                          if (payType) {
+                            const value = match.advisor.metricsByIndex[payType]?.[colIndex];
+                            if (typeof value === 'number') {
+                              previewValues[kpiName] = value;
+                            }
+                          }
+                        }
+                      }
+                      
                       return (
                         <TableRow key={match.advisor.rawName}>
                           <TableCell>
@@ -662,11 +663,13 @@ export const ScorecardImportPreviewDialog = ({
                               </Select>
                             )}
                           </TableCell>
-                          {/* Show standard advisor metrics for unmapped users */}
+                          {/* Show preview values from universal template */}
                           {cellMappings && cellMappings.length > 0 ? (
                             [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
                               <TableCell key={kpiName} className="text-xs whitespace-nowrap">
-                                -
+                                {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
+                                  ? previewValues[kpiName]!.toLocaleString()
+                                  : "-"}
                               </TableCell>
                             ))
                           ) : (
@@ -684,117 +687,29 @@ export const ScorecardImportPreviewDialog = ({
                           )}
                         </TableRow>
                       );
-                   })}
-                 </TableBody>
-               </Table>
-             </div>
-          )}
-          
-          {/* Visual Mapper users - users with explicit cell mappings */}
-          {!isMatching && totalsUserMappings.length > 0 && (
-             <div className="w-full overflow-x-auto mt-2">
-               <Table className="min-w-max">
-                 <TableBody>
-                   {totalsUserMappings.map(totalsUser => {
-                  // Build preview values for this Visual Mapper user
-                  // Determine data source by checking which lookup has the row offset
-                  const previewValues: Record<string, number | null> = {};
-                  
-                  // Check if this user matched any advisor in the report
-                  const advisorMatch = advisorMatches.find(m => 
-                    m.userId === totalsUser.userId || m.selectedUserId === totalsUser.userId
-                  );
-                  
-                  let dataSourceLabel = "Visual Mapper";
-                  
-                  if (cellMappings) {
-                    const userMappings = cellMappings.filter(cm => cm.user_id === totalsUser.userId);
-                    for (const mapping of userMappings) {
-                      const offsetKey = (mapping.row_index ?? 0) as number;
-                      
-                      // Check which lookup has this offset - prioritize dept totals
-                      const deptTotalsPayType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey];
-                      const advisorPayType = advisorMatch 
-                        ? (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] 
-                        : undefined;
-                      
-                      let value: number | undefined;
-                      if (deptTotalsPayType) {
-                        value = parseResult.departmentTotalsByIndex[deptTotalsPayType]?.[mapping.col_index];
-                        dataSourceLabel = "Dept Totals";
-                      } else if (advisorMatch && advisorPayType) {
-                        value = advisorMatch.advisor.metricsByIndex[advisorPayType]?.[mapping.col_index];
-                        dataSourceLabel = "Advisor Row";
-                      } else {
-                        value = parseResult.departmentTotalsByIndex["total"]?.[mapping.col_index];
-                        dataSourceLabel = "Dept Totals";
-                      }
-                      
-                      if (typeof value === 'number') {
-                        previewValues[mapping.kpi_name] = value;
-                      }
-                    }
-                  }
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+           )}
 
-                  return (
-                    <TableRow key={totalsUser.userId} className="border-t-2 font-medium bg-purple-500/5">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-purple-500" />
-                          <span>{totalsUser.userName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className="bg-purple-500/20 text-purple-700">
-                          {dataSourceLabel}
-                        </Badge>
-                      </TableCell>
-                      {cellMappings && cellMappings.length > 0 ? (
-                        [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
-                          <TableCell key={kpiName} className="text-xs whitespace-nowrap">
-                            {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
-                              ? previewValues[kpiName]!.toLocaleString()
-                              : "-"}
-                          </TableCell>
-                        ))
-                      ) : (
-                        <>
-                          <TableCell>
-                            {parseResult.departmentTotals.total["Sold Hrs"]?.toLocaleString() || "-"}
-                          </TableCell>
-                          <TableCell>
-                            {parseResult.departmentTotals.customer["Sold Hrs"]?.toLocaleString() || "-"}
-                          </TableCell>
-                          <TableCell>
-                            ${parseResult.departmentTotals.customer["Lab Sold"]?.toLocaleString() || "0"}
-                          </TableCell>
-                        </>
-                      )}
-                    </TableRow>
-                     );
-                   })}
-                 </TableBody>
-               </Table>
-             </div>
-          )}
-
-          {/* Department Totals summary row - show when no totals users mapped */}
-          {!isMatching && totalsUserMappings.length === 0 && (
-            <Table className="mt-2">
-              <TableBody>
-                <TableRow className="border-t-2 font-medium bg-muted/50">
-                  <TableCell>Department Total</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">Summary</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {parseResult.departmentTotals.total["Sold Hrs"]?.toLocaleString() || "-"}
-                  </TableCell>
-                  <TableCell>
-                    {parseResult.departmentTotals.customer["Sold Hrs"]?.toLocaleString() || "-"}
-                  </TableCell>
-                  <TableCell>
-                    ${parseResult.departmentTotals.customer["Lab Sold"]?.toLocaleString() || "0"}
+           {/* Department Totals summary row - always show when there are no advisors */}
+           {!isMatching && advisorMatches.length === 0 && (
+             <Table className="mt-2">
+               <TableBody>
+                 <TableRow className="border-t-2 font-medium bg-muted/50">
+                   <TableCell>Department Total</TableCell>
+                   <TableCell>
+                     <Badge variant="outline">Summary</Badge>
+                   </TableCell>
+                   <TableCell>
+                     {parseResult.departmentTotals.total["Sold Hrs"]?.toLocaleString() || "-"}
+                   </TableCell>
+                   <TableCell>
+                     {parseResult.departmentTotals.customer["Sold Hrs"]?.toLocaleString() || "-"}
+                   </TableCell>
+                   <TableCell>
+                     ${parseResult.departmentTotals.customer["Lab Sold"]?.toLocaleString() || "0"}
                   </TableCell>
                 </TableRow>
               </TableBody>
