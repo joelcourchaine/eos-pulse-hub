@@ -24,7 +24,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
-type DatePeriodType = "month" | "full_year" | "custom_range";
+type DatePeriodType = "month" | "full_year" | "custom_range" | "monthly_trend";
 type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
 // Helper to get initial state from sessionStorage
@@ -121,7 +121,17 @@ export default function Enterprise() {
     sessionStorage.setItem('enterprise_showDeptManagerOnly', JSON.stringify(showDeptManagerOnly));
   }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly]);
 
-  // Check authentication and get user
+  // Set default 12-month range when switching to monthly_trend mode
+  useEffect(() => {
+    if (datePeriodType === 'monthly_trend') {
+      const today = new Date();
+      const defaultStart = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+      setStartMonth(defaultStart);
+      setEndMonth(today);
+    }
+  }, [datePeriodType]);
+
+
   const [userId, setUserId] = useState<string | undefined>(undefined);
   
   useEffect(() => {
@@ -1194,6 +1204,7 @@ export default function Enterprise() {
                         <SelectItem value="month">Single Month</SelectItem>
                         <SelectItem value="full_year">Full Year</SelectItem>
                         <SelectItem value="custom_range">Custom Range</SelectItem>
+                        <SelectItem value="monthly_trend">12 Month Trend</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1249,7 +1260,7 @@ export default function Enterprise() {
                         </SelectContent>
                       </Select>
                     </div>
-                  ) : (
+                  ) : datePeriodType === "custom_range" ? (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-sm font-medium mb-2 block">Start Month</label>
@@ -1308,7 +1319,66 @@ export default function Enterprise() {
                         </Select>
                       </div>
                     </div>
-                  )}
+                  ) : datePeriodType === "monthly_trend" ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Start Month</label>
+                        <Select 
+                          value={format(startMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setStartMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue>
+                              {format(startMonth, "MMM yyyy")}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-background max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">End Month</label>
+                        <Select 
+                          value={format(endMonth, "yyyy-MM")} 
+                          onValueChange={(value) => {
+                            const [year, month] = value.split('-');
+                            setEndMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                          }}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue>
+                              {format(endMonth, "MMM yyyy")}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="bg-background max-h-[300px]">
+                            {Array.from({ length: 36 }, (_, i) => {
+                              const date = new Date();
+                              date.setMonth(date.getMonth() - i);
+                              const value = format(date, "yyyy-MM");
+                              return (
+                                <SelectItem key={value} value={value}>
+                                  {format(date, "MMMM yyyy")}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               )}
 
@@ -1794,17 +1864,12 @@ export default function Enterprise() {
                     >
                       View Dashboard
                     </Button>
-                    {selectedDepartmentNames.includes('Fixed Combined') && metricType === 'financial' && (
+                    {metricType === 'financial' && datePeriodType === 'monthly_trend' && (
                       <Button
                         onClick={() => {
-                          // Default to last 12 months if not custom range
-                          const today = new Date();
-                          const start = datePeriodType === 'custom_range' 
-                            ? format(startMonth, 'yyyy-MM')
-                            : format(new Date(today.getFullYear(), today.getMonth() - 11, 1), 'yyyy-MM');
-                          const end = datePeriodType === 'custom_range'
-                            ? format(endMonth, 'yyyy-MM')
-                            : format(today, 'yyyy-MM');
+                          // Use the user-selected start/end months from the monthly_trend period
+                          const start = format(startMonth, 'yyyy-MM');
+                          const end = format(endMonth, 'yyyy-MM');
                           
                           let brandDisplayName = "All Brands";
                           if (selectedBrandIds.length > 0) {
@@ -1843,7 +1908,7 @@ export default function Enterprise() {
                         className="gap-2"
                       >
                         <TrendingUp className="h-4 w-4" />
-                        Monthly Trend Report
+                        View Trend Report
                       </Button>
                     )}
                     {metricType === 'monthly' && (
