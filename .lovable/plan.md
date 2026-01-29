@@ -1,125 +1,235 @@
 
-# Plan: Add 12-Month Monthly Trend Date Period to Enterprise Reporting
+# Plan: Commission Scenario Tool with Flexible Department Trend View
 
 ## Overview
-Add a new "12 Month Trend" date period option to the Enterprise Financial Metrics filter, allowing users to select a custom date range and view month-by-month trend data directly from the filter panel.
 
-## Current Architecture
+Build a **Payplan Scenario Tool** integrated into the Enterprise reporting section that allows you to model manager compensation scenarios. The tool will calculate commissions based on a base salary plus percentage of financial metrics (like Net Selling Gross), displayed as sub-metric rows in any department's 12-month trend view.
 
-The Enterprise page has three date period options:
-- **Single Month**: View data for one specific month
-- **Full Year**: View aggregated data for an entire year
-- **Custom Range**: Specify start and end months
+## Key Requirement Addressed
 
-The "Monthly Trend Report" button already exists but only appears for "Fixed Combined" department selection and navigates to a separate trend view component (`FixedCombinedTrendView`).
+**Flexibility**: The payplan scenarios should work with ANY department trend view, not just "Fixed Combined". This means:
+- Single departments (e.g., just "Service" or just "Parts")
+- Multiple selected departments
+- "Fixed Combined" (Parts + Service aggregated)
+- Any other department selection
 
-## Implementation Approach
+## Current Architecture Gap
 
-### Option A: Add "12 Month Trend" as a 4th Date Period Type
-Add a new option `"monthly_trend"` to `DatePeriodType` that:
-- Shows start/end month selectors (like Custom Range)
-- Defaults to last 12 months from current date
-- Passes data to `DealerComparison` page configured for trend display
+The existing `FixedCombinedTrendView.tsx` is hardcoded to only work with Parts and Service departments:
 
-### Option B: Make the "Monthly Trend Report" Button Always Available (Recommended)
-Currently the trend report button is hidden unless "Fixed Combined" is selected. This approach:
-- Shows the "Monthly Trend Report" button for all Financial Metrics selections
-- Uses the existing start/end month selectors that appear for Custom Range
-- Leverages the already-built `FixedCombinedTrendView` component
+```typescript
+// Line 167-171 of FixedCombinedTrendView.tsx
+return data?.filter(d => 
+  d.name.toLowerCase().includes('parts') || 
+  d.name.toLowerCase().includes('service')
+) || [];
+```
 
-**Recommendation:** Option B is simpler and reuses existing components.
+This needs to be made flexible to accept the user's department selection.
 
 ## Implementation Steps
 
-### 1. Update Date Period Type
-**File: `src/pages/Enterprise.tsx`**
+### Phase 1: Make Trend View Department-Flexible
 
-Add a new date period type:
+**Rename/Update FixedCombinedTrendView → FinancialTrendView**
+
+| Change | Description |
+|--------|-------------|
+| Add `selectedDepartmentNames` prop | Pass from Enterprise filter panel |
+| Remove hardcoded Parts/Service filter | Use `selectedDepartmentNames` to filter departments |
+| Update title/subtitle | Show selected department names instead of "Fixed Combined" |
+
+**Updated Props Interface:**
 ```typescript
-type DatePeriodType = "month" | "full_year" | "custom_range" | "monthly_trend";
+interface FinancialTrendViewProps {
+  storeIds: string[];
+  selectedDepartmentNames: string[];  // NEW - pass from Enterprise
+  selectedMetrics: string[];
+  startMonth: string;
+  endMonth: string;
+  brandDisplayName: string;
+  filterName: string;
+  onBack: () => void;
+  activePayplanScenarios?: PayplanScenario[];  // NEW - for phase 2
+}
 ```
 
-### 2. Add "12 Month Trend" Option to Date Period Dropdown
-**File: `src/pages/Enterprise.tsx`** (around line 1193)
+### Phase 2: Database Schema for Payplan Scenarios
 
-Add new SelectItem:
-```typescript
-<SelectItem value="monthly_trend">12 Month Trend</SelectItem>
+**New Table: `payplan_scenarios`**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | uuid | Primary key |
+| `user_id` | uuid | Owner (references auth.users) |
+| `name` | text | Scenario name (e.g., "Tom FOM Candidate") |
+| `base_salary_annual` | numeric | Annual base salary (e.g., 78000) |
+| `commission_rules` | jsonb | Array of commission rules |
+| `department_names` | text[] | Applicable departments (empty = all selected) |
+| `is_active` | boolean | Quick toggle for display |
+| `created_at` | timestamptz | Creation timestamp |
+| `updated_at` | timestamptz | Last update |
+
+**Commission Rules JSON Structure:**
+```json
+{
+  "rules": [
+    {
+      "source_metric": "net_selling_gross",
+      "rate": 0.03,
+      "min_threshold": null,
+      "max_threshold": null,
+      "description": "3% of Net Selling Gross"
+    }
+  ]
+}
 ```
 
-### 3. Add Date Range Selectors for Monthly Trend
-**File: `src/pages/Enterprise.tsx`**
+### Phase 3: Scenario Management UI
 
-When `datePeriodType === "monthly_trend"`, display start/end month pickers with defaults:
-- Start: 11 months ago
-- End: Current month
+**PayplanScenarioDialog Component**
 
-This can reuse the existing Custom Range UI, or be a simplified version.
+A dialog for creating/editing scenarios:
 
-### 4. Update Report Generation Logic
-**File: `src/pages/Enterprise.tsx`** (around line 1797)
-
-Remove the condition that limits the Monthly Trend Report button to only "Fixed Combined":
-- Change from: `{selectedDepartmentNames.includes('Fixed Combined') && metricType === 'financial' && (...)`
-- Change to: `{metricType === 'financial' && datePeriodType === 'monthly_trend' && (...)`
-
-Or alternatively, always show the Monthly Trend button when Financial Metrics is selected and a date range is specified.
-
-### 5. Ensure FixedCombinedTrendView Works for All Departments
-The `FixedCombinedTrendView` currently only fetches Parts and Service departments. Need to verify it handles the selected departments correctly.
-
-**File: `src/components/enterprise/FixedCombinedTrendView.tsx`** (line 168-172)
-
-Consider passing `selectedDepartmentNames` as a prop to filter appropriately.
-
-## UI Changes
-
-### Date Period Dropdown (Financial Metrics)
 ```text
-Current:
-- Single Month
-- Full Year  
-- Custom Range
-
-After:
-- Single Month
-- Full Year
-- Custom Range
-- 12 Month Trend  (NEW)
+┌─────────────────────────────────────────────────────────────┐
+│ Create Payplan Scenario                                 [X] │
+├─────────────────────────────────────────────────────────────┤
+│ Scenario Name:                                              │
+│ [Tom - Fixed Ops Manager Candidate                     ]    │
+│                                                             │
+│ Base Salary:                                                │
+│ [$6,500    ] per [Monthly ▼]  = $78,000/year               │
+│                                                             │
+│ Commission Rule:                                            │
+│ ┌─────────────────────────────────────────────────────────┐ │
+│ │ Source Metric:  [Net Selling Gross              ▼]     │ │
+│ │ Rate:           [3.0    ] %                            │ │
+│ │ Min Threshold:  [$           ] (optional)              │ │
+│ └─────────────────────────────────────────────────────────┘ │
+│                                                             │
+│ [+ Add Another Rule]                                        │
+│                                                             │
+│ [Cancel]                              [Save Scenario]       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### When "12 Month Trend" is Selected
-Show start/end month pickers that default to the last 12 months:
-- Start Month: [Select Month dropdown - defaults to 12 months ago]
-- End Month: [Select Month dropdown - defaults to current month]
+**PayplanScenariosPanel Component**
 
-The "View Dashboard" button will navigate to the trend view instead of the comparison table.
+A collapsible panel in the Financial Metrics section:
 
-## Technical Details
+```text
+┌─────────────────────────────────────────────────────────────┐
+│ 💰 Payplan Scenarios                                   [+]  │
+├─────────────────────────────────────────────────────────────┤
+│ ☑ Tom - Fixed Ops Manager                                   │
+│   $6,500/mo base + 3% of Net Selling Gross                  │
+│ ☐ Sarah - Service Manager                                   │
+│   $5,000/mo base + 2.5% of Department Profit                │
+├─────────────────────────────────────────────────────────────┤
+│ [+ Create New Scenario]                                     │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Default Date Range Calculation
+### Phase 4: Calculation Engine
+
+**usePayplanCalculations Hook**
+
+Inputs:
+- Financial data (from trend view query)
+- Selected payplan scenarios
+- Selected departments
+
+Logic:
+1. For each selected scenario, iterate through its commission rules
+2. For each rule, find the source metric value per month
+3. Calculate: `commission = source_metric_value * rate`
+4. Add base salary per month: `base_salary_annual / 12`
+5. Return computed rows to inject into trend view
+
+Output structure:
 ```typescript
-// When user selects "monthly_trend"
-const today = new Date();
-const defaultStart = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-const defaultEnd = today;
+interface PayplanComputedRows {
+  [scenarioId: string]: {
+    name: string;
+    months: {
+      [month: string]: {
+        commission: number;
+        baseSalary: number;
+        totalComp: number;
+      };
+    };
+    sourceMetric: string;  // For placement in table
+  };
+}
 ```
 
-### Session Storage Persistence
-The existing state persistence already saves `datePeriodType`, `startMonth`, and `endMonth`, so the new option will automatically persist.
+### Phase 5: Trend View Integration
 
-### Saved Filters Compatibility
-The `enterprise_filters` table already stores `date_period_type`, so saved filters will work with the new option.
+**Updated FinancialTrendView Rendering**
+
+When payplan scenarios are active, insert computed rows below the source metric:
+
+```text
+┌──────────────────┬─────────┬─────────┬─────────┬───────────┐
+│ Metric           │ Feb 25  │ Mar 25  │ Apr 25  │ Total     │
+├──────────────────┼─────────┼─────────┼─────────┼───────────┤
+│ Net Selling Gross│ $125K   │ $142K   │ $138K   │ $405K     │
+│ ↳ Commission 3%  │ $3,750  │ $4,260  │ $4,140  │ $12,150   │
+│ ↳ Base Salary    │ $6,500  │ $6,500  │ $6,500  │ $19,500   │
+│ ↳ Total Comp     │ $10,250 │ $10,760 │ $10,640 │ $31,650   │
+├──────────────────┼─────────┼─────────┼─────────┼───────────┤
+│ Department Profit│ $45K    │ $52K    │ $48K    │ $145K     │
+└──────────────────┴─────────┴─────────┴─────────┴───────────┘
+```
+
+Visual styling:
+- Payplan rows use a light blue/teal background to distinguish from regular metrics
+- `↳` prefix indicates derived/calculated rows
+- Scenario name appears in a tooltip or expandable header
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/components/enterprise/PayplanScenarioDialog.tsx` | Create/edit scenario dialog |
+| `src/components/enterprise/PayplanScenariosPanel.tsx` | List and select scenarios |
+| `src/hooks/usePayplanScenarios.ts` | CRUD operations for scenarios |
+| `src/hooks/usePayplanCalculations.ts` | Commission calculation logic |
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/pages/Enterprise.tsx` | Add `monthly_trend` to DatePeriodType, add dropdown option, update button visibility logic |
-| `src/components/enterprise/FixedCombinedTrendView.tsx` | Optional: Add prop for selected department names if needed |
+| File | Changes |
+|------|---------|
+| `src/components/enterprise/FixedCombinedTrendView.tsx` | Add `selectedDepartmentNames` prop, remove hardcoded filter, add `activePayplanScenarios` prop for computed rows |
+| `src/pages/Enterprise.tsx` | Pass `selectedDepartmentNames` to trend params, add PayplanScenariosPanel to Financial Metrics section |
+
+## Department Flexibility Matrix
+
+| Selection | Behavior |
+|-----------|----------|
+| Single department (e.g., "Service") | Show only Service data, payplan calculates on Service metrics |
+| Multiple departments (e.g., "Parts", "Service") | Show each separately OR aggregated based on user preference |
+| "Fixed Combined" | Aggregate Parts + Service (current behavior) |
+| All departments | Show all available departments with their financial data |
 
 ## Edge Cases
-1. **No data in range**: Already handled by FixedCombinedTrendView with "No data available" message
-2. **Partial data**: DataCoverageBadge already shows months with data vs total
-3. **Sub-metrics**: Already supported in the trend view
-4. **Brand-specific metrics**: Already handled via `getMetricsForBrand()`
+
+1. **Missing data months**: Show "-" for commission (no calculation if source metric missing)
+2. **Multiple scenarios active**: Show each scenario's rows below the same source metric
+3. **Different source metrics per scenario**: Each scenario's rows appear below their respective source metric
+4. **Multi-store view**: Aggregate metrics across stores first, then calculate commission on total
+
+## Security
+
+- RLS policies: Users can only see/edit their own scenarios
+- Validate commission rates (0-100%)
+- Validate base salary is positive
+
+## Future Enhancements
+
+1. **Tiered Commissions**: Multiple rate tiers based on thresholds
+2. **Team Scenarios**: Share scenarios with other users in same store group
+3. **What-If Analysis**: Adjust source metrics manually to project compensation
+4. **Comparison Mode**: Side-by-side comparison of multiple scenarios
+5. **PDF/Excel Export**: Include payplan rows in exported reports
