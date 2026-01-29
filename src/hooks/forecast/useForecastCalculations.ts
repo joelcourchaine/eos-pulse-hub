@@ -906,6 +906,16 @@ export function useForecastCalculations({
       const salesExpenseSubs = byParent.get('sales_expense')!;
       const synthesizedPercentSubs: SubMetricBaseline[] = [];
       
+      // Build monthly GP Net from sub-metrics if baselineData doesn't have it directly
+      // This handles stores that only import sub-metric data (no parent totals)
+      const gpNetMonthlyFromSubs = new Map<string, number>();
+      const gpNetSubs = byParent.get('gp_net') || [];
+      for (const gpSub of gpNetSubs) {
+        gpSub.monthlyValues.forEach((value, month) => {
+          gpNetMonthlyFromSubs.set(month, (gpNetMonthlyFromSubs.get(month) ?? 0) + value);
+        });
+      }
+      
       for (const salesExpSub of salesExpenseSubs) {
         // Create a matching percentage sub-metric
         const percentSub: SubMetricBaseline = {
@@ -916,8 +926,9 @@ export function useForecastCalculations({
         };
         
         // Calculate percentage for each month: (Sales Exp $ / GP Net) × 100
+        // First try baselineData, fallback to calculated from sub-metrics
         salesExpSub.monthlyValues.forEach((salesExpValue, month) => {
-          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
+          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? gpNetMonthlyFromSubs.get(month) ?? 0;
           const percentValue = gpNetForMonth > 0 
             ? (salesExpValue / gpNetForMonth) * 100 
             : 0;
@@ -940,6 +951,16 @@ export function useForecastCalculations({
       const semiFixedExpenseSubs = byParent.get('semi_fixed_expense')!;
       const synthesizedSemiFixedPercentSubs: SubMetricBaseline[] = [];
       
+      // Build monthly GP Net from sub-metrics if baselineData doesn't have it directly
+      // This handles stores that only import sub-metric data (no parent totals)
+      const gpNetMonthlyFromSubs = new Map<string, number>();
+      const gpNetSubs = byParent.get('gp_net') || [];
+      for (const gpSub of gpNetSubs) {
+        gpSub.monthlyValues.forEach((value, month) => {
+          gpNetMonthlyFromSubs.set(month, (gpNetMonthlyFromSubs.get(month) ?? 0) + value);
+        });
+      }
+      
       for (const semiFixedExpSub of semiFixedExpenseSubs) {
         // Create a matching percentage sub-metric
         const percentSub: SubMetricBaseline = {
@@ -950,8 +971,9 @@ export function useForecastCalculations({
         };
         
         // Calculate percentage for each month: (Semi Fixed Exp $ / GP Net) × 100
+        // First try baselineData, fallback to calculated from sub-metrics
         semiFixedExpSub.monthlyValues.forEach((semiFixedExpValue, month) => {
-          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
+          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? gpNetMonthlyFromSubs.get(month) ?? 0;
           const percentValue = gpNetForMonth > 0 
             ? (semiFixedExpValue / gpNetForMonth) * 100 
             : 0;
