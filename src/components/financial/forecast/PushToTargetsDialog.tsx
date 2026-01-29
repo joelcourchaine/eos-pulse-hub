@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { ArrowUp, ArrowDown, Loader2, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { FormattedCurrency } from '@/components/ui/formatted-currency';
 import type { FinancialMetric } from '@/config/financialMetrics';
 
 interface CalculationResult {
@@ -68,18 +69,9 @@ export function PushToTargetsDialog({
 
   const formatValue = (value: number, type: 'dollar' | 'percentage') => {
     if (type === 'percentage') {
-      // Percentages are already stored as actual percentage values (e.g., 67.34 = 67.34%)
       return `${value.toFixed(1)}%`;
     }
-    // For dollars, use abbreviated format
-    const absValue = Math.abs(value);
-    if (absValue >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    }
-    if (absValue >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
-    return `$${value.toFixed(0)}`;
+    return null; // Will use FormattedCurrency component for dollars
   };
 
   return (
@@ -113,16 +105,16 @@ export function PushToTargetsDialog({
                 <TableRow key={row.key}>
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatValue(row.q1, row.type)}
+                    {row.type === 'percentage' ? formatValue(row.q1, row.type) : <FormattedCurrency value={row.q1} />}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatValue(row.q2, row.type)}
+                    {row.type === 'percentage' ? formatValue(row.q2, row.type) : <FormattedCurrency value={row.q2} />}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatValue(row.q3, row.type)}
+                    {row.type === 'percentage' ? formatValue(row.q3, row.type) : <FormattedCurrency value={row.q3} />}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatValue(row.q4, row.type)}
+                    {row.type === 'percentage' ? formatValue(row.q4, row.type) : <FormattedCurrency value={row.q4} />}
                   </TableCell>
                   <TableCell className="text-center">
                     <div
