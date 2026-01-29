@@ -137,17 +137,40 @@ export const ScorecardImportPreviewDialog = ({
       console.log("[Import Preview] Fetching UNIVERSAL cell mappings for profile:", importProfile.id);
       
       // Fetch ALL cell mappings for this import profile - they are universal templates
+      // JOIN kpi_definitions to get kpi_name since it's not stored directly
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
-        .select("*")
+        .select("*, kpi_definitions(name)")
         .eq("import_profile_id", importProfile.id);
       if (error) throw error;
-      console.log("[Import Preview] Fetched universal cell mappings:", data?.length || 0);
-      return data || [];
+      
+      // Flatten the kpi_name from the join
+      const mappingsWithNames = (data || []).map(cm => ({
+        ...cm,
+        kpi_name: cm.kpi_definitions?.name || cm.kpi_name || 'Unknown KPI'
+      }));
+      
+      console.log("[Import Preview] Fetched universal cell mappings:", mappingsWithNames.length);
+      return mappingsWithNames;
     },
     enabled: open && !!importProfile?.id,
     staleTime: 0, // Always refetch to pick up newly added mappings
     refetchOnMount: "always",
+  });
+
+  // Fetch user aliases to detect manual overrides (e.g., "All Repair Orders" → Jake)
+  // These users should NOT be matched via fuzzy matching - they use dept totals instead
+  const { data: userAliases } = useQuery({
+    queryKey: ["user-aliases-for-import", storeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("scorecard_user_aliases")
+        .select("user_id, alias_name")
+        .eq("store_id", storeId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!storeId,
   });
 
   // Build a universal mapping template from cell mappings
@@ -171,6 +194,30 @@ export const ScorecardImportPreviewDialog = ({
     console.log("[Import Preview] Built universal mapping template with", template.size, "unique position mappings");
     return template;
   }, [cellMappings]);
+
+  // Identify users with manual override aliases (e.g., "All Repair Orders" → Jake)
+  // These users should use dept totals data, NOT fuzzy-matched advisor rows
+  const manualOverrideUserIds = useMemo(() => {
+    if (!userAliases || userAliases.length === 0) return new Set<string>();
+    
+    // Pattern to detect non-advisor aliases (department totals sections)
+    const deptTotalsPatterns = [
+      /all repair orders/i,
+      /total repair orders/i,
+      /department total/i,
+      /dept total/i,
+    ];
+    
+    const overrideIds = new Set<string>();
+    for (const alias of userAliases) {
+      const isDeptTotalsAlias = deptTotalsPatterns.some(p => p.test(alias.alias_name));
+      if (isDeptTotalsAlias) {
+        overrideIds.add(alias.user_id);
+        console.log(`[Import Preview] Manual override detected: "${alias.alias_name}" -> user ${alias.user_id}`);
+      }
+    }
+    return overrideIds;
+  }, [userAliases]);
 
   // Match advisors to users on mount
   useEffect(() => {
@@ -196,11 +243,22 @@ export const ScorecardImportPreviewDialog = ({
         
         const advisorMatches: AdvisorMatch[] = parseResult.advisors.map(advisor => {
           const match = matches.get(advisor.displayName);
+          
+          // CRITICAL: If this user has a manual override (mapped to dept totals),
+          // DON'T use the fuzzy match - they should use dept totals instead
+          const matchedUserId = match?.userId || null;
+          const hasManualOverride = matchedUserId && manualOverrideUserIds.has(matchedUserId);
+          
+          if (hasManualOverride) {
+            console.log(`[Import Preview] Skipping fuzzy match for ${advisor.displayName} - user has manual override to dept totals`);
+          }
+          
           return {
             advisor,
-            userId: match?.userId || null,
-            matchedName: match?.matchedName || null,
-            matchType: match?.matchType || null,
+            // If user has manual override, clear the match so they use dept totals
+            userId: hasManualOverride ? null : matchedUserId,
+            matchedName: hasManualOverride ? null : (match?.matchedName || null),
+            matchType: hasManualOverride ? null : (match?.matchType || null),
             selectedUserId: null,
           };
         });
@@ -215,14 +273,14 @@ export const ScorecardImportPreviewDialog = ({
     };
     
     matchAdvisors();
-  }, [open, parseResult.advisors, storeId, storeData?.group_id]);
+  }, [open, parseResult.advisors, storeId, storeData?.group_id, manualOverrideUserIds]);
 
-  // Note: totalsUserMappings is now only used for backward compatibility display
-  // With universal mappings, ALL matched users receive mappings, not just specific ones
-  useEffect(() => {
-    // Clear totalsUserMappings since mappings are now universal
-    setTotalsUserMappings([]);
-  }, [cellMappings, storeUsers]);
+  // Track users with manual overrides for display in the preview
+  // These use dept totals data source instead of individual advisor rows
+  const deptTotalsUsers = useMemo(() => {
+    if (!storeUsers || !manualOverrideUserIds || manualOverrideUserIds.size === 0) return [];
+    return storeUsers.filter(u => manualOverrideUserIds.has(u.id));
+  }, [storeUsers, manualOverrideUserIds]);
 
   const handleUserSelect = (advisorIndex: number, userId: string) => {
     setAdvisorMatches(prev => {
@@ -330,29 +388,12 @@ export const ScorecardImportPreviewDialog = ({
             }
           }
           
-          // Also process users who are mapped to department totals (e.g., Jake mapped to "All Repair Orders")
-          // These users have an alias like "All Repair Orders -> Jake" but no individual advisor row
-          // Find users with KPIs who weren't processed above (no advisor match)
-          const processedUserIds = new Set(
-            advisorMatches
-              .filter(m => m.userId || m.selectedUserId)
-              .map(m => m.selectedUserId || m.userId)
-          );
-          
-          // Get all users with assigned KPIs in this department
-          const usersWithKpis = [...new Set(kpiDefinitions.filter(k => k.assigned_to).map(k => k.assigned_to!))];
-          
-          for (const kpiOwnerId of usersWithKpis) {
-            // Skip if already processed via advisor matching
-            if (processedUserIds.has(kpiOwnerId)) continue;
+          // Process users with manual override mappings (e.g., Jake mapped to "All Repair Orders")
+          // These users get data from department totals, not individual advisor rows
+          for (const deptTotalsUser of deptTotalsUsers) {
+            console.log(`[Import] Applying universal mappings to dept totals user: ${deptTotalsUser.full_name} (${deptTotalsUser.id})`);
             
-            // This user has KPIs but no advisor match - check if they're in the current store
-            const userProfile = storeUsers?.find(u => u.id === kpiOwnerId && u.store_id === storeId);
-            if (!userProfile) continue;
-            
-            console.log(`[Import] Applying universal mappings to dept totals user: ${userProfile.full_name} (${kpiOwnerId})`);
-            
-            const userKpis = kpiDefinitions.filter(k => k.assigned_to === kpiOwnerId);
+            const userKpis = kpiDefinitions.filter(k => k.assigned_to === deptTotalsUser.id);
             
             // Apply each mapping from the universal template using department totals data
             for (const [, mapping] of universalMappingTemplate) {
@@ -517,9 +558,11 @@ export const ScorecardImportPreviewDialog = ({
     },
   });
 
-  // Calculate counts - with universal mappings, all matched advisors get mappings
-  const matchedCount = advisorMatches.filter(m => m.userId || m.selectedUserId).length;
-  const totalOwnerCount = advisorMatches.length;
+  // Calculate counts - include both advisor matches AND dept totals users
+  const advisorMatchedCount = advisorMatches.filter(m => m.userId || m.selectedUserId).length;
+  const deptTotalsCount = deptTotalsUsers.length;
+  const matchedCount = advisorMatchedCount + deptTotalsCount;
+  const totalOwnerCount = advisorMatches.length + deptTotalsCount;
   const unmatchedCount = advisorMatches.filter(m => !m.userId && !m.selectedUserId).length;
 
   // Format month for display
@@ -682,6 +725,64 @@ export const ScorecardImportPreviewDialog = ({
                               </TableCell>
                               <TableCell>
                                 ${match.advisor.metrics.customer["Lab Sold"]?.toLocaleString() || "0"}
+                              </TableCell>
+                            </>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                    
+                    {/* Show users with manual override mappings (dept totals) */}
+                    {deptTotalsUsers.map((user) => {
+                      // Calculate preview values from department totals using universal template
+                      const previewValues: Record<string, number | null> = {};
+                      
+                      if (universalMappingTemplate.size > 0) {
+                        for (const [, mapping] of universalMappingTemplate) {
+                          const { kpiName, colIndex, rowOffset } = mapping;
+                          // Get value from department totals using row offset
+                          const payType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[rowOffset];
+                          if (payType) {
+                            const value = parseResult.departmentTotalsByIndex[payType]?.[colIndex];
+                            if (typeof value === 'number') {
+                              previewValues[kpiName] = value;
+                            }
+                          }
+                        }
+                      }
+                      
+                      return (
+                        <TableRow key={user.id} className="bg-purple-500/5">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-purple-500" />
+                              <span>{user.full_name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-purple-500/20 text-purple-700">
+                              Dept Totals
+                            </Badge>
+                          </TableCell>
+                          {/* Show preview values from dept totals */}
+                          {cellMappings && cellMappings.length > 0 ? (
+                            [...new Set(cellMappings.map(cm => cm.kpi_name))].map(kpiName => (
+                              <TableCell key={kpiName} className="text-xs whitespace-nowrap">
+                                {previewValues[kpiName] !== undefined && previewValues[kpiName] !== null
+                                  ? previewValues[kpiName]!.toLocaleString()
+                                  : "-"}
+                              </TableCell>
+                            ))
+                          ) : (
+                            <>
+                              <TableCell>
+                                {parseResult.departmentTotals.total["Sold Hrs"]?.toLocaleString() || "-"}
+                              </TableCell>
+                              <TableCell>
+                                {parseResult.departmentTotals.customer["Sold Hrs"]?.toLocaleString() || "-"}
+                              </TableCell>
+                              <TableCell>
+                                ${parseResult.departmentTotals.customer["Lab Sold"]?.toLocaleString() || "0"}
                               </TableCell>
                             </>
                           )}
