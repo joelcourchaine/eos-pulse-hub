@@ -382,6 +382,51 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Financial entries fetched:", financialEntries.length);
     }
 
+    // Precompute month data once (including synthesized parent totals from sub-metrics)
+    // This matches UI behavior where parent entries can be absent when a statement import only provides sub-line-items.
+    const financialDataByMonth = new Map<string, Record<string, number | null>>();
+    if (mode === "monthly" || mode === "yearly") {
+      for (const e of financialEntries) {
+        const month = e.month as string | undefined;
+        const metricName = e.metric_name as string | undefined;
+        if (!month || !metricName) continue;
+
+        if (!financialDataByMonth.has(month)) {
+          financialDataByMonth.set(month, {});
+        }
+        financialDataByMonth.get(month)![metricName] = e.value ?? null;
+      }
+
+      const synthesizeParentFromSubs = (monthData: Record<string, number | null>, parentKey: string) => {
+        if (monthData[parentKey] != null) return;
+        const prefix = `sub:${parentKey}:`;
+        let sum = 0;
+        let hasAny = false;
+
+        for (const [k, v] of Object.entries(monthData)) {
+          if (!k.startsWith(prefix)) continue;
+          if (v == null) continue;
+          hasAny = true;
+          sum += v;
+        }
+
+        if (hasAny) {
+          monthData[parentKey] = sum;
+        }
+      };
+
+      for (const monthData of financialDataByMonth.values()) {
+        // Minimum set needed for correct Sales Expense and % calculations.
+        synthesizeParentFromSubs(monthData, "sales_expense");
+        synthesizeParentFromSubs(monthData, "gp_net");
+        // Useful for other derived metrics (kept small and safe).
+        synthesizeParentFromSubs(monthData, "total_sales");
+        synthesizeParentFromSubs(monthData, "semi_fixed_expense");
+        synthesizeParentFromSubs(monthData, "total_fixed_expense");
+        synthesizeParentFromSubs(monthData, "total_direct_expenses");
+      }
+    }
+
     // Fetch director notes
     let directorNotes = null;
     const periodType = mode === "weekly" ? "quarterly" : mode;
@@ -811,12 +856,7 @@ const handler = async (req: Request): Promise<Response> => {
         periods.forEach(p => {
           if ('identifier' in p) {
             // Gather all financial data for this month to calculate percentages
-            const monthData: any = {};
-            financialEntries.forEach(e => {
-              if (e.month === p.identifier) {
-                monthData[e.metric_name] = e.value;
-              }
-            });
+            const monthData: any = financialDataByMonth.get(p.identifier) ?? {};
             
             let value = null;
             if (metric.calc) {
@@ -834,11 +874,8 @@ const handler = async (req: Request): Promise<Response> => {
                 });
               }
             } else {
-              const entry = financialEntries.find(e => 
-                e.metric_name === metric.dbName && e.month === p.identifier
-              );
-              // Use ?? to properly handle 0 values (|| treats 0 as falsy)
-              value = entry?.value ?? null;
+              // Prefer precomputed month data (includes synthesized parent totals from sub-metrics)
+              value = monthData[metric.dbName] ?? null;
             }
             
             // Collect value for summary
