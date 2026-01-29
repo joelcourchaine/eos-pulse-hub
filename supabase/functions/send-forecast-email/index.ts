@@ -352,7 +352,7 @@ const handler = async (req: Request): Promise<Response> => {
     // The UI persists its computed month-by-month values into forecast_entries.forecast_value
     // (even when not locked). So the source of truth for the email is forecast_entries.
 
-    const entriesByMonthMetric = new Map<string, { forecast: number | null; baseline: number | null; locked: boolean }>();
+     const entriesByMonthMetric = new Map<string, { forecast: number | null; baseline: number | null; locked: boolean }>();
     (forecastEntries ?? []).forEach((e) => {
       entriesByMonthMetric.set(`${e.month}:${e.metric_name}`, {
         forecast: e.forecast_value,
@@ -361,17 +361,17 @@ const handler = async (req: Request): Promise<Response> => {
       });
     });
 
-    const sumForecast = (metric: string): number => {
-      let total = 0;
-      for (let m = 1; m <= 12; m++) {
-        const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
-        const entry = entriesByMonthMetric.get(`${month}:${metric}`);
-        if (entry && entry.forecast !== null && entry.forecast !== undefined) {
-          total += entry.forecast;
-        }
-      }
-      return total;
-    };
+     // Build weights map (matches Forecast UI weight distribution)
+     const weightsMap = new Map<number, number>();
+     (forecastWeights ?? []).forEach((w) => {
+       if (w?.month_number) {
+         weightsMap.set(w.month_number, w.adjusted_weight ?? w.original_weight ?? (100 / 12));
+       }
+     });
+     const getWeightFactor = (monthNumber: number) => {
+       const w = weightsMap.get(monthNumber) ?? (100 / 12);
+       return (w as number) / 100;
+     };
 
     // If a percent metric has ALL 12 months locked to (roughly) the same value, the UI shows that
     // locked value for the annual row instead of recalculating from totals.
@@ -392,51 +392,57 @@ const handler = async (req: Request): Promise<Response> => {
       return allSame ? first : null;
     };
 
-    const baselineTotalSales = annualBaseline['total_sales'] || 0;
-    const baselineGpNet = annualBaseline['gp_net'] || 0;
-    const baselineSalesExp = annualBaseline['sales_expense'] || 0;
-    const baselineFixedExp = annualBaseline['total_fixed_expense'] || 0;
-    const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
+     const baselineTotalSales = annualBaseline['total_sales'] || 0;
+     const baselineGpNet = annualBaseline['gp_net'] || 0;
+     const baselineSalesExp = annualBaseline['sales_expense'] || 0;
+     const baselineFixedExp = annualBaseline['total_fixed_expense'] || 0;
+     const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
 
-    const annualTotalSales = sumForecast('total_sales');
-    const annualGpNet = sumForecast('gp_net');
-    const annualSalesExp = sumForecast('sales_expense');
-    const annualFixedExp = sumForecast('total_fixed_expense');
-    const annualPartsTransfer = sumForecast('parts_transfer');
+     // Driver settings are the source of truth when derived metrics are not explicitly persisted.
+     // This mirrors the Forecast UI behavior.
+     const growthPercent = driverSettings?.growth_percent ?? 0;
+     const growthFactor = 1 + (growthPercent / 100);
 
-    // Derived (match UI annual calculation style)
-    const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
-    const lockedSalesExpPercent = getLockedAnnualPercent('sales_expense_percent');
-    const annualSalesExpPercent = lockedSalesExpPercent !== null
-      ? lockedSalesExpPercent
-      : (annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0);
-    const annualNetSellingGross = annualGpNet - annualSalesExp;
-    const annualDeptProfit = annualGpNet - annualSalesExp - annualFixedExp;
-    const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
-    const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
+     const annualTotalSales = baselineTotalSales * growthFactor;
+     const annualGpNet = baselineGpNet * growthFactor;
+     const annualSalesExp = (driverSettings?.sales_expense ?? (baselineSalesExp * growthFactor));
+     const annualFixedExp = (driverSettings?.fixed_expense ?? baselineFixedExp);
+     const annualPartsTransfer = baselinePartsTransfer;
 
-    console.log("Annual totals from forecast_entries:", {
-      annualTotalSales,
-      annualGpNet,
-      annualSalesExp,
-      annualFixedExp,
-      annualDeptProfit,
-    });
+     // Derived (match UI annual calculation style)
+     const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
+     const lockedSalesExpPercent = getLockedAnnualPercent('sales_expense_percent');
+     const annualSalesExpPercent = lockedSalesExpPercent !== null
+       ? lockedSalesExpPercent
+       : (annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0);
+     const annualNetSellingGross = annualGpNet - annualSalesExp;
+     const annualDeptProfit = annualGpNet - annualSalesExp - annualFixedExp;
+     const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
+     const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
 
-    // Annual forecast values
-    const annualForecastValues: Record<string, number> = {
-      total_sales: annualTotalSales,
-      gp_net: annualGpNet,
-      gp_percent: gpPercent,
-      sales_expense: annualSalesExp,
-      sales_expense_percent: annualSalesExpPercent,
-      net_selling_gross: annualNetSellingGross,
-      total_fixed_expense: annualFixedExp,
-      department_profit: annualDeptProfit,
-      parts_transfer: annualPartsTransfer,
-      net_operating_profit: annualNetOperatingProfit,
-      return_on_gross: annualReturnOnGross,
-    };
+     // Used for scaling sub-metrics (matches Forecast UI: sub-metrics scale with their parent totals unless overridden)
+     const annualForecastValues: Record<string, number> = {
+       total_sales: annualTotalSales,
+       gp_net: annualGpNet,
+       gp_percent: gpPercent,
+       sales_expense: annualSalesExp,
+       sales_expense_percent: annualSalesExpPercent,
+       net_selling_gross: annualNetSellingGross,
+       total_fixed_expense: annualFixedExp,
+       department_profit: annualDeptProfit,
+       parts_transfer: annualPartsTransfer,
+       net_operating_profit: annualNetOperatingProfit,
+       return_on_gross: annualReturnOnGross,
+     };
+
+     console.log("Annual totals from drivers (email):", {
+       growthPercent,
+       annualTotalSales,
+       annualGpNet,
+       annualSalesExp,
+       annualFixedExp,
+       annualDeptProfit,
+     });
 
     // Annual baseline values for comparison
     const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
@@ -460,15 +466,11 @@ const handler = async (req: Request): Promise<Response> => {
       return_on_gross: baselineReturnOnGross,
     };
 
-    // Update salesExpense variable for use in monthly calculations
-    const salesExpense = annualSalesExp;
-
-    // Re-introduce variables expected by the existing monthly-calculation block below.
-    // The email's annual totals now come from saved forecast_entries, so we don't apply growth drivers here.
-    const growth = 0;
-    const growthFactor = 1;
-    const baseSalesExpense = baselineSalesExp;
-    const baseFixedExpense = baselineFixedExp;
+     // Variables used by the monthly-calculation block below
+     const salesExpense = annualSalesExp;
+     const growth = growthPercent;
+     const baseSalesExpense = baselineSalesExp;
+     const baseFixedExpense = baselineFixedExp;
 
     // Map of saved forecast values (used when a cell is locked)
     const entriesMap = new Map<string, { forecast_value: number; is_locked: boolean }>();
@@ -495,14 +497,14 @@ const handler = async (req: Request): Promise<Response> => {
         const priorYearMonth = `${priorYear}-${String(monthNumber).padStart(2, "0")}`;
         const baselineMonthData = baselineByMonth.get(priorYearMonth);
 
-        const baselineInputs = {
-          total_sales: baselineMonthData?.get('total_sales') ?? 0,
-          gp_net: baselineMonthData?.get('gp_net') ?? 0,
-          sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
-          total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
-          adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
-          parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
-        };
+         const baselineInputs = {
+           total_sales: baselineMonthData?.get('total_sales') ?? 0,
+           gp_net: baselineMonthData?.get('gp_net') ?? 0,
+           sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+           total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
+           adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
+           parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+         };
 
         const baselineNetSellingGross = baselineInputs.gp_net - baselineInputs.sales_expense;
         const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
@@ -526,17 +528,42 @@ const handler = async (req: Request): Promise<Response> => {
           return_on_gross: baselineInputs.gp_net > 0 ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100 : 0,
         };
 
-        // Pull the forecast value directly from saved forecast_entries (same source the UI persists).
-        // Fallback: if the entry is missing/null (common before a full recalculation save),
-        // use the baseline value so email variance matches what the UI shows.
-        const savedEntry = entriesMap.get(`${month}:${def.key}`);
+         // Compute the forecast month value using drivers + weights (UI behavior),
+         // then allow saved forecast_entries (manual edits) to override.
+         const weightFactor = getWeightFactor(monthNumber);
+         const computedDrivers: Record<string, number> = {
+           total_sales: annualTotalSales * weightFactor,
+           gp_net: annualGpNet * weightFactor,
+           sales_expense: annualSalesExp * weightFactor,
+           total_fixed_expense: annualFixedExp * weightFactor,
+           parts_transfer: annualPartsTransfer * weightFactor,
+         };
+         const computedDerived: Record<string, number> = {
+           gp_percent: computedDrivers.total_sales > 0 ? (computedDrivers.gp_net / computedDrivers.total_sales) * 100 : 0,
+           sales_expense_percent: computedDrivers.gp_net > 0 ? (computedDrivers.sales_expense / computedDrivers.gp_net) * 100 : 0,
+           net_selling_gross: computedDrivers.gp_net - computedDrivers.sales_expense,
+           department_profit: computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense,
+           net_operating_profit: (computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense) + computedDrivers.parts_transfer,
+           return_on_gross: computedDrivers.gp_net > 0
+             ? ((computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense) / computedDrivers.gp_net) * 100
+             : 0,
+         };
+         const computedValue =
+           computedDrivers[def.key] !== undefined
+             ? computedDrivers[def.key]
+             : (computedDerived[def.key] ?? 0);
+
+         const savedEntry = entriesMap.get(`${month}:${def.key}`);
 
         const baselineValue =
           baselineMonthData?.get(def.key) ??
           baselineMonthlyValues[def.key] ??
           0;
 
-        const value = savedEntry?.forecast_value ?? baselineValue;
+         // Prefer any saved forecast value (manual edits), otherwise use computed forecast value.
+         const value = (savedEntry && savedEntry.forecast_value !== undefined && savedEntry.forecast_value !== null)
+           ? savedEntry.forecast_value
+           : computedValue;
 
         monthData[month] = { value, baseline: baselineValue };
       });
