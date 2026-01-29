@@ -479,6 +479,12 @@ const handler = async (req: Request): Promise<Response> => {
       periods.forEach(p => {
         html += `<th>${p.label}</th>`;
       });
+      
+      // Add Avg and Total columns for yearly/monthly modes
+      if (mode === "yearly" || mode === "monthly") {
+        html += `<th style="background-color: #e8e8e8;">Avg ${year}</th>`;
+        html += `<th style="background-color: #e0e0e0;">Total ${year}</th>`;
+      }
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach(kpi => {
@@ -497,6 +503,9 @@ const handler = async (req: Request): Promise<Response> => {
         }
         
         html += `<tr><td>${kpi.name}</td><td style="font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
+        
+        // Collect values for Avg/Total calculation
+        const periodValues: number[] = [];
         
         periods.forEach(p => {
           const entry = entries?.find(e => {
@@ -530,6 +539,9 @@ const handler = async (req: Request): Promise<Response> => {
             const actualValue = entry.actual_value;
             const direction = kpi.target_direction;
             
+            // Collect for summary
+            periodValues.push(actualValue);
+            
             // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
             const variance = kpi.metric_type === "percentage"
               ? actualValue - targetValue
@@ -550,10 +562,32 @@ const handler = async (req: Request): Promise<Response> => {
             console.log(`  -> Status: ${cellClass || 'none'}`);
           } else {
             console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Entry: ${entry ? 'found' : 'not found'}, Actual: ${entry?.actual_value}, Target: ${targetValue}`);
+            // Still collect value if present, even without target
+            if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+              periodValues.push(entry.actual_value);
+            }
           }
           
           html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
         });
+        
+        // Add Avg and Total columns for yearly/monthly modes
+        if (mode === "yearly" || mode === "monthly") {
+          const avg = periodValues.length > 0 
+            ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
+            : null;
+          
+          // For percentages, show average; for others, show sum for Total
+          const total = periodValues.length > 0 
+            ? kpi.metric_type === "percentage"
+              ? avg // For percentages, Total = Avg
+              : periodValues.reduce((sum, v) => sum + v, 0)
+            : null;
+          
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
+        }
+        
         html += `</tr>`;
       });
       html += `</tbody></table>`;
@@ -729,6 +763,10 @@ const handler = async (req: Request): Promise<Response> => {
       periods.forEach(p => {
         html += `<th>${p.label}</th>`;
       });
+      
+      // Add Avg and Total columns
+      html += `<th style="background-color: #e8e8e8;">Avg ${year}</th>`;
+      html += `<th style="background-color: #e0e0e0;">Total ${year}</th>`;
       html += `</tr></thead><tbody>`;
       
       FINANCIAL_METRICS.forEach(metric => {
@@ -749,6 +787,10 @@ const handler = async (req: Request): Promise<Response> => {
           const displayTarget = `${formatValue(q1Value, metric.type)}/${formatValue(q2Value, metric.type)}/${formatValue(q3Value, metric.type)}/${formatValue(q4Value, metric.type)}`;
           html += `<td style="font-weight: bold; background-color: #f9f9f9;">${displayTarget}</td>`;
         }
+        
+        // Collect values for Avg/Total calculation
+        const periodValues: number[] = [];
+        
         periods.forEach(p => {
           if ('identifier' in p) {
             // Gather all financial data for this month to calculate percentages
@@ -793,6 +835,11 @@ const handler = async (req: Request): Promise<Response> => {
               value = entry?.value || null;
             }
             
+            // Collect value for summary
+            if (value !== null) {
+              periodValues.push(value);
+            }
+            
             // Determine quarter from month identifier
             const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
             const quarter = Math.ceil((monthIndex + 1) / 3);
@@ -831,6 +878,27 @@ const handler = async (req: Request): Promise<Response> => {
             }
           }
         });
+        
+        // Add Avg and Total columns
+        const avg = periodValues.length > 0 
+          ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
+          : null;
+        
+        // For percentages, Total shows average; for dollar amounts, show sum
+        const total = periodValues.length > 0 
+          ? metric.type === "percentage"
+            ? avg // For percentages, Total = Avg
+            : periodValues.reduce((sum, v) => sum + v, 0)
+          : null;
+        
+        if (metric.type === "percentage") {
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? avg.toFixed(1) + '%' : '-'}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${total !== null ? total.toFixed(1) + '%' : '-'}</td>`;
+        } else {
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, metric.type)}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total, metric.type)}</td>`;
+        }
+        
         html += `</tr>`;
       });
       html += `</tbody></table>`;
