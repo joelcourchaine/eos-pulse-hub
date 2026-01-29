@@ -1658,6 +1658,42 @@ export type Database = {
           },
         ]
       }
+      payplan_scenarios: {
+        Row: {
+          base_salary_annual: number
+          commission_rules: Json
+          created_at: string
+          department_names: string[] | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          base_salary_annual?: number
+          commission_rules?: Json
+          created_at?: string
+          department_names?: string[] | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          base_salary_annual?: number
+          commission_rules?: Json
+          created_at?: string
+          department_names?: string[] | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       preset_kpis: {
         Row: {
           aggregation_type: string
