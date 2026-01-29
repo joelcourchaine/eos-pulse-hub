@@ -88,6 +88,11 @@ export function usePayplanCalculations({
           } else {
             commission = aggregatedMetricValue * rate;
           }
+          
+          // Zero out negative commissions
+          if (commission < 0) {
+            commission = 0;
+          }
 
           commissionValues[month] = commission;
           baseValues[month] = monthlyBaseSalary;

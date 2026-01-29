@@ -110,6 +110,12 @@ export function FixedCombinedTrendView({
           brandDisplayName,
           filterName,
           format: emailFormat,
+          activePayplanScenarios: activeScenarios.map(s => ({
+            id: s.id,
+            name: s.name,
+            base_salary_annual: s.base_salary_annual,
+            commission_rules: s.commission_rules,
+          })),
         },
       });
 
