@@ -120,8 +120,8 @@ function formatValue(value: number | null, metricType: string, kpiName?: string)
     return Number(value).toFixed(2);
   }
   
-  // Total Labour Sales, CP Labour Sales Per RO, CP ELR, and CP Labour Sales should show whole dollars
-  if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Labour Sales") {
+  // Total Labour Sales, CP Labour Sales Per RO, Total CP Labour Sales Per RO, CP ELR, and CP Labour Sales should show whole dollars
+  if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "Total CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Labour Sales") {
     return `$${Math.round(value).toLocaleString()}`;
   }
   
