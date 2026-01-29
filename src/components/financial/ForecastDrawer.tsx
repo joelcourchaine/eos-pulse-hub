@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail, Lock, LockOpen, Target, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -16,10 +16,12 @@ import { useSubMetrics } from '@/hooks/useSubMetrics';
 import { ForecastWeightsPanel } from './forecast/ForecastWeightsPanel';
 import { ForecastDriverInputs } from './forecast/ForecastDriverInputs';
 import { ForecastResultsGrid } from './forecast/ForecastResultsGrid';
+import { PushToTargetsDialog } from './forecast/PushToTargetsDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { FormattedCurrency, formatCurrency, formatFullCurrency } from '@/components/ui/formatted-currency';
+import { getMetricsForBrand } from '@/config/financialMetrics';
 
 const FORECAST_YEAR_KEY = 'forecast-selected-year';
 
@@ -83,6 +85,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const [includeSubMetrics, setIncludeSubMetrics] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Push to targets dialog state
+  const [pushToTargetsDialogOpen, setPushToTargetsDialogOpen] = useState(false);
+
   // Track if drivers have changed for auto-save
   const driversInitialized = useRef(false);
   const driversLoadedFromDb = useRef(false);
@@ -116,6 +121,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     deleteAllSubMetricOverrides,
     deleteDriverSettings,
     resetAllEntries,
+    pushToTargets,
   } = useForecast(departmentId, forecastYear);
 
   // Use prior year (forecastYear - 1) for weight distribution
@@ -334,6 +340,106 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     fixedExpense,
     brand: storeBrand,
   });
+
+  // Calculate lock state for "Lock All" functionality
+  const lockState = useMemo(() => {
+    const totalCells = months.length * metricDefinitions.length;
+    let lockedCells = 0;
+
+    months.forEach((month) => {
+      metricDefinitions.forEach((metric) => {
+        const result = monthlyValues.get(month)?.get(metric.key);
+        if (result?.is_locked) {
+          lockedCells++;
+        }
+      });
+    });
+
+    return {
+      totalCells,
+      lockedCells,
+      allLocked: totalCells > 0 && lockedCells === totalCells,
+      lockPercentage: totalCells > 0 ? Math.round((lockedCells / totalCells) * 100) : 0,
+    };
+  }, [months, metricDefinitions, monthlyValues]);
+
+  // Handle Lock All Cells
+  const handleLockAllCells = () => {
+    const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number; isLocked: boolean }[] = [];
+
+    months.forEach((month) => {
+      metricDefinitions.forEach((metric) => {
+        const result = monthlyValues.get(month)?.get(metric.key);
+        const currentValue = result?.value ?? 0;
+        const baselineValue = result?.baseline_value;
+        
+        updates.push({
+          month,
+          metricName: metric.key,
+          forecastValue: currentValue,
+          baselineValue,
+          isLocked: true,
+        });
+      });
+    });
+
+    if (updates.length > 0) {
+      bulkUpdateEntries.mutate(updates, {
+        onSuccess: () => {
+          toast.success('All cells locked');
+        },
+      });
+    }
+  };
+
+  // Handle Push to Targets
+  const handlePushToTargets = () => {
+    // Get the financial metrics with targetDirection from the config
+    const financialMetrics = getMetricsForBrand(storeBrand);
+    const targetDirectionMap = new Map(
+      financialMetrics.map((m) => [m.key, m.targetDirection])
+    );
+
+    const targets: {
+      metricName: string;
+      quarter: number;
+      targetValue: number;
+      targetDirection: 'above' | 'below';
+    }[] = [];
+
+    (['Q1', 'Q2', 'Q3', 'Q4'] as const).forEach((q, idx) => {
+      const quarterNum = idx + 1;
+      const quarterData = quarterlyValues[q];
+
+      metricDefinitions.forEach((metric) => {
+        const qValue = quarterData?.get(metric.key)?.value;
+        const targetDirection = targetDirectionMap.get(metric.key) ?? 'above';
+        
+        // Only push non-zero values
+        if (qValue !== undefined && qValue !== 0) {
+          targets.push({
+            metricName: metric.key,
+            quarter: quarterNum,
+            targetValue: qValue,
+            targetDirection,
+          });
+        }
+      });
+    });
+
+    pushToTargets.mutate(
+      {
+        departmentId,
+        year: forecastYear,
+        targets,
+      },
+      {
+        onSuccess: () => {
+          setPushToTargetsDialogOpen(false);
+        },
+      }
+    );
+  };
 
   // Keep latest computed values in refs so the auto-save effect
   // doesn't need to depend on large Map objects (which change identity often).
@@ -1287,8 +1393,54 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                 <RotateCcw className="h-4 w-4 mr-1" />
                 Reset
               </Button>
+              
+              {/* Lock All Button */}
+              <Button
+                variant={lockState.allLocked ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={handleLockAllCells}
+                disabled={!forecast || bulkUpdateEntries.isPending || lockState.allLocked}
+              >
+                {lockState.allLocked ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-1 text-green-600" />
+                    All Locked
+                  </>
+                ) : bulkUpdateEntries.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    Locking...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4 mr-1" />
+                    Lock All
+                    {lockState.lockPercentage > 0 && lockState.lockPercentage < 100 && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        ({lockState.lockPercentage}%)
+                      </span>
+                    )}
+                  </>
+                )}
+              </Button>
+
+              {/* Push to Targets Button */}
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setPushToTargetsDialogOpen(true)}
+                disabled={!forecast || !lockState.allLocked}
+                className={cn(
+                  !lockState.allLocked && 'opacity-60'
+                )}
+              >
+                <Target className="h-4 w-4 mr-1" />
+                Push to Targets
+              </Button>
+              
               <Button 
                 size="sm" 
+                variant="outline"
                 disabled={!forecast || bulkUpdateEntries.isPending}
                 onClick={() => {
                   const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number }[] = [];
@@ -1553,6 +1705,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Push to Targets Dialog */}
+      <PushToTargetsDialog
+        open={pushToTargetsDialogOpen}
+        onOpenChange={setPushToTargetsDialogOpen}
+        forecastYear={forecastYear}
+        quarterlyValues={quarterlyValues}
+        metricDefinitions={getMetricsForBrand(storeBrand)}
+        onConfirm={handlePushToTargets}
+        isPending={pushToTargets.isPending}
+      />
     </Sheet>
   );
 }
