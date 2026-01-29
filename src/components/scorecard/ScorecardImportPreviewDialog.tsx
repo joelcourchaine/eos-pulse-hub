@@ -127,8 +127,9 @@ export const ScorecardImportPreviewDialog = ({
   });
 
   // Fetch cell mappings from Visual Mapper for this import profile, filtered to current store's users
+  // IMPORTANT: Always refetch fresh data when dialog opens to pick up newly added KPI mappings
   const { data: cellMappings } = useQuery({
-    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId, storeUsers?.map(u => u.id)],
+    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId],
     queryFn: async () => {
       if (!importProfile?.id || !storeUsers || storeUsers.length === 0) return [];
       
@@ -139,15 +140,20 @@ export const ScorecardImportPreviewDialog = ({
       
       if (currentStoreUserIds.length === 0) return [];
       
+      console.log("[Import Preview] Fetching cell mappings for profile:", importProfile.id, "store:", storeId, "users:", currentStoreUserIds.length);
+      
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*")
         .eq("import_profile_id", importProfile.id)
         .in("user_id", currentStoreUserIds);
       if (error) throw error;
+      console.log("[Import Preview] Fetched cell mappings:", data?.length || 0);
       return data || [];
     },
     enabled: open && !!importProfile?.id && !!storeUsers && storeUsers.length > 0,
+    staleTime: 0, // Always refetch to pick up newly added mappings
+    refetchOnMount: "always",
   });
 
   // Match advisors to users on mount
