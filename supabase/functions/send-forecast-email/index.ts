@@ -398,18 +398,29 @@ const handler = async (req: Request): Promise<Response> => {
      const baselineFixedExp = annualBaseline['total_fixed_expense'] || 0;
      const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
 
-     // Driver settings are the source of truth when derived metrics are not explicitly persisted.
-     // This mirrors the Forecast UI behavior.
-     const growthPercent = driverSettings?.growth_percent ?? 0;
-     const growthFactor = 1 + (growthPercent / 100);
+     // CRITICAL: Read forecast annual totals directly from saved forecast_entries (the source of truth).
+     // The UI persists all computed values to forecast_entries, so the email MUST use those stored values
+     // to match what the user sees in the Forecast grid.
+     const sumStoredForecast = (metric: string): number => {
+       let total = 0;
+       for (let m = 1; m <= 12; m++) {
+         const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
+         const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+         if (entry && entry.forecast !== null && entry.forecast !== undefined) {
+           total += entry.forecast;
+         }
+       }
+       return total;
+     };
 
-     const annualTotalSales = baselineTotalSales * growthFactor;
-     const annualGpNet = baselineGpNet * growthFactor;
-     const annualSalesExp = (driverSettings?.sales_expense ?? (baselineSalesExp * growthFactor));
-     const annualFixedExp = (driverSettings?.fixed_expense ?? baselineFixedExp);
-     const annualPartsTransfer = baselinePartsTransfer;
+     // Sum stored forecast entries for all currency metrics
+     const annualTotalSales = sumStoredForecast('total_sales');
+     const annualGpNet = sumStoredForecast('gp_net');
+     const annualSalesExp = sumStoredForecast('sales_expense');
+     const annualFixedExp = sumStoredForecast('total_fixed_expense');
+     const annualPartsTransfer = sumStoredForecast('parts_transfer');
 
-     // Derived (match UI annual calculation style)
+     // Derived metrics: compute from the summed currency values (matches UI annual row calculations)
      const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
      const lockedSalesExpPercent = getLockedAnnualPercent('sales_expense_percent');
      const annualSalesExpPercent = lockedSalesExpPercent !== null
@@ -420,7 +431,7 @@ const handler = async (req: Request): Promise<Response> => {
      const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
      const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
 
-     // Used for scaling sub-metrics (matches Forecast UI: sub-metrics scale with their parent totals unless overridden)
+     // Used for scaling sub-metrics
      const annualForecastValues: Record<string, number> = {
        total_sales: annualTotalSales,
        gp_net: annualGpNet,
@@ -435,12 +446,12 @@ const handler = async (req: Request): Promise<Response> => {
        return_on_gross: annualReturnOnGross,
      };
 
-     console.log("Annual totals from drivers (email):", {
-       growthPercent,
+     console.log("Annual totals from stored forecast_entries:", {
        annualTotalSales,
        annualGpNet,
        annualSalesExp,
        annualFixedExp,
+       annualNetSellingGross,
        annualDeptProfit,
      });
 
@@ -468,7 +479,6 @@ const handler = async (req: Request): Promise<Response> => {
 
      // Variables used by the monthly-calculation block below
      const salesExpense = annualSalesExp;
-     const growth = growthPercent;
      const baseSalesExpense = baselineSalesExp;
      const baseFixedExpense = baselineFixedExp;
 
