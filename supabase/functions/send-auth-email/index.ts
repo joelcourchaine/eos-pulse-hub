@@ -110,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
                 </p>
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                  This link will expire in 24 hours for security reasons.
+                  This link will expire in 7 days for security reasons.
                 </p>
                 <p style="margin-top: 20px; color: #999; font-size: 13px;">
                   If you weren't expecting this invitation, you can safely ignore this email.
@@ -155,7 +155,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <a href="${actionLink}" style="color: #2563eb; word-break: break-all;">${actionLink}</a>
                 </p>
                 <p style="margin-top: 30px; color: #666; font-size: 14px;">
-                  This link will expire in 1 hour for security reasons.
+                  This link will expire in 7 days for security reasons.
                 </p>
                 <p style="margin-top: 20px; color: #999; font-size: 13px;">
                   If you didn't request a password reset, you can safely ignore this email.
