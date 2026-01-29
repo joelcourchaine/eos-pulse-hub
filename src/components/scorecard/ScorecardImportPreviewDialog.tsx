@@ -315,30 +315,51 @@ export const ScorecardImportPreviewDialog = ({
         for (const [mappedUserId, userMappings] of userCellMappingsLookup.entries()) {
           console.log(`[Import] Processing user with Visual Mapper mappings: ${mappedUserId} with ${userMappings.length} cell mappings`);
           
-          // Check if any of this user's mappings point to an advisor row or department totals
-          // We need to determine the data source based on row offsets
+          // Determine data source by checking where the row offsets point to.
+          // The row_index stored in cell mappings is relative to the anchor selected in Visual Mapper.
+          // If the user was anchored to "All Repair Orders" (dept totals), offsets map to departmentTotalsPayTypeByRowOffset.
+          // If the user was anchored to their own advisor row, offsets map to advisor.payTypeByRowOffset.
+          // We detect the correct source by checking if the row offset exists in each lookup.
+          
+          // Get the advisor match (if any) to have access to their payTypeByRowOffset
+          const advisorMatch = advisorMatches.find(m => 
+            (m.userId === mappedUserId || m.selectedUserId === mappedUserId)
+          );
+          
           for (const { colIndex, kpiId, rowOffset } of userMappings) {
             const kpiDef = kpiDefinitions?.find(k => k.id === kpiId);
             const offsetKey = rowOffset ?? 0;
             
-            // Try to find if this user matched an advisor in the report
-            const advisorMatch = advisorMatches.find(m => 
-              (m.userId === mappedUserId || m.selectedUserId === mappedUserId)
-            );
-            
             let value: number | undefined;
             let dataSource: string;
             
-            if (advisorMatch) {
-              // This user matched an advisor - use the advisor's row data with the mapped offset
-              const payTypeToRead = (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] ?? "total";
-              value = advisorMatch.advisor.metricsByIndex[payTypeToRead]?.[colIndex];
-              dataSource = `Advisor ${advisorMatch.advisor.displayName} (${payTypeToRead})`;
+            // Priority 1: Check if this offset maps to a valid pay type in department totals
+            // This handles the case where user was anchored to "All Repair Orders"
+            const deptTotalsPayType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey];
+            
+            // Priority 2: Check if this offset maps to a valid pay type in the matched advisor
+            const advisorPayType = advisorMatch 
+              ? (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] 
+              : undefined;
+            
+            // Decide which source to use:
+            // - If ONLY dept totals has a valid mapping for this offset, use dept totals
+            // - If ONLY advisor has a valid mapping for this offset, use advisor
+            // - If BOTH have valid mappings, prefer dept totals (user explicitly mapped to totals row)
+            // - If NEITHER has a valid mapping, fall back to dept totals with "total" pay type
+            
+            if (deptTotalsPayType) {
+              // Use department totals data
+              value = parseResult.departmentTotalsByIndex[deptTotalsPayType]?.[colIndex];
+              dataSource = `Department Totals (${deptTotalsPayType})`;
+            } else if (advisorMatch && advisorPayType) {
+              // Use advisor data
+              value = advisorMatch.advisor.metricsByIndex[advisorPayType]?.[colIndex];
+              dataSource = `Advisor ${advisorMatch.advisor.displayName} (${advisorPayType})`;
             } else {
-              // This user did NOT match an advisor - they're mapped to department totals
-              const payTypeToRead = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey] ?? "total";
-              value = parseResult.departmentTotalsByIndex[payTypeToRead]?.[colIndex];
-              dataSource = `Department Totals (${payTypeToRead})`;
+              // Fallback: try department totals with "total" pay type
+              value = parseResult.departmentTotalsByIndex["total"]?.[colIndex];
+              dataSource = `Department Totals (total - fallback)`;
             }
             
             if (typeof value === 'number') {
@@ -670,7 +691,7 @@ export const ScorecardImportPreviewDialog = ({
                  <TableBody>
                    {totalsUserMappings.map(totalsUser => {
                   // Build preview values for this Visual Mapper user
-                  // Determine if they matched an advisor or are mapped to department totals
+                  // Determine data source by checking which lookup has the row offset
                   const previewValues: Record<string, number | null> = {};
                   
                   // Check if this user matched any advisor in the report
@@ -678,22 +699,29 @@ export const ScorecardImportPreviewDialog = ({
                     m.userId === totalsUser.userId || m.selectedUserId === totalsUser.userId
                   );
                   
-                  const dataSourceLabel = advisorMatch ? "Advisor Row" : "Dept Totals";
+                  let dataSourceLabel = "Visual Mapper";
                   
                   if (cellMappings) {
                     const userMappings = cellMappings.filter(cm => cm.user_id === totalsUser.userId);
                     for (const mapping of userMappings) {
                       const offsetKey = (mapping.row_index ?? 0) as number;
                       
+                      // Check which lookup has this offset - prioritize dept totals
+                      const deptTotalsPayType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey];
+                      const advisorPayType = advisorMatch 
+                        ? (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] 
+                        : undefined;
+                      
                       let value: number | undefined;
-                      if (advisorMatch) {
-                        // User matched an advisor - use advisor's data
-                        const payType = (advisorMatch.advisor as any).payTypeByRowOffset?.[offsetKey] ?? "total";
-                        value = advisorMatch.advisor.metricsByIndex[payType]?.[mapping.col_index];
+                      if (deptTotalsPayType) {
+                        value = parseResult.departmentTotalsByIndex[deptTotalsPayType]?.[mapping.col_index];
+                        dataSourceLabel = "Dept Totals";
+                      } else if (advisorMatch && advisorPayType) {
+                        value = advisorMatch.advisor.metricsByIndex[advisorPayType]?.[mapping.col_index];
+                        dataSourceLabel = "Advisor Row";
                       } else {
-                        // User did NOT match an advisor - use department totals
-                        const payType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[offsetKey] ?? "total";
-                        value = parseResult.departmentTotalsByIndex[payType]?.[mapping.col_index];
+                        value = parseResult.departmentTotalsByIndex["total"]?.[mapping.col_index];
+                        dataSourceLabel = "Dept Totals";
                       }
                       
                       if (typeof value === 'number') {
