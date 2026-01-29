@@ -4677,6 +4677,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         onOpenChange={setForecastDrawerOpen}
         departmentId={departmentId}
         departmentName={departmentName || 'Department'}
+        onTargetsPushed={loadTargets}
       />
 
       {/* Clear Month Data Confirmation Dialog */}
