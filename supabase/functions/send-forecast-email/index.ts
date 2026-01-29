@@ -200,14 +200,34 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Prior year data loaded:", priorYearData?.length || 0);
 
-    // Fetch sub-metric baseline data for prior year
-    const { data: subMetricBaselineData } = await supabaseClient
-      .from("financial_entries")
-      .select("month, metric_name, value")
-      .eq("department_id", departmentId)
-      .gte("month", `${priorYear}-01`)
-      .lte("month", `${priorYear}-12`)
-      .like("metric_name", "sub:%");
+    // Fetch sub-metric baseline data for prior year WITH PAGINATION to handle >1000 rows
+    const subMetricBaselineData: { month: string; metric_name: string; value: number | null }[] = [];
+    const pageSize = 1000;
+    let subMetricOffset = 0;
+    
+    while (true) {
+      const { data: pageData, error: pageError } = await supabaseClient
+        .from("financial_entries")
+        .select("month, metric_name, value")
+        .eq("department_id", departmentId)
+        .gte("month", `${priorYear}-01`)
+        .lte("month", `${priorYear}-12`)
+        .like("metric_name", "sub:%")
+        .order("month", { ascending: true })
+        .order("metric_name", { ascending: true })
+        .range(subMetricOffset, subMetricOffset + pageSize - 1);
+
+      if (pageError) {
+        console.error("Error fetching sub-metric baseline data:", pageError);
+        break;
+      }
+
+      if (!pageData || pageData.length === 0) break;
+      subMetricBaselineData.push(...pageData);
+
+      if (pageData.length < pageSize) break;
+      subMetricOffset += pageSize;
+    }
 
     // Fetch sub-metric overrides for this forecast
     const { data: subMetricOverrides } = await supabaseClient
@@ -217,7 +237,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(
       "Sub-metric data loaded - baseline entries:",
-      subMetricBaselineData?.length || 0,
+      subMetricBaselineData.length,
       "overrides:",
       subMetricOverrides?.length || 0
     );
@@ -230,6 +250,43 @@ const handler = async (req: Request): Promise<Response> => {
       }
       const monthMap = baselineByMonth.get(entry.month)!;
       monthMap.set(entry.metric_name, (monthMap.get(entry.metric_name) || 0) + (entry.value || 0));
+    });
+
+    // Backfill parent totals from sub-metrics for stores that only import sub-metric data
+    // (e.g., Murray Merritt imports only sub:total_sales:*, sub:gp_net:*, etc.)
+    const parentKeysToBackfill = ['total_sales', 'gp_net', 'sales_expense', 'total_fixed_expense'];
+    const subMetricSumsByMonthParent = new Map<string, Map<string, number>>();
+    
+    subMetricBaselineData.forEach((entry) => {
+      const parts = entry.metric_name.split(":");
+      if (parts.length >= 3) {
+        const parentKey = parts[1];
+        if (parentKeysToBackfill.includes(parentKey)) {
+          const monthParentKey = `${entry.month}:${parentKey}`;
+          if (!subMetricSumsByMonthParent.has(monthParentKey)) {
+            subMetricSumsByMonthParent.set(monthParentKey, new Map());
+          }
+          const current = subMetricSumsByMonthParent.get(monthParentKey)!.get(parentKey) || 0;
+          subMetricSumsByMonthParent.get(monthParentKey)!.set(parentKey, current + (entry.value || 0));
+        }
+      }
+    });
+
+    // If parent-level entry is missing but sub-metrics exist, use sub-metric sum as parent total
+    subMetricSumsByMonthParent.forEach((metrics, monthParentKey) => {
+      const [month, parentKey] = monthParentKey.split(":");
+      if (!baselineByMonth.has(month)) {
+        baselineByMonth.set(month, new Map());
+      }
+      const monthMap = baselineByMonth.get(month)!;
+      // Only backfill if parent value is missing or zero
+      if (!monthMap.has(parentKey) || monthMap.get(parentKey) === 0) {
+        const subMetricSum = metrics.get(parentKey) || 0;
+        if (subMetricSum !== 0) {
+          monthMap.set(parentKey, subMetricSum);
+          console.log(`Backfilled ${parentKey} for ${month}: ${subMetricSum}`);
+        }
+      }
     });
 
     // Build sub-metric baseline map: parentKey -> subMetricName -> monthlyValues
