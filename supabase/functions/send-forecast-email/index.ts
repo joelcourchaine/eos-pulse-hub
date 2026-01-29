@@ -573,15 +573,96 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
-    // Fix ALL percentage metrics at quarterly/annual levels - must be recalculated from aggregated currency values
+    // Fix ALL percentage and derived metrics at quarterly/annual levels - must be recalculated from aggregated currency values
     // This matches the UI logic in useForecastCalculations.ts
     const totalSalesData = metricsData.find(m => m.key === 'total_sales');
     const gpNetData = metricsData.find(m => m.key === 'gp_net');
     const salesExpenseData = metricsData.find(m => m.key === 'sales_expense');
+    const fixedExpenseData = metricsData.find(m => m.key === 'total_fixed_expense');
+    const nsgData = metricsData.find(m => m.key === 'net_selling_gross');
     const deptProfitData = metricsData.find(m => m.key === 'department_profit');
+    const partsTransferData = metricsData.find(m => m.key === 'parts_transfer');
+    const netOpData = metricsData.find(m => m.key === 'net_operating_profit');
     const gpPercentData = metricsData.find(m => m.key === 'gp_percent');
     const salesExpPercentData = metricsData.find(m => m.key === 'sales_expense_percent');
     const rogData = metricsData.find(m => m.key === 'return_on_gross');
+
+    // Fix Net Selling Gross (derived: gp_net - sales_expense) at quarterly/annual levels
+    if (nsgData && gpNetData && salesExpenseData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qSalesExp = salesExpenseData.quarters[qKey]?.value ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineSalesExp = salesExpenseData.quarters[qKey]?.baseline ?? 0;
+        
+        nsgData.quarters[qKey] = {
+          value: qGpNet - qSalesExp,
+          baseline: qBaselineGpNet - qBaselineSalesExp,
+        };
+      }
+      
+      const nsgValue = gpNetData.annual.value - salesExpenseData.annual.value;
+      const nsgBaseline = gpNetData.annual.baseline - salesExpenseData.annual.baseline;
+      nsgData.annual = {
+        value: nsgValue,
+        baseline: nsgBaseline,
+        variance: nsgValue - nsgBaseline,
+        variancePercent: nsgBaseline !== 0 ? ((nsgValue - nsgBaseline) / Math.abs(nsgBaseline)) * 100 : 0,
+      };
+    }
+
+    // Fix Department Profit (derived: gp_net - sales_expense - fixed_expense) at quarterly/annual levels
+    if (deptProfitData && gpNetData && salesExpenseData && fixedExpenseData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qSalesExp = salesExpenseData.quarters[qKey]?.value ?? 0;
+        const qFixedExp = fixedExpenseData.quarters[qKey]?.value ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineSalesExp = salesExpenseData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineFixedExp = fixedExpenseData.quarters[qKey]?.baseline ?? 0;
+        
+        deptProfitData.quarters[qKey] = {
+          value: qGpNet - qSalesExp - qFixedExp,
+          baseline: qBaselineGpNet - qBaselineSalesExp - qBaselineFixedExp,
+        };
+      }
+      
+      const profitValue = gpNetData.annual.value - salesExpenseData.annual.value - fixedExpenseData.annual.value;
+      const profitBaseline = gpNetData.annual.baseline - salesExpenseData.annual.baseline - fixedExpenseData.annual.baseline;
+      deptProfitData.annual = {
+        value: profitValue,
+        baseline: profitBaseline,
+        variance: profitValue - profitBaseline,
+        variancePercent: profitBaseline !== 0 ? ((profitValue - profitBaseline) / Math.abs(profitBaseline)) * 100 : 0,
+      };
+    }
+
+    // Fix Net Operating Profit (derived: dept_profit + parts_transfer) at quarterly/annual levels
+    if (netOpData && deptProfitData && partsTransferData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qDeptProfit = deptProfitData.quarters[qKey]?.value ?? 0;
+        const qPartsTransfer = partsTransferData.quarters[qKey]?.value ?? 0;
+        const qBaselineDeptProfit = deptProfitData.quarters[qKey]?.baseline ?? 0;
+        const qBaselinePartsTransfer = partsTransferData.quarters[qKey]?.baseline ?? 0;
+        
+        netOpData.quarters[qKey] = {
+          value: qDeptProfit + qPartsTransfer,
+          baseline: qBaselineDeptProfit + qBaselinePartsTransfer,
+        };
+      }
+      
+      const netOpValue = deptProfitData.annual.value + partsTransferData.annual.value;
+      const netOpBaseline = deptProfitData.annual.baseline + partsTransferData.annual.baseline;
+      netOpData.annual = {
+        value: netOpValue,
+        baseline: netOpBaseline,
+        variance: netOpValue - netOpBaseline,
+        variancePercent: netOpBaseline !== 0 ? ((netOpValue - netOpBaseline) / Math.abs(netOpBaseline)) * 100 : 0,
+      };
+    }
     
     // Fix GP % quarterly/annual
     if (gpPercentData && gpNetData && totalSalesData) {
@@ -633,7 +714,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
     }
     
-    // Fix Return on Gross quarterly/annual
+    // Fix Return on Gross quarterly/annual (must come AFTER dept profit fix)
     if (rogData && deptProfitData && gpNetData) {
       for (let q = 1; q <= 4; q++) {
         const qKey = `Q${q}`;
@@ -667,16 +748,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Recipients:", recipients);
 
-    // Get recap values - same as UI
-    const profitData = metricsData.find((m) => m.key === "department_profit");
-    const nsgData = metricsData.find((m) => m.key === "net_selling_gross");
-    
-    const profitVariance = profitData?.annual.variance || 0;
-    const profitVariancePercent = profitData?.annual.variancePercent || 0;
+    // Get recap values - nsgData and deptProfitData are already defined above
+    const profitVariance = deptProfitData?.annual.variance || 0;
+    const profitVariancePercent = deptProfitData?.annual.variancePercent || 0;
     
     // Check if crossing zero for percentage display
-    const forecastProfit = profitData?.annual.value || 0;
-    const baselineProfit = profitData?.annual.baseline || 0;
+    const forecastProfit = deptProfitData?.annual.value || 0;
+    const baselineProfit = deptProfitData?.annual.baseline || 0;
     const profitCrossesZero = (forecastProfit >= 0) !== (baselineProfit >= 0);
     const showProfitPercent = !profitCrossesZero && baselineProfit !== 0;
 
@@ -739,8 +817,8 @@ const handler = async (req: Request): Promise<Response> => {
                           <!-- Department Profit -->
                           <p style="margin: 0; font-size: 14px;">
                             <span style="color: #666666;">Dept Profit:</span>
-                            <span style="font-size: 18px; font-weight: bold; color: #1a1a1a; margin-left: 8px;">${formatCurrency(profitData?.annual.value || 0)}</span>
-                            <span style="color: #666666; margin-left: 8px;">vs ${formatCurrency(profitData?.annual.baseline || 0)} prior</span>
+                            <span style="font-size: 18px; font-weight: bold; color: #1a1a1a; margin-left: 8px;">${formatCurrency(deptProfitData?.annual.value || 0)}</span>
+                            <span style="color: #666666; margin-left: 8px;">vs ${formatCurrency(deptProfitData?.annual.baseline || 0)} prior</span>
                           </p>
                           <p style="margin: 2px 0 0 0; font-size: 14px; ${profitVariance >= 0 ? styles.positive : styles.negative}">
                             ${formatVariance(profitVariance, "currency")}${showProfitPercent ? ` (${profitVariancePercent >= 0 ? "+" : ""}${profitVariancePercent.toFixed(1)}%)` : ""}
