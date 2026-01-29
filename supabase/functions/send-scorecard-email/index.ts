@@ -115,19 +115,33 @@ function getMonthlyTrendMonths({ year }: { year: number }) {
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
   
-  // CP Hours per RO should always show 1 decimal place
-  if (kpiName === "CP Hours per RO") {
-    return Number(value).toFixed(1);
+  // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
+  if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR") {
+    return Number(value).toFixed(2);
   }
   
-  // CP Labour Sales Per RO and CP ELR should show whole dollars
-  if (kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
+  // Total Labour Sales, CP Labour Sales Per RO, CP ELR, and CP Labour Sales should show whole dollars
+  if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Labour Sales") {
     return `$${Math.round(value).toLocaleString()}`;
   }
   
+  // Total Hours, CP Hours, Customer Pay Hours, CP RO's, and Total RO's should show whole numbers
+  if (kpiName === "Total Hours" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours" || kpiName === "CP RO's" || kpiName === "Total RO's") {
+    return Math.round(value).toLocaleString();
+  }
+  
+  // Internal ELR should show 2 decimal places with $
+  if (kpiName === "Internal ELR") {
+    return `$${Number(value).toFixed(2)}`;
+  }
+  
   if (metricType === "dollar") return `$${value.toLocaleString()}`;
-  if (metricType === "percentage") return `${value}%`;
-  return value.toString();
+  if (metricType === "percentage") return `${Math.round(value)}%`;
+  
+  // Default: if has decimals, show 2 decimal places
+  const hasDecimals = value % 1 !== 0;
+  if (hasDecimals) return Number(value).toFixed(2);
+  return value.toLocaleString();
 }
 
 const handler = async (req: Request): Promise<Response> => {
