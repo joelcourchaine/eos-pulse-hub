@@ -920,8 +920,8 @@ const handler = async (req: Request): Promise<Response> => {
             }
             
             if (metric.type === "percentage" && value !== null) {
-              // UI uses whole numbers for percentages (Math.round)
-              html += `<td class="${cellClass}">${Math.round(value)}%</td>`;
+              // UI shows one decimal place for percentages
+              html += `<td class="${cellClass}">${value.toFixed(1)}%</td>`;
             } else {
               html += `<td class="${cellClass}">${formatValue(value, metric.type)}</td>`;
             }
@@ -930,20 +930,75 @@ const handler = async (req: Request): Promise<Response> => {
         
         // Add Avg and Total columns
         // MUST match UI logic in FinancialSummary.tsx exactly:
-        // - Avg column: average of all monthly values
-        // - Total column: For percentage metrics shows "-" (undefined), for dollars shows sum
-        const avg = periodValues.length > 0 
-          ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
-          : null;
+        // For percentage metrics: recalculate from sum of underlying dollar amounts
+        // For dollar metrics: show average and sum
         
-        // UI shows "-" for percentage Total, sum for dollar Total
-        const total = periodValues.length > 0 && metric.type !== "percentage"
-          ? periodValues.reduce((sum, v) => sum + v, 0)
-          : null;
+        let avg: number | null = null;
+        let total: number | null = null;
         
         if (metric.type === "percentage") {
-          // Percentages: whole numbers with %, Total shows "-"
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? Math.round(avg) + '%' : '-'}</td>`;
+          // UI recalculates percentage averages from underlying dollar totals
+          // Define numerator/denominator relationships for each percentage metric
+          const percentageCalcs: Record<string, { numerator: string; denominator: string }> = {
+            gp_percent: { numerator: "gp_net", denominator: "total_sales" },
+            sales_expense_percent: { numerator: "sales_expense", denominator: "gp_net" },
+            semi_fixed_expense_percent: { numerator: "semi_fixed_expense", denominator: "gp_net" },
+            return_on_gross: { numerator: "department_profit", denominator: "gp_net" },
+          };
+          
+          const calcDef = percentageCalcs[metric.dbName];
+          if (calcDef) {
+            // Sum numerator and denominator across all months
+            let totalNumerator = 0;
+            let totalDenominator = 0;
+            
+            periods.forEach(p => {
+              if ('identifier' in p) {
+                const monthData: any = financialDataByMonth.get(p.identifier) ?? {};
+                
+                // For department_profit, use stored value or calculate it
+                let numeratorVal: number | null = null;
+                if (calcDef.numerator === "department_profit") {
+                  numeratorVal = monthData.department_profit ?? (
+                    (monthData.gp_net != null && monthData.sales_expense != null && monthData.total_fixed_expense != null) ?
+                    monthData.gp_net - monthData.sales_expense - (monthData.semi_fixed_expense ?? 0) - monthData.total_fixed_expense : null
+                  );
+                } else {
+                  numeratorVal = monthData[calcDef.numerator] ?? null;
+                }
+                
+                const denominatorVal = monthData[calcDef.denominator] ?? null;
+                
+                if (numeratorVal != null) totalNumerator += numeratorVal;
+                if (denominatorVal != null) totalDenominator += denominatorVal;
+              }
+            });
+            
+            // Calculate average percentage from summed components
+            if (totalDenominator !== 0) {
+              avg = (totalNumerator / totalDenominator) * 100;
+            }
+          } else {
+            // Fallback: simple average for unknown percentage metrics
+            avg = periodValues.length > 0 
+              ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
+              : null;
+          }
+          // Total for percentage always shows "-"
+          total = null;
+        } else {
+          // Dollar metrics: simple average and sum
+          avg = periodValues.length > 0 
+            ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
+            : null;
+          total = periodValues.length > 0
+            ? periodValues.reduce((sum, v) => sum + v, 0)
+            : null;
+        }
+        
+        if (metric.type === "percentage") {
+          // Percentages: use one decimal place to match UI (-54.6% not -55%)
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? avg.toFixed(1) + '%' : '-'}</td>`;
           html += `<td style="font-weight: bold; background-color: #f0f0f0;">-</td>`;
         } else {
           html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg !== null ? Math.round(avg) : null, metric.type)}</td>`;
