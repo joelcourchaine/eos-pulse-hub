@@ -16,7 +16,6 @@ import Enterprise from "./pages/Enterprise";
 import DealerComparison from "./pages/DealerComparison";
 import ResetPassword from "./pages/ResetPassword";
 import SetPassword from "./pages/SetPassword";
-import AcceptInvite from "./pages/AcceptInvite";
 import Questionnaire from "./pages/Questionnaire";
 import MyTasks from "./pages/MyTasks";
 import Install from "./pages/Install";
@@ -52,7 +51,6 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/set-password" element={<SetPassword />} />
-            <Route path="/accept-invite" element={<AcceptInvite />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/my-tasks" element={<MyTasks />} />
             <Route path="/enterprise" element={<Enterprise />} />

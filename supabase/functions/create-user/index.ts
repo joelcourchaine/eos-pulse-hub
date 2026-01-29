@@ -48,7 +48,7 @@ function getInviteEmailHtml(inviteLink: string, fullName: string): string {
       <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
       <p style="word-break: break-all; color: #2563eb; font-size: 14px;">${inviteLink}</p>
       
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 7 days.</p>
+      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 24 hours.</p>
       
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
       
@@ -261,16 +261,16 @@ Deno.serve(async (req) => {
 
     console.log('Creating user:', { email, full_name, role });
 
-    // App URL for links
-    const appUrl = 'https://dealergrowth.solutions';
+    // Get the origin from the referer header for redirect URL
+    const referer = req.headers.get('referer') || '';
+    const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
 
-    // First, create the user in Supabase Auth without sending an email
-    // We'll use generateLink to create the user but then send our own email with custom token
+    // Generate the invite link (doesn't send email via Supabase)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: email,
       options: {
-        redirectTo: `${appUrl}/set-password`,
+        redirectTo: `${origin}/set-password`,
         data: {
           full_name,
           birthday_month,
@@ -282,38 +282,22 @@ Deno.serve(async (req) => {
     });
 
     if (linkError) {
-      console.error('Error creating user:', linkError);
+      console.error('Error generating invite link:', linkError);
       throw linkError;
     }
 
-    if (!linkData?.user?.id) {
-      console.error('No user returned from generateLink');
-      throw new Error('Failed to create user');
+    if (!linkData?.properties?.action_link) {
+      console.error('No action link returned from generateLink');
+      throw new Error('Failed to generate invite link');
     }
 
+    const inviteLink = linkData.properties.action_link;
     const userId = linkData.user.id;
+
     console.log('User created in auth:', userId);
+    console.log('Invite link generated successfully');
 
-    // Create a 7-day custom token using the database function
-    const { data: customToken, error: tokenError } = await supabaseAdmin
-      .rpc('create_auth_token', {
-        _token_type: 'invite',
-        _user_id: userId,
-        _email: email,
-        _created_by: user.id
-      });
-
-    if (tokenError || !customToken) {
-      console.error('Error creating custom token:', tokenError);
-      throw new Error('Failed to create invitation token');
-    }
-
-    console.log('7-day custom token created successfully');
-
-    // Build invite link pointing to our accept-invite page
-    const inviteLink = `${appUrl}/accept-invite?token=${customToken}`;
-
-    // Send the invite email via Resend with our custom link
+    // Send the invite email via Resend
     const emailResult = await sendInviteEmailViaResend(email, inviteLink, full_name);
     if (!emailResult.success) {
       console.error('Failed to send invite email:', emailResult.error);
