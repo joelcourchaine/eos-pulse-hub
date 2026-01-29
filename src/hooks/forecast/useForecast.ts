@@ -586,6 +586,60 @@ export function useForecast(departmentId: string | undefined, year: number) {
     },
   });
 
+  // Push forecast quarterly values to financial_targets
+  const pushToTargets = useMutation({
+    mutationFn: async ({
+      departmentId,
+      year,
+      targets,
+    }: {
+      departmentId: string;
+      year: number;
+      targets: {
+        metricName: string;
+        quarter: number;
+        targetValue: number;
+        targetDirection: 'above' | 'below';
+      }[];
+    }) => {
+      // Delete existing targets for this department/year
+      const { error: deleteError } = await supabase
+        .from('financial_targets')
+        .delete()
+        .eq('department_id', departmentId)
+        .eq('year', year);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new targets
+      if (targets.length > 0) {
+        const inserts = targets.map((t) => ({
+          department_id: departmentId,
+          metric_name: t.metricName,
+          quarter: t.quarter,
+          target_value: t.targetValue,
+          target_direction: t.targetDirection,
+          year: year,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('financial_targets')
+          .insert(inserts);
+
+        if (insertError) throw insertError;
+      }
+
+      return { count: targets.length };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['financial-targets'] });
+      toast.success(`Pushed ${result.count} targets successfully`);
+    },
+    onError: (error) => {
+      toast.error('Failed to push targets: ' + error.message);
+    },
+  });
+
   return {
     forecast,
     entries: entries ?? [],
@@ -604,5 +658,6 @@ export function useForecast(departmentId: string | undefined, year: number) {
     deleteAllSubMetricOverrides,
     deleteDriverSettings,
     resetAllEntries,
+    pushToTargets,
   };
 }
