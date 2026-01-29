@@ -343,36 +343,34 @@ export const ExcelPreviewGrid = ({
                   const isTemplatePreviewCell = isTemplateColumn && isAdvisorRow && !isHeaderRow && !isUserRowMapped && !isCellMapped;
                   
                   // Detect owner/advisor name cells.
-                  // Reports vary a lot (extra columns, metadata blocks, inconsistent spacing), so we normalize first.
-                  // Examples we want to match:
-                  // - "Advisor 1099 - Kayla Bender"
-                  // - "Advisor: 1099 - Kayla Bender"
-                  // - "Service Advisor 1099 - Kayla Bender"
-                  // - "All Repair Orders" (totals row - assignable to department manager)
+                  // Primary: Use advisorRowIndices from the parser (most reliable)
+                  // Fallback: Pattern matching for cells that may have been missed by the parser
                   const cellStr = String(cell ?? "");
                   const normalized = cellStr.replace(/\s+/g, " ").trim();
+                  
+                  // Pattern-based detection as fallback
                   const hasAdvisorWord = /\badvisor\b/i.test(normalized);
                   const hasSeparator = /[-–—:]/.test(normalized);
                   const hasNameAfterSeparator = hasSeparator
-                    ? /[-–—:]/.test(normalized) && /\S/.test(normalized.split(/[-–—:]/).slice(1).join("-").trim())
+                    ? /\S/.test(normalized.split(/[-–—:]/).slice(1).join("-").trim())
                     : false;
-
-                  // Also detect "All Repair Orders" or similar totals rows - but ONLY in first column
-                  // This prevents marking data cells with "Total" in their values as advisor cells
                   const isTotalsRow = isFirstCol && (
                     /\ball\s+repair\s+orders\b/i.test(normalized) || 
-                    (/\btotal\s+repair\s+orders?\b/i.test(normalized))
+                    /\btotal\s+repair\s+orders?\b/i.test(normalized)
                   );
-
-                  // Only treat as advisor cell if in first column or has the advisor pattern
-                  const isAdvisorCell = (hasAdvisorWord && hasSeparator && hasNameAfterSeparator) || isTotalsRow;
+                  const patternBasedAdvisorCell = (hasAdvisorWord && hasSeparator && hasNameAfterSeparator) || isTotalsRow;
+                  
+                  // A cell is an advisor cell if:
+                  // 1. It's in the first column AND the row is in advisorRowIndices (from parser), OR
+                  // 2. It matches the advisor pattern (fallback for edge cases)
+                  const isAdvisorCell = (isFirstCol && isAdvisorRow) || patternBasedAdvisorCell;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
                   // But NOT on advisor cells - those are for owner selection, and not header row
                   const canMapCell = canClickCells && !isHeaderRow && !isAdvisorCell;
                   
-                  // Advisor cells (matching pattern) are ALWAYS clickable to select as owner
-                  // Even if they're in what would otherwise be a "metadata" row
+                  // Advisor cells are ALWAYS clickable to select as owner
+                  // Use both parser-detected rows AND pattern-matched cells
                   const canSelectAsOwner = isAdvisorCell;
                   
                   return (
