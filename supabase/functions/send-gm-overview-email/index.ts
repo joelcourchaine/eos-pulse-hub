@@ -201,13 +201,34 @@ const handler = async (req: Request): Promise<Response> => {
     // ============ 3. FINANCIAL SUMMARY ============
     console.log("Fetching financial data...");
     
-    // Filter out sub-metrics (which start with 'sub:') to avoid hitting the 1000 row limit
-    const { data: financialEntries } = await supabaseClient
-      .from("financial_entries")
-      .select("*")
-      .eq("department_id", departmentId)
-      .in("month", monthIdentifiers)
-      .not("metric_name", "like", "sub:%");
+    // Fetch financial entries with pagination to avoid 1000 row limit
+    let financialEntries: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data: page, error: pageError } = await supabaseClient
+        .from("financial_entries")
+        .select("*")
+        .eq("department_id", departmentId)
+        .in("month", monthIdentifiers)
+        .not("metric_name", "like", "sub:%")
+        .range(offset, offset + pageSize - 1);
+      
+      if (pageError) {
+        console.error("Error fetching financial entries page:", pageError);
+        break;
+      }
+      
+      if (page && page.length > 0) {
+        financialEntries = financialEntries.concat(page);
+        offset += pageSize;
+        hasMore = page.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
 
     // For yearly view, get all quarters' targets; for quarterly, just the selected quarter
     let financialTargets: any[] = [];
@@ -233,7 +254,7 @@ const handler = async (req: Request): Promise<Response> => {
       finTargetsMap.set(t.metric_name, { value: t.target_value, direction: t.target_direction });
     });
 
-    console.log(`Found ${financialEntries?.length || 0} financial entries`);
+    console.log(`Found ${financialEntries.length} financial entries`);
 
     // ============ 4. ROCKS ============
     console.log("Fetching rocks...");
