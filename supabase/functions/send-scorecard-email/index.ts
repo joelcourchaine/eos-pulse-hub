@@ -416,10 +416,9 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       for (const monthData of financialDataByMonth.values()) {
-        // Minimum set needed for correct Sales Expense and % calculations.
+        // Synthesize parent totals from sub-metrics
         synthesizeParentFromSubs(monthData, "sales_expense");
         synthesizeParentFromSubs(monthData, "gp_net");
-        // Useful for other derived metrics (kept small and safe).
         synthesizeParentFromSubs(monthData, "total_sales");
         synthesizeParentFromSubs(monthData, "semi_fixed_expense");
         synthesizeParentFromSubs(monthData, "total_fixed_expense");
@@ -612,15 +611,21 @@ const handler = async (req: Request): Promise<Response> => {
         });
         
         // Add Avg and Total columns for yearly/monthly modes
+        // MUST match UI logic in ScorecardGrid.tsx exactly:
+        // - Avg column always shows average
+        // - Total column: shows average if aggregation_type === 'average', otherwise shows sum
         if (mode === "yearly" || mode === "monthly") {
           const avg = periodValues.length > 0 
             ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
             : null;
           
-          // For percentages, show average; for others, show sum for Total
+          // Match UI: use aggregation_type to determine Total display
+          // For aggregation_type 'average' (percentages, rates), Total = Avg
+          // For aggregation_type 'sum' (units, dollars), Total = Sum
+          const shouldShowAvgAsTotal = kpi.aggregation_type === 'average';
           const total = periodValues.length > 0 
-            ? kpi.metric_type === "percentage"
-              ? avg // For percentages, Total = Avg
+            ? shouldShowAvgAsTotal
+              ? avg
               : periodValues.reduce((sum, v) => sum + v, 0)
             : null;
           
@@ -915,7 +920,8 @@ const handler = async (req: Request): Promise<Response> => {
             }
             
             if (metric.type === "percentage" && value !== null) {
-              html += `<td class="${cellClass}">${value.toFixed(1)}%</td>`;
+              // UI uses whole numbers for percentages (Math.round)
+              html += `<td class="${cellClass}">${Math.round(value)}%</td>`;
             } else {
               html += `<td class="${cellClass}">${formatValue(value, metric.type)}</td>`;
             }
@@ -923,23 +929,25 @@ const handler = async (req: Request): Promise<Response> => {
         });
         
         // Add Avg and Total columns
+        // MUST match UI logic in FinancialSummary.tsx exactly:
+        // - Avg column: average of all monthly values
+        // - Total column: For percentage metrics shows "-" (undefined), for dollars shows sum
         const avg = periodValues.length > 0 
           ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
           : null;
         
-        // For percentages, Total shows average; for dollar amounts, show sum
-        const total = periodValues.length > 0 
-          ? metric.type === "percentage"
-            ? avg // For percentages, Total = Avg
-            : periodValues.reduce((sum, v) => sum + v, 0)
+        // UI shows "-" for percentage Total, sum for dollar Total
+        const total = periodValues.length > 0 && metric.type !== "percentage"
+          ? periodValues.reduce((sum, v) => sum + v, 0)
           : null;
         
         if (metric.type === "percentage") {
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? avg.toFixed(1) + '%' : '-'}</td>`;
-          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${total !== null ? total.toFixed(1) + '%' : '-'}</td>`;
+          // Percentages: whole numbers with %, Total shows "-"
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? Math.round(avg) + '%' : '-'}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f0f0f0;">-</td>`;
         } else {
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, metric.type)}</td>`;
-          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total, metric.type)}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg !== null ? Math.round(avg) : null, metric.type)}</td>`;
+          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total !== null ? Math.round(total) : null, metric.type)}</td>`;
         }
         
         html += `</tr>`;
