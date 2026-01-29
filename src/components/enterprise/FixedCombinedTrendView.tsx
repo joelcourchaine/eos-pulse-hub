@@ -15,9 +15,12 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { DataCoverageBadge } from "./DataCoverageBadge";
+import { usePayplanScenarios } from "@/hooks/usePayplanScenarios";
+import { usePayplanCalculations, groupPayplanRowsByMetric } from "@/hooks/usePayplanCalculations";
 
 interface FixedCombinedTrendViewProps {
   storeIds: string[];
+  selectedDepartmentNames?: string[];  // NEW - pass from Enterprise
   selectedMetrics: string[];
   startMonth: string;
   endMonth: string;
@@ -28,6 +31,7 @@ interface FixedCombinedTrendViewProps {
 
 export function FixedCombinedTrendView({
   storeIds,
+  selectedDepartmentNames = [],  // Default to empty (will use legacy behavior)
   selectedMetrics,
   startMonth,
   endMonth,
@@ -40,6 +44,9 @@ export function FixedCombinedTrendView({
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailFormat, setEmailFormat] = useState<"html" | "excel">("html");
+
+  // Fetch payplan scenarios
+  const { activeScenarios } = usePayplanScenarios();
 
   // Fetch recipients (super_admins and store GMs)
   const { data: recipients = [], isLoading: loadingRecipients } = useQuery({
@@ -154,9 +161,9 @@ export function FixedCombinedTrendView({
     enabled: storeIds.length > 0,
   });
 
-  // Fetch departments for stores (Parts and Service only)
+  // Fetch departments for stores - now flexible based on selectedDepartmentNames
   const { data: departments } = useQuery({
-    queryKey: ["trend_view_departments", storeIds],
+    queryKey: ["trend_view_departments", storeIds, selectedDepartmentNames],
     queryFn: async () => {
       if (storeIds.length === 0) return [];
       const { data, error } = await supabase
@@ -164,7 +171,26 @@ export function FixedCombinedTrendView({
         .select("id, name, store_id")
         .in("store_id", storeIds);
       if (error) throw error;
-      // Filter to only Parts and Service departments
+      
+      // If selectedDepartmentNames is provided and not empty, filter by those names
+      // Otherwise fall back to legacy behavior (Parts and Service only)
+      if (selectedDepartmentNames.length > 0) {
+        // Handle "Fixed Combined" as Parts + Service
+        if (selectedDepartmentNames.includes('Fixed Combined')) {
+          return data?.filter(d => 
+            d.name.toLowerCase().includes('parts') || 
+            d.name.toLowerCase().includes('service')
+          ) || [];
+        }
+        // Filter by exact department names
+        return data?.filter(d => 
+          selectedDepartmentNames.some(name => 
+            d.name.toLowerCase().includes(name.toLowerCase())
+          )
+        ) || [];
+      }
+      
+      // Legacy behavior: Parts and Service only
       return data?.filter(d => 
         d.name.toLowerCase().includes('parts') || 
         d.name.toLowerCase().includes('service')
@@ -420,6 +446,19 @@ export function FixedCombinedTrendView({
     return result;
   }, [financialEntries, stores, departments, months, selectedMetrics]);
 
+  // Calculate payplan scenario rows
+  const payplanRows = usePayplanCalculations({
+    activeScenarios,
+    financialData: processedData,
+    months,
+    storeIds,
+  });
+  
+  const payplanRowsByMetric = useMemo(
+    () => groupPayplanRowsByMetric(payplanRows),
+    [payplanRows]
+  );
+
   const formatValue = (value: number | null, selectionId: string) => {
     if (value === null || value === undefined) return "-";
 
@@ -612,23 +651,57 @@ export function FixedCombinedTrendView({
                                 : values.reduce((sum, v) => sum + v, 0)
                               : null;
 
+                            // Get payplan rows that should appear after this metric
+                            const payplanRowsForMetric = payplanRowsByMetric.get(selectionId) || [];
+
                             return (
-                              <TableRow
-                                key={selectionId}
-                                className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}
-                              >
-                                <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
-                                  {displayName}
-                                </TableCell>
-                                {months.map(month => (
-                                  <TableCell key={month} className="text-center">
-                                    {formatValue(metricData?.[month] ?? null, selectionId)}
+                              <>
+                                <TableRow
+                                  key={selectionId}
+                                  className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}
+                                >
+                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
+                                    {displayName}
                                   </TableCell>
+                                  {months.map(month => (
+                                    <TableCell key={month} className="text-center">
+                                      {formatValue(metricData?.[month] ?? null, selectionId)}
+                                    </TableCell>
+                                  ))}
+                                  <TableCell className="text-center font-semibold bg-primary/10">
+                                    {formatValue(total, selectionId)}
+                                  </TableCell>
+                                </TableRow>
+                                {/* Payplan scenario rows */}
+                                {payplanRowsForMetric.map((row) => (
+                                  <TableRow
+                                    key={`${row.scenarioId}-${row.type}`}
+                                    className="bg-cyan-50 dark:bg-cyan-950/30 print:bg-cyan-50"
+                                  >
+                                    <TableCell className="font-medium sticky left-0 z-10 bg-cyan-50 dark:bg-cyan-950/30 pl-6 text-cyan-700 dark:text-cyan-300 print:bg-cyan-50">
+                                      {row.label}
+                                    </TableCell>
+                                    {months.map(month => (
+                                      <TableCell key={month} className="text-center text-cyan-700 dark:text-cyan-300">
+                                        {new Intl.NumberFormat("en-US", {
+                                          style: "currency",
+                                          currency: "USD",
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0,
+                                        }).format(row.values[month] || 0)}
+                                      </TableCell>
+                                    ))}
+                                    <TableCell className="text-center font-semibold bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300">
+                                      {new Intl.NumberFormat("en-US", {
+                                        style: "currency",
+                                        currency: "USD",
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0,
+                                      }).format(row.total)}
+                                    </TableCell>
+                                  </TableRow>
                                 ))}
-                                <TableCell className="text-center font-semibold bg-primary/10">
-                                  {formatValue(total, selectionId)}
-                                </TableCell>
-                              </TableRow>
+                              </>
                             );
                           })}
                         </TableBody>

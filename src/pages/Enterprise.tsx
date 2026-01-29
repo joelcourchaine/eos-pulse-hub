@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { FixedCombinedTrendView } from "@/components/enterprise/FixedCombinedTrendView";
 import { KPITrendView } from "@/components/enterprise/KPITrendView";
 import { CombinedTrendView } from "@/components/enterprise/CombinedTrendView";
+import { PayplanScenariosPanel } from "@/components/enterprise/PayplanScenariosPanel";
 import { useUserRole } from "@/hooks/use-user-role";
 
 type FilterMode = "brand" | "group" | "custom";
@@ -879,6 +880,7 @@ export default function Enterprise() {
         <div className="max-w-[2000px] mx-auto">
           <FixedCombinedTrendView
             storeIds={trendReportParams.storeIds}
+            selectedDepartmentNames={selectedDepartmentNames}
             selectedMetrics={trendReportParams.selectedMetrics}
             startMonth={trendReportParams.startMonth}
             endMonth={trendReportParams.endMonth}
@@ -1379,6 +1381,13 @@ export default function Enterprise() {
                       </div>
                     </div>
                   ) : null}
+
+                  {/* Payplan Scenarios Panel - show for financial metrics with trend view */}
+                  {datePeriodType === 'monthly_trend' && (
+                    <div className="border-t pt-3">
+                      <PayplanScenariosPanel />
+                    </div>
+                  )}
                 </>
               )}
 
