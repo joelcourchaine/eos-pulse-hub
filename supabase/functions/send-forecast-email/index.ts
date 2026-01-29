@@ -21,37 +21,114 @@ interface MetricDefinition {
   type: "currency" | "percent";
 }
 
-// Full metric definitions - will be filtered based on brand
-const ALL_METRIC_DEFINITIONS: MetricDefinition[] = [
+// Base metric definitions
+const BASE_METRICS: MetricDefinition[] = [
   { key: 'total_sales', label: 'Total Sales', type: 'currency' },
   { key: 'gp_net', label: 'GP Net', type: 'currency' },
   { key: 'gp_percent', label: 'GP %', type: 'percent' },
   { key: 'sales_expense', label: 'Sales Expense', type: 'currency' },
   { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent' },
-  { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
-  { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
-  { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
-  { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
-  { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
-  { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' },
-  { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' },
-  { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
 ];
 
-// Get metrics for brand - filter out parts_transfer and net_operating_profit for certain brands
+// Get metrics for brand - matches financialMetrics.ts exactly
 function getMetricsForBrand(brand: string | null): MetricDefinition[] {
   const brandLower = brand?.toLowerCase() || '';
   
-  // Brands that exclude parts_transfer and net_operating_profit
-  const excludePartsTransfer = ['ktrv', 'other', 'nissan', 'mazda', 'honda', 'hyundai'].some(b => brandLower.includes(b) || brandLower === b);
-  
-  if (excludePartsTransfer) {
-    return ALL_METRIC_DEFINITIONS.filter(m => 
-      m.key !== 'parts_transfer' && m.key !== 'net_operating_profit'
-    );
+  // Ford brand: No Semi Fixed, includes Dealer Salary, Adjusted Selling Gross
+  if (brandLower.includes('ford')) {
+    return [
+      ...BASE_METRICS,
+      { key: 'adjusted_selling_gross', label: 'Adjusted Selling Gross', type: 'currency' },
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'dealer_salary', label: 'Dealer Salary', type: 'currency' },
+      { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' },
+      { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
   }
   
-  return ALL_METRIC_DEFINITIONS;
+  // Stellantis/Chrysler/Jeep/Dodge/Ram: No Semi Fixed Expense (Ford-like structure)
+  if (brandLower.includes('stellantis') || brandLower.includes('chrysler') || 
+      brandLower.includes('jeep') || brandLower.includes('dodge') || brandLower.includes('ram')) {
+    return [
+      ...BASE_METRICS,
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' },
+      { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
+  }
+  
+  // Nissan/Hyundai: Uses total_direct_expenses, no parts transfer/net operating
+  if (brandLower.includes('nissan') || brandLower.includes('hyundai')) {
+    return [
+      ...BASE_METRICS,
+      { key: 'total_direct_expenses', label: 'Total Direct Expenses', type: 'currency' },
+      { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+      { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
+  }
+  
+  // Honda: Uses total_direct_expenses, no parts transfer/net operating
+  if (brandLower.includes('honda')) {
+    return [
+      ...BASE_METRICS,
+      { key: 'total_direct_expenses', label: 'Total Direct Expenses', type: 'currency' },
+      { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+      { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
+  }
+  
+  // Mazda: Has Semi Fixed, but no parts transfer/net operating
+  if (brandLower.includes('mazda')) {
+    return [
+      ...BASE_METRICS,
+      { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+      { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
+  }
+  
+  // KTRV/Other: Like GMC but no parts transfer/net operating
+  if (brandLower.includes('ktrv') || brandLower === 'other') {
+    return [
+      ...BASE_METRICS,
+      { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+      { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
+      { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+      { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+      { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+      { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+    ];
+  }
+  
+  // GMC/Chevrolet (default): Has Semi Fixed, Parts Transfer, Net Operating
+  return [
+    ...BASE_METRICS,
+    { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+    { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
+    { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
+    { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
+    { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
+    { key: 'parts_transfer', label: 'Parts Transfer', type: 'currency' },
+    { key: 'net_operating_profit', label: 'Net Operating', type: 'currency' },
+    { key: 'return_on_gross', label: 'Return on Gross', type: 'percent' },
+  ];
 }
 
 interface MetricData {
