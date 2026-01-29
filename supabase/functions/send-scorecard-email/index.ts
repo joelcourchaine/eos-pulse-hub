@@ -276,10 +276,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Fetch scorecard entries
     // IMPORTANT: In the UI, when the user is on Monthly Trend view (quarter === -1) and chooses
-    // "Yearly Report", they expect the same rolling month window shown on screen.
+    // "Monthly" or "Yearly Report", they expect the same rolling month window shown on screen.
     const periods = mode === "weekly"
       ? getWeekDates({ year, quarter: quarter! })
-      : mode === "yearly" && quarter === -1
+      : (mode === "yearly" || mode === "monthly") && quarter === -1
       ? getMonthlyTrendMonths({ year })
       : mode === "yearly"
       ? getAllMonthsForYear({ year })
