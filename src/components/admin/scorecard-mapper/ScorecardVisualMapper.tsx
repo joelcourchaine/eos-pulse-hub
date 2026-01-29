@@ -789,6 +789,36 @@ export const ScorecardVisualMapper = () => {
     setUserMappings(initialUserMappings);
   }, [parsedData, columnMappings.length, userMappings.length]);
 
+  // Sync userMappings with existingAliases when aliases load AFTER userMappings was initialized
+  // This fixes the race condition where userMappings is created with null userId before aliases load
+  useEffect(() => {
+    if (!existingAliases || existingAliases.length === 0 || userMappings.length === 0) return;
+    
+    // Check if any userMappings need their userId updated
+    const needsUpdate = userMappings.some(um => {
+      const matchingAlias = existingAliases.find((a: any) => 
+        a?.alias_name?.toLowerCase?.() === um.advisorName?.toLowerCase()
+      );
+      return matchingAlias && matchingAlias.user_id !== um.userId;
+    });
+    
+    if (needsUpdate) {
+      setUserMappings(prev => prev.map(um => {
+        const matchingAlias = existingAliases.find((a: any) => 
+          a?.alias_name?.toLowerCase?.() === um.advisorName?.toLowerCase()
+        );
+        if (matchingAlias) {
+          return {
+            ...um,
+            userId: matchingAlias.user_id,
+            matchedProfileName: matchingAlias.profileName || um.matchedProfileName,
+          };
+        }
+        return um;
+      }));
+    }
+  }, [existingAliases, userMappings]);
+
   // Parse Excel file
   const parseExcelFile = useCallback((file: File) => {
     const reader = new FileReader();
