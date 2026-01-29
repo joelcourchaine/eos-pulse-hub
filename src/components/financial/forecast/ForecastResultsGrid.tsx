@@ -676,10 +676,10 @@ export function ForecastResultsGrid({
         ) : (
           <td className={cn(
             "text-right py-2 px-2 font-medium bg-muted/50",
-            // GP%, GP Net, Sales Expense %, and Sales Expense $ are specially editable (bidirectional editing)
-            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense') && "cursor-pointer"
+            // Allow bidirectional editing for all key metrics (all brands)
+            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && "cursor-pointer"
           )}>
-            {/* Editable annual cell for main metrics without sub-metrics (non-derived), or GP%/GP Net/Sales Expense %/Sales Expense $ (special cases) */}
+            {/* Editable annual cell for all key metrics - bidirectional editing across all brands */}
             {editingAnnualMainMetric === metric.key ? (
               <Input
                 type="number"
@@ -691,8 +691,8 @@ export function ForecastResultsGrid({
                 autoFocus
               />
             ) : annualValue !== undefined ? (
-              // Allow editing for: metrics without children and not derived, OR gp_percent/gp_net/sales_expense_percent/sales_expense (bidirectional)
-              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense') && onMainMetricAnnualEdit ? (
+              // Allow editing for all key metrics (bidirectional editing across all brands)
+              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && onMainMetricAnnualEdit ? (
                 view === 'annual' ? (
                   // Annual view: show full values directly
                   <span 
@@ -723,9 +723,15 @@ export function ForecastResultsGrid({
                             : metric.key === 'gp_net'
                             ? 'Click to edit GP Net (will scale sub-metrics)'
                             : metric.key === 'sales_expense_percent'
-                            ? 'Click to edit Sales Expense % (will calculate required dollar amount)'
+                            ? 'Click to edit Sales Expense % (will calculate $ amount)'
                             : metric.key === 'sales_expense'
-                            ? 'Click to edit Sales Expense $ (will calculate percentage)'
+                            ? 'Click to edit Sales Expense $ (will calculate %)'
+                            : metric.key === 'semi_fixed_expense_percent'
+                            ? 'Click to edit Semi Fixed Expense % (will calculate $ amount)'
+                            : metric.key === 'semi_fixed_expense'
+                            ? 'Click to edit Semi Fixed Expense $ (will calculate %)'
+                            : metric.key === 'total_fixed_expense'
+                            ? 'Click to edit Fixed Expense $ (will distribute monthly)'
                             : 'Click to edit annual total'}
                         </p>
                       </TooltipContent>

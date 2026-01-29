@@ -1364,24 +1364,12 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               isUpdating={updateWeight.isPending}
             />
 
-            {/* Key Drivers - Simplified to single growth slider */}
+            {/* Key Drivers - Growth slider only */}
             <ForecastDriverInputs
               growth={growth}
-              salesExpense={salesExpense}
-              fixedExpense={fixedExpense}
-              baselineSalesExpense={baselineSalesExpense}
-              baselineFixedExpense={baselineFixedExpense}
               onGrowthChange={(v) => {
                 markDirty();
                 setGrowth(v);
-              }}
-              onSalesExpenseChange={(v) => {
-                markDirty();
-                setSalesExpense(v);
-              }}
-              onFixedExpenseChange={(v) => {
-                markDirty();
-                setFixedExpense(v);
               }}
             />
 
