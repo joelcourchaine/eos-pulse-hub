@@ -1394,50 +1394,6 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
                 Reset
               </Button>
               
-              {/* Lock All Button */}
-              <Button
-                variant={lockState.allLocked ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={handleLockAllCells}
-                disabled={!forecast || bulkUpdateEntries.isPending || lockState.allLocked}
-              >
-                {lockState.allLocked ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-1 text-green-600" />
-                    All Locked
-                  </>
-                ) : bulkUpdateEntries.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                    Locking...
-                  </>
-                ) : (
-                  <>
-                    <Lock className="h-4 w-4 mr-1" />
-                    Lock All
-                    {lockState.lockPercentage > 0 && lockState.lockPercentage < 100 && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        ({lockState.lockPercentage}%)
-                      </span>
-                    )}
-                  </>
-                )}
-              </Button>
-
-              {/* Push to Targets Button */}
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setPushToTargetsDialogOpen(true)}
-                disabled={!forecast || !lockState.allLocked}
-                className={cn(
-                  !lockState.allLocked && 'opacity-60'
-                )}
-              >
-                <Target className="h-4 w-4 mr-1" />
-                Push to Targets
-              </Button>
-              
               <Button 
                 size="sm" 
                 variant="outline"
@@ -1484,19 +1440,67 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           </div>
         ) : (
           <div className="py-4 space-y-6">
-            {/* View Toggle */}
-            <div className="flex gap-2">
-              {(['monthly', 'quarter', 'annual'] as const).map((v) => (
+            {/* View Toggle + Lock/Push Actions */}
+            <div className="flex items-center justify-between">
+              <div className="flex gap-2">
+                {(['monthly', 'quarter', 'annual'] as const).map((v) => (
+                  <Button
+                    key={v}
+                    variant={view === v ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setView(v)}
+                    className="capitalize"
+                  >
+                    {v}
+                  </Button>
+                ))}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {/* Lock All Button */}
                 <Button
-                  key={v}
-                  variant={view === v ? 'default' : 'outline'}
+                  variant={lockState.allLocked ? 'secondary' : 'outline'}
                   size="sm"
-                  onClick={() => setView(v)}
-                  className="capitalize"
+                  onClick={handleLockAllCells}
+                  disabled={!forecast || bulkUpdateEntries.isPending || lockState.allLocked}
                 >
-                  {v}
+                  {lockState.allLocked ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-1 text-green-600" />
+                      All Locked
+                    </>
+                  ) : bulkUpdateEntries.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Locking...
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4 mr-1" />
+                      Lock All
+                      {lockState.lockPercentage > 0 && lockState.lockPercentage < 100 && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ({lockState.lockPercentage}%)
+                        </span>
+                      )}
+                    </>
+                  )}
                 </Button>
-              ))}
+
+                {/* Push to Targets Button */}
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setPushToTargetsDialogOpen(true)}
+                  disabled={!forecast || !lockState.allLocked}
+                  className={cn(
+                    !lockState.allLocked && 'opacity-60'
+                  )}
+                >
+                  <Target className="h-4 w-4 mr-1" />
+                  Push to Targets
+                </Button>
+              </div>
             </div>
 
             {/* Weight Distribution Panel */}
