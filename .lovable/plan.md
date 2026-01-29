@@ -1,235 +1,183 @@
 
-# Plan: Commission Scenario Tool with Flexible Department Trend View
+# Plan: Fix Manual Visual Mapper Mappings to Take Precedence Over Fuzzy Matching
 
-## Overview
+## Problem Summary
 
-Build a **Payplan Scenario Tool** integrated into the Enterprise reporting section that allows you to model manager compensation scenarios. The tool will calculate commissions based on a base salary plus percentage of financial metrics (like Net Selling Gross), displayed as sub-metric rows in any department's 12-month trend view.
+When a user manually maps "All Repair Orders" (department totals row) to Jake in the Visual Mapper, but Jake also appears as an individual advisor in the report, the system incorrectly uses Jake's personal advisor metrics instead of the department totals metrics.
 
-## Key Requirement Addressed
+**Current Behavior:**
+1. Visual Mapper: "All Repair Orders" row → Jake (manual mapping)
+2. Report parsing finds: "Advisor 1234 - Jake Smith" as an advisor
+3. Fuzzy matching matches "Jake Smith" → Jake's user ID
+4. Import uses Jake's personal advisor row data (wrong)
 
-**Flexibility**: The payplan scenarios should work with ANY department trend view, not just "Fixed Combined". This means:
-- Single departments (e.g., just "Service" or just "Parts")
-- Multiple selected departments
-- "Fixed Combined" (Parts + Service aggregated)
-- Any other department selection
+**Expected Behavior:**
+1. Visual Mapper cell mappings should take precedence
+2. Since Jake was manually mapped to "All Repair Orders", his KPIs should pull from the department totals row
+3. Jake should NOT appear in the fuzzy-matched advisor list since he has explicit cell mappings
 
-## Current Architecture Gap
+## Root Cause
 
-The existing `FixedCombinedTrendView.tsx` is hardcoded to only work with Parts and Service departments:
-
+In `ScorecardImportPreviewDialog.tsx`, line 325:
 ```typescript
-// Line 167-171 of FixedCombinedTrendView.tsx
-return data?.filter(d => 
-  d.name.toLowerCase().includes('parts') || 
-  d.name.toLowerCase().includes('service')
-) || [];
+if (advisorUserIds.has(mappedUserId)) continue; // Skip - already processed with advisors
 ```
 
-This needs to be made flexible to accept the user's department selection.
+This logic is backwards. It skips users with cell mappings if they also appear in `advisorMatches`, but the correct behavior is:
+- Users with explicit cell mappings should be processed using those mappings
+- These users should be EXCLUDED from advisor fuzzy matching entirely
 
-## Implementation Steps
+## Solution
 
-### Phase 1: Make Trend View Department-Flexible
+### 1. Exclude Users with Cell Mappings from Advisor Matching
 
-**Rename/Update FixedCombinedTrendView → FinancialTrendView**
+**File: `src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
 
-| Change | Description |
-|--------|-------------|
-| Add `selectedDepartmentNames` prop | Pass from Enterprise filter panel |
-| Remove hardcoded Parts/Service filter | Use `selectedDepartmentNames` to filter departments |
-| Update title/subtitle | Show selected department names instead of "Fixed Combined" |
+Before running fuzzy matching in the `matchAdvisors` useEffect, filter out users who already have cell mappings. If a user has cell mappings configured in the Visual Mapper, they should not appear in the advisor matches list at all.
 
-**Updated Props Interface:**
 ```typescript
-interface FinancialTrendViewProps {
-  storeIds: string[];
-  selectedDepartmentNames: string[];  // NEW - pass from Enterprise
-  selectedMetrics: string[];
-  startMonth: string;
-  endMonth: string;
-  brandDisplayName: string;
-  filterName: string;
-  onBack: () => void;
-  activePayplanScenarios?: PayplanScenario[];  // NEW - for phase 2
+// After getting cellMappings, identify users with explicit mappings
+const usersWithCellMappings = new Set(
+  cellMappings?.map(cm => cm.user_id).filter(Boolean) || []
+);
+
+// Filter advisorMatches to exclude users already mapped via Visual Mapper
+const filteredAdvisorMatches = advisorMatches.filter(match => {
+  const matchedUserId = match.userId || match.selectedUserId;
+  return !matchedUserId || !usersWithCellMappings.has(matchedUserId);
+});
+```
+
+### 2. Update Import Logic Priority
+
+**File: `src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
+
+Change the import logic to:
+1. First process all users with explicit cell mappings (using the row/column they're mapped to)
+2. Then process remaining advisor matches that don't have cell mappings
+
+Current logic (wrong):
+```typescript
+// Build advisorUserIds from fuzzy matches
+const advisorUserIds = new Set(advisorMatches.map(m => m.userId || m.selectedUserId)...);
+
+// Skip cell-mapped users if they're in advisorUserIds
+if (advisorUserIds.has(mappedUserId)) continue;
+```
+
+New logic (correct):
+```typescript
+// Build cellMappedUserIds from Visual Mapper
+const cellMappedUserIds = new Set(userCellMappingsLookup.keys());
+
+// Process ALL users with cell mappings first (including those also fuzzy-matched)
+for (const [mappedUserId, userMappings] of userCellMappingsLookup.entries()) {
+  // Determine if this user's mappings point to department totals or an advisor row
+  // Use the appropriate data source based on the row_index stored in the mapping
+  processUserWithCellMappings(mappedUserId, userMappings);
+}
+
+// Then process advisor matches that DON'T have cell mappings
+for (const match of advisorMatches) {
+  const assignedUserId = match.selectedUserId || match.userId;
+  if (cellMappedUserIds.has(assignedUserId)) continue; // Already processed
+  // Use legacy fallback matching
 }
 ```
 
-### Phase 2: Database Schema for Payplan Scenarios
+### 3. Determine Data Source from Cell Mapping Row Offset
 
-**New Table: `payplan_scenarios`**
+When processing a user with cell mappings, determine whether to pull data from:
+- Department totals row (if mapped to "All Repair Orders")
+- Individual advisor row (if mapped to a specific advisor)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | uuid | Primary key |
-| `user_id` | uuid | Owner (references auth.users) |
-| `name` | text | Scenario name (e.g., "Tom FOM Candidate") |
-| `base_salary_annual` | numeric | Annual base salary (e.g., 78000) |
-| `commission_rules` | jsonb | Array of commission rules |
-| `department_names` | text[] | Applicable departments (empty = all selected) |
-| `is_active` | boolean | Quick toggle for display |
-| `created_at` | timestamptz | Creation timestamp |
-| `updated_at` | timestamptz | Last update |
+This is already partially implemented but needs refinement:
 
-**Commission Rules JSON Structure:**
-```json
-{
-  "rules": [
-    {
-      "source_metric": "net_selling_gross",
-      "rate": 0.03,
-      "min_threshold": null,
-      "max_threshold": null,
-      "description": "3% of Net Selling Gross"
-    }
-  ]
-}
-```
-
-### Phase 3: Scenario Management UI
-
-**PayplanScenarioDialog Component**
-
-A dialog for creating/editing scenarios:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ Create Payplan Scenario                                 [X] │
-├─────────────────────────────────────────────────────────────┤
-│ Scenario Name:                                              │
-│ [Tom - Fixed Ops Manager Candidate                     ]    │
-│                                                             │
-│ Base Salary:                                                │
-│ [$6,500    ] per [Monthly ▼]  = $78,000/year               │
-│                                                             │
-│ Commission Rule:                                            │
-│ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Source Metric:  [Net Selling Gross              ▼]     │ │
-│ │ Rate:           [3.0    ] %                            │ │
-│ │ Min Threshold:  [$           ] (optional)              │ │
-│ └─────────────────────────────────────────────────────────┘ │
-│                                                             │
-│ [+ Add Another Rule]                                        │
-│                                                             │
-│ [Cancel]                              [Save Scenario]       │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**PayplanScenariosPanel Component**
-
-A collapsible panel in the Financial Metrics section:
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ 💰 Payplan Scenarios                                   [+]  │
-├─────────────────────────────────────────────────────────────┤
-│ ☑ Tom - Fixed Ops Manager                                   │
-│   $6,500/mo base + 3% of Net Selling Gross                  │
-│ ☐ Sarah - Service Manager                                   │
-│   $5,000/mo base + 2.5% of Department Profit                │
-├─────────────────────────────────────────────────────────────┤
-│ [+ Create New Scenario]                                     │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Phase 4: Calculation Engine
-
-**usePayplanCalculations Hook**
-
-Inputs:
-- Financial data (from trend view query)
-- Selected payplan scenarios
-- Selected departments
-
-Logic:
-1. For each selected scenario, iterate through its commission rules
-2. For each rule, find the source metric value per month
-3. Calculate: `commission = source_metric_value * rate`
-4. Add base salary per month: `base_salary_annual / 12`
-5. Return computed rows to inject into trend view
-
-Output structure:
 ```typescript
-interface PayplanComputedRows {
-  [scenarioId: string]: {
-    name: string;
-    months: {
-      [month: string]: {
-        commission: number;
-        baseSalary: number;
-        totalComp: number;
-      };
-    };
-    sourceMetric: string;  // For placement in table
-  };
+for (const { colIndex, kpiId, rowOffset } of userMappings) {
+  // Check if this mapping points to department totals or an advisor
+  const isDepartmentTotals = !advisorAnchorRows.includes(rowOffset);
+  
+  if (isDepartmentTotals) {
+    // Use parseResult.departmentTotalsByIndex
+    const value = parseResult.departmentTotalsByIndex[payType]?.[colIndex];
+  } else {
+    // Find the advisor that matches this row and use their metrics
+    const advisor = findAdvisorByRowOffset(parseResult, rowOffset);
+    const value = advisor?.metricsByIndex[payType]?.[colIndex];
+  }
 }
 ```
 
-### Phase 5: Trend View Integration
+### 4. Update Preview Display
 
-**Updated FinancialTrendView Rendering**
+**File: `src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
 
-When payplan scenarios are active, insert computed rows below the source metric:
+The preview table should show:
+- Users with cell mappings (showing data from their mapped rows)
+- Fuzzy-matched advisors WITHOUT cell mappings
+- "Dept Totals" badge for users mapped to totals rows
 
-```text
-┌──────────────────┬─────────┬─────────┬─────────┬───────────┐
-│ Metric           │ Feb 25  │ Mar 25  │ Apr 25  │ Total     │
-├──────────────────┼─────────┼─────────┼─────────┼───────────┤
-│ Net Selling Gross│ $125K   │ $142K   │ $138K   │ $405K     │
-│ ↳ Commission 3%  │ $3,750  │ $4,260  │ $4,140  │ $12,150   │
-│ ↳ Base Salary    │ $6,500  │ $6,500  │ $6,500  │ $19,500   │
-│ ↳ Total Comp     │ $10,250 │ $10,760 │ $10,640 │ $31,650   │
-├──────────────────┼─────────┼─────────┼─────────┼───────────┤
-│ Department Profit│ $45K    │ $52K    │ $48K    │ $145K     │
-└──────────────────┴─────────┴─────────┴─────────┴───────────┘
+Update the preview values calculation:
+
+```typescript
+// For users with cell mappings, check if their mapping points to dept totals
+const isPointingToDeptTotals = checkIfMappingPointsToDeptTotals(userMappings, parseResult);
+
+if (isPointingToDeptTotals) {
+  // Pull preview values from departmentTotalsByIndex
+  previewValues[mapping.kpi_name] = parseResult.departmentTotalsByIndex[payType]?.[colIndex];
+} else {
+  // Pull from advisor metrics
+  previewValues[mapping.kpi_name] = match.advisor.metricsByIndex[payType]?.[colIndex];
+}
 ```
-
-Visual styling:
-- Payplan rows use a light blue/teal background to distinguish from regular metrics
-- `↳` prefix indicates derived/calculated rows
-- Scenario name appears in a tooltip or expandable header
-
-## Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/components/enterprise/PayplanScenarioDialog.tsx` | Create/edit scenario dialog |
-| `src/components/enterprise/PayplanScenariosPanel.tsx` | List and select scenarios |
-| `src/hooks/usePayplanScenarios.ts` | CRUD operations for scenarios |
-| `src/hooks/usePayplanCalculations.ts` | Commission calculation logic |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/enterprise/FixedCombinedTrendView.tsx` | Add `selectedDepartmentNames` prop, remove hardcoded filter, add `activePayplanScenarios` prop for computed rows |
-| `src/pages/Enterprise.tsx` | Pass `selectedDepartmentNames` to trend params, add PayplanScenariosPanel to Financial Metrics section |
+| `src/components/scorecard/ScorecardImportPreviewDialog.tsx` | Reorder processing to prioritize cell mappings, exclude cell-mapped users from fuzzy matching, update preview display |
 
-## Department Flexibility Matrix
+## Technical Details
 
-| Selection | Behavior |
-|-----------|----------|
-| Single department (e.g., "Service") | Show only Service data, payplan calculates on Service metrics |
-| Multiple departments (e.g., "Parts", "Service") | Show each separately OR aggregated based on user preference |
-| "Fixed Combined" | Aggregate Parts + Service (current behavior) |
-| All departments | Show all available departments with their financial data |
+### Identifying Department Totals vs Advisor Rows
+
+The Visual Mapper stores cell mappings with a `row_index` that represents the relative offset from the owner's anchor row. However, for users mapped to "All Repair Orders", the anchor is the department totals header.
+
+To distinguish:
+1. Check if the user has any advisorMatch in the `advisorMatches` list
+2. If they do NOT match any advisor but have cell mappings → they're mapped to dept totals
+3. If they DO match an advisor AND have cell mappings → cell mappings take precedence
+
+### Data Flow
+
+```text
+Before (Wrong):
+┌─────────────────┐      ┌───────────────────┐      ┌──────────────────┐
+│ Parse Report    │ ──▶  │ Fuzzy Match Jake  │ ──▶  │ Use Jake's Row   │
+│ (finds Jake as  │      │ to Jake's User ID │      │ (personal sales) │
+│  advisor)       │      └───────────────────┘      └──────────────────┘
+└─────────────────┘
+
+After (Correct):
+┌─────────────────┐      ┌────────────────────┐      ┌──────────────────┐
+│ Check Cell      │ ──▶  │ Jake has mapping   │ ──▶  │ Use Dept Totals  │
+│ Mappings First  │      │ to "All Repair     │      │ Row (what user   │
+│                 │      │  Orders" row       │      │  configured)     │
+└─────────────────┘      └────────────────────┘      └──────────────────┘
+```
 
 ## Edge Cases
 
-1. **Missing data months**: Show "-" for commission (no calculation if source metric missing)
-2. **Multiple scenarios active**: Show each scenario's rows below the same source metric
-3. **Different source metrics per scenario**: Each scenario's rows appear below their respective source metric
-4. **Multi-store view**: Aggregate metrics across stores first, then calculate commission on total
+1. **User mapped to multiple rows**: Cell mappings can have different row offsets for different KPIs
+2. **User not in store users list**: Skip processing (already handled)
+3. **No cell mappings at all**: Fall back to current fuzzy matching behavior
 
-## Security
+## Testing
 
-- RLS policies: Users can only see/edit their own scenarios
-- Validate commission rates (0-100%)
-- Validate base salary is positive
-
-## Future Enhancements
-
-1. **Tiered Commissions**: Multiple rate tiers based on thresholds
-2. **Team Scenarios**: Share scenarios with other users in same store group
-3. **What-If Analysis**: Adjust source metrics manually to project compensation
-4. **Comparison Mode**: Side-by-side comparison of multiple scenarios
-5. **PDF/Excel Export**: Include payplan rows in exported reports
+After implementation:
+1. Map "All Repair Orders" to Jake in Visual Mapper
+2. Import a report where Jake also appears as an advisor
+3. Verify Jake's KPIs pull from department totals row
+4. Verify Jake's personal advisor row is NOT imported (or imported to a different user if configured)
