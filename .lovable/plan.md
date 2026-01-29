@@ -1,52 +1,35 @@
-# Plan: Systemic Fix for Supabase 1000-Row Query Limit
 
-## Status: ✅ COMPLETED
 
-## Summary of Changes Made
+## Add Hyundai Financial Cell Mappings
 
-| File | Change |
-|------|--------|
-| `src/lib/supabasePagination.ts` | ✅ NEW - Reusable pagination utility with `fetchAllRows()` function |
-| `src/components/scorecard/ScorecardGrid.tsx` | ✅ Added pagination to 3 queries (monthly trend, weekly entries, monthly entries) |
-| `supabase/functions/send-scorecard-email/index.ts` | ✅ Added pagination to financial_entries query |
-| `src/components/enterprise/KPITrendView.tsx` | ✅ Added pagination to scorecard_entries query |
+### Summary
+Insert 12 new financial cell mappings for Hyundai brand to enable Excel drag-and-drop import for Service and Parts departments.
 
-## Files Already Using Pagination (Confirmed OK)
-- ✅ `src/components/financial/FinancialSummary.tsx`
-- ✅ `src/hooks/useSubMetrics.ts`
-- ✅ `src/pages/DealerComparison.tsx`
-- ✅ `src/components/enterprise/FixedCombinedTrendView.tsx`
-- ✅ `src/components/enterprise/CombinedTrendView.tsx`
-- ✅ `supabase/functions/send-scorecard-email/index.ts` (scorecard_entries - already had it)
-- ✅ `supabase/functions/send-gm-overview-email/index.ts`
-- ✅ `supabase/functions/send-forecast-email/index.ts`
+### Data to Insert
 
-## Pattern Used
+| Department | Metric | Cell | Sheet |
+|------------|--------|------|-------|
+| Service | total_sales | N6 | Page3 |
+| Service | gp_net | N7 | Page3 |
+| Service | total_direct_expenses | N49 | Page3 |
+| Service | semi_fixed_expenses | N51 | Page3 |
+| Service | net_selling_gross | N52 | Page3 |
+| Service | total_fixed_expense | N72 | Page3 |
+| Parts | total_sales | H6 | Page3 |
+| Parts | gp_net | H7 | Page3 |
+| Parts | total_direct_expenses | H49 | Page3 |
+| Parts | semi_fixed_expenses | H51 | Page3 |
+| Parts | net_selling_gross | H52 | Page3 |
+| Parts | total_fixed_expense | H72 | Page3 |
 
-All pagination now follows this standard pattern:
-```typescript
-const allData: MyType[] = [];
-let offset = 0;
-const pageSize = 1000;
+### Implementation
+1. Run a database migration to insert the 12 Hyundai mappings into `financial_cell_mappings` table
+2. Uses `ON CONFLICT DO NOTHING` to prevent duplicates if run again
 
-while (true) {
-  const { data: page, error } = await supabase
-    .from("table_name")
-    .select("*")
-    .eq("filter_column", filterValue)
-    .range(offset, offset + pageSize - 1);
-  
-  if (error) throw error;
-  if (!page || page.length === 0) break;
-  
-  allData.push(...page);
-  if (page.length < pageSize) break;
-  offset += pageSize;
-}
-```
+### Technical Details
+- **Table**: `public.financial_cell_mappings`
+- **Brand**: Hyundai (new - not currently in system)
+- **Sheet**: Page3
+- **Service column**: N
+- **Parts column**: H
 
-## High-Volume Tables Protected
-- `scorecard_entries` - Multiple KPIs × 12+ months × weekly entries
-- `financial_entries` - Many metrics × 12+ months + sub-metrics
-
-This systemic fix ensures that **any query that could potentially return >1000 rows** uses pagination, eliminating this class of bugs permanently.
