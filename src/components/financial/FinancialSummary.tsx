@@ -2912,31 +2912,40 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 )}>
                                   {metric.name}
                                 </TableCell>
-                              {[1, 2, 3, 4].map((q) => (
-                                <TableCell key={q}>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    value={editTargets[q]?.[metric.key] || ""}
-                                    onChange={(e) => {
-                                      setEditTargets(prev => ({ 
-                                        ...prev, 
-                                        [q]: { ...prev[q], [metric.key]: e.target.value }
-                                      }));
-                                      // Keep direction consistent across all quarters
-                                      const direction = editTargetDirections[q]?.[metric.key] || metric.targetDirection;
-                                      [1, 2, 3, 4].forEach(quarter => {
-                                        setEditTargetDirections(prev => ({ 
+                              {[1, 2, 3, 4].map((q) => {
+                                const rawValue = editTargets[q]?.[metric.key];
+                                const numValue = rawValue !== undefined && rawValue !== "" ? parseFloat(rawValue) : null;
+                                const displayValue = numValue !== null 
+                                  ? metric.type === 'percentage' 
+                                    ? `${numValue.toFixed(1)}%`
+                                    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(numValue)
+                                  : "-";
+                                return (
+                                  <TableCell key={q}>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      value={rawValue || ""}
+                                      onChange={(e) => {
+                                        setEditTargets(prev => ({ 
                                           ...prev, 
-                                          [quarter]: { ...prev[quarter], [metric.key]: direction }
+                                          [q]: { ...prev[q], [metric.key]: e.target.value }
                                         }));
-                                      });
-                                    }}
-                                    placeholder="-"
-                                    className="text-center"
-                                  />
-                                </TableCell>
-                              ))}
+                                        // Keep direction consistent across all quarters
+                                        const direction = editTargetDirections[q]?.[metric.key] || metric.targetDirection;
+                                        [1, 2, 3, 4].forEach(quarter => {
+                                          setEditTargetDirections(prev => ({ 
+                                            ...prev, 
+                                            [quarter]: { ...prev[quarter], [metric.key]: direction }
+                                          }));
+                                        });
+                                      }}
+                                      placeholder={displayValue}
+                                      className="text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
+                                  </TableCell>
+                                );
+                              })}
                               <TableCell>
                                 <Select
                                   value={editTargetDirections[1]?.[metric.key] || metric.targetDirection}
