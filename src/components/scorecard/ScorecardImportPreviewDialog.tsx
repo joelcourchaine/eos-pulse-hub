@@ -390,6 +390,8 @@ export const ScorecardImportPreviewDialog = ({
           
           // Process users with manual override mappings (e.g., Jake mapped to "All Repair Orders")
           // These users get data from department totals, not individual advisor rows
+          // IMPORTANT: Cell mappings row_offsets are relative to the advisor who was selected during mapping,
+          // NOT to the department totals section. So we iterate ALL pay types and check the column index.
           for (const deptTotalsUser of deptTotalsUsers) {
             console.log(`[Import] Applying universal mappings to dept totals user: ${deptTotalsUser.full_name} (${deptTotalsUser.id})`);
             
@@ -402,13 +404,38 @@ export const ScorecardImportPreviewDialog = ({
               const userKpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
               if (!userKpi) continue;
               
-              // Get the value from department totals using the row offset
-              const payType = (parseResult as any).departmentTotalsPayTypeByRowOffset?.[rowOffset];
-              let value: number | undefined;
+              // For dept totals, we can't rely on row_offset since it's relative to an advisor's anchor.
+              // Instead, iterate through all pay types and find the value at this column index.
+              // The original mapping's row_offset tells us WHICH pay type was intended (customer/warranty/internal/total)
+              // but the dept totals section may have a different row layout.
               
-              if (payType) {
-                value = parseResult.departmentTotalsByIndex[payType]?.[colIndex];
-                console.log(`[Import] Dept totals mapping: ${kpiName} col ${colIndex} row_offset ${rowOffset} -> payType "${payType}" -> value ${value}`);
+              // First try: look up from any advisor's row offset to get the intended pay type
+              // Find an advisor that has this row_offset defined to determine the pay type
+              let intendedPayType: "customer" | "warranty" | "internal" | "total" | null = null;
+              for (const advisorMatch of advisorMatches) {
+                const pt = advisorMatch.advisor.payTypeByRowOffset?.[rowOffset];
+                if (pt) {
+                  intendedPayType = pt as any;
+                  break;
+                }
+              }
+              
+              let value: number | undefined;
+              if (intendedPayType) {
+                // Use the intended pay type to look up from dept totals
+                value = parseResult.departmentTotalsByIndex[intendedPayType]?.[colIndex];
+                console.log(`[Import] Dept totals mapping: ${kpiName} col ${colIndex} row_offset ${rowOffset} -> payType "${intendedPayType}" -> value ${value}`);
+              } else {
+                // Fallback: search all pay types for a value at this column
+                const payTypes: Array<"customer" | "warranty" | "internal" | "total"> = ["customer", "warranty", "internal", "total"];
+                for (const pt of payTypes) {
+                  const v = parseResult.departmentTotalsByIndex[pt]?.[colIndex];
+                  if (typeof v === 'number') {
+                    value = v;
+                    console.log(`[Import] Dept totals fallback: ${kpiName} col ${colIndex} -> found in payType "${pt}" -> value ${value}`);
+                    break;
+                  }
+                }
               }
               
               if (typeof value === 'number') {
