@@ -83,7 +83,8 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     calculation: {
       numerator: "semi_fixed_expense",
       denominator: "gp_net"
-    }
+    },
+    hasSubMetrics: true
   },
   { 
     name: "Net Selling Gross", 
