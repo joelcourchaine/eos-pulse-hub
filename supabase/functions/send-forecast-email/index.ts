@@ -398,27 +398,47 @@ const handler = async (req: Request): Promise<Response> => {
      const baselineFixedExp = annualBaseline['total_fixed_expense'] || 0;
      const baselinePartsTransfer = annualBaseline['parts_transfer'] || 0;
 
-     // CRITICAL: Read forecast annual totals directly from saved forecast_entries (the source of truth).
-     // The UI persists all computed values to forecast_entries, so the email MUST use those stored values
-     // to match what the user sees in the Forecast grid.
-     const sumStoredForecast = (metric: string): number => {
+     // CRITICAL: The email must match the Forecast UI.
+     // The UI may show computed values even when some months haven't been explicitly persisted.
+     // So we treat forecast_entries as overrides when present, but fill missing months using
+     // the same driver+weight distribution logic.
+
+     const growthPercent = driverSettings?.growth_percent ?? 0;
+     const growthFactor = 1 + (growthPercent / 100);
+
+     const driverAnnualTotals = {
+       total_sales: baselineTotalSales * growthFactor,
+       gp_net: baselineGpNet * growthFactor,
+       sales_expense: driverSettings?.sales_expense ?? (baselineSalesExp * growthFactor),
+       total_fixed_expense: driverSettings?.fixed_expense ?? baselineFixedExp,
+       parts_transfer: baselinePartsTransfer,
+     };
+
+     const getMonthlyForecastValue = (metric: keyof typeof driverAnnualTotals, monthNumber: number): number => {
+       const month = `${forecastYear}-${String(monthNumber).padStart(2, '0')}`;
+       const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+       if (entry && entry.forecast !== null && entry.forecast !== undefined) return entry.forecast;
+       return (driverAnnualTotals[metric] ?? 0) * getWeightFactor(monthNumber);
+     };
+
+     const sumHybridAnnual = (metric: keyof typeof driverAnnualTotals): number => {
        let total = 0;
+       let storedCount = 0;
        for (let m = 1; m <= 12; m++) {
          const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
          const entry = entriesByMonthMetric.get(`${month}:${metric}`);
-         if (entry && entry.forecast !== null && entry.forecast !== undefined) {
-           total += entry.forecast;
-         }
+         if (entry && entry.forecast !== null && entry.forecast !== undefined) storedCount++;
+         total += getMonthlyForecastValue(metric, m);
        }
+       console.log(`[annualTotals] ${metric}: stored months=${storedCount}/12, total=${total}`);
        return total;
      };
 
-     // Sum stored forecast entries for all currency metrics
-     const annualTotalSales = sumStoredForecast('total_sales');
-     const annualGpNet = sumStoredForecast('gp_net');
-     const annualSalesExp = sumStoredForecast('sales_expense');
-     const annualFixedExp = sumStoredForecast('total_fixed_expense');
-     const annualPartsTransfer = sumStoredForecast('parts_transfer');
+     const annualTotalSales = sumHybridAnnual('total_sales');
+     const annualGpNet = sumHybridAnnual('gp_net');
+     const annualSalesExp = sumHybridAnnual('sales_expense');
+     const annualFixedExp = sumHybridAnnual('total_fixed_expense');
+     const annualPartsTransfer = sumHybridAnnual('parts_transfer');
 
      // Derived metrics: compute from the summed currency values (matches UI annual row calculations)
      const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
