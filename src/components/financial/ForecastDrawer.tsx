@@ -30,9 +30,10 @@ interface ForecastDrawerProps {
   onOpenChange: (open: boolean) => void;
   departmentId: string;
   departmentName: string;
+  onTargetsPushed?: () => void;
 }
 
-export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName }: ForecastDrawerProps) {
+export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName, onTargetsPushed }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear, currentYear + 1];
   
@@ -436,6 +437,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       {
         onSuccess: () => {
           setPushToTargetsDialogOpen(false);
+          onTargetsPushed?.();
         },
       }
     );
