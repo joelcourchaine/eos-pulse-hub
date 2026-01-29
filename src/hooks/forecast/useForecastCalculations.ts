@@ -931,6 +931,40 @@ export function useForecastCalculations({
       console.log('[calculateSubMetricForecasts] Synthesized', synthesizedPercentSubs.length, 'sales_expense_percent sub-metrics from sales_expense');
     }
 
+    // Synthesize semi_fixed_expense_percent sub-metrics if missing but semi_fixed_expense exists
+    // This handles GMC/Nissan stores that only import dollar sub-metrics
+    const hasSemiFixedExpenseSubs = byParent.has('semi_fixed_expense') && (byParent.get('semi_fixed_expense')?.length ?? 0) > 0;
+    const hasSemiFixedExpensePercentSubs = byParent.has('semi_fixed_expense_percent') && (byParent.get('semi_fixed_expense_percent')?.length ?? 0) > 0;
+
+    if (hasSemiFixedExpenseSubs && !hasSemiFixedExpensePercentSubs) {
+      const semiFixedExpenseSubs = byParent.get('semi_fixed_expense')!;
+      const synthesizedSemiFixedPercentSubs: SubMetricBaseline[] = [];
+      
+      for (const semiFixedExpSub of semiFixedExpenseSubs) {
+        // Create a matching percentage sub-metric
+        const percentSub: SubMetricBaseline = {
+          parentKey: 'semi_fixed_expense_percent',
+          name: semiFixedExpSub.name,
+          orderIndex: semiFixedExpSub.orderIndex,
+          monthlyValues: new Map(),
+        };
+        
+        // Calculate percentage for each month: (Semi Fixed Exp $ / GP Net) × 100
+        semiFixedExpSub.monthlyValues.forEach((semiFixedExpValue, month) => {
+          const gpNetForMonth = baselineData.get(month)?.get('gp_net') ?? 0;
+          const percentValue = gpNetForMonth > 0 
+            ? (semiFixedExpValue / gpNetForMonth) * 100 
+            : 0;
+          percentSub.monthlyValues.set(month, percentValue);
+        });
+        
+        synthesizedSemiFixedPercentSubs.push(percentSub);
+      }
+      
+      byParent.set('semi_fixed_expense_percent', synthesizedSemiFixedPercentSubs);
+      console.log('[calculateSubMetricForecasts] Synthesized', synthesizedSemiFixedPercentSubs.length, 'semi_fixed_expense_percent sub-metrics from semi_fixed_expense');
+    }
+
     // Normalize names for reliable cross-parent matching (handles casing/whitespace differences)
     const normalizeName = (name: string) => name.trim().toLowerCase();
 
