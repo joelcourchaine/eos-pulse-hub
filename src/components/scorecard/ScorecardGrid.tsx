@@ -1612,8 +1612,8 @@ setStoreUsers(data || []);
     if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
       return Number(value).toFixed(2);
     }
-    // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, CP Hours, and Customer Pay Hours should show whole numbers
-    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours") {
+    // Total Hours, Total Labour Sales, CP Labour Sales Per RO, Total CP Labour Sales Per RO, CP ELR, CP Hours, and Customer Pay Hours should show whole numbers
+    if (kpiName === "Total Hours" || kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "Total CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours") {
       return Math.round(value).toString();
     }
     // Don't format with commas for input fields - number inputs don't accept them
@@ -1629,8 +1629,8 @@ setStoreUsers(data || []);
     if (kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
       return `$${Number(value).toFixed(2)}`;
     }
-    // Total Labour Sales, CP Labour Sales Per RO and CP ELR should show whole dollars
-    if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "CP ELR") {
+    // Total Labour Sales, CP Labour Sales Per RO, Total CP Labour Sales Per RO, and CP ELR should show whole dollars
+    if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "Total CP Labour Sales Per RO" || kpiName === "CP ELR") {
       return `$${Math.round(value).toLocaleString()}`;
     }
     // Total Hours, CP Hours, and Customer Pay Hours should show whole numbers
