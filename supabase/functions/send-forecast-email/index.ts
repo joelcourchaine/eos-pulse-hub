@@ -440,33 +440,12 @@ const handler = async (req: Request): Promise<Response> => {
      const annualFixedExp = sumHybridAnnual('total_fixed_expense');
      const annualPartsTransfer = sumHybridAnnual('parts_transfer');
 
-     // CRITICAL FIX: Read derived metrics (net_selling_gross, department_profit) directly from 
-     // stored forecast_entries since the UI saves these with month-by-month values that may 
-     // include semi_fixed_expense deductions. Calculating from summed primary metrics gives wrong totals.
-     const sumStoredDerived = (metric: string): number => {
-       let total = 0;
-       for (let m = 1; m <= 12; m++) {
-         const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
-         const entry = entriesByMonthMetric.get(`${month}:${metric}`);
-         if (entry && entry.forecast !== null && entry.forecast !== undefined) {
-           total += entry.forecast;
-         }
-       }
-       console.log(`[annualTotals] ${metric}: stored months total=${total}`);
-       return total;
-     };
-
-     // Use stored values for derived metrics - these include semi_fixed_expense deductions
-     const storedNetSellingGross = sumStoredDerived('net_selling_gross');
-     const storedDeptProfit = sumStoredDerived('department_profit');
-     
-     // Use stored values if available (non-zero), otherwise fall back to simple calculation
-     const annualNetSellingGross = storedNetSellingGross !== 0 
-       ? storedNetSellingGross 
-       : annualGpNet - annualSalesExp;
-     const annualDeptProfit = storedDeptProfit !== 0 
-       ? storedDeptProfit 
-       : annualNetSellingGross - annualFixedExp;
+      // IMPORTANT: Mirror the Forecast UI's YoY card.
+      // That card's annual "Net Selling Gross" and "Dept Profit" totals are derived from the
+      // annual driver totals (GP Net, Sales Expense, Fixed Expense), not from any stored derived rows.
+      // (Stored derived rows can reflect intermediate calc paths and may not match the card.)
+      const annualNetSellingGross = annualGpNet - annualSalesExp;
+      const annualDeptProfit = annualNetSellingGross - annualFixedExp;
 
      // Derived percentages and other metrics
      const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
@@ -484,8 +463,6 @@ const handler = async (req: Request): Promise<Response> => {
        annualFixedExp,
        annualNetSellingGross,
        annualDeptProfit,
-       storedNetSellingGross,
-       storedDeptProfit,
      });
 
      // Used for scaling sub-metrics
