@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.send-test-email]
 verify_jwt = false
+
+[functions.validate-auth-token]
+verify_jwt = false
