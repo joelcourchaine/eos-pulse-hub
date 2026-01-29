@@ -1514,21 +1514,28 @@ export const ScorecardVisualMapper = () => {
         )}
       </div>
 
-      {/* Previous Advisor Mappings - show existing aliases for context */}
+      {/* Previous Advisor Mappings - CLICKABLE to select owner directly */}
       {selectedStoreId && existingAliases && existingAliases.length > 0 && (
         <Alert className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
           <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <AlertDescription>
             <div className="space-y-2">
               <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                {existingAliases.length} saved advisor mapping{existingAliases.length !== 1 ? "s" : ""} for this store:
+                {existingAliases.length} saved advisor mapping{existingAliases.length !== 1 ? "s" : ""} for this store.
+                <span className="font-normal ml-1">Click to select as KPI owner:</span>
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {existingAliases.slice(0, 20).map((alias) => (
                   <Badge 
                     key={alias.id} 
                     variant="secondary" 
-                    className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                    className={cn(
+                      "text-xs cursor-pointer transition-colors",
+                      selectedKpiOwnerId === alias.user_id
+                        ? "bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 ring-2 ring-green-500"
+                        : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800"
+                    )}
+                    onClick={() => setSelectedKpiOwnerId(alias.user_id)}
                   >
                     {alias.alias_name} → {alias.profileName || "Unknown"}
                   </Badge>
