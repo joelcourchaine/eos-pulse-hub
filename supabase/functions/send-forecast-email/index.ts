@@ -440,12 +440,32 @@ const handler = async (req: Request): Promise<Response> => {
      const annualFixedExp = sumHybridAnnual('total_fixed_expense');
      const annualPartsTransfer = sumHybridAnnual('parts_transfer');
 
-      // IMPORTANT: Mirror the Forecast UI's YoY card.
-      // That card's annual "Net Selling Gross" and "Dept Profit" totals are derived from the
-      // annual driver totals (GP Net, Sales Expense, Fixed Expense), not from any stored derived rows.
-      // (Stored derived rows can reflect intermediate calc paths and may not match the card.)
-      const annualNetSellingGross = annualGpNet - annualSalesExp;
-      const annualDeptProfit = annualNetSellingGross - annualFixedExp;
+      // Mirror the Forecast UI's "Year Over Year Comparison" card.
+      // In the UI, before sending the email we flush the *computed monthly grid values* into
+      // forecast_entries (see ForecastDrawer). Therefore, the most faithful source of truth
+      // for YoY totals is the sum of the stored month-by-month derived values.
+      const sumStoredAnnual = (metric: string, valueKey: 'forecast' | 'baseline'): { total: number; count: number } => {
+        let total = 0;
+        let count = 0;
+        for (let m = 1; m <= 12; m++) {
+          const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
+          const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+          const v = valueKey === 'forecast' ? entry?.forecast : entry?.baseline;
+          if (v !== null && v !== undefined) {
+            total += v;
+            count++;
+          }
+        }
+        console.log(`[annualTotals][stored] ${metric}: months=${count}/12, total=${total}`);
+        return { total, count };
+      };
+
+      const storedNsg = sumStoredAnnual('net_selling_gross', 'forecast');
+      const storedDeptProfit = sumStoredAnnual('department_profit', 'forecast');
+
+      // If something calls the function without the UI flush, fall back to the best-available driver math.
+      const annualNetSellingGross = storedNsg.count === 12 ? storedNsg.total : (annualGpNet - annualSalesExp);
+      const annualDeptProfit = storedDeptProfit.count === 12 ? storedDeptProfit.total : (annualNetSellingGross - annualFixedExp);
 
      // Derived percentages and other metrics
      const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
@@ -483,8 +503,17 @@ const handler = async (req: Request): Promise<Response> => {
     // Annual baseline values for comparison
     const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
     const baselineSalesExpPercent = baselineGpNet > 0 ? (baselineSalesExp / baselineGpNet) * 100 : 0;
-    const baselineNetSellingGross = baselineGpNet - baselineSalesExp;
-    const baselineDeptProfit = baselineGpNet - baselineSalesExp - baselineFixedExp;
+     // Baseline for YoY card should also mirror what the UI shows (baseline_value flushed into forecast_entries).
+     const storedBaselineNsg = sumStoredAnnual('net_selling_gross', 'baseline');
+     const storedBaselineDeptProfit = sumStoredAnnual('department_profit', 'baseline');
+
+     const baselineNetSellingGross = storedBaselineNsg.count === 12
+       ? storedBaselineNsg.total
+       : (baselineGpNet - baselineSalesExp);
+
+     const baselineDeptProfit = storedBaselineDeptProfit.count === 12
+       ? storedBaselineDeptProfit.total
+       : (baselineGpNet - baselineSalesExp - baselineFixedExp);
     const baselineNetOperatingProfit = baselineDeptProfit + baselinePartsTransfer;
     const baselineReturnOnGross = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
 
