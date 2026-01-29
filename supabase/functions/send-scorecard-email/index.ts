@@ -350,20 +350,36 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Fetched ${entries.length} scorecard entries for department ${departmentId}`);
 
     // Fetch financial entries for monthly and yearly modes
+    // PAGINATION: financial_entries can exceed 1000 rows with sub-metrics
     let financialEntries: any[] = [];
     if (mode === "monthly" || mode === "yearly") {
       // Get the month identifiers
       const monthIdentifiers = periods.map(p => 'identifier' in p ? p.identifier : '').filter(Boolean);
       console.log("Fetching financial entries for months:", monthIdentifiers);
       
-      const { data: finData } = await supabaseClient
-        .from("financial_entries")
-        .select("*")
-        .eq("department_id", departmentId)
-        .in("month", monthIdentifiers);
+      let finOffset = 0;
+      const finPageSize = 1000;
+
+      while (true) {
+        const { data: finPage, error: finError } = await supabaseClient
+          .from("financial_entries")
+          .select("*")
+          .eq("department_id", departmentId)
+          .in("month", monthIdentifiers)
+          .range(finOffset, finOffset + finPageSize - 1);
+
+        if (finError) {
+          console.error("Error fetching financial entries:", finError);
+          break;
+        }
+        if (!finPage || finPage.length === 0) break;
+
+        financialEntries.push(...finPage);
+        if (finPage.length < finPageSize) break;
+        finOffset += finPageSize;
+      }
       
-      console.log("Financial entries fetched:", finData?.length || 0);
-      financialEntries = finData || [];
+      console.log("Financial entries fetched:", financialEntries.length);
     }
 
     // Fetch director notes

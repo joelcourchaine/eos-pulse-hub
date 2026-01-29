@@ -946,12 +946,31 @@ setStoreUsers(data || []);
         .filter((p) => p.type === "month")
         .map((p) => p.identifier);
 
-      const { data: monthlyData, error: monthlyError } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", "monthly")
-        .in("month", monthIdentifiers);
+      // PAGINATION: Fetch all monthly trend data to avoid 1000-row limit
+      const monthlyData: any[] = [];
+      let monthlyOffset = 0;
+      const pageSize = 1000;
+      let monthlyError: any = null;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "monthly")
+          .in("month", monthIdentifiers)
+          .range(monthlyOffset, monthlyOffset + pageSize - 1);
+
+        if (error) {
+          monthlyError = error;
+          break;
+        }
+        if (!page || page.length === 0) break;
+
+        monthlyData.push(...page);
+        if (page.length < pageSize) break;
+        monthlyOffset += pageSize;
+      }
 
       if (monthlyError) {
         console.error("Error loading monthly trend data:", monthlyError);
@@ -1009,12 +1028,31 @@ setStoreUsers(data || []);
       // For weeks: fetch weekly entries for this quarter
       const weekDates = weeks.map(w => w.start.toISOString().split('T')[0]);
       
-      const { data: weeklyData, error: weeklyError } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", "weekly")
-        .in("week_start_date", weekDates);
+      // PAGINATION: Fetch all weekly data to avoid 1000-row limit
+      const weeklyData: any[] = [];
+      let weeklyOffset = 0;
+      const weeklyPageSize = 1000;
+      let weeklyError: any = null;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "weekly")
+          .in("week_start_date", weekDates)
+          .range(weeklyOffset, weeklyOffset + weeklyPageSize - 1);
+
+        if (error) {
+          weeklyError = error;
+          break;
+        }
+        if (!page || page.length === 0) break;
+
+        weeklyData.push(...page);
+        if (page.length < weeklyPageSize) break;
+        weeklyOffset += weeklyPageSize;
+      }
 
       if (weeklyError) {
         console.error("Error loading weekly data:", weeklyError);
@@ -1069,12 +1107,31 @@ setStoreUsers(data || []);
     } else {
       // For months: fetch monthly entries for current quarter and previous year's same quarter
       const monthIdentifiers = [...months.map(m => m.identifier), ...previousYearMonths.map(m => m.identifier)];
-      const { data: monthlyData, error: monthlyError } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", "monthly")
-        .in("month", monthIdentifiers);
+      // PAGINATION: Fetch all monthly data to avoid 1000-row limit
+      const monthlyData: any[] = [];
+      let monthOffset = 0;
+      const monthPageSize = 1000;
+      let monthlyError: any = null;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "monthly")
+          .in("month", monthIdentifiers)
+          .range(monthOffset, monthOffset + monthPageSize - 1);
+
+        if (error) {
+          monthlyError = error;
+          break;
+        }
+        if (!page || page.length === 0) break;
+
+        monthlyData.push(...page);
+        if (page.length < monthPageSize) break;
+        monthOffset += monthPageSize;
+      }
 
       if (monthlyError) {
         console.error("Error loading monthly data:", monthlyError);
