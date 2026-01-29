@@ -95,27 +95,13 @@ function getAllMonthsForYear({ year }: { year: number }) {
   return months;
 }
 
-// Match the UI's Monthly Trend mode (quarter === -1):
-// - includes ALL months from previous year (Jan-Dec)
-// - includes months from current year up to the current month
-// This is why the UI shows a rolling window that spans two calendar years.
+// Monthly Trend mode shows only the selected year's 12 months
 function getMonthlyTrendMonths({ year }: { year: number }) {
   const months: Array<{ label: string; identifier: string; type: "month" }> = [];
-  const prevYear = year - 1;
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const currentMonthIdx = new Date().getMonth(); // 0-11
 
-  // Previous year: Jan-Dec
+  // Only the selected year's 12 months
   for (let i = 0; i < 12; i++) {
-    months.push({
-      label: `${monthNames[i]} ${prevYear}`,
-      identifier: `${prevYear}-${String(i + 1).padStart(2, '0')}`,
-      type: "month",
-    });
-  }
-
-  // Current year: Jan-current month
-  for (let i = 0; i <= currentMonthIdx; i++) {
     months.push({
       label: `${monthNames[i]} ${year}`,
       identifier: `${year}-${String(i + 1).padStart(2, '0')}`,

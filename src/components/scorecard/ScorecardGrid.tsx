@@ -242,70 +242,37 @@ interface MonthlyTrendPeriod {
   isYTD?: boolean;
 }
 
-const getMonthlyTrendPeriods = (currentYear: number): MonthlyTrendPeriod[] => {
+const getMonthlyTrendPeriods = (selectedYear: number): MonthlyTrendPeriod[] => {
   const periods: MonthlyTrendPeriod[] = [];
-  const startYear = currentYear - 1;
-  const currentMonth = new Date().getMonth(); // 0-11
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   
-  // Add ALL months from last year (January through December) for paste flexibility
+  // Add all 12 months for the selected year only
   for (let m = 0; m < 12; m++) {
     periods.push({
       month: m,
-      year: startYear,
-      label: `${monthNames[m]} ${startYear}`,
-      identifier: `${startYear}-${String(m + 1).padStart(2, '0')}`,
+      year: selectedYear,
+      label: `${monthNames[m]} ${selectedYear}`,
+      identifier: `${selectedYear}-${String(m + 1).padStart(2, '0')}`,
       type: 'month',
     });
   }
   
-  // Add year-end summary columns for the previous year (after December)
+  // Add year summary columns
   periods.push({
     month: -1,
-    year: startYear,
-    label: `Avg ${startYear}`,
-    identifier: `avg-${startYear}`,
+    year: selectedYear,
+    label: `Avg ${selectedYear}`,
+    identifier: `avg-${selectedYear}`,
     type: 'year-avg',
-    summaryYear: startYear,
+    summaryYear: selectedYear,
   });
   periods.push({
     month: -1,
-    year: startYear,
-    label: `Total ${startYear}`,
-    identifier: `total-${startYear}`,
+    year: selectedYear,
+    label: `Total ${selectedYear}`,
+    identifier: `total-${selectedYear}`,
     type: 'year-total',
-    summaryYear: startYear,
-  });
-  
-  // Add months from current year up to current month
-  for (let m = 0; m <= currentMonth; m++) {
-    periods.push({
-      month: m,
-      year: currentYear,
-      label: `${monthNames[m]} ${currentYear}`,
-      identifier: `${currentYear}-${String(m + 1).padStart(2, '0')}`,
-      type: 'month',
-    });
-  }
-  
-  // Add YTD summary columns for the current year (after last month)
-  periods.push({
-    month: -1,
-    year: currentYear,
-    label: `Avg YTD`,
-    identifier: `avg-${currentYear}`,
-    type: 'year-avg',
-    summaryYear: currentYear,
-    isYTD: true,
-  });
-  periods.push({
-    month: -1,
-    year: currentYear,
-    label: `Total YTD`,
-    identifier: `total-${currentYear}`,
-    type: 'year-total',
-    summaryYear: currentYear,
-    isYTD: true,
+    summaryYear: selectedYear,
   });
   
   return periods;
