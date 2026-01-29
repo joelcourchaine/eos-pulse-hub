@@ -472,45 +472,32 @@ const handler = async (req: Request): Promise<Response> => {
       : `Q${quarter} ${year}`;
     const reportType = mode === "weekly" ? "Weekly" : mode === "yearly" ? "Yearly" : "Monthly";
     
+    // Helper function to convert cell class to inline style (for email forwarding compatibility)
+    const getCellStyle = (cellClass: string, baseFontSize: string): string => {
+      const baseStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
+      switch (cellClass) {
+        case "green": return `${baseStyle} background-color: #efe;`;
+        case "yellow": return `${baseStyle} background-color: #ffc;`;
+        case "red": return `${baseStyle} background-color: #fee;`;
+        default: return baseStyle;
+      }
+    };
+    
+    const baseFontSize = mode === "yearly" ? "9px" : "11px";
+    const thStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize}; background-color: #f4f4f4; font-weight: bold;`;
+    const tdStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
+    
     let html = `
       <!DOCTYPE html>
       <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { color: #333; }
-          h2 { color: #666; margin-top: 30px; }
-          table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-          th, td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${mode === "yearly" ? "9px" : "11px"}; }
-          th { background-color: #f4f4f4; font-weight: bold; }
-          .red { background-color: #fee; }
-          .yellow { background-color: #ffc; }
-          .green { background-color: #efe; }
-          .director-notes {
-            background-color: #f9f9f9;
-            border-left: 4px solid #2563eb;
-            padding: 12px 16px;
-            margin: 20px 0;
-          }
-          .director-notes h3 {
-            margin: 0 0 8px 0;
-            color: #2563eb;
-            font-size: 14px;
-          }
-          .director-notes p {
-            margin: 0;
-            line-height: 1.6;
-            white-space: pre-wrap;
-          }
-        </style>
-      </head>
-      <body>
-        <h1>${deptData.stores?.name || "Store"} - ${deptData.name} Scorecard</h1>
+      <head></head>
+      <body style="font-family: Arial, sans-serif; margin: 20px;">
+        <h1 style="color: #333;">${deptData.stores?.name || "Store"} - ${deptData.name} Scorecard</h1>
         <p><strong>${reportTitle}</strong> | <strong>${reportType} View</strong></p>
         ${directorNotes ? `
-        <div class="director-notes">
-          <h3>Director's Notes</h3>
-          <p>${directorNotes}</p>
+        <div style="background-color: #f9f9f9; border-left: 4px solid #2563eb; padding: 12px 16px; margin: 20px 0;">
+          <h3 style="margin: 0 0 8px 0; color: #2563eb; font-size: 14px;">Director's Notes</h3>
+          <p style="margin: 0; line-height: 1.6; white-space: pre-wrap;">${directorNotes}</p>
         </div>
         ` : ''}
     `;
@@ -518,16 +505,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Add KPI tables
     Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
       const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
-      html += `<h2>${ownerName}</h2><table><thead><tr><th>KPI</th><th>Target</th>`;
+      html += `<h2 style="color: #666; margin-top: 30px;">${ownerName}</h2><table style="border-collapse: collapse; width: 100%; margin-top: 10px;"><thead><tr><th style="${thStyle}">KPI</th><th style="${thStyle}">Target</th>`;
       
       periods.forEach(p => {
-        html += `<th>${p.label}</th>`;
+        html += `<th style="${thStyle}">${p.label}</th>`;
       });
       
       // Add Avg and Total columns for yearly/monthly modes
       if (mode === "yearly" || mode === "monthly") {
-        html += `<th style="background-color: #e8e8e8;">Avg ${year}</th>`;
-        html += `<th style="background-color: #e0e0e0;">Total ${year}</th>`;
+        html += `<th style="${thStyle} background-color: #e8e8e8;">Avg ${year}</th>`;
+        html += `<th style="${thStyle} background-color: #e0e0e0;">Total ${year}</th>`;
       }
       html += `</tr></thead><tbody>`;
 
@@ -546,7 +533,7 @@ const handler = async (req: Request): Promise<Response> => {
           displayTarget = formatValue(target, kpi.metric_type, kpi.name);
         }
         
-        html += `<tr><td>${kpi.name}</td><td style="font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
+        html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle} font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
         
         // Collect values for Avg/Total calculation
         const periodValues: number[] = [];
@@ -607,7 +594,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
           }
           
-          html += `<td class="${cellClass}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
+          html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
         });
         
         // Add Avg and Total columns for yearly/monthly modes
@@ -629,8 +616,8 @@ const handler = async (req: Request): Promise<Response> => {
               : periodValues.reduce((sum, v) => sum + v, 0)
             : null;
           
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
-          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
         }
         
         html += `</tr>`;
@@ -820,24 +807,24 @@ const handler = async (req: Request): Promise<Response> => {
         FINANCIAL_METRICS = FINANCIAL_METRICS.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.dbName));
       }
       
-      html += `<h2>Financial Metrics</h2><table><thead><tr><th>Metric</th>`;
+      html += `<h2 style="color: #666; margin-top: 30px;">Financial Metrics</h2><table style="border-collapse: collapse; width: 100%; margin-top: 10px;"><thead><tr><th style="${thStyle}">Metric</th>`;
       
       // Add Q1-Q4 targets column for yearly mode
       if (mode === "yearly") {
-        html += `<th>Q1/Q2/Q3/Q4 Targets</th>`;
+        html += `<th style="${thStyle}">Q1/Q2/Q3/Q4 Targets</th>`;
       }
       
       periods.forEach(p => {
-        html += `<th>${p.label}</th>`;
+        html += `<th style="${thStyle}">${p.label}</th>`;
       });
       
       // Add Avg and Total columns
-      html += `<th style="background-color: #e8e8e8;">Avg ${year}</th>`;
-      html += `<th style="background-color: #e0e0e0;">Total ${year}</th>`;
+      html += `<th style="${thStyle} background-color: #e8e8e8;">Avg ${year}</th>`;
+      html += `<th style="${thStyle} background-color: #e0e0e0;">Total ${year}</th>`;
       html += `</tr></thead><tbody>`;
       
       FINANCIAL_METRICS.forEach(metric => {
-        html += `<tr><td>${metric.display}</td>`;
+        html += `<tr><td style="${tdStyle}">${metric.display}</td>`;
         
         // Add Q1-Q4 targets cell for yearly mode
         if (mode === "yearly") {
@@ -852,7 +839,7 @@ const handler = async (req: Request): Promise<Response> => {
           const q4Value = q4Target?.value ?? 0;
           
           const displayTarget = `${formatValue(q1Value, metric.type)}/${formatValue(q2Value, metric.type)}/${formatValue(q3Value, metric.type)}/${formatValue(q4Value, metric.type)}`;
-          html += `<td style="font-weight: bold; background-color: #f9f9f9;">${displayTarget}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f9f9f9;">${displayTarget}</td>`;
         }
         
         // Collect values for Avg/Total calculation
@@ -921,9 +908,9 @@ const handler = async (req: Request): Promise<Response> => {
             
             if (metric.type === "percentage" && value !== null) {
               // UI shows one decimal place for percentages
-              html += `<td class="${cellClass}">${value.toFixed(1)}%</td>`;
+              html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${value.toFixed(1)}%</td>`;
             } else {
-              html += `<td class="${cellClass}">${formatValue(value, metric.type)}</td>`;
+              html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(value, metric.type)}</td>`;
             }
           }
         });
@@ -998,11 +985,11 @@ const handler = async (req: Request): Promise<Response> => {
         
         if (metric.type === "percentage") {
           // Percentages: use one decimal place to match UI (-54.6% not -55%)
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${avg !== null ? avg.toFixed(1) + '%' : '-'}</td>`;
-          html += `<td style="font-weight: bold; background-color: #f0f0f0;">-</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${avg !== null ? avg.toFixed(1) + '%' : '-'}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">-</td>`;
         } else {
-          html += `<td style="font-weight: bold; background-color: #f5f5f5;">${formatValue(avg !== null ? Math.round(avg) : null, metric.type)}</td>`;
-          html += `<td style="font-weight: bold; background-color: #f0f0f0;">${formatValue(total !== null ? Math.round(total) : null, metric.type)}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${formatValue(avg !== null ? Math.round(avg) : null, metric.type)}</td>`;
+          html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">${formatValue(total !== null ? Math.round(total) : null, metric.type)}</td>`;
         }
         
         html += `</tr>`;
