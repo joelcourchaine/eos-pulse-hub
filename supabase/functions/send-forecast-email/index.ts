@@ -28,6 +28,8 @@ const ALL_METRIC_DEFINITIONS: MetricDefinition[] = [
   { key: 'gp_percent', label: 'GP %', type: 'percent' },
   { key: 'sales_expense', label: 'Sales Expense', type: 'currency' },
   { key: 'sales_expense_percent', label: 'Sales Exp %', type: 'percent' },
+  { key: 'semi_fixed_expense', label: 'Semi Fixed Expense', type: 'currency' },
+  { key: 'semi_fixed_expense_percent', label: 'Semi Fixed Exp %', type: 'percent' },
   { key: 'net_selling_gross', label: 'Net Selling Gross', type: 'currency' },
   { key: 'total_fixed_expense', label: 'Fixed Expense', type: 'currency' },
   { key: 'department_profit', label: 'Dept Profit', type: 'currency' },
@@ -65,7 +67,7 @@ const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 
 // Expense metrics where an increase is bad (should show red) and decrease is good (should show green)
 function isExpenseMetric(key: string): boolean {
-  return key === 'sales_expense' || key === 'sales_expense_percent';
+  return key === 'sales_expense' || key === 'sales_expense_percent' || key === 'semi_fixed_expense' || key === 'semi_fixed_expense_percent';
 }
 
 // Get variance color based on metric type - for expense metrics, invert the logic
@@ -565,12 +567,25 @@ const handler = async (req: Request): Promise<Response> => {
            total_sales: baselineMonthData?.get('total_sales') ?? 0,
            gp_net: baselineMonthData?.get('gp_net') ?? 0,
            sales_expense: baselineMonthData?.get('sales_expense') ?? 0,
+            total_direct_expenses: baselineMonthData?.get('total_direct_expenses') ?? 0,
+            semi_fixed_expense: baselineMonthData?.get('semi_fixed_expense') ?? 0,
            total_fixed_expense: baselineMonthData?.get('total_fixed_expense') ?? 0,
            adjusted_selling_gross: baselineMonthData?.get('adjusted_selling_gross') ?? 0,
            parts_transfer: baselineMonthData?.get('parts_transfer') ?? 0,
+            dealer_salary: baselineMonthData?.get('dealer_salary') ?? 0,
          };
 
-        const baselineNetSellingGross = baselineInputs.gp_net - baselineInputs.sales_expense;
+        // Semi Fixed can be stored directly (most brands) OR derived (e.g., Nissan uses total_direct_expenses - sales_expense)
+        const baselineSemiFixed = baselineInputs.semi_fixed_expense !== 0
+          ? baselineInputs.semi_fixed_expense
+          : (baselineInputs.total_direct_expenses > 0
+              ? baselineInputs.total_direct_expenses - baselineInputs.sales_expense
+              : 0);
+
+        // Net Selling Gross differs for some brands (Nissan: gp_net - total_direct_expenses)
+        const baselineNetSellingGross = baselineInputs.total_direct_expenses > 0
+          ? (baselineInputs.gp_net - baselineInputs.total_direct_expenses)
+          : (baselineInputs.gp_net - baselineInputs.sales_expense - baselineSemiFixed);
         const hasStoredPartsTransfer = baselineMonthData?.has('parts_transfer') ?? false;
         const derivedPartsTransfer = hasStoredPartsTransfer
           ? baselineInputs.parts_transfer
@@ -584,11 +599,14 @@ const handler = async (req: Request): Promise<Response> => {
           gp_percent: baselineInputs.total_sales > 0 ? (baselineInputs.gp_net / baselineInputs.total_sales) * 100 : 0,
           sales_expense: baselineInputs.sales_expense,
           sales_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.sales_expense / baselineInputs.gp_net) * 100 : 0,
+          total_direct_expenses: baselineInputs.total_direct_expenses,
+          semi_fixed_expense: baselineSemiFixed,
+          semi_fixed_expense_percent: baselineInputs.gp_net > 0 ? (baselineSemiFixed / baselineInputs.gp_net) * 100 : 0,
           net_selling_gross: baselineNetSellingGross,
           total_fixed_expense: baselineInputs.total_fixed_expense,
-          department_profit: baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense,
+          department_profit: baselineNetSellingGross - baselineInputs.total_fixed_expense,
           parts_transfer: derivedPartsTransfer,
-          net_operating_profit: (baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) + derivedPartsTransfer,
+          net_operating_profit: (baselineNetSellingGross - baselineInputs.total_fixed_expense) + derivedPartsTransfer - (baselineInputs.dealer_salary || 0),
           return_on_gross: baselineInputs.gp_net > 0 ? ((baselineInputs.gp_net - baselineInputs.sales_expense - baselineInputs.total_fixed_expense) / baselineInputs.gp_net) * 100 : 0,
         };
 
@@ -605,9 +623,12 @@ const handler = async (req: Request): Promise<Response> => {
          const computedDerived: Record<string, number> = {
            gp_percent: computedDrivers.total_sales > 0 ? (computedDrivers.gp_net / computedDrivers.total_sales) * 100 : 0,
            sales_expense_percent: computedDrivers.gp_net > 0 ? (computedDrivers.sales_expense / computedDrivers.gp_net) * 100 : 0,
-           net_selling_gross: computedDrivers.gp_net - computedDrivers.sales_expense,
-           department_profit: computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense,
-           net_operating_profit: (computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense) + computedDrivers.parts_transfer,
+            // For email fallback only (when UI hasn't flushed stored derived values)
+            semi_fixed_expense: 0,
+            semi_fixed_expense_percent: 0,
+            net_selling_gross: computedDrivers.gp_net - computedDrivers.sales_expense,
+            department_profit: (computedDrivers.gp_net - computedDrivers.sales_expense) - computedDrivers.total_fixed_expense,
+            net_operating_profit: ((computedDrivers.gp_net - computedDrivers.sales_expense) - computedDrivers.total_fixed_expense) + computedDrivers.parts_transfer,
            return_on_gross: computedDrivers.gp_net > 0
              ? ((computedDrivers.gp_net - computedDrivers.sales_expense - computedDrivers.total_fixed_expense) / computedDrivers.gp_net) * 100
              : 0,
@@ -619,10 +640,13 @@ const handler = async (req: Request): Promise<Response> => {
 
          const savedEntry = entriesMap.get(`${month}:${def.key}`);
 
+        // Prefer the baseline_value that the UI flushes into forecast_entries (exact mirror of UI grid).
+        // Fall back to prior-year baseline tables when needed.
+        const storedBaseline = entriesByMonthMetric.get(`${month}:${def.key}`)?.baseline;
         const baselineValue =
-          baselineMonthData?.get(def.key) ??
-          baselineMonthlyValues[def.key] ??
-          0;
+          (storedBaseline !== null && storedBaseline !== undefined)
+            ? storedBaseline
+            : (baselineMonthData?.get(def.key) ?? baselineMonthlyValues[def.key] ?? 0);
 
          // Prefer any saved forecast value (manual edits), otherwise use computed forecast value.
          const value = (savedEntry && savedEntry.forecast_value !== undefined && savedEntry.forecast_value !== null)
@@ -664,96 +688,21 @@ const handler = async (req: Request): Promise<Response> => {
       };
     });
 
-    // Fix ALL percentage and derived metrics at quarterly/annual levels - must be recalculated from aggregated currency values
-    // This matches the UI logic in useForecastCalculations.ts
+    // Fix percentage metrics at quarterly/annual levels.
+    // Currency metrics are already correct because they are summed from the stored month-by-month values
+    // (which mirror the UI grid). Avoid re-deriving currency metrics here (e.g., NSG/Dept Profit),
+    // because that can drop Semi Fixed for brands where it's part of the model.
     const totalSalesData = metricsData.find(m => m.key === 'total_sales');
     const gpNetData = metricsData.find(m => m.key === 'gp_net');
     const salesExpenseData = metricsData.find(m => m.key === 'sales_expense');
     const fixedExpenseData = metricsData.find(m => m.key === 'total_fixed_expense');
     const nsgData = metricsData.find(m => m.key === 'net_selling_gross');
     const deptProfitData = metricsData.find(m => m.key === 'department_profit');
-    const partsTransferData = metricsData.find(m => m.key === 'parts_transfer');
-    const netOpData = metricsData.find(m => m.key === 'net_operating_profit');
     const gpPercentData = metricsData.find(m => m.key === 'gp_percent');
     const salesExpPercentData = metricsData.find(m => m.key === 'sales_expense_percent');
+    const semiFixedExpData = metricsData.find(m => m.key === 'semi_fixed_expense');
+    const semiFixedExpPercentData = metricsData.find(m => m.key === 'semi_fixed_expense_percent');
     const rogData = metricsData.find(m => m.key === 'return_on_gross');
-
-    // Fix Net Selling Gross (derived: gp_net - sales_expense) at quarterly/annual levels
-    if (nsgData && gpNetData && salesExpenseData) {
-      for (let q = 1; q <= 4; q++) {
-        const qKey = `Q${q}`;
-        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
-        const qSalesExp = salesExpenseData.quarters[qKey]?.value ?? 0;
-        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
-        const qBaselineSalesExp = salesExpenseData.quarters[qKey]?.baseline ?? 0;
-        
-        nsgData.quarters[qKey] = {
-          value: qGpNet - qSalesExp,
-          baseline: qBaselineGpNet - qBaselineSalesExp,
-        };
-      }
-      
-      const nsgValue = gpNetData.annual.value - salesExpenseData.annual.value;
-      const nsgBaseline = gpNetData.annual.baseline - salesExpenseData.annual.baseline;
-      nsgData.annual = {
-        value: nsgValue,
-        baseline: nsgBaseline,
-        variance: nsgValue - nsgBaseline,
-        variancePercent: nsgBaseline !== 0 ? ((nsgValue - nsgBaseline) / Math.abs(nsgBaseline)) * 100 : 0,
-      };
-    }
-
-    // Fix Department Profit (derived: gp_net - sales_expense - fixed_expense) at quarterly/annual levels
-    if (deptProfitData && gpNetData && salesExpenseData && fixedExpenseData) {
-      for (let q = 1; q <= 4; q++) {
-        const qKey = `Q${q}`;
-        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
-        const qSalesExp = salesExpenseData.quarters[qKey]?.value ?? 0;
-        const qFixedExp = fixedExpenseData.quarters[qKey]?.value ?? 0;
-        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
-        const qBaselineSalesExp = salesExpenseData.quarters[qKey]?.baseline ?? 0;
-        const qBaselineFixedExp = fixedExpenseData.quarters[qKey]?.baseline ?? 0;
-        
-        deptProfitData.quarters[qKey] = {
-          value: qGpNet - qSalesExp - qFixedExp,
-          baseline: qBaselineGpNet - qBaselineSalesExp - qBaselineFixedExp,
-        };
-      }
-      
-      const profitValue = gpNetData.annual.value - salesExpenseData.annual.value - fixedExpenseData.annual.value;
-      const profitBaseline = gpNetData.annual.baseline - salesExpenseData.annual.baseline - fixedExpenseData.annual.baseline;
-      deptProfitData.annual = {
-        value: profitValue,
-        baseline: profitBaseline,
-        variance: profitValue - profitBaseline,
-        variancePercent: profitBaseline !== 0 ? ((profitValue - profitBaseline) / Math.abs(profitBaseline)) * 100 : 0,
-      };
-    }
-
-    // Fix Net Operating Profit (derived: dept_profit + parts_transfer) at quarterly/annual levels
-    if (netOpData && deptProfitData && partsTransferData) {
-      for (let q = 1; q <= 4; q++) {
-        const qKey = `Q${q}`;
-        const qDeptProfit = deptProfitData.quarters[qKey]?.value ?? 0;
-        const qPartsTransfer = partsTransferData.quarters[qKey]?.value ?? 0;
-        const qBaselineDeptProfit = deptProfitData.quarters[qKey]?.baseline ?? 0;
-        const qBaselinePartsTransfer = partsTransferData.quarters[qKey]?.baseline ?? 0;
-        
-        netOpData.quarters[qKey] = {
-          value: qDeptProfit + qPartsTransfer,
-          baseline: qBaselineDeptProfit + qBaselinePartsTransfer,
-        };
-      }
-      
-      const netOpValue = deptProfitData.annual.value + partsTransferData.annual.value;
-      const netOpBaseline = deptProfitData.annual.baseline + partsTransferData.annual.baseline;
-      netOpData.annual = {
-        value: netOpValue,
-        baseline: netOpBaseline,
-        variance: netOpValue - netOpBaseline,
-        variancePercent: netOpBaseline !== 0 ? ((netOpValue - netOpBaseline) / Math.abs(netOpBaseline)) * 100 : 0,
-      };
-    }
     
     // Fix GP % quarterly/annual
     if (gpPercentData && gpNetData && totalSalesData) {
@@ -802,6 +751,31 @@ const handler = async (req: Request): Promise<Response> => {
         baseline: salesExpPercentBaseline,
         variance: salesExpPercentValue - salesExpPercentBaseline,
         variancePercent: salesExpPercentBaseline !== 0 ? ((salesExpPercentValue - salesExpPercentBaseline) / Math.abs(salesExpPercentBaseline)) * 100 : 0,
+      };
+    }
+
+    // Fix Semi Fixed Expense % quarterly/annual (if present)
+    if (semiFixedExpPercentData && semiFixedExpData && gpNetData) {
+      for (let q = 1; q <= 4; q++) {
+        const qKey = `Q${q}`;
+        const qSemi = semiFixedExpData.quarters[qKey]?.value ?? 0;
+        const qGpNet = gpNetData.quarters[qKey]?.value ?? 0;
+        const qBaselineSemi = semiFixedExpData.quarters[qKey]?.baseline ?? 0;
+        const qBaselineGpNet = gpNetData.quarters[qKey]?.baseline ?? 0;
+
+        semiFixedExpPercentData.quarters[qKey] = {
+          value: qGpNet > 0 ? (qSemi / qGpNet) * 100 : 0,
+          baseline: qBaselineGpNet > 0 ? (qBaselineSemi / qBaselineGpNet) * 100 : 0,
+        };
+      }
+
+      const semiPctValue = gpNetData.annual.value > 0 ? (semiFixedExpData.annual.value / gpNetData.annual.value) * 100 : 0;
+      const semiPctBaseline = gpNetData.annual.baseline > 0 ? (semiFixedExpData.annual.baseline / gpNetData.annual.baseline) * 100 : 0;
+      semiFixedExpPercentData.annual = {
+        value: semiPctValue,
+        baseline: semiPctBaseline,
+        variance: semiPctValue - semiPctBaseline,
+        variancePercent: semiPctBaseline !== 0 ? ((semiPctValue - semiPctBaseline) / Math.abs(semiPctBaseline)) * 100 : 0,
       };
     }
     
