@@ -244,26 +244,75 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Fetch scorecard entries
-    const periods = mode === "weekly" 
+    const periods = mode === "weekly"
       ? getWeekDates({ year, quarter: quarter! })
       : mode === "yearly"
       ? getAllMonthsForYear({ year })
       : getMonthsForQuarter({ year, quarter: quarter! });
 
     // CRITICAL: Verify KPI IDs belong to THIS department to prevent data leakage
-    const kpiIds = kpis?.map(k => k.id) || [];
+    const kpiIds = kpis?.map((k) => k.id) || [];
     console.log(`Fetching scorecard entries for ${kpiIds.length} KPIs from department ${departmentId}`);
-    
-    const { data: entries } = await supabaseClient
-      .from("scorecard_entries")
-      .select(`
-        *,
-        kpi_definitions!inner(department_id)
-      `)
-      .in("kpi_id", kpiIds)
-      .eq("kpi_definitions.department_id", departmentId);
-    
-    console.log(`Fetched ${entries?.length || 0} scorecard entries for department ${departmentId}`);
+
+    // IMPORTANT: Match UI behavior
+    // - monthly/yearly reports should only use monthly entries
+    // - weekly reports should only use weekly entries
+    // Also paginate to avoid the 1000-row default cap.
+    const entryType = mode === "weekly" ? "weekly" : "monthly";
+
+    const entries: any[] = [];
+    const pageSize = 1000;
+    let offset = 0;
+
+    // Constrain by period to reduce row count and ensure correct matching
+    const monthIdentifiers =
+      mode === "monthly" || mode === "yearly"
+        ? periods
+            .map((p) => ("identifier" in p ? p.identifier : ""))
+            .filter(Boolean)
+        : [];
+    const weekStartDates =
+      mode === "weekly"
+        ? periods
+            .map((p) => ("start" in p ? p.start.toISOString().split("T")[0] : ""))
+            .filter(Boolean)
+        : [];
+
+    while (true) {
+      let query = supabaseClient
+        .from("scorecard_entries")
+        .select(
+          `
+          *,
+          kpi_definitions!inner(department_id)
+        `
+        )
+        .in("kpi_id", kpiIds)
+        .eq("kpi_definitions.department_id", departmentId)
+        .eq("entry_type", entryType)
+        .range(offset, offset + pageSize - 1);
+
+      if (monthIdentifiers.length > 0) {
+        query = query.in("month", monthIdentifiers);
+      }
+      if (weekStartDates.length > 0) {
+        query = query.in("week_start_date", weekStartDates);
+      }
+
+      const { data: pageData, error: pageError } = await query;
+      if (pageError) {
+        console.error("Error fetching scorecard entries:", pageError);
+        throw pageError;
+      }
+
+      if (!pageData || pageData.length === 0) break;
+      entries.push(...pageData);
+
+      if (pageData.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    console.log(`Fetched ${entries.length} scorecard entries for department ${departmentId}`);
 
     // Fetch financial entries for monthly and yearly modes
     let financialEntries: any[] = [];
