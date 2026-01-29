@@ -1072,7 +1072,7 @@ const Dashboard = () => {
         </div>
       )}
 
-      <SidebarProvider defaultOpen={true}>
+      <SidebarProvider defaultOpen={false}>
         <div className="min-h-screen flex w-full">
           <SidebarInset className="flex-1 min-w-0">
             <div className="min-h-screen bg-muted/30">
