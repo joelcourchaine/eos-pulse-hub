@@ -13,6 +13,20 @@ interface StoreData {
   name: string;
 }
 
+interface CommissionRule {
+  source_metric: string;
+  rate: number;
+  min_threshold: number | null;
+  max_threshold: number | null;
+}
+
+interface PayplanScenario {
+  id: string;
+  name: string;
+  base_salary_annual: number;
+  commission_rules: { rules: CommissionRule[] };
+}
+
 interface EmailRequest {
   recipientEmails: string[];
   stores: StoreData[];
@@ -24,6 +38,7 @@ interface EmailRequest {
   brandDisplayName: string;
   filterName?: string;
   format?: "html" | "excel";
+  activePayplanScenarios?: PayplanScenario[];
 }
 
 function formatValue(value: number | null, metricName: string): string {
@@ -138,6 +153,97 @@ function generateExcelBuffer(
   return new Uint8Array(buffer);
 }
 
+// Calculate payplan rows for a given store's data
+function calculatePayplanRows(
+  storeData: Record<string, Record<string, number | null>>,
+  months: string[],
+  scenarios: PayplanScenario[]
+): { metricName: string; rows: { label: string; values: Record<string, number>; total: number; type: string }[] }[] {
+  const results: { metricName: string; rows: { label: string; values: Record<string, number>; total: number; type: string }[] }[] = [];
+
+  for (const scenario of scenarios) {
+    const monthlyBaseSalary = scenario.base_salary_annual / 12;
+    const rules = scenario.commission_rules?.rules || [];
+
+    for (const rule of rules) {
+      const sourceMetricKey = rule.source_metric;
+      const rate = rule.rate;
+
+      // Try to find metric data by key or display name
+      let metricData: Record<string, number | null> | undefined;
+      let displayName = sourceMetricKey;
+      
+      for (const [key, data] of Object.entries(storeData)) {
+        if (key.toLowerCase().replace(/[^a-z0-9]/g, '_') === sourceMetricKey || 
+            key === sourceMetricKey) {
+          metricData = data as Record<string, number | null>;
+          displayName = key;
+          break;
+        }
+      }
+
+      const commissionValues: Record<string, number> = {};
+      const baseValues: Record<string, number> = {};
+      const totalCompValues: Record<string, number> = {};
+      let commissionTotal = 0;
+      let baseTotal = 0;
+      let totalCompTotal = 0;
+
+      for (const month of months) {
+        const metricValue = metricData?.[month] ?? 0;
+        
+        let commission = 0;
+        if (rule.min_threshold !== null && metricValue < rule.min_threshold) {
+          commission = 0;
+        } else if (rule.max_threshold !== null && metricValue > rule.max_threshold) {
+          commission = rule.max_threshold * rate;
+        } else {
+          commission = (metricValue || 0) * rate;
+        }
+        
+        // Zero out negative commissions
+        if (commission < 0) {
+          commission = 0;
+        }
+
+        commissionValues[month] = commission;
+        baseValues[month] = monthlyBaseSalary;
+        totalCompValues[month] = commission + monthlyBaseSalary;
+
+        commissionTotal += commission;
+        baseTotal += monthlyBaseSalary;
+        totalCompTotal += commission + monthlyBaseSalary;
+      }
+
+      results.push({
+        metricName: displayName,
+        rows: [
+          {
+            label: `↳ ${scenario.name} Commission (${(rate * 100).toFixed(1)}%)`,
+            values: commissionValues,
+            total: commissionTotal,
+            type: "commission"
+          },
+          {
+            label: `↳ ${scenario.name} Base Salary`,
+            values: baseValues,
+            total: baseTotal,
+            type: "base_salary"
+          },
+          {
+            label: `↳ ${scenario.name} Total Comp`,
+            values: totalCompValues,
+            total: totalCompTotal,
+            type: "total_comp"
+          }
+        ]
+      });
+    }
+  }
+
+  return results;
+}
+
 function generateHtmlEmail(
   stores: StoreData[],
   months: string[],
@@ -145,7 +251,8 @@ function generateHtmlEmail(
   processedData: Record<string, Record<string, Record<string, number | null>>>,
   brandDisplayName: string,
   periodDescription: string,
-  reportTitle: string
+  reportTitle: string,
+  activePayplanScenarios?: PayplanScenario[]
 ): string {
   let html = `
     <!DOCTYPE html>
@@ -179,6 +286,11 @@ function generateHtmlEmail(
     html += `<th style="border: 1px solid #ddd; padding: 8px; text-align: center; background-color: #e0e0e0; font-weight: 600;">Total</th>`;
     html += `</tr></thead><tbody>`;
 
+    // Calculate payplan rows for this store
+    const payplanResults = activePayplanScenarios?.length 
+      ? calculatePayplanRows(storeData, months, activePayplanScenarios)
+      : [];
+
     for (const metricName of selectedMetrics) {
       const metricData = storeData[metricName] as Record<string, number | null> | undefined;
       
@@ -200,6 +312,26 @@ function generateHtmlEmail(
       
       html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: 600; background-color: #f0f0f0;">${formatValue(total, metricName)}</td>`;
       html += `</tr>`;
+
+      // Add payplan rows after matching metric
+      const matchingPayplanRows = payplanResults.filter(p => p.metricName === metricName);
+      for (const payplan of matchingPayplanRows) {
+        for (const row of payplan.rows) {
+          const bgColor = row.type === "total_comp" ? "#e8f4f8" : "#f0f8ff";
+          const fontWeight = row.type === "total_comp" ? "600" : "400";
+          
+          html += `<tr style="background-color: ${bgColor};">`;
+          html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: left; font-weight: ${fontWeight}; padding-left: 20px; font-size: 11px; color: #0066cc;">${row.label}</td>`;
+          
+          for (const month of months) {
+            const value = row.values[month] ?? 0;
+            html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 11px; color: #0066cc;">${formatValue(value, "currency")}</td>`;
+          }
+          
+          html += `<td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: 600; font-size: 11px; color: #0066cc; background-color: ${row.type === "total_comp" ? "#d4ebf2" : "#e0f0ff"};">${formatValue(row.total, "currency")}</td>`;
+          html += `</tr>`;
+        }
+      }
     }
 
     html += `</tbody></table>`;
@@ -251,6 +383,7 @@ const handler = async (req: Request): Promise<Response> => {
       brandDisplayName,
       filterName,
       format = "html",
+      activePayplanScenarios,
     }: EmailRequest = await req.json();
 
     console.log("Sending trend report email to:", recipientEmails);
@@ -322,7 +455,8 @@ const handler = async (req: Request): Promise<Response> => {
         processedData,
         brandDisplayName,
         periodDescription,
-        reportTitle
+        reportTitle,
+        activePayplanScenarios
       );
 
       emailPayload = {
