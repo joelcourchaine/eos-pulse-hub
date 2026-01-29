@@ -164,19 +164,35 @@ export function KPITrendView({
   }, [kpiDefinitions]);
 
   // Fetch scorecard entries for the date range
+  // PAGINATION: Can exceed 1000 rows with many KPIs across many months
   const { data: scorecardEntries, isLoading } = useQuery({
     queryKey: ["kpi_trend_entries", kpiIds, startMonth, endMonth],
     queryFn: async () => {
       if (kpiIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("scorecard_entries")
-        .select("*")
-        .in("kpi_id", kpiIds)
-        .eq("entry_type", "monthly")
-        .gte("month", startMonth)
-        .lte("month", endMonth);
-      if (error) throw error;
-      return data || [];
+      
+      const allEntries: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+
+      while (true) {
+        const { data: page, error } = await supabase
+          .from("scorecard_entries")
+          .select("*")
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "monthly")
+          .gte("month", startMonth)
+          .lte("month", endMonth)
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw error;
+        if (!page || page.length === 0) break;
+
+        allEntries.push(...page);
+        if (page.length < pageSize) break;
+        offset += pageSize;
+      }
+
+      return allEntries;
     },
     enabled: kpiIds.length > 0,
   });
