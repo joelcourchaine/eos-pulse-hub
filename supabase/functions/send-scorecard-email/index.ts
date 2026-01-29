@@ -832,7 +832,8 @@ const handler = async (req: Request): Promise<Response> => {
               const entry = financialEntries.find(e => 
                 e.metric_name === metric.dbName && e.month === p.identifier
               );
-              value = entry?.value || null;
+              // Use ?? to properly handle 0 values (|| treats 0 as falsy)
+              value = entry?.value ?? null;
             }
             
             // Collect value for summary
