@@ -68,7 +68,8 @@ export function PushToTargetsDialog({
 
   const formatValue = (value: number, type: 'dollar' | 'percentage') => {
     if (type === 'percentage') {
-      return `${(value * 100).toFixed(1)}%`;
+      // Percentages are already stored as actual percentage values (e.g., 67.34 = 67.34%)
+      return `${value.toFixed(1)}%`;
     }
     // For dollars, use abbreviated format
     const absValue = Math.abs(value);
@@ -83,7 +84,7 @@ export function PushToTargetsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="h-5 w-5" />
