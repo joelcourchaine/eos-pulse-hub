@@ -440,16 +440,53 @@ const handler = async (req: Request): Promise<Response> => {
      const annualFixedExp = sumHybridAnnual('total_fixed_expense');
      const annualPartsTransfer = sumHybridAnnual('parts_transfer');
 
-     // Derived metrics: compute from the summed currency values (matches UI annual row calculations)
+     // CRITICAL FIX: Read derived metrics (net_selling_gross, department_profit) directly from 
+     // stored forecast_entries since the UI saves these with month-by-month values that may 
+     // include semi_fixed_expense deductions. Calculating from summed primary metrics gives wrong totals.
+     const sumStoredDerived = (metric: string): number => {
+       let total = 0;
+       for (let m = 1; m <= 12; m++) {
+         const month = `${forecastYear}-${String(m).padStart(2, '0')}`;
+         const entry = entriesByMonthMetric.get(`${month}:${metric}`);
+         if (entry && entry.forecast !== null && entry.forecast !== undefined) {
+           total += entry.forecast;
+         }
+       }
+       console.log(`[annualTotals] ${metric}: stored months total=${total}`);
+       return total;
+     };
+
+     // Use stored values for derived metrics - these include semi_fixed_expense deductions
+     const storedNetSellingGross = sumStoredDerived('net_selling_gross');
+     const storedDeptProfit = sumStoredDerived('department_profit');
+     
+     // Use stored values if available (non-zero), otherwise fall back to simple calculation
+     const annualNetSellingGross = storedNetSellingGross !== 0 
+       ? storedNetSellingGross 
+       : annualGpNet - annualSalesExp;
+     const annualDeptProfit = storedDeptProfit !== 0 
+       ? storedDeptProfit 
+       : annualNetSellingGross - annualFixedExp;
+
+     // Derived percentages and other metrics
      const gpPercent = annualTotalSales > 0 ? (annualGpNet / annualTotalSales) * 100 : 0;
      const lockedSalesExpPercent = getLockedAnnualPercent('sales_expense_percent');
      const annualSalesExpPercent = lockedSalesExpPercent !== null
        ? lockedSalesExpPercent
        : (annualGpNet > 0 ? (annualSalesExp / annualGpNet) * 100 : 0);
-     const annualNetSellingGross = annualGpNet - annualSalesExp;
-     const annualDeptProfit = annualGpNet - annualSalesExp - annualFixedExp;
      const annualNetOperatingProfit = annualDeptProfit + annualPartsTransfer;
      const annualReturnOnGross = annualGpNet > 0 ? (annualDeptProfit / annualGpNet) * 100 : 0;
+
+     console.log("Annual totals from stored forecast_entries:", {
+       annualTotalSales,
+       annualGpNet,
+       annualSalesExp,
+       annualFixedExp,
+       annualNetSellingGross,
+       annualDeptProfit,
+       storedNetSellingGross,
+       storedDeptProfit,
+     });
 
      // Used for scaling sub-metrics
      const annualForecastValues: Record<string, number> = {
@@ -465,15 +502,6 @@ const handler = async (req: Request): Promise<Response> => {
        net_operating_profit: annualNetOperatingProfit,
        return_on_gross: annualReturnOnGross,
      };
-
-     console.log("Annual totals from stored forecast_entries:", {
-       annualTotalSales,
-       annualGpNet,
-       annualSalesExp,
-       annualFixedExp,
-       annualNetSellingGross,
-       annualDeptProfit,
-     });
 
     // Annual baseline values for comparison
     const baselineGpPercent = baselineTotalSales > 0 ? (baselineGpNet / baselineTotalSales) * 100 : 0;
