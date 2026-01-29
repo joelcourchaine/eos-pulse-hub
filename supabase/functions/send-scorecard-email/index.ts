@@ -115,8 +115,8 @@ function getMonthlyTrendMonths({ year }: { year: number }) {
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
   
-  // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
-  if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR") {
+  // CP Hours Per RO (including "Total CP Hours Per RO"), Total ELR, Total CP ELR, and Warranty ELR should always show 2 decimal places
+  if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
     return Number(value).toFixed(2);
   }
   
