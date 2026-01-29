@@ -95,6 +95,37 @@ function getAllMonthsForYear({ year }: { year: number }) {
   return months;
 }
 
+// Match the UI's Monthly Trend mode (quarter === -1):
+// - includes ALL months from previous year (Jan-Dec)
+// - includes months from current year up to the current month
+// This is why the UI shows a rolling window that spans two calendar years.
+function getMonthlyTrendMonths({ year }: { year: number }) {
+  const months: Array<{ label: string; identifier: string; type: "month" }> = [];
+  const prevYear = year - 1;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentMonthIdx = new Date().getMonth(); // 0-11
+
+  // Previous year: Jan-Dec
+  for (let i = 0; i < 12; i++) {
+    months.push({
+      label: `${monthNames[i]} ${prevYear}`,
+      identifier: `${prevYear}-${String(i + 1).padStart(2, '0')}`,
+      type: "month",
+    });
+  }
+
+  // Current year: Jan-current month
+  for (let i = 0; i <= currentMonthIdx; i++) {
+    months.push({
+      label: `${monthNames[i]} ${year}`,
+      identifier: `${year}-${String(i + 1).padStart(2, '0')}`,
+      type: "month",
+    });
+  }
+
+  return months;
+}
+
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
   
@@ -244,8 +275,12 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Fetch scorecard entries
+    // IMPORTANT: In the UI, when the user is on Monthly Trend view (quarter === -1) and chooses
+    // "Yearly Report", they expect the same rolling month window shown on screen.
     const periods = mode === "weekly"
       ? getWeekDates({ year, quarter: quarter! })
+      : mode === "yearly" && quarter === -1
+      ? getMonthlyTrendMonths({ year })
       : mode === "yearly"
       ? getAllMonthsForYear({ year })
       : getMonthsForQuarter({ year, quarter: quarter! });
