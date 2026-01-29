@@ -547,8 +547,6 @@ const handler = async (req: Request): Promise<Response> => {
               ? actualValue - targetValue
               : ((actualValue - targetValue) / targetValue) * 100;
             
-            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Actual: ${actualValue}, Target: ${targetValue}, Direction: ${direction}, Variance: ${variance.toFixed(2)}%`);
-            
             if (direction === "above") {
               if (variance >= 0) cellClass = "green";
               else if (variance >= -10) cellClass = "yellow";
@@ -558,10 +556,7 @@ const handler = async (req: Request): Promise<Response> => {
               else if (variance <= 10) cellClass = "yellow";
               else cellClass = "red";
             }
-            
-            console.log(`  -> Status: ${cellClass || 'none'}`);
           } else {
-            console.log(`KPI: ${kpi.name}, Period: ${('identifier' in p ? p.identifier : 'week')}, Entry: ${entry ? 'found' : 'not found'}, Actual: ${entry?.actual_value}, Target: ${targetValue}`);
             // Still collect value if present, even without target
             if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
               periodValues.push(entry.actual_value);
@@ -631,18 +626,22 @@ const handler = async (req: Request): Promise<Response> => {
               (data.sales_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.sales_expense / data.gp_net) * 100 : null },
             { display: "Adjusted Selling Gross", dbName: "adjusted_selling_gross", type: "dollar" as const },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.net_selling_gross != null ? data.net_selling_gross :
               (data.gp_net != null && data.sales_expense != null) ? data.gp_net - data.sales_expense : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.department_profit != null ? data.department_profit :
               (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
               data.gp_net - data.sales_expense - data.total_fixed_expense : null },
             { display: "Dealer Salary", dbName: "dealer_salary", type: "dollar" as const },
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const, calc: (data: any) => {
+              if (data.parts_transfer != null) return data.parts_transfer;
               if (data.adjusted_selling_gross == null || data.gp_net == null || data.sales_expense == null) return null;
               const netSellingGross = data.gp_net - data.sales_expense;
               return data.adjusted_selling_gross - netSellingGross;
             }},
             { display: "Net Operating Profit", dbName: "net", type: "dollar" as const, calc: (data: any) => {
+              if (data.net != null) return data.net;
               if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || 
                   data.dealer_salary == null || data.adjusted_selling_gross == null) return null;
               
@@ -652,9 +651,12 @@ const handler = async (req: Request): Promise<Response> => {
               return departmentProfit - data.dealer_salary + partsTransfer;
             }},
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const departmentProfit = data.gp_net - data.sales_expense - data.total_fixed_expense;
-              return (departmentProfit / data.gp_net) * 100;
+              const deptProfit = data.department_profit ?? (
+                (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+                data.gp_net - data.sales_expense - data.total_fixed_expense : null
+              );
+              if (deptProfit == null || data.gp_net == null || data.gp_net === 0) return null;
+              return (deptProfit / data.gp_net) * 100;
             }}
           ];
         } else if (isMazda) {
@@ -671,17 +673,21 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.net_selling_gross != null ? data.net_selling_gross :
               (data.gp_net != null && data.sales_expense != null) ? 
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.department_profit != null ? data.department_profit :
               (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const semiFixed = data.semi_fixed_expense ?? 0;
-              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
-              return (departmentProfit / data.gp_net) * 100;
+              const deptProfit = data.department_profit ?? (
+                (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+                data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null
+              );
+              if (deptProfit == null || data.gp_net == null || data.gp_net === 0) return null;
+              return (deptProfit / data.gp_net) * 100;
             }}
           ];
         } else if (isStellantis) {
@@ -698,17 +704,24 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              // Use stored value if available, otherwise calculate
+              data.net_selling_gross != null ? data.net_selling_gross :
               (data.gp_net != null && data.sales_expense != null) ? 
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              // Use stored value if available (from Excel import), otherwise calculate
+              data.department_profit != null ? data.department_profit :
               (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const semiFixed = data.semi_fixed_expense ?? 0;
-              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
-              return (departmentProfit / data.gp_net) * 100;
+              // Use stored department_profit if available for calculation
+              const deptProfit = data.department_profit ?? (
+                (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+                data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null
+              );
+              if (deptProfit == null || data.gp_net == null || data.gp_net === 0) return null;
+              return (deptProfit / data.gp_net) * 100;
             }}
           ];
         } else {
@@ -725,19 +738,23 @@ const handler = async (req: Request): Promise<Response> => {
             { display: "Semi Fixed Expense %", dbName: "semi_fixed_expense_percent", type: "percentage" as const, calc: (data: any) =>
               (data.semi_fixed_expense != null && data.gp_net != null && data.gp_net !== 0) ? (data.semi_fixed_expense / data.gp_net) * 100 : null },
             { display: "Net Selling Gross", dbName: "net_selling_gross", type: "dollar" as const, calc: (data: any) =>
+              data.net_selling_gross != null ? data.net_selling_gross :
               (data.gp_net != null && data.sales_expense != null) ? 
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) : null },
             { display: "Total Fixed Expense", dbName: "total_fixed_expense", type: "dollar" as const },
             { display: "Department Profit", dbName: "department_profit", type: "dollar" as const, calc: (data: any) =>
+              data.department_profit != null ? data.department_profit :
               (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
               data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null },
             { display: "Parts Transfer", dbName: "parts_transfer", type: "dollar" as const },
             { display: "Net Operating Profit", dbName: "net", type: "dollar" as const },
             { display: "Return on Gross", dbName: "return_on_gross", type: "percentage" as const, calc: (data: any) => {
-              if (data.gp_net == null || data.sales_expense == null || data.total_fixed_expense == null || data.gp_net === 0) return null;
-              const semiFixed = data.semi_fixed_expense ?? 0;
-              const departmentProfit = data.gp_net - data.sales_expense - semiFixed - data.total_fixed_expense;
-              return (departmentProfit / data.gp_net) * 100;
+              const deptProfit = data.department_profit ?? (
+                (data.gp_net != null && data.sales_expense != null && data.total_fixed_expense != null) ?
+                data.gp_net - data.sales_expense - (data.semi_fixed_expense ?? 0) - data.total_fixed_expense : null
+              );
+              if (deptProfit == null || data.gp_net == null || data.gp_net === 0) return null;
+              return (deptProfit / data.gp_net) * 100;
             }}
           ];
         }
@@ -799,18 +816,6 @@ const handler = async (req: Request): Promise<Response> => {
               if (e.month === p.identifier) {
                 monthData[e.metric_name] = e.value;
               }
-            });
-            
-            // Log all month data for debugging
-            console.log(`Financial data for ${p.identifier}:`, {
-              monthIdentifier: p.identifier,
-              dataKeys: Object.keys(monthData),
-              gp_net: monthData.gp_net,
-              sales_expense: monthData.sales_expense,
-              semi_fixed_expense: monthData.semi_fixed_expense,
-              total_fixed_expense: monthData.total_fixed_expense,
-              parts_transfer: monthData.parts_transfer,
-              net: monthData.net
             });
             
             let value = null;
