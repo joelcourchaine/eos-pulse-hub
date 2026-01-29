@@ -1968,14 +1968,14 @@ export function useForecastCalculations({
   const quarterlyValues = calculateQuarterlyValues(monthlyValues);
   const annualValues = calculateAnnualValues(monthlyValues);
 
-  // Calculate implied growth from adjusted annual GP Net vs baseline
-  // This allows the Growth slider to update when GP% sub-metric overrides increase GP Net
+  // Calculate implied growth from adjusted annual Total Sales vs baseline
+  // This allows the Growth slider to update when user manually edits Total Sales
   const impliedGrowth = useMemo(() => {
-    const adjustedGpNetAnnual = annualValues.get('gp_net')?.value || 0;
-    const baselineGpNetAnnual = annualBaseline['gp_net'] || 0;
+    const adjustedTotalSalesAnnual = annualValues.get('total_sales')?.value || 0;
+    const baselineTotalSalesAnnual = annualBaseline['total_sales'] || 0;
     
-    if (baselineGpNetAnnual > 0 && adjustedGpNetAnnual > 0) {
-      return ((adjustedGpNetAnnual / baselineGpNetAnnual) - 1) * 100;
+    if (baselineTotalSalesAnnual > 0 && adjustedTotalSalesAnnual > 0) {
+      return ((adjustedTotalSalesAnnual / baselineTotalSalesAnnual) - 1) * 100;
     }
     return growth; // fallback to current growth slider value
   }, [annualValues, annualBaseline, growth]);

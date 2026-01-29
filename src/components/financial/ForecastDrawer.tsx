@@ -496,13 +496,14 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       .join('|');
   }, [entries]);
 
-  // For stores without sub-metrics: only sync Growth slider when edits actually imply a growth change.
-  // Editing GP% alone should NOT drive Growth (it changes GP Net via ratio and can create a feedback loop).
-  const hasLockedGrowthDrivers = useMemo(() => {
+  // Detect when Total Sales has manual forecast values (triggers growth slider sync).
+  // Check for any stored forecast_value on total_sales, not just locked entries.
+  const hasTotalSalesManualEdits = useMemo(() => {
     return entries.some(
       (e) =>
-        e.is_locked &&
-        (e.metric_name === 'total_sales' || e.metric_name === 'gp_net')
+        e.metric_name === 'total_sales' &&
+        e.forecast_value !== null &&
+        e.forecast_value !== undefined
     );
   }, [entries]);
 
@@ -522,8 +523,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       return;
     }
 
-    // For stores WITHOUT sub-metrics: only sync when Total Sales / GP Net were directly edited.
-    if (!hasLockedGrowthDrivers) return;
+    // For stores WITHOUT sub-metrics: only sync when Total Sales was directly edited.
+    if (!hasTotalSalesManualEdits) return;
 
     // Only sync if the implied growth is significantly different and has changed
     if (
@@ -545,7 +546,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     overridesSignature,
     subMetricOverrides.length,
     lockedEntriesSignature,
-    hasLockedGrowthDrivers,
+    hasTotalSalesManualEdits,
   ]);
 
   const weightsSignature = useMemo(() => {
