@@ -1608,8 +1608,8 @@ setStoreUsers(data || []);
 
   const formatValue = (value: number | null, type: string, kpiName?: string) => {
     if (value === null || value === undefined) return "";
-    // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
-    if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR") {
+    // CP Hours Per RO (including "Total CP Hours Per RO"), Total ELR, Total CP ELR, and Warranty ELR should always show 2 decimal places
+    if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
       return Number(value).toFixed(2);
     }
     // Total Hours, Total Labour Sales, CP Labour Sales Per RO, CP ELR, CP Hours, and Customer Pay Hours should show whole numbers
@@ -1621,11 +1621,12 @@ setStoreUsers(data || []);
   };
 
   const formatTarget = (value: number, type: string, kpiName?: string) => {
-    // CP Hours Per RO (including "Total CP Hours Per RO") and Total ELR should always show 2 decimal places
+    // CP Hours Per RO (including "Total CP Hours Per RO") should always show 2 decimal places
     if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO") {
       return Number(value).toFixed(2);
     }
-    if (kpiName === "Total ELR") {
+    // Total ELR, Total CP ELR, and Warranty ELR should show 2 decimal places with $
+    if (kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
       return `$${Number(value).toFixed(2)}`;
     }
     // Total Labour Sales, CP Labour Sales Per RO and CP ELR should show whole dollars
