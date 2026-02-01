@@ -405,9 +405,9 @@ export const RoutineSidebar = ({
             );
           })}
           {/* My Resources - styled like header */}
-          <div className="mt-4 pt-4 border-t mx-2">
+          <div className="mt-4 pt-4 border-t">
             <div 
-              className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap"
               onClick={() => navigate("/resources")}
             >
               <BookOpen className="h-5 w-5 text-primary shrink-0" />
