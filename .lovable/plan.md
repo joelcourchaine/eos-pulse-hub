@@ -1,35 +1,56 @@
 
 
-## Add Hyundai Financial Cell Mappings
+## Add Hyundai Sub-Metric Cell Mappings
 
 ### Summary
-Insert 12 new financial cell mappings for Hyundai brand to enable Excel drag-and-drop import for Service and Parts departments.
+Insert 60 new sub-metric cell mappings for the Hyundai brand to enable granular line-item extraction from Excel financial statements. This follows the same pattern established for Honda/Mazda.
 
-### Data to Insert
+### Mapping Structure
 
-| Department | Metric | Cell | Sheet |
-|------------|--------|------|-------|
-| Service | total_sales | N6 | Page3 |
-| Service | gp_net | N7 | Page3 |
-| Service | total_direct_expenses | N49 | Page3 |
-| Service | semi_fixed_expenses | N51 | Page3 |
-| Service | net_selling_gross | N52 | Page3 |
-| Service | total_fixed_expense | N72 | Page3 |
-| Parts | total_sales | H6 | Page3 |
-| Parts | gp_net | H7 | Page3 |
-| Parts | total_direct_expenses | H49 | Page3 |
-| Parts | semi_fixed_expenses | H51 | Page3 |
-| Parts | net_selling_gross | H52 | Page3 |
-| Parts | total_fixed_expense | H72 | Page3 |
+**Sheet**: Page4
+
+**Column Layout**:
+| Data | Column |
+|------|--------|
+| Name | J |
+| Sales | B |
+| Gross Profit | E |
+| GP % | H |
+
+**Parts Department** (11 line items, rows 64-74):
+- 11 sub-metrics for `total_sales` (parent)
+- 11 sub-metrics for `gp_net` (parent)  
+- 11 sub-metrics for `gp_percent` (parent)
+
+**Service Department** (9 line items, rows 77-86, skipping row 81):
+- 9 sub-metrics for `total_sales` (parent)
+- 9 sub-metrics for `gp_net` (parent)
+- 9 sub-metrics for `gp_percent` (parent)
+
+### Data Summary
+
+| Department | Parent Metric | Row Range | Count |
+|------------|---------------|-----------|-------|
+| Parts | total_sales | 64-74 | 11 |
+| Parts | gp_net | 64-74 | 11 |
+| Parts | gp_percent | 64-74 | 11 |
+| Service | total_sales | 77-80, 82-86 | 9 |
+| Service | gp_net | 77-80, 82-86 | 9 |
+| Service | gp_percent | 77-80, 82-86 | 9 |
+| **Total** | | | **60** |
 
 ### Implementation
-1. Run a database migration to insert the 12 Hyundai mappings into `financial_cell_mappings` table
-2. Uses `ON CONFLICT DO NOTHING` to prevent duplicates if run again
+1. Run a database insert to add 60 Hyundai sub-metric mappings to `financial_cell_mappings` table
+2. Each mapping includes:
+   - `is_sub_metric: true`
+   - `parent_metric_key` linking to the parent metric
+   - `name_cell_reference` pointing to column J for dynamic name extraction
+3. Uses `ON CONFLICT DO NOTHING` to prevent duplicates
 
 ### Technical Details
 - **Table**: `public.financial_cell_mappings`
-- **Brand**: Hyundai (new - not currently in system)
-- **Sheet**: Page3
-- **Service column**: N
-- **Parts column**: H
+- **Brand**: Hyundai
+- **Sheet**: Page4
+- **Pattern**: Matches Honda/Mazda sub-metric structure (`total_sales`, `gp_net`, `gp_percent`)
+- **Metric Key Format**: `sub:{parent}:{order}` (e.g., `sub:total_sales:01`)
 
