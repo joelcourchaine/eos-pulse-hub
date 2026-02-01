@@ -22,6 +22,7 @@ import { X, Plus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Resource, ResourceType, ResourceCategory } from "./ResourceCard";
+import { normalizeGoogleDriveImageUrl } from "./googleDrive";
 
 interface DepartmentType {
   id: string;
@@ -125,13 +126,15 @@ export const ResourceManagementDialog = ({
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
+      const normalizedThumb = normalizeGoogleDriveImageUrl(thumbnailUrl.trim()) || null;
+
       const resourceData = {
         title: title.trim(),
         description: description.trim() || null,
         resource_type: resourceType,
         category,
         url: url.trim(),
-        thumbnail_url: thumbnailUrl.trim() || null,
+        thumbnail_url: normalizedThumb,
         department_type_id: departmentTypeId,
         tags,
         searchable_content: searchableContent.trim() || null,

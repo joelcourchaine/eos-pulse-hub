@@ -13,6 +13,7 @@ import {
   Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeGoogleDriveImageUrl } from "./googleDrive";
 
 export type ResourceType = 'google_doc' | 'spreadsheet' | 'powerpoint' | 'pdf' | 'weblink' | 'video';
 export type ResourceCategory = 'training' | 'templates' | 'guides' | 'best_practices' | 'processes' | 'reports';
@@ -60,14 +61,15 @@ interface ResourceCardProps {
 export const ResourceCard = ({ resource, onView, onEdit, canEdit }: ResourceCardProps) => {
   const typeConfig = RESOURCE_TYPE_CONFIG[resource.resource_type];
   const TypeIcon = typeConfig.icon;
+  const thumbnailSrc = normalizeGoogleDriveImageUrl(resource.thumbnail_url);
 
   return (
     <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:border-primary/30">
       {/* Thumbnail area */}
       <div className="relative h-40 bg-gradient-to-br from-muted/50 to-muted overflow-hidden">
-        {resource.thumbnail_url ? (
+        {thumbnailSrc ? (
           <img 
-            src={resource.thumbnail_url} 
+            src={thumbnailSrc} 
             alt={resource.title}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
