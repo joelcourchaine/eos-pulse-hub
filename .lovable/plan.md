@@ -1,39 +1,69 @@
-# My Resources - Implementation Complete ✅
 
-## What Was Built
+# Fix: Style "My Resources" Link Like Header
 
-### Database
-- New `resources` table with department filtering, search indexing, and view tracking
-- Enums for `resource_type` (google_doc, spreadsheet, powerpoint, pdf, weblink, video)
-- Enums for `resource_category` (training, templates, guides, best_practices, processes, reports)
-- RLS policies for user access and super admin management
+## Goal
+Display "My Resources" below the "Yearly" cadence with:
+- Same styling as "My Routines" header (BookOpen icon + font-semibold text-sm)
+- Visual separation from the cadence items
+- Visible in both collapsed and expanded states
 
-### User-Facing Pages
-- `/resources` - Full resource library with search, filters by department/category/type
-- Card-based grid layout with color-coded badges by resource type
-- Instant search across titles, descriptions, and searchable content
-- View count tracking when users open resources
+## Changes to `src/components/routines/RoutineSidebar.tsx`
 
-### Admin Management
-- `/admin/resources` - Table view of all resources (active + hidden)
-- Add/Edit resources via dialog form
-- Toggle visibility (publish/hide)
-- Delete with confirmation
-- Admin link added to dropdown menu
+### 1. Move "My Resources" Inside the Cadence Menu
+Move the link from the bottom of `SidebarContent` to after the cadence items loop, adding a separator/spacing above it.
 
-### Navigation
-- "My Resources" link added to RoutineSidebar (bottom section)
-- BookOpen icon, navigates to /resources
+### 2. Apply Header-Style Formatting
+Match the "My Routines" header styling:
+- Icon: `BookOpen` with `h-5 w-5 text-primary`
+- Text: `font-semibold text-sm`
+- Layout: `flex items-center gap-2`
 
-## File Structure
+### 3. Add Visual Separation
+Add `mt-4 pt-4 border-t` to create clear visual distinction from the cadence list.
+
+## Visual Result (Collapsed State)
+
+```text
++---------------------------+
+| [x] My Routines      [<]  |
++---------------------------+
+| [ ] Daily            (3)  |
+| [ ] Weekly           2/4  |
+| [ ] Monthly          0/2  |
+| [ ] Quarterly        1/1  |
+| [ ] Yearly           0/0  |
+|                           |
+| ─────────────────────     |  <-- separator
+| [ ] My Resources          |  <-- header style
++---------------------------+
 ```
-src/
-├── pages/
-│   ├── Resources.tsx        # User resource library
-│   └── AdminResources.tsx   # Admin management
-├── components/resources/
-│   ├── ResourceCard.tsx     # Individual card component
-│   ├── ResourceSearch.tsx   # Search bar + filter chips
-│   ├── ResourceGrid.tsx     # Responsive grid layout
-│   └── ResourceManagementDialog.tsx  # Add/edit form
+
+## Technical Details
+
+**Location**: Lines 460-470 (current "My Resources" div)
+
+**Before**:
+```tsx
+<div className="mt-auto border-t p-2">
+  <SidebarMenuButton ...>
+    <BookOpen className="h-4 w-4" />
+    <span>My Resources</span>
+  </SidebarMenuButton>
+</div>
 ```
+
+**After** (moved inside SidebarMenu, after cadence loop):
+```tsx
+{/* My Resources - styled like header */}
+<div className="mt-4 pt-4 border-t mx-2">
+  <div 
+    className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent rounded-md transition-colors"
+    onClick={() => navigate("/resources")}
+  >
+    <BookOpen className="h-5 w-5 text-primary" />
+    <span className="font-semibold text-sm">My Resources</span>
+  </div>
+</div>
+```
+
+This places "My Resources" directly in the visible menu area with consistent header-level styling and proper separation.
