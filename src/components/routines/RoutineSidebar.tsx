@@ -407,10 +407,10 @@ export const RoutineSidebar = ({
           {/* My Resources - styled like header */}
           <div className="mt-4 pt-4 border-t mx-2">
             <div 
-              className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent rounded-md transition-colors"
+              className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap"
               onClick={() => navigate("/resources")}
             >
-              <BookOpen className="h-5 w-5 text-primary" />
+              <BookOpen className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Resources</span>
             </div>
           </div>
