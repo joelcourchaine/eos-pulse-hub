@@ -404,6 +404,16 @@ export const RoutineSidebar = ({
               </SidebarMenuItem>
             );
           })}
+          {/* My Resources - styled like header */}
+          <div className="mt-4 pt-4 border-t mx-2">
+            <div 
+              className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-accent rounded-md transition-colors"
+              onClick={() => navigate("/resources")}
+            >
+              <BookOpen className="h-5 w-5 text-primary" />
+              <span className="font-semibold text-sm">My Resources</span>
+            </div>
+          </div>
         </SidebarMenu>
 
         {/* Routine Checklists - Only visible when expanded */}
@@ -457,17 +467,6 @@ export const RoutineSidebar = ({
           </ScrollArea>
         )}
 
-        {/* My Resources link */}
-        <div className="mt-auto border-t p-2">
-          <SidebarMenuButton
-            onClick={() => navigate("/resources")}
-            tooltip="My Resources"
-            className="w-full justify-start group-data-[collapsible=icon]:justify-center"
-          >
-            <BookOpen className="h-4 w-4" />
-            <span className="group-data-[collapsible=icon]:hidden">My Resources</span>
-          </SidebarMenuButton>
-        </div>
       </SidebarContent>
     </Sidebar>
   );
