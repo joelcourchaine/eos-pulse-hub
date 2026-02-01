@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
 import { AddRoutineWithTask } from "./AddRoutineWithTask";
-import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check } from "lucide-react";
+import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check, BookOpen } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -132,6 +133,7 @@ export const RoutineSidebar = ({
   canAddItems = false,
   canDeleteItems = false,
 }: RoutineSidebarProps) => {
+  const navigate = useNavigate();
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
   
@@ -454,6 +456,18 @@ export const RoutineSidebar = ({
             </div>
           </ScrollArea>
         )}
+
+        {/* My Resources link */}
+        <div className="mt-auto border-t p-2">
+          <SidebarMenuButton
+            onClick={() => navigate("/resources")}
+            tooltip="My Resources"
+            className="w-full justify-start group-data-[collapsible=icon]:justify-center"
+          >
+            <BookOpen className="h-4 w-4" />
+            <span className="group-data-[collapsible=icon]:hidden">My Resources</span>
+          </SidebarMenuButton>
+        </div>
       </SidebarContent>
     </Sidebar>
   );
