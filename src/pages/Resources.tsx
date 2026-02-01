@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ResourceSearch } from "@/components/resources/ResourceSearch";
 import { ResourceGrid } from "@/components/resources/ResourceGrid";
+import { ResourceManagementDialog } from "@/components/resources/ResourceManagementDialog";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, BookOpen } from "lucide-react";
+import { useUserRole } from "@/hooks/use-user-role";
 import type { Resource, ResourceCategory, ResourceType } from "@/components/resources/ResourceCard";
 
 interface DepartmentType {
@@ -17,6 +19,12 @@ const Resources = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | undefined>();
+  const { isSuperAdmin } = useUserRole(userId);
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
   
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,6 +33,7 @@ const Resources = () => {
   const [selectedType, setSelectedType] = useState<ResourceType | null>(null);
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id));
     fetchDepartmentTypes();
   }, []);
 
@@ -106,6 +115,11 @@ const Resources = () => {
     }
   }, []);
 
+  const handleEditResource = useCallback((resource: Resource) => {
+    setEditingResource(resource);
+    setEditDialogOpen(true);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -161,9 +175,20 @@ const Resources = () => {
           resources={resources}
           isLoading={loading}
           onViewResource={handleViewResource}
+          onEditResource={handleEditResource}
+          canEdit={isSuperAdmin}
           searchQuery={searchQuery}
         />
       </main>
+
+      {/* Edit dialog for super admins */}
+      <ResourceManagementDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        resource={editingResource}
+        departmentTypes={departmentTypes}
+        onSuccess={fetchResources}
+      />
     </div>
   );
 };

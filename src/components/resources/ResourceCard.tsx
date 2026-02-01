@@ -9,7 +9,8 @@ import {
   Globe, 
   Video, 
   ExternalLink,
-  Eye
+  Eye,
+  Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,9 +53,11 @@ const CATEGORY_LABELS: Record<ResourceCategory, string> = {
 interface ResourceCardProps {
   resource: Resource;
   onView: (resource: Resource) => void;
+  onEdit?: (resource: Resource) => void;
+  canEdit?: boolean;
 }
 
-export const ResourceCard = ({ resource, onView }: ResourceCardProps) => {
+export const ResourceCard = ({ resource, onView, onEdit, canEdit }: ResourceCardProps) => {
   const typeConfig = RESOURCE_TYPE_CONFIG[resource.resource_type];
   const TypeIcon = typeConfig.icon;
 
@@ -78,6 +81,20 @@ export const ResourceCard = ({ resource, onView }: ResourceCardProps) => {
           <TypeIcon className="h-3 w-3 mr-1" />
           {typeConfig.label}
         </Badge>
+        {/* Edit button for super admins */}
+        {canEdit && onEdit && (
+          <Button
+            size="icon"
+            variant="secondary"
+            className="absolute top-3 right-3 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(resource);
+            }}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <CardContent className="p-4 space-y-3">
