@@ -19,6 +19,7 @@ import {
   Building2,
   GitCompare,
   FileSpreadsheet,
+  BookOpen,
 } from "lucide-react";
 
 export const AdminNavDropdown = () => {
@@ -36,6 +37,7 @@ export const AdminNavDropdown = () => {
       items: [
         { name: "Announcements", icon: Megaphone, path: "/admin/announcements" },
         { name: "Signatures", icon: FileSignature, path: "/admin/signatures" },
+        { name: "Resources", icon: BookOpen, path: "/admin/resources" },
       ],
     },
     {

@@ -27,6 +27,8 @@ import SignDocumentByToken from "./pages/SignDocumentByToken";
 import AdminTickets from "./pages/AdminTickets";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import ScorecardMapperPage from "./pages/ScorecardMapperPage";
+import Resources from "./pages/Resources";
+import AdminResources from "./pages/AdminResources";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +68,8 @@ const App = () => (
             <Route path="/admin/dashboard" element={<SuperAdminDashboard />} />
             <Route path="/admin/scorecard-mapper" element={<ScorecardMapperPage />} />
             <Route path="/admin/consulting" element={<ConsultingScheduler />} />
+            <Route path="/admin/resources" element={<AdminResources />} />
+            <Route path="/resources" element={<Resources />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

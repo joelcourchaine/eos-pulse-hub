@@ -1934,6 +1934,81 @@ export type Database = {
           },
         ]
       }
+      resources: {
+        Row: {
+          category: Database["public"]["Enums"]["resource_category"]
+          created_at: string
+          created_by: string | null
+          department_type_id: string | null
+          description: string | null
+          file_path: string | null
+          id: string
+          is_active: boolean
+          resource_type: Database["public"]["Enums"]["resource_type"]
+          searchable_content: string | null
+          store_group_id: string | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          view_count: number
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["resource_category"]
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          is_active?: boolean
+          resource_type: Database["public"]["Enums"]["resource_type"]
+          searchable_content?: string | null
+          store_group_id?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          view_count?: number
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["resource_category"]
+          created_at?: string
+          created_by?: string | null
+          department_type_id?: string | null
+          description?: string | null
+          file_path?: string | null
+          id?: string
+          is_active?: boolean
+          resource_type?: Database["public"]["Enums"]["resource_type"]
+          searchable_content?: string | null
+          store_group_id?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resources_department_type_id_fkey"
+            columns: ["department_type_id"]
+            isOneToOne: false
+            referencedRelation: "department_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resources_store_group_id_fkey"
+            columns: ["store_group_id"]
+            isOneToOne: false
+            referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rock_monthly_targets: {
         Row: {
           created_at: string | null
@@ -3346,6 +3421,20 @@ export type Database = {
         | "fixed_ops_manager"
         | "consulting_scheduler"
         | "controller"
+      resource_category:
+        | "training"
+        | "templates"
+        | "guides"
+        | "best_practices"
+        | "processes"
+        | "reports"
+      resource_type:
+        | "google_doc"
+        | "spreadsheet"
+        | "powerpoint"
+        | "pdf"
+        | "weblink"
+        | "video"
       signature_status: "pending" | "viewed" | "signed" | "expired"
       ticket_category: "bug_report" | "feature_request" | "question" | "other"
       ticket_priority: "low" | "normal" | "urgent"
@@ -3490,6 +3579,22 @@ export const Constants = {
         "fixed_ops_manager",
         "consulting_scheduler",
         "controller",
+      ],
+      resource_category: [
+        "training",
+        "templates",
+        "guides",
+        "best_practices",
+        "processes",
+        "reports",
+      ],
+      resource_type: [
+        "google_doc",
+        "spreadsheet",
+        "powerpoint",
+        "pdf",
+        "weblink",
+        "video",
       ],
       signature_status: ["pending", "viewed", "signed", "expired"],
       ticket_category: ["bug_report", "feature_request", "question", "other"],
