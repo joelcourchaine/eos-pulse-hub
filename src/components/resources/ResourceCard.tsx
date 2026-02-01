@@ -13,7 +13,7 @@ import {
   Pencil
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { normalizeGoogleDriveImageUrl } from "./googleDrive";
+import { getThumbnailSrc } from "./googleDrive";
 
 export type ResourceType = 'google_doc' | 'spreadsheet' | 'powerpoint' | 'pdf' | 'weblink' | 'video';
 export type ResourceCategory = 'training' | 'templates' | 'guides' | 'best_practices' | 'processes' | 'reports';
@@ -61,7 +61,7 @@ interface ResourceCardProps {
 export const ResourceCard = ({ resource, onView, onEdit, canEdit }: ResourceCardProps) => {
   const typeConfig = RESOURCE_TYPE_CONFIG[resource.resource_type];
   const TypeIcon = typeConfig.icon;
-  const thumbnailSrc = normalizeGoogleDriveImageUrl(resource.thumbnail_url);
+  const thumbnailSrc = getThumbnailSrc(resource.thumbnail_url);
 
   return (
     <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:border-primary/30">
