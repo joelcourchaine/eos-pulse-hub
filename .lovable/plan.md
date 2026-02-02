@@ -1,113 +1,39 @@
 
 
-# Add Drag-and-Drop Thumbnail Upload for Resources
+# Fit Wide Logos in Resource Cards
 
-## Overview
-Replace the simple URL text input for thumbnails with a visual drag-and-drop zone that allows admins to either drop an image file directly or enter a URL. Uploaded images will be stored in Supabase Storage.
+## The Problem
+Currently, resource card thumbnails use `object-cover` which fills the entire container but crops images that don't match the container's aspect ratio. For wide logos (like the Marshall Group 60th Anniversary logo), this results in the left and right edges being cut off.
 
-## Current State
-- Thumbnail input is a plain text field requiring a URL
-- Users must host images elsewhere (e.g., Google Drive) and paste URLs
-- No visual preview until the resource is saved
+## Solution
+Change the image fitting from `object-cover` to `object-contain`. This ensures the entire image is visible within the container, adding background padding around it rather than cropping.
 
-## Proposed Solution
+## Change Required
 
-### User Experience
-1. **Drop Zone UI**: A visual area showing:
-   - Current thumbnail preview (if set)
-   - "Drop image here or click to upload" prompt
-   - Alternative "or paste URL" option
-2. **Drag and Drop**: Drag an image file onto the zone to upload
-3. **Click to Browse**: Click the zone to open a file picker
-4. **URL Fallback**: Keep a small text input below for pasting URLs (Google Drive, etc.)
-5. **Preview**: Show the thumbnail preview immediately after upload/URL entry
-6. **Remove Option**: "X" button to clear the thumbnail
+**File: `src/components/resources/ResourceCard.tsx`**
 
-### Technical Implementation
-
-#### 1. Create Storage Bucket
-Create a new `resource-thumbnails` public bucket for storing uploaded thumbnails.
-
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('resource-thumbnails', 'resource-thumbnails', true);
-
--- RLS policy: Allow authenticated users to upload
-CREATE POLICY "Authenticated users can upload resource thumbnails"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'resource-thumbnails');
-
--- RLS policy: Allow anyone to view (public bucket)
-CREATE POLICY "Anyone can view resource thumbnails"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'resource-thumbnails');
-
--- RLS policy: Allow authenticated users to delete their uploads
-CREATE POLICY "Authenticated users can delete resource thumbnails"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'resource-thumbnails');
-```
-
-#### 2. Create ThumbnailDropZone Component
-**New file: `src/components/resources/ThumbnailDropZone.tsx`**
-
-Features:
-- Accept `thumbnailUrl` and `onThumbnailChange` props
-- Handle drag events (`onDragOver`, `onDragLeave`, `onDrop`)
-- Upload file to `resource-thumbnails` bucket
-- Return public URL to parent component
-- Show loading state during upload
-- Preview current thumbnail
-- Support click-to-browse as well as drag-and-drop
-
+Update line 77 from:
 ```typescript
-interface ThumbnailDropZoneProps {
-  thumbnailUrl: string;
-  onThumbnailChange: (url: string) => void;
-}
+className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
 ```
 
-#### 3. Update ResourceManagementDialog
-**File: `src/components/resources/ResourceManagementDialog.tsx`**
-
-Replace the simple thumbnail URL input (lines 261-271) with:
-- The new `ThumbnailDropZone` component
-- A smaller "or paste URL" text input below
-- Both methods update the same `thumbnailUrl` state
-
-### File Changes
-
-| File | Changes |
-|------|---------|
-| Migration | Create `resource-thumbnails` bucket with RLS policies |
-| `src/components/resources/ThumbnailDropZone.tsx` | **New file** - Drag-and-drop upload component |
-| `src/components/resources/ResourceManagementDialog.tsx` | Replace URL input with ThumbnailDropZone + fallback URL input |
-
-### UI Mockup
-
-```text
-+------------------------------------------+
-|                                          |
-|     [Image Preview or Placeholder]       |
-|                                          |
-|   Drop image here or click to upload     |
-|                                          |
-|              [x Remove]                  |
-+------------------------------------------+
-        — or paste thumbnail URL —
-+------------------------------------------+
-| https://...                              |
-+------------------------------------------+
+To:
+```typescript
+className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
 ```
 
-### Technical Notes
+## Visual Comparison
 
-1. **File Naming**: Use `{resourceId or timestamp}-{Date.now()}.{ext}` for unique filenames
-2. **File Validation**: Accept only image types (`image/*`), max 2MB
-3. **Google Drive URLs**: The existing URL input still supports pasting Drive links which get normalized
-4. **Cleanup**: Old thumbnails should be deleted from storage when replaced (if they were uploaded to our bucket)
-5. **Recommended Size**: Show hint "Recommended: 640x320px for best results"
+| Before (`object-cover`) | After (`object-contain`) |
+|------------------------|-------------------------|
+| Image fills entire area | Image fits within area |
+| Crops edges of wide/tall images | Shows complete image |
+| No background visible | Background visible around image |
+
+## Result
+- Wide logos will show in full without cropping
+- The existing gradient background (`bg-gradient-to-br from-muted/50 to-muted`) will be visible around the image edges
+- Tall images will also benefit, showing the full height
+
+This is a single-line change that preserves the hover animation and all other styling.
 
