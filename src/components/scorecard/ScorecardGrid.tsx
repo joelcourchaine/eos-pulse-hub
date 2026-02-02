@@ -1556,11 +1556,19 @@ setStoreUsers(data || []);
 
     // If value is empty/null, delete the entry
     if (actualValue === null || value === '') {
-      const { error } = await supabase
+      let deleteQuery = supabase
         .from("scorecard_entries")
         .delete()
         .eq("kpi_id", kpiId)
-        .eq(isMonthly ? "month" : "week_start_date", isMonthly ? monthId : periodKey);
+        .eq("entry_type", isMonthly ? "monthly" : "weekly");
+      
+      if (isMonthly) {
+        deleteQuery = deleteQuery.eq("month", monthId);
+      } else {
+        deleteQuery = deleteQuery.eq("week_start_date", periodKey);
+      }
+      
+      const { error } = await deleteQuery;
 
       if (error) {
         toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
