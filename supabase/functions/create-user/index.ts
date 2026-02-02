@@ -22,7 +22,7 @@ interface CreateUserRequest {
   send_password_email?: boolean;
 }
 
-// Generate the invite email HTML
+// Generate the invite email HTML (7-day expiry)
 function getInviteEmailHtml(inviteLink: string, fullName: string): string {
   return `
     <!DOCTYPE html>
@@ -48,7 +48,7 @@ function getInviteEmailHtml(inviteLink: string, fullName: string): string {
       <p style="color: #666; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
       <p style="word-break: break-all; color: #2563eb; font-size: 14px;">${inviteLink}</p>
       
-      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 24 hours.</p>
+      <p style="color: #666; font-size: 14px; margin-top: 30px;">This invitation link will expire in 7 days.</p>
       
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
       
@@ -264,6 +264,7 @@ Deno.serve(async (req) => {
     // Get the origin from the referer header for redirect URL
     const referer = req.headers.get('referer') || '';
     const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
+    const appUrl = 'https://dealergrowth.solutions';
 
     // Generate the invite link (doesn't send email via Supabase)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
@@ -291,11 +292,41 @@ Deno.serve(async (req) => {
       throw new Error('Failed to generate invite link');
     }
 
-    const inviteLink = linkData.properties.action_link;
+    const actionLink = linkData.properties.action_link;
     const userId = linkData.user.id;
 
     console.log('User created in auth:', userId);
     console.log('Invite link generated successfully');
+
+    // Generate custom token with 7-day expiry
+    const customToken = crypto.randomUUID();
+    const tokenType = 'invite';
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    console.log('Generated custom invite token for new user:', userId);
+
+    // Store custom token with Supabase action_link
+    const { error: tokenError } = await supabaseAdmin
+      .from('auth_tokens')
+      .insert({
+        token: customToken,
+        token_type: tokenType,
+        user_id: userId,
+        email: email,
+        expires_at: expiresAt.toISOString(),
+        created_by: user.id, // admin who created the user
+        action_link: actionLink
+      });
+
+    if (tokenError) {
+      console.error('Error storing custom token:', tokenError);
+      // Don't throw - user was created, we can still proceed
+    } else {
+      console.log('Custom token stored successfully');
+    }
+
+    // Build invite link with custom token
+    const inviteLink = `${appUrl}/set-password?token=${customToken}`;
 
     // Send the invite email via Resend
     const emailResult = await sendInviteEmailViaResend(email, inviteLink, full_name);

@@ -77,3 +77,9 @@ verify_jwt = false
 
 [functions.thumbnail-proxy]
 verify_jwt = false
+
+[functions.validate-auth-token]
+verify_jwt = false
+
+[functions.mark-token-used]
+verify_jwt = false

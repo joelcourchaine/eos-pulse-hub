@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,10 +22,11 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type FlowState = 'loading' | 'request' | 'email-sent' | 'confirm' | 'set-password' | 'success' | 'expired';
+type FlowState = 'loading' | 'validating-token' | 'request' | 'email-sent' | 'set-password' | 'success' | 'expired';
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -33,20 +34,53 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [flowState, setFlowState] = useState<FlowState>('loading');
   const [userEmail, setUserEmail] = useState<string>("");
-  const [continueUrl, setContinueUrl] = useState<string | null>(null);
+  const [customToken, setCustomToken] = useState<string | null>(null);
 
   useEffect(() => {
     const checkRecoveryFlow = async () => {
-      // If the email client pre-opens links, it can consume one-time tokens.
-      // To prevent that, our emails link to /reset-password?continue=<encoded_direct_link>
-      // and we only navigate to the direct link after a user click.
-      const searchParams = new URLSearchParams(window.location.search);
+      // Check for custom token first (new flow)
+      const tokenParam = searchParams.get('token');
+      if (tokenParam) {
+        console.log('Found custom token, validating...');
+        setFlowState('validating-token');
+        setCustomToken(tokenParam);
+        
+        // Validate the custom token
+        const { data, error } = await supabase.functions.invoke('validate-auth-token', {
+          body: { token: tokenParam }
+        });
+
+        if (error) {
+          console.error('Error validating token:', error);
+          setFlowState('expired');
+          return;
+        }
+
+        if (!data.valid) {
+          console.log('Token validation failed:', data.error);
+          setFlowState('expired');
+          return;
+        }
+
+        // Token is valid - redirect to the Supabase action_link
+        if (data.action_link) {
+          console.log('Token valid, redirecting to Supabase action link...');
+          window.location.href = data.action_link;
+          return;
+        } else {
+          setFlowState('expired');
+          return;
+        }
+      }
+
+      // Legacy flow: Check for ?continue= parameter (for backwards compatibility)
       const continueParam = searchParams.get('continue');
       if (continueParam) {
         const decoded = decodeURIComponent(continueParam);
         if (decoded.startsWith('http')) {
-          setContinueUrl(decoded);
-          setFlowState('confirm');
+          // Redirect directly to the Supabase link
+          console.log('Found continue parameter, redirecting...');
+          window.location.href = decoded;
           return;
         }
       }
@@ -101,7 +135,7 @@ const ResetPassword = () => {
     };
 
     checkRecoveryFlow();
-  }, []);
+  }, [searchParams]);
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +211,13 @@ const ResetPassword = () => {
         console.error('Failed to update password_set_at:', profileError);
         // Non-blocking - password was still set successfully
       }
+
+      // Mark the custom token as used if we have one
+      if (customToken) {
+        await supabase.functions.invoke('mark-token-used', {
+          body: { token: customToken }
+        });
+      }
       
       console.log("Password successfully updated for user:", user.email);
       setFlowState('success');
@@ -215,42 +256,15 @@ const ResetPassword = () => {
   };
 
   // Loading state
-  if (flowState === 'loading') {
+  if (flowState === 'loading' || flowState === 'validating-token') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Verifying your reset link...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Confirm state (prevents email scanners from consuming one-time links)
-  if (flowState === 'confirm' && continueUrl) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
-            <CardDescription className="text-center">
-              Click continue to open your secure password reset link.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Alert>
-              <AlertDescription>
-                This extra step helps prevent email security scanners from auto-opening and invalidating one-time links.
-              </AlertDescription>
-            </Alert>
-            <Button className="w-full" onClick={() => (window.location.href = continueUrl)}>
-              Continue
-            </Button>
-            <Button variant="outline" className="w-full" onClick={() => navigate('/auth')}>
-              Back to Sign In
-            </Button>
+            <p className="text-muted-foreground">
+              {flowState === 'validating-token' ? 'Validating your reset link...' : 'Verifying your reset link...'}
+            </p>
           </CardContent>
         </Card>
       </div>

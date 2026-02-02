@@ -11,8 +11,8 @@ interface PasswordResetRequest {
   email: string;
 }
 
-// Email template for password reset
-function getPasswordResetEmailHtml(continueLink: string, directLink: string): string {
+// Email template for password reset (24-hour expiry)
+function getPasswordResetEmailHtml(continueLink: string): string {
   return `
     <!DOCTYPE html>
     <html>
@@ -25,7 +25,6 @@ function getPasswordResetEmailHtml(continueLink: string, directLink: string): st
           .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
           .button:hover { background-color: #1d4ed8; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
-          .note { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; font-size: 13px; color: #444; }
         </style>
       </head>
       <body>
@@ -39,24 +38,8 @@ function getPasswordResetEmailHtml(continueLink: string, directLink: string): st
             <div style="text-align: center;">
               <a href="${continueLink}" class="button">Reset Password</a>
             </div>
-
-            <div class="note">
-              <strong>Important:</strong> Some email providers pre-open links for security scanning, which can make one-time links appear “expired”.
-              If you see an expired message, simply request a new reset link.
-            </div>
-
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${continueLink}" style="color: #2563eb; word-break: break-all;">${continueLink}</a>
-            </p>
-
-            <p style="margin-top: 18px; color: #666; font-size: 12px;">
-              Having trouble? You can also try the direct link (may expire if scanned):<br>
-              <a href="${directLink}" style="color: #2563eb; word-break: break-all;">${directLink}</a>
-            </p>
-
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 1 hour for security reasons.
+              This link will expire in 24 hours for security reasons.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you didn't request a password reset, you can safely ignore this email.
@@ -186,7 +169,7 @@ Deno.serve(async (req) => {
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
-      email: profile.email, // Use real email from profiles
+      email: profile.email,
       options: {
         redirectTo: `${appUrl}/reset-password`
       }
@@ -199,14 +182,54 @@ Deno.serve(async (req) => {
 
     console.log('Recovery link generated successfully');
     
-    // Send password reset email via Resend
-    const directLink = linkData.properties.action_link;
-    const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(directLink)}`;
+    const actionLink = linkData.properties.action_link;
+
+    // Generate custom token with 24-hour expiry
+    const customToken = crypto.randomUUID();
+    const tokenType = 'password_reset';
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    console.log('Generated custom password_reset token for user:', profile.id);
+
+    // Invalidate any existing unused tokens for this user and type
+    const { error: invalidateError } = await supabaseAdmin
+      .from('auth_tokens')
+      .update({ used_at: new Date().toISOString() })
+      .eq('user_id', profile.id)
+      .eq('token_type', tokenType)
+      .is('used_at', null);
+
+    if (invalidateError) {
+      console.error('Error invalidating old tokens:', invalidateError);
+    }
+
+    // Store custom token with Supabase action_link
+    const { error: tokenError } = await supabaseAdmin
+      .from('auth_tokens')
+      .insert({
+        token: customToken,
+        token_type: tokenType,
+        user_id: profile.id,
+        email: profile.email,
+        expires_at: expiresAt.toISOString(),
+        created_by: null, // User-initiated reset, no admin
+        action_link: actionLink
+      });
+
+    if (tokenError) {
+      console.error('Error storing custom token:', tokenError);
+      throw new Error('Failed to store authentication token');
+    }
+
+    console.log('Custom token stored successfully');
+
+    // Build email link with custom token (no more ?continue= parameter)
+    const continueLink = `${appUrl}/reset-password?token=${customToken}`;
 
     await sendEmailViaResend(
-      profile.email, // Use real email from profiles
+      profile.email,
       'Reset Your Password - Dealer Growth Solutions',
-      getPasswordResetEmailHtml(continueLink, directLink)
+      getPasswordResetEmailHtml(continueLink)
     );
 
     console.log('Password reset email sent successfully to:', profile.email);
