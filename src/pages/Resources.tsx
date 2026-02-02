@@ -84,15 +84,23 @@ const Resources = () => {
         query = query.eq("resource_type", selectedType);
       }
 
-      if (searchQuery) {
-        // Use ilike for basic search across multiple fields
-        query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,searchable_content.ilike.%${searchQuery}%`);
-      }
-
       const { data, error } = await query;
 
       if (error) throw error;
-      setResources((data || []) as Resource[]);
+      
+      let filteredData = (data || []) as Resource[];
+      
+      // Client-side filtering to include tag matches (Supabase doesn't support ilike on arrays)
+      if (searchQuery) {
+        const lowerQuery = searchQuery.toLowerCase();
+        filteredData = filteredData.filter(resource => 
+          resource.title?.toLowerCase().includes(lowerQuery) ||
+          resource.description?.toLowerCase().includes(lowerQuery) ||
+          resource.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
+        );
+      }
+      
+      setResources(filteredData);
     } catch (error) {
       console.error("Error fetching resources:", error);
     } finally {
