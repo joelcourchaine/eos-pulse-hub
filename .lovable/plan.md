@@ -1,110 +1,84 @@
 
-# Add Drop Zone Support to Weekly Scorecard View
+# Add Group-Specific Resource Support
 
 ## Overview
-Mirror the monthly scorecard drop zone functionality for the weekly/quarterly view, allowing users to drop the same Excel file but import data for a specific week timeframe instead of a month.
+Enable super admins to assign resources to specific store groups, so only users within that group can see those resources. The database already supports this via the `store_group_id` column and RLS policy - we just need to expose it in the UI.
 
 ## Current State
-- Monthly view: Each month column header is wrapped in `ScorecardMonthDropZone` that accepts file drops
-- Weekly view: Plain `<TableHead>` elements without drop zone capability
-- Import system uses `month` field (e.g., "2026-01") to store monthly entries
-- Weekly entries use `week_start_date` field instead
+- **Database**: `resources.store_group_id` column exists (nullable foreign key to `store_groups`)
+- **RLS Policy**: Already filters resources by user's store group:
+  - `store_group_id IS NULL` → visible to everyone
+  - `store_group_id = get_current_user_store_group()` → visible only to that group's users
+- **UI**: No way to set `store_group_id` when creating/editing resources
 
-## Implementation Plan
+## Changes Required
 
-### 1. Create New ScorecardWeekDropZone Component
-Create a new component similar to `ScorecardMonthDropZone` but tailored for weekly imports:
+### 1. Update Resource Interface
+**File: `src/components/resources/ResourceCard.tsx`**
 
-**File: `src/components/scorecard/ScorecardWeekDropZone.tsx`**
-- Accept `weekStartDate` (ISO date string like "2026-01-06")
-- Accept `weekLabel` for display (e.g., "1/6-1/12")
-- Parse dropped Excel files using the same `parseCSRProductivityReport` parser
-- Override the result to use week context instead of month
-- Support same import log display functionality
-
-### 2. Update ScorecardGrid.tsx - Weekly Headers
-Wrap the weekly column headers (lines 3201-3242) with the new drop zone:
-
+Add `store_group_id` and `store_groups` to the Resource interface:
 ```typescript
-// Current (without drop zone):
-<TableHead key={week.label} className={...}>
-  <div>...</div>
-</TableHead>
-
-// Updated (with drop zone):
-<TableHead key={week.label} className={...}>
-  <ScorecardWeekDropZone
-    weekStartDate={weekDate}
-    weekLabel={week.label}
-    onFileDrop={handleWeekFileDrop}
-    onReimport={handleWeekReimport}
-    importLog={weekImportLogs[weekDate]}
-  >
-    <div>...</div>
-  </ScorecardWeekDropZone>
-</TableHead>
+export interface Resource {
+  // ... existing fields
+  store_group_id: string | null;
+  store_groups?: { name: string } | null;
+}
 ```
 
-### 3. Add Week-Specific Import Handler
-Create new handler in `ScorecardGrid.tsx`:
+### 2. Update ResourceManagementDialog
+**File: `src/components/resources/ResourceManagementDialog.tsx`**
 
-```typescript
-const handleWeekFileDrop = useCallback((
-  result: CSRParseResult, 
-  fileName: string, 
-  weekStartDate: string, 
-  file: File
-) => {
-  // Set week context instead of month
-  setDroppedParseResult(result);
-  setDroppedFileName(fileName);
-  setDroppedFile(file);
-  setImportWeekStartDate(weekStartDate); // New state
-  setImportPreviewOpen(true);
-}, []);
+- Accept `storeGroups` prop (list of available groups)
+- Add state for `storeGroupId`
+- Add a "Store Group" dropdown selector (similar to Department selector)
+- Include `store_group_id` in the save payload
+- Pre-populate when editing existing resource
+
+New UI element (placed after Department selector):
+```
+Store Group (optional)
+[All Groups ▾]
 ```
 
-### 4. Update Import Preview Dialog
-Modify `ScorecardImportPreviewDialog.tsx` to handle both monthly and weekly imports:
-- Accept optional `weekStartDate` prop
-- When `weekStartDate` is provided, save entries with `week_start_date` instead of `month`
-- Update the upsert conflict key to `kpi_id,week_start_date`
+### 3. Update Resources.tsx (User View)
+**File: `src/pages/Resources.tsx`**
 
-### 5. Track Weekly Import Logs
-Add state and fetching for week-specific import logs:
+- Update the query to include `store_group_id` and join `store_groups`
+- Display group badge on resource cards (optional enhancement)
 
-```typescript
-const [weekImportLogs, setWeekImportLogs] = useState<{ [weekDate: string]: ScorecardImportLog }>({});
-```
+### 4. Update AdminResources.tsx (Admin View)
+**File: `src/pages/AdminResources.tsx`**
 
-Query `scorecard_import_logs` filtering by week identifiers when in weekly mode.
+- Fetch store groups list
+- Pass `storeGroups` prop to ResourceManagementDialog
+- Add "Group" column to the admin table
+- Update query to include `store_group_id` and join `store_groups`
 
-### 6. Storage Considerations
-Update the import log storage to differentiate between monthly and weekly imports:
-- Add `import_type` field or use `month` vs `week_start_date` to differentiate
-- Store week imports with `week_start_date` identifier
+## User Experience
+
+### For Super Admins (Creating/Editing Resources):
+1. Open resource management dialog
+2. See new "Store Group" dropdown after Department
+3. Select "All Groups" (default, visible to everyone) or a specific group
+4. Save - resource is now group-restricted
+
+### For Regular Users (Viewing Resources):
+1. RLS policy automatically filters resources
+2. See only resources where `store_group_id IS NULL` OR matches their group
+3. Optionally see a badge indicating the resource is group-specific
+
+## Technical Notes
+
+1. **RLS Already Working**: The policy `(store_group_id IS NULL) OR (store_group_id = get_current_user_store_group())` handles filtering automatically
+2. **No Database Changes**: The `store_group_id` column already exists
+3. **Super Admin Bypass**: Super admins have a separate policy allowing full access to all resources
+4. **Backward Compatible**: Existing resources have `store_group_id = NULL`, so they remain visible to all users
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/scorecard/ScorecardWeekDropZone.tsx` | **New file** - Week-specific drop zone component |
-| `src/components/scorecard/ScorecardGrid.tsx` | Wrap weekly headers with drop zones, add week import handlers and state |
-| `src/components/scorecard/ScorecardImportPreviewDialog.tsx` | Support `weekStartDate` prop for weekly imports |
-| `src/components/scorecard/ScorecardMonthDropZone.tsx` | Extract shared logic or keep separate (can decide during implementation) |
-
-## Technical Notes
-
-1. **Same Parser**: The Excel file format is identical; only the target period changes
-2. **Entry Type**: Weekly imports will set `entry_type: 'weekly'` in scorecard_entries
-3. **Date Key**: Weekly entries use `week_start_date` (Monday of the week) as the period key
-4. **Import Logs**: Will need to query by week dates rather than month identifiers when loading logs
-5. **Re-import**: Same re-import functionality as monthly - download file from storage, re-parse, show preview
-
-## User Experience
-- Drag Excel file onto any week column header in weekly view
-- See "Drop to import" overlay (same as monthly)
-- Preview dialog shows parsed advisors
-- Import saves to `scorecard_entries` with `week_start_date` and `entry_type: 'weekly'`
-- Green/amber indicator appears on week header after successful import
-- Click indicator to view import details or re-import
+| `src/components/resources/ResourceCard.tsx` | Add `store_group_id` and `store_groups` to interface |
+| `src/components/resources/ResourceManagementDialog.tsx` | Add store group selector and save logic |
+| `src/pages/Resources.tsx` | Update query to include store group data |
+| `src/pages/AdminResources.tsx` | Fetch groups, pass to dialog, add table column |
