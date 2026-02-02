@@ -17,7 +17,7 @@ interface ResizableTableHeaderProps {
   showActions: boolean;
 }
 
-const MIN_WIDTH = 60;
+const MIN_WIDTH = 40;
 const DEFAULT_WIDTH = 150;
 
 export function ResizableTableHeader({
