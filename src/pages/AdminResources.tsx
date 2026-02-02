@@ -70,6 +70,7 @@ const CATEGORY_LABELS: Record<ResourceCategory, string> = {
   best_practices: 'Best Practices',
   processes: 'Processes',
   reports: 'Reports',
+  branding: 'Branding',
 };
 
 const AdminResources = () => {

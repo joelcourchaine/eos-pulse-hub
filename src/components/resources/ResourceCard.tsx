@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 import { getThumbnailSrc } from "./googleDrive";
 
 export type ResourceType = 'google_doc' | 'spreadsheet' | 'powerpoint' | 'pdf' | 'weblink' | 'video';
-export type ResourceCategory = 'training' | 'templates' | 'guides' | 'best_practices' | 'processes' | 'reports';
+export type ResourceCategory = 'training' | 'templates' | 'guides' | 'best_practices' | 'processes' | 'reports' | 'branding';
 
 export interface Resource {
   id: string;
@@ -51,6 +51,7 @@ const CATEGORY_LABELS: Record<ResourceCategory, string> = {
   best_practices: 'Best Practices',
   processes: 'Processes',
   reports: 'Reports',
+  branding: 'Branding',
 };
 
 interface ResourceCardProps {

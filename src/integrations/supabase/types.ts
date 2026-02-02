@@ -3428,6 +3428,7 @@ export type Database = {
         | "best_practices"
         | "processes"
         | "reports"
+        | "branding"
       resource_type:
         | "google_doc"
         | "spreadsheet"
@@ -3587,6 +3588,7 @@ export const Constants = {
         "best_practices",
         "processes",
         "reports",
+        "branding",
       ],
       resource_type: [
         "google_doc",
