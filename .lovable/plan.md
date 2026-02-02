@@ -1,58 +1,29 @@
 
-# Fix Resource Tag Search
+# Fix Column Minimum Width Constraint
 
 ## Problem
-When you add a tag like "non-negotiable" to a resource, searching for that term returns 0 results because the current search only queries:
-- `title`
-- `description`  
-- `searchable_content`
-
-Tags are stored as a text array (`tags text[]`) and are not included in the search.
+The "Customer Last Name" column cannot be resized smaller than 60px because:
+1. While `ResizableTableHeader.tsx` allows resizing down to 40px
+2. The table cells in `Top10ItemRow.tsx` have `minWidth: '60px'` hardcoded in the inline style
 
 ## Solution
-Add tag searching to the resource query by including the `tags` column in the search filter. For PostgreSQL text arrays, we'll convert the array to a string for partial matching using a custom approach.
+Update `Top10ItemRow.tsx` to use the same 40px minimum width that the header uses.
 
-## Technical Implementation
+## Changes Required
 
-### File: `src/pages/Resources.tsx`
-
-**Current search logic (line 87-89):**
+### File: `src/components/top-10/Top10ItemRow.tsx`
+**Line 280** - Change the inline style from:
 ```typescript
-query = query.or(`title.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,searchable_content.ilike.%${searchQuery}%`);
+style={colWidth ? { width: `${colWidth}px`, minWidth: '60px' } : undefined}
+```
+to:
+```typescript
+style={colWidth ? { width: `${colWidth}px`, minWidth: '40px' } : undefined}
 ```
 
-**Updated search logic:**
-Since Supabase/PostgREST doesn't support `ilike` directly on array columns, we have two options:
+This single change will allow columns to shrink to 40px, matching the header resize limit and giving you more flexibility to make "Customer Last Name" narrower and "Status" wider.
 
-**Option A (Recommended):** Fetch all resources and filter client-side for tags
-- Slightly less efficient but simplest to implement
-- Search tags in JavaScript after fetching results that match other criteria
-
-**Option B:** Create a database function or modify how data is saved
-- Add tags to `searchable_content` when saving a resource
-- Requires updating the ResourceManagementDialog
-
-### Recommended Approach: Hybrid Search
-1. Keep the existing database query for title/description/searchable_content
-2. If no results found OR to ensure tag matches, also do client-side filtering on tags
-3. Combine results
-
-**Changes:**
-```typescript
-// After database query, also filter for tag matches
-if (searchQuery) {
-  const lowerQuery = searchQuery.toLowerCase();
-  // Filter to include resources where tags contain the search term
-  const filtered = data.filter(resource => 
-    resource.title?.toLowerCase().includes(lowerQuery) ||
-    resource.description?.toLowerCase().includes(lowerQuery) ||
-    resource.tags?.some(tag => tag.toLowerCase().includes(lowerQuery))
-  );
-}
-```
-
-## Result
-After this fix, searching "non-negotiable" will find any resource that has:
-- "non-negotiable" in the title
-- "non-negotiable" in the description
-- "non-negotiable" as a tag (partial match supported)
+## Technical Note
+- The 40px minimum ensures column headers remain somewhat readable
+- Text will truncate with ellipsis as columns get narrower
+- Both header and cells will now respect the same minimum width
