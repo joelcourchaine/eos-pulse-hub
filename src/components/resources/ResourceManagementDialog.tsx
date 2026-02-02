@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Resource, ResourceType, ResourceCategory } from "./ResourceCard";
 import { normalizeGoogleDriveImageUrl } from "./googleDrive";
+import { ThumbnailDropZone } from "./ThumbnailDropZone";
 
 interface DepartmentType {
   id: string;
@@ -258,15 +259,23 @@ export const ResourceManagementDialog = ({
             />
           </div>
 
-          {/* Thumbnail URL */}
+          {/* Thumbnail */}
           <div className="space-y-2">
-            <Label htmlFor="thumbnail">Thumbnail URL (optional)</Label>
+            <Label>Thumbnail (optional)</Label>
+            <ThumbnailDropZone
+              thumbnailUrl={thumbnailUrl}
+              onThumbnailChange={setThumbnailUrl}
+            />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>— or paste URL —</span>
+            </div>
             <Input
               id="thumbnail"
               type="url"
               value={thumbnailUrl}
               onChange={(e) => setThumbnailUrl(e.target.value)}
-              placeholder="https://... (screenshot or preview image)"
+              placeholder="https://... (Google Drive, external URL)"
+              className="text-sm"
             />
           </div>
 
