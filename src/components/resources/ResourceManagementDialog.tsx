@@ -29,11 +29,17 @@ interface DepartmentType {
   name: string;
 }
 
+interface StoreGroup {
+  id: string;
+  name: string;
+}
+
 interface ResourceManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   resource?: Resource | null;
   departmentTypes: DepartmentType[];
+  storeGroups?: StoreGroup[];
   onSuccess: () => void;
 }
 
@@ -60,6 +66,7 @@ export const ResourceManagementDialog = ({
   onOpenChange,
   resource,
   departmentTypes,
+  storeGroups = [],
   onSuccess,
 }: ResourceManagementDialogProps) => {
   const [title, setTitle] = useState("");
@@ -69,6 +76,7 @@ export const ResourceManagementDialog = ({
   const [url, setUrl] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [departmentTypeId, setDepartmentTypeId] = useState<string | null>(null);
+  const [storeGroupId, setStoreGroupId] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [searchableContent, setSearchableContent] = useState("");
@@ -85,6 +93,7 @@ export const ResourceManagementDialog = ({
       setUrl(resource.url || "");
       setThumbnailUrl(resource.thumbnail_url || "");
       setDepartmentTypeId(resource.department_type_id);
+      setStoreGroupId(resource.store_group_id);
       setTags(resource.tags || []);
     } else {
       resetForm();
@@ -99,6 +108,7 @@ export const ResourceManagementDialog = ({
     setUrl("");
     setThumbnailUrl("");
     setDepartmentTypeId(null);
+    setStoreGroupId(null);
     setTags([]);
     setTagInput("");
     setSearchableContent("");
@@ -136,6 +146,7 @@ export const ResourceManagementDialog = ({
         url: url.trim(),
         thumbnail_url: normalizedThumb,
         department_type_id: departmentTypeId,
+        store_group_id: storeGroupId,
         tags,
         searchable_content: searchableContent.trim() || null,
         created_by: user?.id,
@@ -279,6 +290,32 @@ export const ResourceManagementDialog = ({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Store Group */}
+          {storeGroups.length > 0 && (
+            <div className="space-y-2">
+              <Label>Store Group (optional)</Label>
+              <Select 
+                value={storeGroupId || "all"} 
+                onValueChange={(v) => setStoreGroupId(v === "all" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All groups" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Groups</SelectItem>
+                  {storeGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Restrict this resource to users in a specific group.
+              </p>
+            </div>
+          )}
 
           {/* Tags */}
           <div className="space-y-2">

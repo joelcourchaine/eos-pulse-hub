@@ -66,8 +66,10 @@ const Resources = () => {
           category,
           tags,
           department_type_id,
+          store_group_id,
           view_count,
-          department_types (name)
+          department_types (name),
+          store_groups (name)
         `)
         .eq("is_active", true)
         .order("created_at", { ascending: false });
