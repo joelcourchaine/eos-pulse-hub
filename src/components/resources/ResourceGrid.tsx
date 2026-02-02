@@ -8,9 +8,10 @@ interface ResourceGridProps {
   onEditResource?: (resource: Resource) => void;
   canEdit?: boolean;
   searchQuery?: string;
+  currentUserId?: string;
 }
 
-export const ResourceGrid = ({ resources, isLoading, onViewResource, onEditResource, canEdit, searchQuery }: ResourceGridProps) => {
+export const ResourceGrid = ({ resources, isLoading, onViewResource, onEditResource, canEdit, searchQuery, currentUserId }: ResourceGridProps) => {
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -62,6 +63,7 @@ export const ResourceGrid = ({ resources, isLoading, onViewResource, onEditResou
           onView={onViewResource}
           onEdit={onEditResource}
           canEdit={canEdit}
+          currentUserId={currentUserId}
         />
       ))}
     </div>

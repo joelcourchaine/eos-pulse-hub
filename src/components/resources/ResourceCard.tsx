@@ -32,6 +32,7 @@ export interface Resource {
   store_group_id: string | null;
   store_id: string | null;
   view_count: number;
+  created_by: string | null;
   department_types?: { name: string } | null;
   store_groups?: { name: string } | null;
   stores?: { name: string } | null;
@@ -61,12 +62,16 @@ interface ResourceCardProps {
   onView: (resource: Resource) => void;
   onEdit?: (resource: Resource) => void;
   canEdit?: boolean;
+  currentUserId?: string;
 }
 
-export const ResourceCard = ({ resource, onView, onEdit, canEdit }: ResourceCardProps) => {
+export const ResourceCard = ({ resource, onView, onEdit, canEdit, currentUserId }: ResourceCardProps) => {
   const typeConfig = RESOURCE_TYPE_CONFIG[resource.resource_type];
   const TypeIcon = typeConfig.icon;
   const thumbnailSrc = getThumbnailSrc(resource.thumbnail_url);
+  
+  // User can edit if they're a super admin OR if they created this resource
+  const userCanEdit = canEdit || (currentUserId && resource.created_by === currentUserId);
 
   return (
     <Card className="group overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-[1.02] hover:border-primary/30">
@@ -88,8 +93,8 @@ export const ResourceCard = ({ resource, onView, onEdit, canEdit }: ResourceCard
           <TypeIcon className="h-3 w-3 mr-1" />
           {typeConfig.label}
         </Badge>
-        {/* Edit button for super admins */}
-        {canEdit && onEdit && (
+        {/* Edit button for super admins or resource owner */}
+        {userCanEdit && onEdit && (
           <Button
             size="icon"
             variant="secondary"

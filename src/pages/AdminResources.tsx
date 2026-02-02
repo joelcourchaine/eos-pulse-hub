@@ -147,6 +147,7 @@ const AdminResources = () => {
           view_count,
           is_active,
           created_at,
+          created_by,
           department_types (name),
           store_groups (name),
           stores (name)

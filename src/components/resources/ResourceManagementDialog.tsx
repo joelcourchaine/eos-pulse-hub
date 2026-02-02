@@ -49,6 +49,10 @@ interface ResourceManagementDialogProps {
   storeGroups?: StoreGroup[];
   stores?: Store[];
   onSuccess: () => void;
+  // For regular users - pre-fill and lock store selection
+  userStoreId?: string | null;
+  userStoreGroupId?: string | null;
+  isSuperAdmin?: boolean;
 }
 
 const RESOURCE_TYPES: { value: ResourceType; label: string }[] = [
@@ -78,6 +82,9 @@ export const ResourceManagementDialog = ({
   storeGroups = [],
   stores = [],
   onSuccess,
+  userStoreId,
+  userStoreGroupId,
+  isSuperAdmin = false,
 }: ResourceManagementDialogProps) => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -114,8 +121,13 @@ export const ResourceManagementDialog = ({
       setTags(resource.tags || []);
     } else {
       resetForm();
+      // For regular users creating a new resource, pre-fill their store
+      if (!isSuperAdmin && userStoreId && userStoreGroupId) {
+        setStoreId(userStoreId);
+        setStoreGroupId(userStoreGroupId);
+      }
     }
-  }, [resource, open]);
+  }, [resource, open, isSuperAdmin, userStoreId, userStoreGroupId]);
 
   const resetForm = () => {
     setTitle("");
@@ -318,10 +330,10 @@ export const ResourceManagementDialog = ({
             </Select>
           </div>
 
-          {/* Store Group */}
+          {/* Store Group - Only super admins can change */}
           {storeGroups.length > 0 && (
             <div className="space-y-2">
-              <Label>Store Group (optional)</Label>
+              <Label>Store Group {!isSuperAdmin && "(locked to your store)"}</Label>
               <Select 
                 value={storeGroupId || "all"} 
                 onValueChange={(v) => {
@@ -330,6 +342,7 @@ export const ResourceManagementDialog = ({
                   // Clear store when group changes
                   setStoreId(null);
                 }}
+                disabled={!isSuperAdmin}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All groups" />
@@ -343,19 +356,22 @@ export const ResourceManagementDialog = ({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Restrict this resource to users in a specific group.
-              </p>
+              {isSuperAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Restrict this resource to users in a specific group.
+                </p>
+              )}
             </div>
           )}
 
-          {/* Store (only shown when a group is selected) */}
+          {/* Store - Only super admins can change */}
           {storeGroupId && filteredStores.length > 0 && (
             <div className="space-y-2">
-              <Label>Specific Store (optional)</Label>
+              <Label>Specific Store {!isSuperAdmin && "(locked to your store)"}</Label>
               <Select 
                 value={storeId || "all"} 
                 onValueChange={(v) => setStoreId(v === "all" ? null : v)}
+                disabled={!isSuperAdmin}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All stores in group" />
@@ -369,9 +385,11 @@ export const ResourceManagementDialog = ({
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Restrict to a specific store within the group.
-              </p>
+              {isSuperAdmin && (
+                <p className="text-xs text-muted-foreground">
+                  Restrict to a specific store within the group.
+                </p>
+              )}
             </div>
           )}
 
