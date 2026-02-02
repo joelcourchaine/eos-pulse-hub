@@ -277,7 +277,7 @@ export function Top10ItemRow({
           <ContextMenuTrigger asChild>
             <TableCell 
               className={cn("p-1", !colWidth && isNarrowColumn(col) && "w-[9ch]")}
-              style={colWidth ? { width: `${colWidth}px`, minWidth: '60px' } : undefined}
+              style={colWidth ? { width: `${colWidth}px`, minWidth: '40px' } : undefined}
             >
               {canEdit ? (
                 isDateColumn(col.key) ? (
