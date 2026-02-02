@@ -1,32 +1,43 @@
 
-# Fix Resource Card to Display Square Thumbnails Without Cropping
+# Fix Thumbnail Proxy Function Deployment
 
-## Problem
-The resource card thumbnail area is a fixed 160px height rectangle. Square images (like your 1024x1024px meeting illustration) get cropped because the CSS uses `object-cover`.
+## Problem Identified
+The `thumbnail-proxy` edge function exists in the codebase (`supabase/functions/thumbnail-proxy/index.ts`) but is **not registered in `supabase/config.toml`**. This means the function isn't being deployed or recognized by the backend, causing a 404 error when your ResourceCard tries to fetch thumbnails via the proxy.
+
+This explains why:
+- Your Google Drive thumbnail URL is stored correctly in the database
+- The frontend is trying to use the proxy
+- But the proxy returns 404 → broken image appears
 
 ## Solution
-Change the image CSS from `object-cover` to `object-contain` so the entire image is visible within the container.
 
-## Changes Required
+### Step 1: Add thumbnail-proxy to config.toml
 
-**File: `src/components/resources/ResourceCard.tsx` (Line 74)**
+Add the following configuration to enable the edge function:
 
-Change:
-```tsx
-className="w-full h-full object-cover transition-transform ..."
+```toml
+[functions.thumbnail-proxy]
+verify_jwt = false
 ```
 
-To:
-```tsx
-className="w-full h-full object-contain transition-transform ..."
-```
+Setting `verify_jwt = false` is correct here because this function just proxies public images and doesn't need authentication.
 
-## Result
-- Your square image will display fully without cropping
-- The gradient background will show on the sides (if the image doesn't fill the horizontal space)
-- All existing thumbnails will also benefit from this change
+### Step 2: Redeploy the function
+
+After updating the config, the function will be properly deployed and accessible.
+
+## Expected Outcome
+
+Once fixed:
+1. The thumbnail-proxy function will respond at `/functions/v1/thumbnail-proxy?id=...`
+2. It will fetch the Google Drive image and serve it to your ResourceCard
+3. Your thumbnails will display properly (assuming the Drive file is shared publicly)
+
+## Important Note: Google Drive Sharing
+
+For the thumbnail to work, make sure your Google Drive image has sharing set to **"Anyone with the link can view"**. If it's restricted, even the proxy won't be able to fetch it.
 
 ## Technical Details
-- `object-cover`: Fills container, crops excess (current behavior)
-- `object-contain`: Shows entire image, letterboxes if needed (proposed)
-- Container height remains `h-40` (160px)
+- Function location: `supabase/functions/thumbnail-proxy/index.ts`
+- Config file: `supabase/config.toml`
+- The function already has proper CORS headers and error handling
