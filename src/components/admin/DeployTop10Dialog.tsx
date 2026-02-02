@@ -26,6 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 interface Column {
   key: string;
   label: string;
+  width?: number;
 }
 
 interface Template {

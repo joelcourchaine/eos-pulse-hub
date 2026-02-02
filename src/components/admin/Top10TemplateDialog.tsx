@@ -26,6 +26,7 @@ import { Plus, Trash2, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 interface Column {
   key: string;
   label: string;
+  width?: number;
 }
 
 interface Template {

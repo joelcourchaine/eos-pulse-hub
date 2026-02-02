@@ -19,12 +19,14 @@ import { cn } from "@/lib/utils";
 interface ColumnDefinition {
   key: string;
   label: string;
+  width?: number;
 }
 
 interface Top10ItemRowProps {
   rank: number;
   data: Record<string, string>;
   columns: ColumnDefinition[];
+  columnWidths?: Record<string, number>;
   onUpdate: (data: Record<string, string>) => void;
   onDelete: () => void;
   canEdit: boolean;
@@ -124,6 +126,7 @@ export function Top10ItemRow({
   rank,
   data,
   columns,
+  columnWidths = {},
   onUpdate,
   onDelete,
   canEdit,
@@ -267,10 +270,15 @@ export function Top10ItemRow({
       <TableCell className="w-12 text-center font-medium text-muted-foreground">
         {rank}
       </TableCell>
-      {columns.map((col) => (
+      {columns.map((col) => {
+        const colWidth = columnWidths[col.key] || col.width;
+        return (
         <ContextMenu key={col.key}>
           <ContextMenuTrigger asChild>
-            <TableCell className={cn("p-1", isNarrowColumn(col) && "w-[9ch]")}>
+            <TableCell 
+              className={cn("p-1", !colWidth && isNarrowColumn(col) && "w-[9ch]")}
+              style={colWidth ? { width: `${colWidth}px`, minWidth: '60px' } : undefined}
+            >
               {canEdit ? (
                 isDateColumn(col.key) ? (
                   <Popover>
@@ -341,7 +349,8 @@ export function Top10ItemRow({
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-      ))}
+        );
+      })}
       {canEdit && (
         <TableCell className="w-10 p-1 relative overflow-visible">
           <div className="relative flex items-center justify-center">
