@@ -1947,6 +1947,7 @@ export type Database = {
           resource_type: Database["public"]["Enums"]["resource_type"]
           searchable_content: string | null
           store_group_id: string | null
+          store_id: string | null
           tags: string[] | null
           thumbnail_url: string | null
           title: string
@@ -1966,6 +1967,7 @@ export type Database = {
           resource_type: Database["public"]["Enums"]["resource_type"]
           searchable_content?: string | null
           store_group_id?: string | null
+          store_id?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
           title: string
@@ -1985,6 +1987,7 @@ export type Database = {
           resource_type?: Database["public"]["Enums"]["resource_type"]
           searchable_content?: string | null
           store_group_id?: string | null
+          store_id?: string | null
           tags?: string[] | null
           thumbnail_url?: string | null
           title?: string
@@ -2005,6 +2008,13 @@ export type Database = {
             columns: ["store_group_id"]
             isOneToOne: false
             referencedRelation: "store_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resources_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
             referencedColumns: ["id"]
           },
         ]
@@ -3327,6 +3337,7 @@ export type Database = {
         Returns: string
       }
       generate_auth_token: { Args: never; Returns: string }
+      get_current_user_store: { Args: never; Returns: string }
       get_current_user_store_group: { Args: never; Returns: string }
       get_profiles_basic: {
         Args: never

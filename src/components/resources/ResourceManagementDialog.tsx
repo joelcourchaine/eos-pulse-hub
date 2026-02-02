@@ -35,12 +35,19 @@ interface StoreGroup {
   name: string;
 }
 
+interface Store {
+  id: string;
+  name: string;
+  group_id: string | null;
+}
+
 interface ResourceManagementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   resource?: Resource | null;
   departmentTypes: DepartmentType[];
   storeGroups?: StoreGroup[];
+  stores?: Store[];
   onSuccess: () => void;
 }
 
@@ -69,6 +76,7 @@ export const ResourceManagementDialog = ({
   resource,
   departmentTypes,
   storeGroups = [],
+  stores = [],
   onSuccess,
 }: ResourceManagementDialogProps) => {
   const [title, setTitle] = useState("");
@@ -79,12 +87,18 @@ export const ResourceManagementDialog = ({
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [departmentTypeId, setDepartmentTypeId] = useState<string | null>(null);
   const [storeGroupId, setStoreGroupId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [searchableContent, setSearchableContent] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isEditing = !!resource;
+
+  // Filter stores based on selected store group
+  const filteredStores = storeGroupId 
+    ? stores.filter(s => s.group_id === storeGroupId)
+    : [];
 
   useEffect(() => {
     if (resource) {
@@ -96,6 +110,7 @@ export const ResourceManagementDialog = ({
       setThumbnailUrl(resource.thumbnail_url || "");
       setDepartmentTypeId(resource.department_type_id);
       setStoreGroupId(resource.store_group_id);
+      setStoreId(resource.store_id);
       setTags(resource.tags || []);
     } else {
       resetForm();
@@ -111,6 +126,7 @@ export const ResourceManagementDialog = ({
     setThumbnailUrl("");
     setDepartmentTypeId(null);
     setStoreGroupId(null);
+    setStoreId(null);
     setTags([]);
     setTagInput("");
     setSearchableContent("");
@@ -149,6 +165,7 @@ export const ResourceManagementDialog = ({
         thumbnail_url: normalizedThumb,
         department_type_id: departmentTypeId,
         store_group_id: storeGroupId,
+        store_id: storeId,
         tags,
         searchable_content: searchableContent.trim() || null,
         created_by: user?.id,
@@ -307,7 +324,12 @@ export const ResourceManagementDialog = ({
               <Label>Store Group (optional)</Label>
               <Select 
                 value={storeGroupId || "all"} 
-                onValueChange={(v) => setStoreGroupId(v === "all" ? null : v)}
+                onValueChange={(v) => {
+                  const newGroupId = v === "all" ? null : v;
+                  setStoreGroupId(newGroupId);
+                  // Clear store when group changes
+                  setStoreId(null);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All groups" />
@@ -323,6 +345,32 @@ export const ResourceManagementDialog = ({
               </Select>
               <p className="text-xs text-muted-foreground">
                 Restrict this resource to users in a specific group.
+              </p>
+            </div>
+          )}
+
+          {/* Store (only shown when a group is selected) */}
+          {storeGroupId && filteredStores.length > 0 && (
+            <div className="space-y-2">
+              <Label>Specific Store (optional)</Label>
+              <Select 
+                value={storeId || "all"} 
+                onValueChange={(v) => setStoreId(v === "all" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All stores in group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Stores in Group</SelectItem>
+                  {filteredStores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Restrict to a specific store within the group.
               </p>
             </div>
           )}
