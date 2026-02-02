@@ -1579,12 +1579,25 @@ setStoreUsers(data || []);
           delete newEntries[key];
           return newEntries;
         });
-        // Also clear localValues so UI shows empty
-        setLocalValues(prev => {
-          const newLocalValues = { ...prev };
-          delete newLocalValues[key];
-          return newLocalValues;
-        });
+        // Keep an explicit empty local value so the UI doesn't fall back to cached/preceding data
+        setLocalValues(prev => ({
+          ...prev,
+          [key]: "",
+        }));
+
+        // In monthly views, cells may fall back to precedingQuartersData; clear that too for this cell.
+        if (isMonthly && monthId) {
+          const [year, month] = monthId.split("-");
+          const monthNumber = Number(month);
+          if (year && Number.isFinite(monthNumber)) {
+            const mKey = `${kpiId}-M${monthNumber}-${year}`;
+            setPrecedingQuartersData(prev => {
+              const next = { ...prev };
+              delete next[mKey];
+              return next;
+            });
+          }
+        }
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
