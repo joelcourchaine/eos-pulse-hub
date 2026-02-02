@@ -29,8 +29,10 @@ export interface Resource {
   category: ResourceCategory;
   tags: string[];
   department_type_id: string | null;
+  store_group_id: string | null;
   view_count: number;
   department_types?: { name: string } | null;
+  store_groups?: { name: string } | null;
 }
 
 const RESOURCE_TYPE_CONFIG: Record<ResourceType, { icon: typeof FileText; label: string; className: string }> = {

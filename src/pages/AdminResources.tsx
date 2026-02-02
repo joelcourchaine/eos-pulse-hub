@@ -49,6 +49,11 @@ interface DepartmentType {
   name: string;
 }
 
+interface StoreGroup {
+  id: string;
+  name: string;
+}
+
 const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
   google_doc: 'Google Doc',
   spreadsheet: 'Spreadsheet',
@@ -71,6 +76,7 @@ const AdminResources = () => {
   const navigate = useNavigate();
   const [resources, setResources] = useState<(Resource & { is_active: boolean })[]>([]);
   const [departmentTypes, setDepartmentTypes] = useState<DepartmentType[]>([]);
+  const [storeGroups, setStoreGroups] = useState<StoreGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -80,8 +86,18 @@ const AdminResources = () => {
 
   useEffect(() => {
     fetchDepartmentTypes();
+    fetchStoreGroups();
     fetchResources();
   }, []);
+
+  const fetchStoreGroups = async () => {
+    const { data } = await supabase
+      .from("store_groups")
+      .select("id, name")
+      .order("name");
+    
+    if (data) setStoreGroups(data);
+  };
 
   const fetchDepartmentTypes = async () => {
     const { data } = await supabase
@@ -108,10 +124,12 @@ const AdminResources = () => {
           category,
           tags,
           department_type_id,
+          store_group_id,
           view_count,
           is_active,
           created_at,
-          department_types (name)
+          department_types (name),
+          store_groups (name)
         `)
         .order("created_at", { ascending: false });
 
@@ -222,6 +240,7 @@ const AdminResources = () => {
                   <TableHead>Type</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>Group</TableHead>
                   <TableHead className="text-center">Views</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="w-[70px]"></TableHead>
@@ -230,7 +249,7 @@ const AdminResources = () => {
               <TableBody>
                 {filteredResources.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No resources found
                     </TableCell>
                   </TableRow>
@@ -257,6 +276,11 @@ const AdminResources = () => {
                       </TableCell>
                       <TableCell>
                         {resource.department_types?.name || (
+                          <span className="text-muted-foreground">All</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {resource.store_groups?.name || (
                           <span className="text-muted-foreground">All</span>
                         )}
                       </TableCell>
@@ -319,6 +343,7 @@ const AdminResources = () => {
         onOpenChange={setDialogOpen}
         resource={selectedResource}
         departmentTypes={departmentTypes}
+        storeGroups={storeGroups}
         onSuccess={fetchResources}
       />
 
