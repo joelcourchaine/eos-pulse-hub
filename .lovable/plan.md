@@ -1,87 +1,98 @@
 
 
-# Add Store-Level Resource Filtering
+# Allow Users to Add Resources to Their Own Store
 
 ## Overview
-Extend the resources system to allow restricting resources to specific stores, in addition to the existing store group filtering. This provides finer-grained control over resource visibility.
+Enable regular users to add, edit, and delete their own resources, restricted to their assigned store. This empowers users to share helpful materials with their colleagues while maintaining proper security boundaries.
 
-## Current Setup
-- Resources can be assigned to a **Store Group** (or left as "All Groups")
-- Users see resources for their store group or global resources
-- No ability to restrict a resource to just one specific store
+## Current State
+- Only super admins can create/edit/delete resources
+- Regular users can only view resources
+- No "Add Resource" button exists on the My Resources page
+- The `resources` table already has a `created_by` column tracking who created each resource
 
-## Proposed Access Hierarchy
-```text
-┌─────────────────────────────────────────────┐
-│            Resource Visibility              │
-├─────────────────────────────────────────────┤
-│  store_group_id = NULL, store_id = NULL     │  → Everyone sees it
-│  store_group_id = X,    store_id = NULL     │  → Group X users see it
-│  store_group_id = X,    store_id = Y        │  → Only Store Y users see it
-└─────────────────────────────────────────────┘
-```
+## Proposed User Experience
 
-## Implementation Steps
+### My Resources Page Changes
+- Add an "Add Resource" button in the header (visible to all authenticated users)
+- Users can create resources that are automatically assigned to their store
+- Users see an edit/delete button only on resources they created
+- Super admins retain full access to all resources
+
+### Resource Ownership Rules
+| User Type | Can Create | Can Edit/Delete | Can View |
+|-----------|------------|-----------------|----------|
+| Regular User | ✅ Own store only | ✅ Own resources only | ✅ Their store/group resources |
+| Super Admin | ✅ Any store | ✅ Any resource | ✅ All resources |
+
+## Technical Implementation
 
 ### 1. Database Changes
 
-**Add `store_id` column to resources table:**
+**Update RLS Policies:**
 ```sql
-ALTER TABLE resources ADD COLUMN store_id uuid REFERENCES stores(id);
-```
+-- Allow users to INSERT resources for their own store
+CREATE POLICY "Users can create resources for their store" ON resources
+FOR INSERT WITH CHECK (
+  store_id = get_current_user_store() 
+  AND store_group_id = get_current_user_store_group()
+  AND created_by = auth.uid()
+);
 
-**Create a helper function for current user's store:**
-```sql
-CREATE OR REPLACE FUNCTION get_current_user_store()
-RETURNS uuid
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT store_id FROM profiles WHERE id = auth.uid() LIMIT 1
-$$;
-```
+-- Allow users to UPDATE their own resources
+CREATE POLICY "Users can update their own resources" ON resources
+FOR UPDATE USING (
+  created_by = auth.uid()
+);
 
-**Update RLS Policy for store-level filtering:**
-```sql
--- Drop and recreate the SELECT policy
-DROP POLICY IF EXISTS "Users can view active resources" ON resources;
-
-CREATE POLICY "Users can view active resources" ON resources
-FOR SELECT USING (
-  is_active = true
-  AND (store_group_id IS NULL OR store_group_id = get_current_user_store_group())
-  AND (store_id IS NULL OR store_id = get_current_user_store())
+-- Allow users to DELETE their own resources
+CREATE POLICY "Users can delete their own resources" ON resources
+FOR DELETE USING (
+  created_by = auth.uid()
 );
 ```
 
-### 2. Update Admin Resources Page
-- Fetch stores list alongside store groups
-- Pass stores to the management dialog
-- Add a "Store" filter column to the admin table
+### 2. Frontend Changes
 
-### 3. Update Resource Management Dialog
-- Add a "Store" dropdown (shown when a Store Group is selected)
-- Cascade: selecting a group filters the store dropdown to stores in that group
-- Allow "All Stores" option to make resource group-wide
+**Resources.tsx:**
+- Add "Add Resource" button in the header
+- Fetch current user's store info to pass to the dialog
+- Update `canEdit` logic to include resource ownership check
+- Track current user ID to compare with resource `created_by`
 
-### 4. Update Resource Card Type
-Add `store_id` and related store name to the Resource type interface.
+**ResourceCard.tsx:**
+- Accept additional prop for `currentUserId`
+- Show edit button if user is super admin OR if `created_by === currentUserId`
+
+**ResourceManagementDialog.tsx:**
+- When a regular user opens the dialog, pre-fill and lock the store/group to their assigned store
+- Only super admins can select different stores
+- Ensure `created_by` is set on insert
+
+### 3. Resource Type Update
+Add `created_by` to the Resource interface for ownership checks:
+```typescript
+export interface Resource {
+  // ... existing fields
+  created_by: string | null;
+}
+```
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| **Database Migration** | Add `store_id` column, helper function, update RLS |
-| `src/components/resources/ResourceManagementDialog.tsx` | Add store selector with cascading logic |
-| `src/pages/AdminResources.tsx` | Fetch stores, add Store column to table |
-| `src/components/resources/ResourceCard.tsx` | Add store type to interface |
+| **Database Migration** | Add INSERT/UPDATE/DELETE policies for user-owned resources |
+| `src/pages/Resources.tsx` | Add "Add Resource" button, fetch user store, update edit logic |
+| `src/components/resources/ResourceCard.tsx` | Show edit button for resource owner |
+| `src/components/resources/ResourceManagementDialog.tsx` | Lock store selection for regular users |
+| `src/components/resources/ResourceGrid.tsx` | Pass through `currentUserId` prop |
 
-## Security Note
-The RLS policy enforces both checks:
-- User's store group must match (or resource is global)
-- **AND** user's store must match (or resource is for all stores in group)
+## Security Enforcement
 
-This ensures a resource marked for "River City Ram" won't be visible to users at "Titanium Ford" even though both are in the same store group.
+The RLS policies ensure:
+1. Users can only create resources assigned to their own store
+2. Users can only edit/delete resources they created
+3. The `created_by` field must match the current user on insert
+4. Super admins retain full access through the existing "Super admins can manage resources" policy
 
