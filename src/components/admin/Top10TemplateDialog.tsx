@@ -114,21 +114,20 @@ export const Top10TemplateDialog = ({
           .eq("id", template.id);
         if (error) throw error;
 
-        // If title changed, update all deployed lists with the old title
-        if (oldTitle !== newTitle) {
-          const { error: syncError } = await supabase
-            .from("top_10_lists")
-            .update({ 
-              title: newTitle,
-              description: payload.description,
-              columns: payload.columns,
-            })
-            .eq("title", oldTitle);
-          
-          if (syncError) {
-            console.error("Failed to sync deployed lists:", syncError);
-            // Don't throw - template update succeeded
-          }
+        // Sync all deployed lists that match the old title (columns, description, title)
+        // This preserves all user data in items - only updates list structure
+        const { error: syncError } = await supabase
+          .from("top_10_lists")
+          .update({ 
+            title: newTitle,
+            description: payload.description,
+            columns: payload.columns,
+          })
+          .eq("title", oldTitle);
+        
+        if (syncError) {
+          console.error("Failed to sync deployed lists:", syncError);
+          // Don't throw - template update succeeded
         }
       } else {
         const { error } = await supabase
