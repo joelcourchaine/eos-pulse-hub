@@ -28,6 +28,7 @@ import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
 import { ScorecardMonthDropZone, ScorecardImportLog } from "./ScorecardMonthDropZone";
+import { ScorecardWeekDropZone, WeekImportLog } from "./ScorecardWeekDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
 import { StickyHScrollbar } from "./StickyHScrollbar";
@@ -312,7 +313,9 @@ const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [droppedFileName, setDroppedFileName] = useState<string>("");
   const [droppedFile, setDroppedFile] = useState<File | null>(null);
   const [importMonth, setImportMonth] = useState<string>("");
+  const [importWeekStartDate, setImportWeekStartDate] = useState<string | null>(null);
   const [importLogs, setImportLogs] = useState<{ [month: string]: ScorecardImportLog }>({});
+  const [weekImportLogs, setWeekImportLogs] = useState<{ [weekDate: string]: WeekImportLog }>({});
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
@@ -791,7 +794,7 @@ const loadData = async () => {
 setStoreUsers(data || []);
   };
 
-  // Load import logs for this department (most recent per month)
+  // Load import logs for this department (most recent per month and per week)
   const loadImportLogs = async () => {
     const { data, error } = await supabase
       .from("scorecard_import_logs")
@@ -804,25 +807,50 @@ setStoreUsers(data || []);
       return;
     }
 
-    // Keep only the most recent import per month
+    // Keep only the most recent import per period
+    // Monthly identifiers look like "2026-01", weekly look like "2026-01-06"
     const logsByMonth: { [month: string]: ScorecardImportLog } = {};
+    const logsByWeek: { [weekDate: string]: WeekImportLog } = {};
+    
     (data || []).forEach((log) => {
-      if (!logsByMonth[log.month]) {
-        logsByMonth[log.month] = {
-          id: log.id,
-          file_name: log.file_name,
-          month: log.month,
-          status: log.status,
-          created_at: log.created_at,
-          metrics_imported: log.metrics_imported as { count: number } | null,
-          user_mappings: log.user_mappings as Record<string, string> | null,
-          unmatched_users: log.unmatched_users as string[] | null,
-          warnings: log.warnings as string[] | null,
-          report_file_path: (log as any).report_file_path as string | null,
-        };
+      const identifier = log.month;
+      // Check if it's a weekly identifier (ISO date format: YYYY-MM-DD)
+      const isWeeklyLog = /^\d{4}-\d{2}-\d{2}$/.test(identifier);
+      
+      if (isWeeklyLog) {
+        if (!logsByWeek[identifier]) {
+          logsByWeek[identifier] = {
+            id: log.id,
+            file_name: log.file_name,
+            week_start_date: identifier,
+            status: log.status,
+            created_at: log.created_at,
+            metrics_imported: log.metrics_imported as { count: number } | null,
+            user_mappings: log.user_mappings as Record<string, string> | null,
+            unmatched_users: log.unmatched_users as string[] | null,
+            warnings: log.warnings as string[] | null,
+            report_file_path: (log as any).report_file_path as string | null,
+          };
+        }
+      } else {
+        if (!logsByMonth[identifier]) {
+          logsByMonth[identifier] = {
+            id: log.id,
+            file_name: log.file_name,
+            month: identifier,
+            status: log.status,
+            created_at: log.created_at,
+            metrics_imported: log.metrics_imported as { count: number } | null,
+            user_mappings: log.user_mappings as Record<string, string> | null,
+            unmatched_users: log.unmatched_users as string[] | null,
+            warnings: log.warnings as string[] | null,
+            report_file_path: (log as any).report_file_path as string | null,
+          };
+        }
       }
     });
     setImportLogs(logsByMonth);
+    setWeekImportLogs(logsByWeek);
   };
 
   const loadDynamicPresetKpis = async () => {
@@ -2509,11 +2537,27 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
     setDroppedFileName(fileName);
     setDroppedFile(file);
     setImportMonth(monthIdentifier);
+    setImportWeekStartDate(null); // Clear weekly import state
     setImportPreviewOpen(true);
     
     toast({
       title: "File parsed successfully",
       description: `Found ${result.advisors.length} advisors for ${monthIdentifier}`,
+    });
+  }, [toast]);
+
+  // Handler for week-specific file drop in Weekly view
+  const handleWeekFileDrop = useCallback((result: CSRParseResult, fileName: string, weekStartDate: string, file: File) => {
+    setDroppedParseResult(result);
+    setDroppedFileName(fileName);
+    setDroppedFile(file);
+    setImportMonth(""); // Clear monthly import state
+    setImportWeekStartDate(weekStartDate);
+    setImportPreviewOpen(true);
+    
+    toast({
+      title: "File parsed successfully",
+      description: `Found ${result.advisors.length} advisors for week of ${weekStartDate}`,
     });
   }, [toast]);
 
@@ -2548,6 +2592,53 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
       setDroppedFileName(fileName);
       setDroppedFile(file);
       setImportMonth(monthIdentifier);
+      setImportWeekStartDate(null); // Clear weekly import state
+      setImportPreviewOpen(true);
+
+      toast({
+        title: "Ready to re-import",
+        description: `Found ${result.advisors.length} advisors. Review and confirm to apply new KPI mappings.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Re-import failed",
+        description: error.message || "Failed to re-import file",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Handler for re-importing a previously imported weekly file
+  const handleWeekReimport = useCallback(async (filePath: string, fileName: string, weekStartDate: string) => {
+    try {
+      toast({
+        title: "Downloading file...",
+        description: "Fetching the original report for re-import",
+      });
+
+      // Download the file from storage
+      const { data, error } = await supabase.storage
+        .from("scorecard-imports")
+        .download(filePath);
+
+      if (error || !data) {
+        throw new Error(error?.message || "Failed to download file");
+      }
+
+      // Convert blob to File
+      const file = new File([data], fileName, { 
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+      });
+
+      // Parse the file
+      const result = await parseCSRProductivityReport(file);
+
+      // Open the import preview dialog
+      setDroppedParseResult(result);
+      setDroppedFileName(fileName);
+      setDroppedFile(file);
+      setImportMonth(""); // Clear monthly import state
+      setImportWeekStartDate(weekStartDate);
       setImportPreviewOpen(true);
 
       toast({
@@ -3222,22 +3313,31 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
                 <TableHead 
                   key={week.label} 
                   className={cn(
-                    "text-center min-w-[125px] max-w-[125px] text-xs py-[7.2px]",
+                    "text-center min-w-[125px] max-w-[125px] text-xs py-0",
                     isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                     isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent"
                   )}
                 >
-                  {isCurrentOrPast && (
-                    <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
-                      <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">{statusCounts.green}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">{statusCounts.yellow}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">{statusCounts.red}</span>
-                      <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">{statusCounts.gray}</span>
-                    </div>
-                  )}
-                  <div className="text-xs font-semibold">{week.label}</div>
-                  {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
-                  {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
+                  <ScorecardWeekDropZone
+                    weekStartDate={weekDate}
+                    weekLabel={week.label}
+                    onFileDrop={handleWeekFileDrop}
+                    onReimport={handleWeekReimport}
+                    className="w-full h-full py-[7.2px]"
+                    importLog={weekImportLogs[weekDate]}
+                  >
+                    {isCurrentOrPast && (
+                      <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
+                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">{statusCounts.green}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">{statusCounts.yellow}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">{statusCounts.red}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">{statusCounts.gray}</span>
+                      </div>
+                    )}
+                    <div className="text-xs font-semibold">{week.label}</div>
+                    {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
+                    {isPreviousWeek && <div className="text-[10px] text-accent-foreground font-semibold">Review</div>}
+                  </ScorecardWeekDropZone>
                 </TableHead>
               );
             }) : (
@@ -4565,6 +4665,7 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
               setDroppedParseResult(null);
               setDroppedFileName("");
               setDroppedFile(null);
+              setImportWeekStartDate(null);
             }
           }}
           parseResult={droppedParseResult}
@@ -4573,11 +4674,13 @@ const getMonthlyTarget = (weeklyTarget: number, targetDirection: "above" | "belo
           departmentId={departmentId}
           storeId={departmentStoreId}
           month={importMonth}
+          weekStartDate={importWeekStartDate || undefined}
           onImportSuccess={() => {
             setImportPreviewOpen(false);
             setDroppedParseResult(null);
             setDroppedFileName("");
             setDroppedFile(null);
+            setImportWeekStartDate(null);
             // Refresh scorecard data and import logs after import
             loadKPITargets().then(freshTargets => loadScorecardData(freshTargets));
             loadImportLogs();

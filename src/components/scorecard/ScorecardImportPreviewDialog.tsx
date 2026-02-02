@@ -27,6 +27,8 @@ interface ScorecardImportPreviewDialogProps {
   departmentId: string;
   storeId: string;
   month: string;
+  /** For weekly imports - ISO date string like "2026-01-06" */
+  weekStartDate?: string;
   onImportSuccess: () => void;
 }
 
@@ -47,6 +49,7 @@ export const ScorecardImportPreviewDialog = ({
   departmentId,
   storeId,
   month,
+  weekStartDate,
   onImportSuccess,
 }: ScorecardImportPreviewDialogProps) => {
   const [advisorMatches, setAdvisorMatches] = useState<AdvisorMatch[]>([]);
@@ -298,13 +301,18 @@ export const ScorecardImportPreviewDialog = ({
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
 
+      // Determine if this is a weekly or monthly import
+      const isWeeklyImport = !!weekStartDate;
+      const periodIdentifier = isWeeklyImport ? weekStartDate : month;
+      const entryType = isWeeklyImport ? "weekly" : "monthly";
+
       // Upload original report file (so it can be viewed/downloaded later)
       let reportFilePath: string | null = null;
       if (file) {
         const safeName = (file.name || fileName || "report.xlsx")
           .replace(/[^a-zA-Z0-9._-]+/g, "_")
           .slice(-120);
-        const storagePath = `${storeId}/${departmentId}/${month}/${Date.now()}_${safeName}`;
+        const storagePath = `${storeId}/${departmentId}/${periodIdentifier}/${Date.now()}_${safeName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("scorecard-imports")
@@ -329,13 +337,33 @@ export const ScorecardImportPreviewDialog = ({
         }
       }
 
-      // Prepare entries to upsert
-      const entriesToUpsert: {
+      // Prepare entries to upsert - structure depends on import type
+      const entriesToUpsert: Array<{
         kpi_id: string;
-        month: string;
+        month?: string;
+        week_start_date?: string;
         entry_type: string;
         actual_value: number;
-      }[] = [];
+      }> = [];
+
+      // Helper to create an entry with the correct period field
+      const createEntry = (kpiId: string, value: number) => {
+        if (isWeeklyImport) {
+          return {
+            kpi_id: kpiId,
+            week_start_date: periodIdentifier,
+            entry_type: entryType,
+            actual_value: value,
+          };
+        } else {
+          return {
+            kpi_id: kpiId,
+            month: periodIdentifier,
+            entry_type: entryType,
+            actual_value: value,
+          };
+        }
+      };
 
       // Check if we have universal Visual Mapper cell mappings
       const hasUniversalMappings = universalMappingTemplate.size > 0;
@@ -378,12 +406,7 @@ export const ScorecardImportPreviewDialog = ({
               }
               
               if (typeof value === 'number') {
-                entriesToUpsert.push({
-                  kpi_id: userKpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+                entriesToUpsert.push(createEntry(userKpi.id, value));
               }
             }
           }
@@ -439,12 +462,7 @@ export const ScorecardImportPreviewDialog = ({
               }
               
               if (typeof value === 'number') {
-                entriesToUpsert.push({
-                  kpi_id: userKpi.id,
-                  month,
-                  entry_type: "monthly",
-                  actual_value: value,
-                });
+                entriesToUpsert.push(createEntry(userKpi.id, value));
               }
             }
           }
@@ -459,12 +477,7 @@ export const ScorecardImportPreviewDialog = ({
               k.name.toLowerCase() === kpiName.toLowerCase() && !k.assigned_to
             );
             if (kpi) {
-              entriesToUpsert.push({
-                kpi_id: kpi.id,
-                month,
-                entry_type: "monthly",
-                actual_value: value,
-              });
+              entriesToUpsert.push(createEntry(kpi.id, value));
             }
           }
         }
@@ -477,12 +490,7 @@ export const ScorecardImportPreviewDialog = ({
               k.name.toLowerCase() === kpiName.toLowerCase() && !k.assigned_to
             );
             if (kpi) {
-              entriesToUpsert.push({
-                kpi_id: kpi.id,
-                month,
-                entry_type: "monthly",
-                actual_value: value,
-              });
+              entriesToUpsert.push(createEntry(kpi.id, value));
             }
           }
         }
@@ -503,12 +511,7 @@ export const ScorecardImportPreviewDialog = ({
               if (kpiName) {
                 const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
                 if (kpi) {
-                  entriesToUpsert.push({
-                    kpi_id: kpi.id,
-                    month,
-                    entry_type: "monthly",
-                    actual_value: value,
-                  });
+                  entriesToUpsert.push(createEntry(kpi.id, value));
                 }
               }
             }
@@ -518,12 +521,7 @@ export const ScorecardImportPreviewDialog = ({
               if (kpiName) {
                 const kpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
                 if (kpi) {
-                  entriesToUpsert.push({
-                    kpi_id: kpi.id,
-                    month,
-                    entry_type: "monthly",
-                    actual_value: value,
-                  });
+                  entriesToUpsert.push(createEntry(kpi.id, value));
                 }
               }
             }
@@ -531,12 +529,15 @@ export const ScorecardImportPreviewDialog = ({
         }
       }
 
-      // Upsert entries
+      // Upsert entries - use appropriate conflict key based on import type
       if (entriesToUpsert.length > 0) {
+        const conflictKey = isWeeklyImport 
+          ? "kpi_id,week_start_date,entry_type" 
+          : "kpi_id,month,entry_type";
         const { error } = await supabase
           .from("scorecard_entries")
           .upsert(entriesToUpsert, {
-            onConflict: "kpi_id,month,entry_type",
+            onConflict: conflictKey,
           });
         if (error) throw error;
       }
@@ -554,7 +555,7 @@ export const ScorecardImportPreviewDialog = ({
           imported_by: userId,
           import_source: "drop_zone",
           file_name: fileName,
-          month,
+          month: periodIdentifier, // For weekly imports, this stores the week start date
           report_file_path: reportFilePath,
           metrics_imported: { count: entriesToUpsert.length },
           user_mappings: Object.fromEntries(
@@ -592,9 +593,18 @@ export const ScorecardImportPreviewDialog = ({
   const totalOwnerCount = advisorMatches.length + deptTotalsCount;
   const unmatchedCount = advisorMatches.filter(m => !m.userId && !m.selectedUserId).length;
 
-  // Format month for display
-  const formatMonth = (m: string) => {
-    const [year, monthNum] = m.split("-");
+  // Format period for display
+  const formatPeriod = () => {
+    if (weekStartDate) {
+      // Format week start date for display
+      const date = new Date(weekStartDate);
+      const endDate = new Date(date);
+      endDate.setDate(date.getDate() + 6);
+      const startLabel = `${date.getMonth() + 1}/${date.getDate()}`;
+      const endLabel = `${endDate.getMonth() + 1}/${endDate.getDate()}`;
+      return `Week of ${startLabel}-${endLabel}, ${date.getFullYear()}`;
+    }
+    const [year, monthNum] = month.split("-");
     const date = new Date(parseInt(year), parseInt(monthNum) - 1, 1);
     return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   };
@@ -605,7 +615,7 @@ export const ScorecardImportPreviewDialog = ({
         <DialogHeader>
           <DialogTitle>Import Preview: {fileName}</DialogTitle>
           <DialogDescription>
-            {parseResult.storeName} • {formatMonth(month)}
+            {parseResult.storeName} • {formatPeriod()}
           </DialogDescription>
         </DialogHeader>
 
