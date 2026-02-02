@@ -60,6 +60,7 @@ const CATEGORIES: { value: ResourceCategory; label: string }[] = [
   { value: 'best_practices', label: 'Best Practices' },
   { value: 'processes', label: 'Processes' },
   { value: 'reports', label: 'Reports' },
+  { value: 'branding', label: 'Branding' },
 ];
 
 export const ResourceManagementDialog = ({
