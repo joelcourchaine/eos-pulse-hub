@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,11 @@ const passwordSchema = z.object({
   path: ["confirmPassword"],
 });
 
-type FlowState = 'loading' | 'ready' | 'expired' | 'success' | 'error';
+type FlowState = 'loading' | 'validating-token' | 'ready' | 'expired' | 'success' | 'error';
 
 const SetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,22 +32,65 @@ const SetPassword = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [resendingEmail, setResendingEmail] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
-  const [continueUrl, setContinueUrl] = useState<string | null>(null);
+  const [customToken, setCustomToken] = useState<string | null>(null);
 
   useEffect(() => {
     const checkInvite = async () => {
       try {
-        // If the email client pre-opens links, it can consume one-time tokens.
-        // Our emails link to /set-password?continue=<encoded_direct_link> and we only
-        // navigate to the direct link after a user click.
-        const searchParams = new URLSearchParams(window.location.search);
+        // Check for custom token first (new flow)
+        const tokenParam = searchParams.get('token');
+        if (tokenParam) {
+          console.log('Found custom token, validating...');
+          setFlowState('validating-token');
+          setCustomToken(tokenParam);
+          
+          // Validate the custom token
+          const { data, error } = await supabase.functions.invoke('validate-auth-token', {
+            body: { token: tokenParam }
+          });
+
+          if (error) {
+            console.error('Error validating token:', error);
+            setFlowState('error');
+            setErrorMessage('Unable to validate your invitation link. Please try again or request a new link.');
+            return;
+          }
+
+          if (!data.valid) {
+            console.log('Token validation failed:', data.error);
+            if (data.error === 'expired') {
+              setFlowState('expired');
+              setErrorMessage('Your invitation link has expired. Please request a new one from your administrator.');
+            } else if (data.error === 'already_used') {
+              setFlowState('expired');
+              setErrorMessage('This invitation link has already been used. If you need to reset your password, use the "Forgot Password" option.');
+            } else {
+              setFlowState('error');
+              setErrorMessage('Invalid invitation link. Please request a new one from your administrator.');
+            }
+            return;
+          }
+
+          // Token is valid - redirect to the Supabase action_link
+          if (data.action_link) {
+            console.log('Token valid, redirecting to Supabase action link...');
+            window.location.href = data.action_link;
+            return;
+          } else {
+            setFlowState('error');
+            setErrorMessage('Invalid invitation link configuration. Please contact support.');
+            return;
+          }
+        }
+
+        // Legacy flow: Check for ?continue= parameter (for backwards compatibility)
         const continueParam = searchParams.get('continue');
         if (continueParam) {
           const decoded = decodeURIComponent(continueParam);
           if (decoded.startsWith('http')) {
-            setContinueUrl(decoded);
-            setFlowState('error');
-            setErrorMessage('Click Continue to open your secure setup link.');
+            // Redirect directly to the Supabase link
+            console.log('Found continue parameter, redirecting...');
+            window.location.href = decoded;
             return;
           }
         }
@@ -150,7 +194,7 @@ const SetPassword = () => {
     };
 
     checkInvite();
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +226,13 @@ const SetPassword = () => {
           console.error('Failed to update password_set_at:', profileError);
           // Non-blocking - password was still set successfully
         }
+      }
+
+      // Mark the custom token as used if we have one
+      if (customToken) {
+        await supabase.functions.invoke('mark-token-used', {
+          body: { token: customToken }
+        });
       }
 
       setFlowState('success');
@@ -222,13 +273,15 @@ const SetPassword = () => {
   };
 
   // Loading state
-  if (flowState === 'loading') {
+  if (flowState === 'loading' || flowState === 'validating-token') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Verifying your invitation...</p>
+            <p className="text-muted-foreground">
+              {flowState === 'validating-token' ? 'Validating your invitation...' : 'Verifying your invitation...'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -255,18 +308,9 @@ const SetPassword = () => {
             
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Invitation links expire after 1 hour and can only be used once. If you've already clicked the link,
+                Invitation links expire after 7 days and can only be used once. If you've already clicked the link,
                 try using the "Forgot password" option on the login page.
               </p>
-
-              {continueUrl && (
-                <Button
-                  onClick={() => (window.location.href = continueUrl)}
-                  className="w-full"
-                >
-                  Continue
-                </Button>
-              )}
 
               {userEmail && (
                 <Button

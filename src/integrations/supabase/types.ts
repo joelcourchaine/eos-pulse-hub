@@ -95,6 +95,7 @@ export type Database = {
       }
       auth_tokens: {
         Row: {
+          action_link: string | null
           created_at: string
           created_by: string | null
           email: string
@@ -106,6 +107,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          action_link?: string | null
           created_at?: string
           created_by?: string | null
           email: string
@@ -117,6 +119,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          action_link?: string | null
           created_at?: string
           created_by?: string | null
           email?: string

@@ -11,7 +11,7 @@ interface ResendInviteRequest {
   user_id: string;
 }
 
-// Email template for invitations
+// Email template for invitations (7-day expiry)
 function getInviteEmailHtml(continueLink: string): string {
   return `
     <!DOCTYPE html>
@@ -40,7 +40,7 @@ function getInviteEmailHtml(continueLink: string): string {
               <a href="${continueLink}" class="button">Accept Invitation</a>
             </div>
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 1 hour for security reasons. If it expires, ask your admin to resend the invite.
+              This link will expire in 7 days. If it expires, ask your admin to resend the invite.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you weren't expecting this invitation, you can safely ignore this email.
@@ -55,7 +55,7 @@ function getInviteEmailHtml(continueLink: string): string {
   `;
 }
 
-// Email template for password reset
+// Email template for password reset (24-hour expiry)
 function getPasswordResetEmailHtml(continueLink: string): string {
   return `
     <!DOCTYPE html>
@@ -83,7 +83,7 @@ function getPasswordResetEmailHtml(continueLink: string): string {
               <a href="${continueLink}" class="button">Reset Password</a>
             </div>
             <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 1 hour for security reasons.
+              This link will expire in 24 hours for security reasons.
             </p>
             <p style="margin-top: 20px; color: #999; font-size: 13px;">
               If you didn't request a password reset, you can safely ignore this email.
@@ -279,12 +279,20 @@ Deno.serve(async (req) => {
     }
 
     // Check if user has actually set their password (not just confirmed email)
-    // email_confirmed_at gets set when clicking the invite link, but password_set_at
-    // only gets set when the user actually completes password setup
     const hasSetPassword = profile.password_set_at != null;
     
     // Determine redirect URL for the app
     const appUrl = 'https://dealergrowth.solutions';
+
+    // Determine token type and expiry based on whether user has set password
+    const tokenType = hasSetPassword ? 'password_reset' : 'invite';
+    const expiresAt = hasSetPassword 
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000)  // 24 hours for password reset
+      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days for invite
+
+    // Generate custom token
+    const customToken = crypto.randomUUID();
+    console.log(`Generated custom ${tokenType} token for user:`, user_id);
 
     if (hasSetPassword) {
       // User has completed password setup before, generate password reset link
@@ -292,7 +300,7 @@ Deno.serve(async (req) => {
       
       const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'recovery',
-        email: realEmail, // Use real email from profiles
+        email: realEmail,
         options: {
           redirectTo: `${appUrl}/reset-password`
         }
@@ -305,9 +313,42 @@ Deno.serve(async (req) => {
 
       console.log('Recovery link generated successfully');
       
-      // Send password reset email via Resend - only use continueLink to prevent scanner consumption
       const actionLink = linkData.properties.action_link;
-      const continueLink = `${appUrl}/reset-password?continue=${encodeURIComponent(actionLink)}`;
+
+      // Invalidate any existing unused tokens for this user and type
+      const { error: invalidateError } = await supabaseAdmin
+        .from('auth_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('user_id', user_id)
+        .eq('token_type', tokenType)
+        .is('used_at', null);
+
+      if (invalidateError) {
+        console.error('Error invalidating old tokens:', invalidateError);
+      }
+
+      // Store custom token with Supabase action_link
+      const { error: tokenError } = await supabaseAdmin
+        .from('auth_tokens')
+        .insert({
+          token: customToken,
+          token_type: tokenType,
+          user_id: user_id,
+          email: realEmail,
+          expires_at: expiresAt.toISOString(),
+          created_by: user.id,
+          action_link: actionLink
+        });
+
+      if (tokenError) {
+        console.error('Error storing custom token:', tokenError);
+        throw new Error('Failed to store authentication token');
+      }
+
+      console.log('Custom token stored successfully');
+
+      // Build email link with custom token (no more ?continue= parameter)
+      const continueLink = `${appUrl}/reset-password?token=${customToken}`;
 
       await sendEmailViaResend(
         realEmail,
@@ -368,9 +409,41 @@ Deno.serve(async (req) => {
         actionLink = inviteLinkData.properties.action_link;
         console.log('Invite link generated successfully');
       }
+
+      // Invalidate any existing unused tokens for this user and type
+      const { error: invalidateError } = await supabaseAdmin
+        .from('auth_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('user_id', user_id)
+        .eq('token_type', tokenType)
+        .is('used_at', null);
+
+      if (invalidateError) {
+        console.error('Error invalidating old tokens:', invalidateError);
+      }
+
+      // Store custom token with Supabase action_link
+      const { error: tokenError } = await supabaseAdmin
+        .from('auth_tokens')
+        .insert({
+          token: customToken,
+          token_type: tokenType,
+          user_id: user_id,
+          email: realEmail,
+          expires_at: expiresAt.toISOString(),
+          created_by: user.id,
+          action_link: actionLink
+        });
+
+      if (tokenError) {
+        console.error('Error storing custom token:', tokenError);
+        throw new Error('Failed to store authentication token');
+      }
+
+      console.log('Custom token stored successfully');
       
-      // Send invitation email via Resend - only use continueLink to prevent scanner consumption
-      const continueLink = `${appUrl}/set-password?continue=${encodeURIComponent(actionLink)}`;
+      // Build email link with custom token (no more ?continue= parameter)
+      const continueLink = `${appUrl}/set-password?token=${customToken}`;
 
       await sendEmailViaResend(
         realEmail,
