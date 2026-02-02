@@ -1579,6 +1579,12 @@ setStoreUsers(data || []);
           delete newEntries[key];
           return newEntries;
         });
+        // Also clear localValues so UI shows empty
+        setLocalValues(prev => {
+          const newLocalValues = { ...prev };
+          delete newLocalValues[key];
+          return newLocalValues;
+        });
       }
 
       setSaving(prev => ({ ...prev, [key]: false }));
