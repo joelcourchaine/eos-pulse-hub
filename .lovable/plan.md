@@ -1,84 +1,113 @@
 
-# Add Group-Specific Resource Support
+
+# Add Drag-and-Drop Thumbnail Upload for Resources
 
 ## Overview
-Enable super admins to assign resources to specific store groups, so only users within that group can see those resources. The database already supports this via the `store_group_id` column and RLS policy - we just need to expose it in the UI.
+Replace the simple URL text input for thumbnails with a visual drag-and-drop zone that allows admins to either drop an image file directly or enter a URL. Uploaded images will be stored in Supabase Storage.
 
 ## Current State
-- **Database**: `resources.store_group_id` column exists (nullable foreign key to `store_groups`)
-- **RLS Policy**: Already filters resources by user's store group:
-  - `store_group_id IS NULL` → visible to everyone
-  - `store_group_id = get_current_user_store_group()` → visible only to that group's users
-- **UI**: No way to set `store_group_id` when creating/editing resources
+- Thumbnail input is a plain text field requiring a URL
+- Users must host images elsewhere (e.g., Google Drive) and paste URLs
+- No visual preview until the resource is saved
 
-## Changes Required
+## Proposed Solution
 
-### 1. Update Resource Interface
-**File: `src/components/resources/ResourceCard.tsx`**
+### User Experience
+1. **Drop Zone UI**: A visual area showing:
+   - Current thumbnail preview (if set)
+   - "Drop image here or click to upload" prompt
+   - Alternative "or paste URL" option
+2. **Drag and Drop**: Drag an image file onto the zone to upload
+3. **Click to Browse**: Click the zone to open a file picker
+4. **URL Fallback**: Keep a small text input below for pasting URLs (Google Drive, etc.)
+5. **Preview**: Show the thumbnail preview immediately after upload/URL entry
+6. **Remove Option**: "X" button to clear the thumbnail
 
-Add `store_group_id` and `store_groups` to the Resource interface:
+### Technical Implementation
+
+#### 1. Create Storage Bucket
+Create a new `resource-thumbnails` public bucket for storing uploaded thumbnails.
+
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('resource-thumbnails', 'resource-thumbnails', true);
+
+-- RLS policy: Allow authenticated users to upload
+CREATE POLICY "Authenticated users can upload resource thumbnails"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'resource-thumbnails');
+
+-- RLS policy: Allow anyone to view (public bucket)
+CREATE POLICY "Anyone can view resource thumbnails"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'resource-thumbnails');
+
+-- RLS policy: Allow authenticated users to delete their uploads
+CREATE POLICY "Authenticated users can delete resource thumbnails"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'resource-thumbnails');
+```
+
+#### 2. Create ThumbnailDropZone Component
+**New file: `src/components/resources/ThumbnailDropZone.tsx`**
+
+Features:
+- Accept `thumbnailUrl` and `onThumbnailChange` props
+- Handle drag events (`onDragOver`, `onDragLeave`, `onDrop`)
+- Upload file to `resource-thumbnails` bucket
+- Return public URL to parent component
+- Show loading state during upload
+- Preview current thumbnail
+- Support click-to-browse as well as drag-and-drop
+
 ```typescript
-export interface Resource {
-  // ... existing fields
-  store_group_id: string | null;
-  store_groups?: { name: string } | null;
+interface ThumbnailDropZoneProps {
+  thumbnailUrl: string;
+  onThumbnailChange: (url: string) => void;
 }
 ```
 
-### 2. Update ResourceManagementDialog
+#### 3. Update ResourceManagementDialog
 **File: `src/components/resources/ResourceManagementDialog.tsx`**
 
-- Accept `storeGroups` prop (list of available groups)
-- Add state for `storeGroupId`
-- Add a "Store Group" dropdown selector (similar to Department selector)
-- Include `store_group_id` in the save payload
-- Pre-populate when editing existing resource
+Replace the simple thumbnail URL input (lines 261-271) with:
+- The new `ThumbnailDropZone` component
+- A smaller "or paste URL" text input below
+- Both methods update the same `thumbnailUrl` state
 
-New UI element (placed after Department selector):
-```
-Store Group (optional)
-[All Groups ▾]
-```
-
-### 3. Update Resources.tsx (User View)
-**File: `src/pages/Resources.tsx`**
-
-- Update the query to include `store_group_id` and join `store_groups`
-- Display group badge on resource cards (optional enhancement)
-
-### 4. Update AdminResources.tsx (Admin View)
-**File: `src/pages/AdminResources.tsx`**
-
-- Fetch store groups list
-- Pass `storeGroups` prop to ResourceManagementDialog
-- Add "Group" column to the admin table
-- Update query to include `store_group_id` and join `store_groups`
-
-## User Experience
-
-### For Super Admins (Creating/Editing Resources):
-1. Open resource management dialog
-2. See new "Store Group" dropdown after Department
-3. Select "All Groups" (default, visible to everyone) or a specific group
-4. Save - resource is now group-restricted
-
-### For Regular Users (Viewing Resources):
-1. RLS policy automatically filters resources
-2. See only resources where `store_group_id IS NULL` OR matches their group
-3. Optionally see a badge indicating the resource is group-specific
-
-## Technical Notes
-
-1. **RLS Already Working**: The policy `(store_group_id IS NULL) OR (store_group_id = get_current_user_store_group())` handles filtering automatically
-2. **No Database Changes**: The `store_group_id` column already exists
-3. **Super Admin Bypass**: Super admins have a separate policy allowing full access to all resources
-4. **Backward Compatible**: Existing resources have `store_group_id = NULL`, so they remain visible to all users
-
-## Files to Modify
+### File Changes
 
 | File | Changes |
 |------|---------|
-| `src/components/resources/ResourceCard.tsx` | Add `store_group_id` and `store_groups` to interface |
-| `src/components/resources/ResourceManagementDialog.tsx` | Add store group selector and save logic |
-| `src/pages/Resources.tsx` | Update query to include store group data |
-| `src/pages/AdminResources.tsx` | Fetch groups, pass to dialog, add table column |
+| Migration | Create `resource-thumbnails` bucket with RLS policies |
+| `src/components/resources/ThumbnailDropZone.tsx` | **New file** - Drag-and-drop upload component |
+| `src/components/resources/ResourceManagementDialog.tsx` | Replace URL input with ThumbnailDropZone + fallback URL input |
+
+### UI Mockup
+
+```text
++------------------------------------------+
+|                                          |
+|     [Image Preview or Placeholder]       |
+|                                          |
+|   Drop image here or click to upload     |
+|                                          |
+|              [x Remove]                  |
++------------------------------------------+
+        — or paste thumbnail URL —
++------------------------------------------+
+| https://...                              |
++------------------------------------------+
+```
+
+### Technical Notes
+
+1. **File Naming**: Use `{resourceId or timestamp}-{Date.now()}.{ext}` for unique filenames
+2. **File Validation**: Accept only image types (`image/*`), max 2MB
+3. **Google Drive URLs**: The existing URL input still supports pasting Drive links which get normalized
+4. **Cleanup**: Old thumbnails should be deleted from storage when replaced (if they were uploaded to our bucket)
+5. **Recommended Size**: Show hint "Recommended: 640x320px for best results"
+
