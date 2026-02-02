@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,6 @@ import {
 import {
   Table,
   TableBody,
-  TableHead,
-  TableHeader,
   TableRow,
 } from "@/components/ui/table";
 import {
@@ -41,10 +39,13 @@ import { Top10ItemRow } from "./Top10ItemRow";
 import { Top10ListManagementDialog } from "./Top10ListManagementDialog";
 import { CopyListToGroupDialog } from "./CopyListToGroupDialog";
 import { ImportTop10Dialog } from "./ImportTop10Dialog";
+import { ResizableTableHeader } from "./ResizableTableHeader";
+import type { Json } from "@/integrations/supabase/types";
 
 interface ColumnDefinition {
   key: string;
   label: string;
+  width?: number;
 }
 
 interface Top10Item {
@@ -86,8 +87,83 @@ export function Top10ListCard({
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [duplicateTitle, setDuplicateTitle] = useState("");
   const [duplicating, setDuplicating] = useState(false);
+  
+  // Column widths state - initialized from list.columns
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    const widths: Record<string, number> = {};
+    list.columns.forEach(col => {
+      if (col.width) widths[col.key] = col.width;
+    });
+    return widths;
+  });
+  const saveWidthsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const maxItems = 10;
+  
+  // Sync column widths when list.columns change (e.g., template update)
+  useEffect(() => {
+    const widths: Record<string, number> = {};
+    list.columns.forEach(col => {
+      if (col.width) widths[col.key] = col.width;
+    });
+    setColumnWidths(widths);
+  }, [list.columns]);
+
+  const handleColumnResize = useCallback((key: string, width: number) => {
+    setColumnWidths(prev => ({ ...prev, [key]: width }));
+  }, []);
+
+  const handleColumnResizeEnd = useCallback(() => {
+    // Debounced save to database
+    if (saveWidthsTimeoutRef.current) {
+      clearTimeout(saveWidthsTimeoutRef.current);
+    }
+    saveWidthsTimeoutRef.current = setTimeout(async () => {
+      try {
+        // Update columns with new widths
+        const updatedColumns = list.columns.map(col => ({
+          ...col,
+          width: columnWidths[col.key] || col.width,
+        }));
+        
+        const { error } = await supabase
+          .from("top_10_lists")
+          .update({ columns: updatedColumns as unknown as Json })
+          .eq("id", list.id);
+        
+        if (error) throw error;
+        
+        // Also sync to template if this list was deployed from one
+        // Find template by matching title and sync widths back
+        const { error: templateError } = await supabase
+          .from("top_10_list_templates")
+          .update({ columns: updatedColumns as unknown as Json })
+          .eq("title", list.title);
+        
+        if (templateError) {
+          console.log("No template to sync or sync failed:", templateError.message);
+        } else {
+          // Sync to all other lists using this template
+          await supabase
+            .from("top_10_lists")
+            .update({ columns: updatedColumns as unknown as Json })
+            .eq("title", list.title)
+            .neq("id", list.id);
+        }
+      } catch (error) {
+        console.error("Error saving column widths:", error);
+      }
+    }, 500);
+  }, [list.id, list.title, list.columns, columnWidths]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveWidthsTimeoutRef.current) {
+        clearTimeout(saveWidthsTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const loadItems = useCallback(async () => {
     try {
@@ -417,15 +493,14 @@ export function Top10ListCard({
                 <>
                   <div className="border rounded-md overflow-visible">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12 text-center">#</TableHead>
-                          {list.columns.map((col) => (
-                            <TableHead key={col.key}>{col.label}</TableHead>
-                          ))}
-                          {canEdit && <TableHead className="w-10" />}
-                        </TableRow>
-                      </TableHeader>
+                      <ResizableTableHeader
+                        columns={list.columns}
+                        columnWidths={columnWidths}
+                        onResize={handleColumnResize}
+                        onResizeEnd={handleColumnResizeEnd}
+                        canEdit={canEdit}
+                        showActions={canEdit}
+                      />
                       <TableBody>
                         {items.map((item) => (
                           <Top10ItemRow
@@ -433,6 +508,7 @@ export function Top10ListCard({
                             rank={item.rank}
                             data={item.data}
                             columns={list.columns}
+                            columnWidths={columnWidths}
                             onUpdate={(data) => handleUpdateItem(item.id, data)}
                             onDelete={() => handleDeleteItem(item.id, item.rank)}
                             canEdit={canEdit}

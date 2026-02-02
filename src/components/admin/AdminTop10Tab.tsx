@@ -40,6 +40,7 @@ import {
 interface Column {
   key: string;
   label: string;
+  width?: number;
 }
 
 interface Template {
