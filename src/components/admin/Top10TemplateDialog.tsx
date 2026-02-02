@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Column {
   key: string;
@@ -170,6 +170,14 @@ export const Top10TemplateDialog = ({
     setColumns(updated);
   };
 
+  const moveColumn = (index: number, direction: "up" | "down") => {
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= columns.length) return;
+    const updated = [...columns];
+    [updated[index], updated[newIndex]] = [updated[newIndex], updated[index]];
+    setColumns(updated);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
@@ -242,6 +250,28 @@ export const Top10TemplateDialog = ({
             <div className="space-y-2">
               {columns.map((col, index) => (
                 <div key={index} className="flex gap-2 items-center">
+                  <div className="flex flex-col">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => moveColumn(index, "up")}
+                      disabled={index === 0}
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => moveColumn(index, "down")}
+                      disabled={index === columns.length - 1}
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </div>
                   <Input
                     value={col.label}
                     onChange={(e) => updateColumn(index, "label", e.target.value)}
