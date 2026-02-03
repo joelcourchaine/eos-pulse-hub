@@ -67,10 +67,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Set the user's password using admin API
+    // Set the user's password AND confirm email using Admin API
+    // This is critical: when bypassing Supabase's native invite flow,
+    // we must manually confirm the email or the user won't be able to log in
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       tokenData.user_id,
-      { password: password }
+      { 
+        password: password,
+        email_confirm: true  // Confirms the user's email
+      }
     );
 
     if (updateError) {
