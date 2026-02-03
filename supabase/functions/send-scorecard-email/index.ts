@@ -174,7 +174,8 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId, recipientEmails });
     
     // Validate that quarter is provided for non-yearly modes
-    if (mode !== "yearly" && !quarter) {
+    // Use == null to allow quarter = 0 (Quarter Trend mode) while catching undefined/null
+    if (mode !== "yearly" && quarter == null) {
       throw new Error("Quarter is required for weekly and monthly modes");
     }
 
@@ -279,7 +280,7 @@ const handler = async (req: Request): Promise<Response> => {
     // "Monthly" or "Yearly Report", they expect the same rolling month window shown on screen.
     const periods = mode === "weekly"
       ? getWeekDates({ year, quarter: quarter! })
-      : (mode === "yearly" || mode === "monthly") && quarter === -1
+      : (mode === "yearly" || mode === "monthly") && (quarter === -1 || quarter === 0)
       ? getMonthlyTrendMonths({ year })
       : mode === "yearly"
       ? getAllMonthsForYear({ year })
