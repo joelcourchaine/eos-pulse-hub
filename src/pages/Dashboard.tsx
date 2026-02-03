@@ -36,6 +36,7 @@ import { getWeek, startOfWeek, endOfWeek, format } from "date-fns";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { LoadingTimeout } from "@/components/ui/loading-timeout";
+import { PeriodNavigation } from "@/components/dashboard/PeriodNavigation";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -1467,6 +1468,18 @@ const Dashboard = () => {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* Period Navigation - show between Scorecard and Financial Summary */}
+        {!isStoreSwitching && selectedDepartment && (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
+          <PeriodNavigation
+            year={selectedYear}
+            quarter={selectedQuarter}
+            onYearChange={setSelectedYear}
+            onQuarterChange={setSelectedQuarter}
+            minYear={2024}
+            maxYear={new Date().getFullYear() + 1}
+          />
         )}
 
         {/* Financial Summary Section - show for view-all or scorecard tab */}
