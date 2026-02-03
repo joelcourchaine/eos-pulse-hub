@@ -70,7 +70,7 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedQuarter, setSelectedQuarter] = useState(-1); // Default to Monthly Trend view
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "gm-overview">("monthly");
+  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview">("monthly");
   const [gmOverviewPeriod, setGmOverviewPeriod] = useState<"quarterly" | "yearly">("quarterly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
@@ -960,7 +960,7 @@ const Dashboard = () => {
           body: JSON.stringify({
             year: selectedYear,
             quarter: selectedQuarter,
-            mode: printMode === "gm-overview" ? "monthly" : printMode,
+            mode: printMode === "gm-overview" ? "monthly" : printMode as "weekly" | "monthly" | "yearly" | "quarterly-trend",
             departmentId: selectedDepartment,
             recipientEmails: selectedEmailRecipients,
             gmOverviewPeriod: printMode === "gm-overview" ? gmOverviewPeriod : undefined,
@@ -1227,7 +1227,7 @@ const Dashboard = () => {
                   </div>
                   <div className="mb-4 p-4 border rounded-lg bg-muted/30">
                     <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
-                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly" | "gm-overview") => setPrintMode(value)}>
+                    <RadioGroup value={printMode} onValueChange={(value: "weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview") => setPrintMode(value)}>
                       <div className="p-2 rounded-lg border border-primary/20 bg-primary/5">
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="gm-overview" id="gm-overview" />
@@ -1265,6 +1265,12 @@ const Dashboard = () => {
                         <RadioGroupItem value="monthly" id="monthly" />
                         <Label htmlFor="monthly" className="cursor-pointer font-normal">
                           Monthly Scores (3 months per quarter)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="quarterly-trend" id="quarterly-trend" />
+                        <Label htmlFor="quarterly-trend" className="cursor-pointer font-normal">
+                          Quarterly Trend (Rolling 5 quarters)
                         </Label>
                       </div>
                       <div className="flex items-center space-x-2">
