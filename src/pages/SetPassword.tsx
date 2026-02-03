@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { z } from "zod";
-import { User } from "@supabase/supabase-js";
 import { Loader2, AlertCircle, CheckCircle, Mail } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -26,25 +25,25 @@ const SetPassword = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<{ full_name?: string } | null>(null);
   const [flowState, setFlowState] = useState<FlowState>('loading');
-  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [resendingEmail, setResendingEmail] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
   const [customToken, setCustomToken] = useState<string | null>(null);
+  const [userName, setUserName] = useState("");
 
   useEffect(() => {
     const checkInvite = async () => {
       try {
-        // Check for custom token first (new flow)
+        // Check for custom token (our token system with 7-day expiry)
         const tokenParam = searchParams.get('token');
         if (tokenParam) {
           console.log('Found custom token, validating...');
           setFlowState('validating-token');
           setCustomToken(tokenParam);
           
-          // Validate the custom token
+          // Validate the custom token via our edge function
           const { data, error } = await supabase.functions.invoke('validate-auth-token', {
             body: { token: tokenParam }
           });
@@ -71,25 +70,28 @@ const SetPassword = () => {
             return;
           }
 
-          // Token is valid - capture user info for display if needed
-          if (data.email) {
-            setUserEmail(data.email);
-            if (!user) {
-              setUser({ email: data.email, id: data.user_id } as User);
+          // Token is valid - store user info and show password form directly
+          // NO redirect to action_link - we handle password setting ourselves
+          console.log('Token valid for user:', data.user_id);
+          setUserId(data.user_id);
+          setUserEmail(data.email || '');
+          
+          // Try to get the user's name from profiles
+          if (data.user_id) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', data.user_id)
+              .single();
+            
+            if (profileData?.full_name) {
+              setUserName(profileData.full_name);
             }
           }
-
-          // Redirect to the Supabase action_link
-          if (data.action_link) {
-            console.log('Token valid, redirecting to Supabase action link...');
-            window.location.href = data.action_link;
-            return;
-          } else {
-            setFlowState('error');
-            setErrorMessage('Invalid invitation link configuration. Please contact support.');
-            return;
-          }
-          return; // Explicit return to prevent fall-through to hash error checks
+          
+          // Go directly to ready state - user can set password
+          setFlowState('ready');
+          return;
         }
 
         // Legacy flow: Check for ?continue= parameter (for backwards compatibility)
@@ -97,7 +99,6 @@ const SetPassword = () => {
         if (continueParam) {
           const decoded = decodeURIComponent(continueParam);
           if (decoded.startsWith('http')) {
-            // Redirect directly to the Supabase link
             console.log('Found continue parameter, redirecting...');
             window.location.href = decoded;
             return;
@@ -123,51 +124,16 @@ const SetPassword = () => {
           return;
         }
 
-        // Check if this is a valid invite flow
-        if (type !== 'invite' && type !== 'signup' && type !== 'recovery') {
-          // No valid type - might be a direct visit without token
-          // Check if there's a session anyway
+        // Check if this is a valid invite flow from Supabase redirect
+        if (type === 'invite' || type === 'signup' || type === 'recovery') {
+          // Wait a moment for Supabase to process the token
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          // Try to get the session
           const { data: { session } } = await supabase.auth.getSession();
 
           if (session?.user) {
-            // User has a session, maybe they refreshed after clicking the link
-            setUser(session.user);
-            setUserEmail(session.user.email || "");
-
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profileData) {
-              setProfile(profileData);
-            }
-
-            setFlowState('ready');
-          } else {
-            // No session, no valid invite - redirect
-            navigate("/auth");
-          }
-          return;
-        }
-
-        // Wait a moment for Supabase to process the token
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Try to get the session multiple times (token exchange can be slow)
-        let attempts = 0;
-        const maxAttempts = 5;
-
-        while (attempts < maxAttempts) {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-          if (sessionError) {
-            console.error("Session error:", sessionError);
-          }
-
-          if (session?.user) {
-            setUser(session.user);
+            setUserId(session.user.id);
             setUserEmail(session.user.email || "");
 
             // Get profile info
@@ -177,28 +143,22 @@ const SetPassword = () => {
               .eq('id', session.user.id)
               .single();
 
-            if (profileData) {
-              setProfile(profileData);
+            if (profileData?.full_name) {
+              setUserName(profileData.full_name);
             }
 
             setFlowState('ready');
             return;
           }
-
-          attempts++;
-          if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
         }
 
-        // If we get here, we couldn't establish a session
-        setFlowState('expired');
-        setErrorMessage("Your invitation link has expired or was already used. Please request a new one from your administrator.");
+        // No valid token or session - redirect to auth
+        navigate("/auth");
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error checking invite:", err);
         setFlowState('error');
-        setErrorMessage(err.message || "An unexpected error occurred.");
+        setErrorMessage(err instanceof Error ? err.message : "An unexpected error occurred.");
       }
     };
 
@@ -218,42 +178,59 @@ const SetPassword = () => {
         return;
       }
 
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
-
-      if (error) throw error;
-
-      // Record that password was successfully set (used for invite vs reset flow detection)
-      if (user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ password_set_at: new Date().toISOString() })
-          .eq('id', user.id);
-
-        if (profileError) {
-          console.error('Failed to update password_set_at:', profileError);
-          // Non-blocking - password was still set successfully
-        }
-      }
-
-      // Mark the custom token as used if we have one
+      // If we have a custom token, use our edge function to set password
+      // This bypasses Supabase's 1-hour token expiry completely
       if (customToken) {
-        await supabase.functions.invoke('mark-token-used', {
-          body: { token: customToken }
+        console.log('Setting password via custom token...');
+        const { data, error } = await supabase.functions.invoke('set-password-with-token', {
+          body: { token: customToken, password: password }
         });
-      }
 
-      setFlowState('success');
-      toast.success("Password created successfully!");
-      
-      // Sign out and redirect after a brief delay
-      setTimeout(async () => {
-        await supabase.auth.signOut();
-        navigate("/auth");
-      }, 2000);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create password");
+        if (error) {
+          console.error('Error setting password:', error);
+          throw new Error(error.message || 'Failed to set password');
+        }
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to set password');
+        }
+
+        console.log('Password set successfully via custom token');
+        setFlowState('success');
+        toast.success("Password created successfully!");
+        
+        // Redirect to login after a brief delay
+        setTimeout(() => {
+          navigate("/auth");
+        }, 2000);
+      } else {
+        // Fallback: If we have an active session (legacy flow), use updateUser
+        const { error } = await supabase.auth.updateUser({
+          password: password,
+        });
+
+        if (error) throw error;
+
+        // Record that password was successfully set
+        if (userId) {
+          await supabase
+            .from('profiles')
+            .update({ password_set_at: new Date().toISOString() })
+            .eq('id', userId);
+        }
+
+        setFlowState('success');
+        toast.success("Password created successfully!");
+        
+        // Sign out and redirect after a brief delay
+        setTimeout(async () => {
+          await supabase.auth.signOut();
+          navigate("/auth");
+        }, 2000);
+      }
+    } catch (error: unknown) {
+      console.error('Password set error:', error);
+      toast.error(error instanceof Error ? error.message : "Failed to create password");
     } finally {
       setLoading(false);
     }
@@ -262,7 +239,6 @@ const SetPassword = () => {
   const handleRequestNewInvite = async () => {
     setResendingEmail(true);
     try {
-      // Try to send a password reset email if we have the user's email
       if (userEmail) {
         const { error } = await supabase.functions.invoke('send-password-reset', {
           body: { email: userEmail }
@@ -274,7 +250,7 @@ const SetPassword = () => {
       } else {
         toast.error("Please contact your administrator to resend your invitation.");
       }
-    } catch (err: any) {
+    } catch {
       toast.error("Unable to send a new link. Please contact your administrator.");
     } finally {
       setResendingEmail(false);
@@ -369,7 +345,7 @@ const SetPassword = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+            <CheckCircle className="h-12 w-12 text-emerald-500 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Password Created!</h2>
             <p className="text-muted-foreground text-center mb-4">
               Your password has been set successfully. Redirecting you to login...
@@ -390,16 +366,18 @@ const SetPassword = () => {
           <CardDescription>
             Welcome! Please create a password for your new account.
           </CardDescription>
-          {user && (
+          {(userEmail || userName) && (
             <div className="mt-4 p-4 bg-muted rounded-md space-y-1">
-              {profile?.full_name && (
+              {userName && (
                 <p className="text-sm">
-                  <span className="font-medium">Name:</span> {profile.full_name}
+                  <span className="font-medium">Name:</span> {userName}
                 </p>
               )}
-              <p className="text-sm">
-                <span className="font-medium">Email:</span> {user.email}
-              </p>
+              {userEmail && (
+                <p className="text-sm">
+                  <span className="font-medium">Email:</span> {userEmail}
+                </p>
+              )}
             </div>
           )}
         </CardHeader>
