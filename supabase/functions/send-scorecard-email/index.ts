@@ -129,13 +129,13 @@ function getQuarterlyTrendPeriods({ year }: { year: number }) {
   const currentMonth = now.getMonth();
   const currentQuarter = Math.floor(currentMonth / 3) + 1;
   
-  // Start from Q1 of previous year
-  let qYear = year - 1;
+  // Start from Q1 of ACTUAL previous year (ignore passed year parameter)
+  // This matches the UI's Quarter Trend view which always shows current rolling window
+  let qYear = currentYear - 1;
   let q = 1;
   
-  // Generate 5 quarters up to and including current quarter
-  for (let i = 0; i < 5; i++) {
-    // Generate month identifiers for this quarter
+  // Generate quarters from Q1 of previous year up to current quarter
+  while (qYear < currentYear || (qYear === currentYear && q <= currentQuarter)) {
     const months: string[] = [];
     for (let m = 0; m < 3; m++) {
       const monthIndex = (q - 1) * 3 + m;
