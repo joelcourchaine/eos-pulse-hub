@@ -1,132 +1,90 @@
 
 
-# Year/Quarter Navigation with Slide Animation
+# Fix Quarter Trend Mode Not Populating All Financial Data
 
-## Overview
-Add left/right navigation arrows between the GO Scorecard and Financial Summary sections with smooth sliding transitions when navigating between periods.
+## Problem
+In Quarter Trend view, some financial metrics (Total Sales, GP Net, Sales Expense, Semi Fixed Expense, Total Fixed Expense) show "-" while calculated metrics (GP %, Net Selling Gross, Department Profit, etc.) display correctly.
 
-## Navigation Behavior
+## Root Cause
+The quarter trend data loading has 3 code paths:
 
-| View Mode | Arrow Behavior | Label |
-|-----------|----------------|-------|
-| Monthly Trend (quarter = -1) | Toggles years | "2026" |
-| Quarter Trend (quarter = 0) | Toggles years | "2026" |
-| Specific Quarter (Q1-Q4) | Toggles quarters, wraps at year boundaries | "Q2 2026" |
+| Path | Logic Used | Sub-metric Support |
+|------|-----------|-------------------|
+| Percentage metrics | `getMetricTotal` → `getMonthValue` → `getDirectValueForMonth` | Yes |
+| Calculated dollar metrics | `getMetricTotal` → `getMonthValue` → `getDirectValueForMonth` | Yes |
+| Direct database values | Direct filter: `entry.metric_name === metric.key` | **No** |
 
-## Visual Design
+For stores that import data as sub-metrics only (without parent totals), the "direct database values" path fails to find any data because it only looks for exact metric name matches.
+
+## Solution
+Modify the "direct database values" branch to use the same helper functions (`getMonthsWithMetricData` and `getMetricTotal`) that already work correctly for calculated metrics. These helpers properly aggregate sub-metric sums.
+
+## File to Modify
+
+**`src/components/financial/FinancialSummary.tsx`** (lines 1407-1432)
+
+### Current Code (Broken)
+
+```typescript
+} else {
+  // For direct database values
+  // Honda special case: legacy months may not have stored Total Direct Expenses, so compute it
+  if (isHondaBrand && metric.key === 'total_direct_expenses') {
+    const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
+    if (metricMonthCount > 0) {
+      const total = getMetricTotal(metric.key, quarterMonthIds);
+      const avg = total / metricMonthCount;
+      averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+    }
+    return;
+  }
+
+  const values = data
+    ?.filter(entry => 
+      entry.metric_name === metric.key && 
+      quarterMonthIds.includes(entry.month)
+    )
+    .map(entry => entry.value || 0) || [];
+  
+  if (values.length > 0) {
+    const total = values.reduce((sum, val) => sum + val, 0);
+    const avg = total / monthCount;
+    averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+  }
+}
+```
+
+### Fixed Code
+
+```typescript
+} else {
+  // For direct database values - use getMonthValue which includes sub-metric sums
+  const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
+  if (metricMonthCount > 0) {
+    const total = getMetricTotal(metric.key, quarterMonthIds);
+    const avg = total / metricMonthCount;
+    averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
+  }
+}
+```
+
+## Why This Works
+
+The helper functions already support sub-metrics:
 
 ```text
-                ┌──────────────────────────────────┐
-                │       GO Scorecard Card          │
-                └──────────────────────────────────┘
-                                ▼
-┌──────────────────────────────────────────────────────────┐
-│   [←]          ← 2025 slides out | 2026 slides in →  [→] │
-└──────────────────────────────────────────────────────────┘
-                                ▼
-                ┌──────────────────────────────────┐
-                │    Financial Summary Card        │
-                └──────────────────────────────────┘
+getMetricTotal(metricKey, monthIds)
+    └─> getMonthValue(metricKey, monthId)
+            └─> getDirectValueForMonth(metricKey, monthId)
+                    ├─> First tries: data.find(e.metric_name === metricKey)
+                    └─> Fallback: sums all sub-metrics matching "sub:{metricKey}:*"
 ```
-
-## Slide Animation Details
-
-- **Direction**: When clicking right arrow, current period slides left (out), new period slides in from right
-- **Direction**: When clicking left arrow, current period slides right (out), new period slides in from left
-- **Duration**: ~200-300ms for smooth but snappy feel
-- **Implementation**: CSS transitions with `transform: translateX()` and `opacity`
-
-## Technical Implementation
-
-### New Component: `src/components/dashboard/PeriodNavigation.tsx`
-
-**Props:**
-```typescript
-interface PeriodNavigationProps {
-  year: number;
-  quarter: number;  // -1 = Monthly, 0 = Quarter Trend, 1-4 = specific
-  onYearChange: (year: number) => void;
-  onQuarterChange: (quarter: number) => void;
-  minYear?: number;
-  maxYear?: number;
-}
-```
-
-**Animation Logic:**
-- Track `slideDirection` state: `'left' | 'right' | null`
-- Track `displayedPeriod` separately from actual selection
-- On arrow click:
-  1. Set slide direction
-  2. After short delay, update displayed period
-  3. Clear slide direction
-
-**CSS Classes:**
-```css
-/* Slide out to left */
-.slide-out-left {
-  transform: translateX(-100%);
-  opacity: 0;
-}
-
-/* Slide in from right */
-.slide-in-right {
-  transform: translateX(0);
-  opacity: 1;
-}
-```
-
-### Modify: `src/pages/Dashboard.tsx`
-
-Insert between Scorecard and Financial Summary:
-
-```tsx
-<PeriodNavigation
-  year={selectedYear}
-  quarter={selectedQuarter}
-  onYearChange={setSelectedYear}
-  onQuarterChange={setSelectedQuarter}
-  minYear={2024}
-  maxYear={new Date().getFullYear() + 1}
-/>
-```
-
-### Tailwind Animation Extension
-
-Add to `tailwind.config.ts`:
-```typescript
-keyframes: {
-  "slide-out-left": {
-    "0%": { transform: "translateX(0)", opacity: "1" },
-    "100%": { transform: "translateX(-50px)", opacity: "0" }
-  },
-  "slide-in-right": {
-    "0%": { transform: "translateX(50px)", opacity: "0" },
-    "100%": { transform: "translateX(0)", opacity: "1" }
-  },
-  // Mirror versions for opposite direction
-}
-```
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/dashboard/PeriodNavigation.tsx` | New component with arrows and slide animation |
-| `src/pages/Dashboard.tsx` | Insert PeriodNavigation between Scorecard and Financial Summary |
-| `tailwind.config.ts` | Add slide animation keyframes |
-
-## Boundary Handling
-
-- **Min Year**: 2024
-- **Max Year**: Current year + 1
-- **Quarter Wrap**: Q4 right → Q1 (year+1), Q1 left → Q4 (year-1)
-- Disable arrows at boundaries
 
 ## Testing
 
-1. Open Dashboard in Monthly Trend view
-2. Click right arrow - verify "2026" slides in from right as "2025" slides out left
-3. Click left arrow - verify opposite animation direction
-4. Switch to Q1 view - verify quarter navigation with same slide effect
-5. Navigate Q4 → Q1 - verify year increments with slide animation
+1. Open Dashboard and select a store with sub-metric data only
+2. Switch to Quarter Trend view (quarter = 0)
+3. Verify that Total Sales, GP Net, Sales Expense, and other base metrics now display values
+4. Verify percentage metrics still calculate correctly
+5. Navigate years using the new PeriodNavigation arrows - confirm data updates
 
