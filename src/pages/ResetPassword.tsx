@@ -62,7 +62,12 @@ const ResetPassword = () => {
           return;
         }
 
-        // Token is valid - redirect to the Supabase action_link
+        // Token is valid - capture user info for use if redirect fails
+        if (data.email) {
+          setUserEmail(data.email);
+        }
+
+        // Redirect to the Supabase action_link
         if (data.action_link) {
           console.log('Token valid, redirecting to Supabase action link...');
           window.location.href = data.action_link;
@@ -71,6 +76,7 @@ const ResetPassword = () => {
           setFlowState('expired');
           return;
         }
+        return; // Explicit return to prevent fall-through to hash error checks
       }
 
       // Legacy flow: Check for ?continue= parameter (for backwards compatibility)

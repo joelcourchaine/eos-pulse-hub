@@ -71,7 +71,15 @@ const SetPassword = () => {
             return;
           }
 
-          // Token is valid - redirect to the Supabase action_link
+          // Token is valid - capture user info for display if needed
+          if (data.email) {
+            setUserEmail(data.email);
+            if (!user) {
+              setUser({ email: data.email, id: data.user_id } as User);
+            }
+          }
+
+          // Redirect to the Supabase action_link
           if (data.action_link) {
             console.log('Token valid, redirecting to Supabase action link...');
             window.location.href = data.action_link;
@@ -81,6 +89,7 @@ const SetPassword = () => {
             setErrorMessage('Invalid invitation link configuration. Please contact support.');
             return;
           }
+          return; // Explicit return to prevent fall-through to hash error checks
         }
 
         // Legacy flow: Check for ?continue= parameter (for backwards compatibility)
