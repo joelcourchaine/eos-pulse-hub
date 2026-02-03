@@ -677,7 +677,7 @@ export function ForecastResultsGrid({
           <td className={cn(
             "text-right py-2 px-2 font-medium bg-muted/50",
             // Allow bidirectional editing for all key metrics (all brands)
-            ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && "cursor-pointer"
+            ((!hasChildren && !metric.isDerived) || metric.key === 'total_sales' || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && "cursor-pointer"
           )}>
             {/* Editable annual cell for all key metrics - bidirectional editing across all brands */}
             {editingAnnualMainMetric === metric.key ? (
@@ -692,7 +692,7 @@ export function ForecastResultsGrid({
               />
             ) : annualValue !== undefined ? (
               // Allow editing for all key metrics (bidirectional editing across all brands)
-              ((!hasChildren && !metric.isDerived) || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && onMainMetricAnnualEdit ? (
+              ((!hasChildren && !metric.isDerived) || metric.key === 'total_sales' || metric.key === 'gp_percent' || metric.key === 'gp_net' || metric.key === 'sales_expense_percent' || metric.key === 'sales_expense' || metric.key === 'semi_fixed_expense_percent' || metric.key === 'semi_fixed_expense' || metric.key === 'total_fixed_expense') && onMainMetricAnnualEdit ? (
                 view === 'annual' ? (
                   // Annual view: show full values directly
                   <span 
