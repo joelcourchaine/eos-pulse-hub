@@ -1,76 +1,35 @@
 
-# Fix Quarter Validation for Scorecard Email
+# Quarterly Trend Email Report - COMPLETED
 
-## Problem
-When attempting to email a "Monthly" scorecard report while in Quarter Trend view (`quarter = 0`), the edge function throws "Quarter is required for weekly and monthly modes" because the validation `!quarter` treats `0` as falsy/missing.
+## What was implemented
 
-## Root Cause
-Line 177 in `send-scorecard-email/index.ts`:
-```typescript
-if (mode !== "yearly" && !quarter) {
-  throw new Error("Quarter is required for weekly and monthly modes");
-}
-```
+Added a new "Quarterly Trend (Rolling 5 quarters)" option to the Email Scorecard Report dialog.
 
-The check `!quarter` returns `true` for both:
-- `quarter = 0` (Quarter Trend mode - valid value)
-- `quarter = undefined/null` (actually missing - should fail)
+### Frontend Changes (`src/pages/Dashboard.tsx`)
+- Extended `printMode` type to include `"quarterly-trend"`
+- Added new radio button option in the email dialog
+- Updated mode passing to the edge function
 
-## Solution
-Change the validation to explicitly check for `null` or `undefined` instead of using falsy check:
+### Backend Changes (`supabase/functions/send-scorecard-email/index.ts`)
+- Added `"quarterly-trend"` to EmailRequest mode type
+- Created `getQuarterlyTrendPeriods()` function to generate 5 rolling quarters (Q1 prev year through current quarter)
+- Updated validation to allow quarterly-trend mode without explicit quarter parameter
+- Implemented quarterly aggregation of monthly KPI data with proper handling for average vs sum metrics
+- Implemented quarterly aggregation of financial data with recalculated percentages from summed components
+- Fetches targets for both years when spanning two calendar years
+- Uses proper inline styles for email forwarding compatibility
+- Email subject line updated for quarterly-trend mode
 
-```typescript
-if (mode !== "yearly" && quarter == null) {
-  throw new Error("Quarter is required for weekly and monthly modes");
-}
-```
+### PrintView Changes (`src/components/print/PrintView.tsx`)
+- Updated interface to accept `"quarterly-trend"` mode
 
-The `== null` check only matches `null` and `undefined`, allowing `0` to pass through.
+## How it works
 
-## Additional Consideration
-When `quarter = 0` (Quarter Trend mode), the edge function should determine appropriate periods. Looking at the existing logic (lines 282-286), it handles:
-- `quarter === -1` → Monthly Trend (12 months)
-- Specific quarters (1-4) → 3 months
-
-For `quarter = 0` (Quarter Trend), we should use the same logic as "yearly" mode (all 12 months) since Quarter Trend shows a rolling 5-quarter view which spans multiple years.
-
-## File to Modify
-
-**`supabase/functions/send-scorecard-email/index.ts`**
-
-### Change 1: Fix validation (line 177)
-```typescript
-// Before
-if (mode !== "yearly" && !quarter) {
-
-// After  
-if (mode !== "yearly" && quarter == null) {
-```
-
-### Change 2: Handle Quarter Trend mode in period selection (lines 280-286)
-```typescript
-// Before
-const periods = mode === "weekly"
-  ? getWeekDates({ year, quarter: quarter! })
-  : (mode === "yearly" || mode === "monthly") && quarter === -1
-  ? getMonthlyTrendMonths({ year })
-  : mode === "yearly"
-  ? getAllMonthsForYear({ year })
-  : getMonthsForQuarter({ year, quarter: quarter! });
-
-// After - also handle quarter === 0 (Quarter Trend) like yearly
-const periods = mode === "weekly"
-  ? getWeekDates({ year, quarter: quarter! })
-  : (mode === "yearly" || mode === "monthly") && (quarter === -1 || quarter === 0)
-  ? getMonthlyTrendMonths({ year })
-  : mode === "yearly"
-  ? getAllMonthsForYear({ year })
-  : getMonthsForQuarter({ year, quarter: quarter! });
-```
-
-## Testing
-1. Navigate to Steve Marshall Ford dashboard
-2. Switch to "Quarter Trend" view (quarter = 0)
-3. Open Print/Email dialog and select "Monthly" report
-4. Send email to test recipient
-5. Verify email is sent successfully with 12-month data
+The Quarterly Trend email report:
+1. Shows 5 quarters: Q1 of previous year through current quarter
+2. Aggregates monthly KPI entries into quarterly totals (using sum or average based on aggregation_type)
+3. Aggregates monthly financial data into quarterly totals
+4. Recalculates percentage metrics from aggregated dollar components for accuracy
+5. Shows status colors based on quarter-specific targets
+6. Includes Avg and Total summary columns
+7. Uses inline HTML styles for proper email forwarding

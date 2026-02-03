@@ -10,7 +10,7 @@ const corsHeaders = {
 interface EmailRequest {
   year: number;
   quarter?: number;
-  mode: "weekly" | "monthly" | "yearly";
+  mode: "weekly" | "monthly" | "yearly" | "quarterly-trend";
   departmentId: string;
   recipientEmails?: string[];
 }
@@ -112,6 +112,55 @@ function getMonthlyTrendMonths({ year }: { year: number }) {
   return months;
 }
 
+// Quarterly Trend mode shows rolling 5 quarters ending at current quarter
+// This matches the UI's Quarter Trend view
+function getQuarterlyTrendPeriods({ year }: { year: number }) {
+  const quarters: Array<{ 
+    label: string; 
+    identifier: string; 
+    type: "quarter"; 
+    year: number; 
+    quarter: number;
+    months: string[];
+  }> = [];
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentQuarter = Math.floor(currentMonth / 3) + 1;
+  
+  // Start from Q1 of previous year
+  let qYear = year - 1;
+  let q = 1;
+  
+  // Generate 5 quarters up to and including current quarter
+  for (let i = 0; i < 5; i++) {
+    // Generate month identifiers for this quarter
+    const months: string[] = [];
+    for (let m = 0; m < 3; m++) {
+      const monthIndex = (q - 1) * 3 + m;
+      months.push(`${qYear}-${String(monthIndex + 1).padStart(2, '0')}`);
+    }
+    
+    quarters.push({
+      label: `Q${q} ${qYear}`,
+      identifier: `${qYear}-Q${q}`,
+      type: "quarter",
+      year: qYear,
+      quarter: q,
+      months,
+    });
+    
+    q++;
+    if (q > 4) {
+      q = 1;
+      qYear++;
+    }
+  }
+  
+  return quarters;
+}
+
 function formatValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
   
@@ -173,9 +222,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId, recipientEmails });
     
-    // Validate that quarter is provided for non-yearly modes
+    // Validate that quarter is provided for non-yearly and non-quarterly-trend modes
     // Use == null to allow quarter = 0 (Quarter Trend mode) while catching undefined/null
-    if (mode !== "yearly" && quarter == null) {
+    if (mode !== "yearly" && mode !== "quarterly-trend" && quarter == null) {
       throw new Error("Quarter is required for weekly and monthly modes");
     }
 
@@ -278,8 +327,12 @@ const handler = async (req: Request): Promise<Response> => {
     // Fetch scorecard entries
     // IMPORTANT: In the UI, when the user is on Monthly Trend view (quarter === -1) and chooses
     // "Monthly" or "Yearly Report", they expect the same rolling month window shown on screen.
+    // For quarterly-trend mode, we use the quarterly periods which contain their constituent months.
+    const quarterlyPeriods = mode === "quarterly-trend" ? getQuarterlyTrendPeriods({ year }) : null;
     const periods = mode === "weekly"
       ? getWeekDates({ year, quarter: quarter! })
+      : mode === "quarterly-trend"
+      ? quarterlyPeriods!
       : (mode === "yearly" || mode === "monthly") && (quarter === -1 || quarter === 0)
       ? getMonthlyTrendMonths({ year })
       : mode === "yearly"
@@ -291,7 +344,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Fetching scorecard entries for ${kpiIds.length} KPIs from department ${departmentId}`);
 
     // IMPORTANT: Match UI behavior
-    // - monthly/yearly reports should only use monthly entries
+    // - monthly/yearly/quarterly-trend reports should only use monthly entries
     // - weekly reports should only use weekly entries
     // Also paginate to avoid the 1000-row default cap.
     const entryType = mode === "weekly" ? "weekly" : "monthly";
@@ -301,12 +354,17 @@ const handler = async (req: Request): Promise<Response> => {
     let offset = 0;
 
     // Constrain by period to reduce row count and ensure correct matching
-    const monthIdentifiers =
-      mode === "monthly" || mode === "yearly"
-        ? periods
-            .map((p) => ("identifier" in p ? p.identifier : ""))
-            .filter(Boolean)
-        : [];
+    // For quarterly-trend, we need all months from the quarterly periods
+    let monthIdentifiers: string[] = [];
+    if (mode === "monthly" || mode === "yearly") {
+      monthIdentifiers = periods
+        .map((p) => ("identifier" in p ? p.identifier : ""))
+        .filter(Boolean);
+    } else if (mode === "quarterly-trend" && quarterlyPeriods) {
+      // Collect all months from all quarters
+      monthIdentifiers = quarterlyPeriods.flatMap((q) => q.months);
+    }
+    
     const weekStartDates =
       mode === "weekly"
         ? periods
@@ -350,13 +408,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Fetched ${entries.length} scorecard entries for department ${departmentId}`);
 
-    // Fetch financial entries for monthly and yearly modes
+    // Fetch financial entries for monthly, yearly, and quarterly-trend modes
     // PAGINATION: financial_entries can exceed 1000 rows with sub-metrics
     let financialEntries: any[] = [];
-    if (mode === "monthly" || mode === "yearly") {
-      // Get the month identifiers
-      const monthIdentifiers = periods.map(p => 'identifier' in p ? p.identifier : '').filter(Boolean);
-      console.log("Fetching financial entries for months:", monthIdentifiers);
+    if (mode === "monthly" || mode === "yearly" || mode === "quarterly-trend") {
+      // Get the month identifiers - for quarterly-trend use the already computed monthIdentifiers
+      const finMonthIdentifiers = mode === "quarterly-trend" 
+        ? monthIdentifiers 
+        : periods.map(p => 'identifier' in p ? p.identifier : '').filter(Boolean);
+      console.log("Fetching financial entries for months:", finMonthIdentifiers);
       
       let finOffset = 0;
       const finPageSize = 1000;
@@ -366,7 +426,7 @@ const handler = async (req: Request): Promise<Response> => {
           .from("financial_entries")
           .select("*")
           .eq("department_id", departmentId)
-          .in("month", monthIdentifiers)
+          .in("month", finMonthIdentifiers)
           .range(finOffset, finOffset + finPageSize - 1);
 
         if (finError) {
@@ -386,7 +446,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Precompute month data once (including synthesized parent totals from sub-metrics)
     // This matches UI behavior where parent entries can be absent when a statement import only provides sub-line-items.
     const financialDataByMonth = new Map<string, Record<string, number | null>>();
-    if (mode === "monthly" || mode === "yearly") {
+    if (mode === "monthly" || mode === "yearly" || mode === "quarterly-trend") {
       for (const e of financialEntries) {
         const month = e.month as string | undefined;
         const metricName = e.metric_name as string | undefined;
@@ -424,6 +484,27 @@ const handler = async (req: Request): Promise<Response> => {
         synthesizeParentFromSubs(monthData, "semi_fixed_expense");
         synthesizeParentFromSubs(monthData, "total_fixed_expense");
         synthesizeParentFromSubs(monthData, "total_direct_expenses");
+      }
+    }
+    
+    // For quarterly-trend, precompute quarterly aggregated data from monthly data
+    const financialDataByQuarter = new Map<string, Record<string, number | null>>();
+    if (mode === "quarterly-trend" && quarterlyPeriods) {
+      for (const qPeriod of quarterlyPeriods) {
+        const quarterData: Record<string, number | null> = {};
+        
+        // Aggregate monthly data for this quarter
+        for (const month of qPeriod.months) {
+          const monthData = financialDataByMonth.get(month);
+          if (!monthData) continue;
+          
+          for (const [key, value] of Object.entries(monthData)) {
+            if (value == null) continue;
+            quarterData[key] = (quarterData[key] ?? 0) + value;
+          }
+        }
+        
+        financialDataByQuarter.set(qPeriod.identifier, quarterData);
       }
     }
 
@@ -469,9 +550,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Build HTML
     const reportTitle = mode === "yearly" 
-      ? `${year} Annual Report` 
+      ? `${year} Annual Report`
+      : mode === "quarterly-trend"
+      ? `Quarterly Trend (${year - 1}-${year})`
       : `Q${quarter} ${year}`;
-    const reportType = mode === "weekly" ? "Weekly" : mode === "yearly" ? "Yearly" : "Monthly";
+    const reportType = mode === "weekly" ? "Weekly" : mode === "yearly" ? "Yearly" : mode === "quarterly-trend" ? "Quarterly Trend" : "Monthly";
     
     // Helper function to convert cell class to inline style (for email forwarding compatibility)
     const getCellStyle = (cellClass: string, baseFontSize: string): string => {
@@ -512,10 +595,10 @@ const handler = async (req: Request): Promise<Response> => {
         html += `<th style="${thStyle}">${p.label}</th>`;
       });
       
-      // Add Avg and Total columns for yearly/monthly modes
-      if (mode === "yearly" || mode === "monthly") {
-        html += `<th style="${thStyle} background-color: #e8e8e8;">Avg ${year}</th>`;
-        html += `<th style="${thStyle} background-color: #e0e0e0;">Total ${year}</th>`;
+      // Add Avg and Total columns for yearly/monthly/quarterly-trend modes
+      if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
+        html += `<th style="${thStyle} background-color: #e8e8e8;">Avg</th>`;
+        html += `<th style="${thStyle} background-color: #e0e0e0;">Total</th>`;
       }
       html += `</tr></thead><tbody>`;
 
@@ -540,69 +623,123 @@ const handler = async (req: Request): Promise<Response> => {
         const periodValues: number[] = [];
         
         periods.forEach(p => {
-          const entry = entries?.find(e => {
-            if (mode === "weekly" && 'start' in p) {
-              return e.kpi_id === kpi.id && 
-                     e.week_start_date === p.start.toISOString().split('T')[0];
-            } else if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
-              return e.kpi_id === kpi.id && e.month === p.identifier;
-            }
-            return false;
-          });
-
-          // Determine target value based on mode
-          let targetValue = kpi.target_value;
-          if (mode === "yearly" && 'identifier' in p) {
-            // Get quarter from month identifier
-            const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
-            const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+          // Handle quarterly-trend mode by aggregating monthly entries for each quarter
+          if (mode === "quarterly-trend" && 'months' in p) {
+            // Aggregate monthly KPI values for this quarter
+            const quarterMonths = p.months as string[];
+            let quarterSum = 0;
+            let monthCount = 0;
             
+            for (const monthId of quarterMonths) {
+              const monthEntry = entries?.find(e => e.kpi_id === kpi.id && e.month === monthId);
+              if (monthEntry?.actual_value !== null && monthEntry?.actual_value !== undefined) {
+                quarterSum += monthEntry.actual_value;
+                monthCount++;
+              }
+            }
+            
+            // Calculate quarterly value based on aggregation type
+            const quarterValue = monthCount > 0 
+              ? (kpi.aggregation_type === 'average' ? quarterSum / monthCount : quarterSum)
+              : null;
+            
+            // Get target for this quarter
+            const qPeriod = p as { year: number; quarter: number };
+            let targetValue = kpi.target_value;
             if (kpiTargetsByQuarter.has(kpi.id)) {
-              targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
+              targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(qPeriod.quarter) || kpi.target_value;
             }
-          } else if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
-            targetValue = kpiTargetsMap.get(kpi.id)!;
-          }
-
-          // Calculate status if we have an entry with a value
-          // UNIVERSAL LOGIC: target value of 0 means "no target" - no status indicator
-          let cellClass = "";
-          if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
-            const actualValue = entry.actual_value;
-            const direction = kpi.target_direction;
             
-            // Collect for summary
-            periodValues.push(actualValue);
-            
-            // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
-            const variance = kpi.metric_type === "percentage"
-              ? actualValue - targetValue
-              : ((actualValue - targetValue) / targetValue) * 100;
-            
-            if (direction === "above") {
-              if (variance >= 0) cellClass = "green";
-              else if (variance >= -10) cellClass = "yellow";
-              else cellClass = "red";
-            } else {
-              if (variance <= 0) cellClass = "green";
-              else if (variance <= 10) cellClass = "yellow";
-              else cellClass = "red";
+            // Calculate status
+            let cellClass = "";
+            if (quarterValue !== null && targetValue !== null && targetValue !== 0) {
+              const direction = kpi.target_direction;
+              const variance = kpi.metric_type === "percentage"
+                ? quarterValue - targetValue
+                : ((quarterValue - targetValue) / targetValue) * 100;
+              
+              if (direction === "above") {
+                if (variance >= 0) cellClass = "green";
+                else if (variance >= -10) cellClass = "yellow";
+                else cellClass = "red";
+              } else {
+                if (variance <= 0) cellClass = "green";
+                else if (variance <= 10) cellClass = "yellow";
+                else cellClass = "red";
+              }
+              
+              periodValues.push(quarterValue);
+            } else if (quarterValue !== null) {
+              periodValues.push(quarterValue);
             }
+            
+            html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(quarterValue, kpi.metric_type, kpi.name)}</td>`;
           } else {
-            // Still collect value if present, even without target
-            if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
-              periodValues.push(entry.actual_value);
+            // Original logic for weekly/monthly/yearly modes
+            const entry = entries?.find(e => {
+              if (mode === "weekly" && 'start' in p) {
+                return e.kpi_id === kpi.id && 
+                       e.week_start_date === p.start.toISOString().split('T')[0];
+              } else if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
+                return e.kpi_id === kpi.id && e.month === p.identifier;
+              }
+              return false;
+            });
+
+            // Determine target value based on mode
+            let targetValue = kpi.target_value;
+            if (mode === "yearly" && 'identifier' in p) {
+              // Get quarter from month identifier
+              const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
+              const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+              
+              if (kpiTargetsByQuarter.has(kpi.id)) {
+                targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
+              }
+            } else if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
+              targetValue = kpiTargetsMap.get(kpi.id)!;
             }
+
+            // Calculate status if we have an entry with a value
+            // UNIVERSAL LOGIC: target value of 0 means "no target" - no status indicator
+            let cellClass = "";
+            if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
+              const actualValue = entry.actual_value;
+              const direction = kpi.target_direction;
+              
+              // Collect for summary
+              periodValues.push(actualValue);
+              
+              // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
+              const variance = kpi.metric_type === "percentage"
+                ? actualValue - targetValue
+                : ((actualValue - targetValue) / targetValue) * 100;
+              
+              if (direction === "above") {
+                if (variance >= 0) cellClass = "green";
+                else if (variance >= -10) cellClass = "yellow";
+                else cellClass = "red";
+              } else {
+                if (variance <= 0) cellClass = "green";
+                else if (variance <= 10) cellClass = "yellow";
+                else cellClass = "red";
+              }
+            } else {
+              // Still collect value if present, even without target
+              if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+                periodValues.push(entry.actual_value);
+              }
+            }
+            
+            html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
           }
-          
-          html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
         });
         
-        // Add Avg and Total columns for yearly/monthly modes
+        // Add Avg and Total columns for yearly/monthly/quarterly-trend modes
         // MUST match UI logic in ScorecardGrid.tsx exactly:
         // - Avg column always shows average
         // - Total column: shows average if aggregation_type === 'average', otherwise shows sum
-        if (mode === "yearly" || mode === "monthly") {
+        if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
           const avg = periodValues.length > 0 
             ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
             : null;
@@ -626,18 +763,19 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     });
 
-    // Add financial metrics for monthly and yearly modes
-    if (mode === "monthly" || mode === "yearly") {
-      // Fetch financial targets for this year
+    // Add financial metrics for monthly, yearly, and quarterly-trend modes
+    if (mode === "monthly" || mode === "yearly" || mode === "quarterly-trend") {
+      // Fetch financial targets for both years (for quarterly-trend which spans 2 years)
+      const targetYears = mode === "quarterly-trend" ? [year - 1, year] : [year];
       const { data: finTargets } = await supabaseClient
         .from("financial_targets")
         .select("*")
         .eq("department_id", departmentId)
-        .eq("year", year);
+        .in("year", targetYears);
       
       const targetsMap = new Map<string, { value: number; direction: string }>();
       finTargets?.forEach(t => {
-        const key = `${t.metric_name}_${t.quarter}`;
+        const key = `${t.metric_name}_${t.year}_${t.quarter}`;
         targetsMap.set(key, { value: t.target_value, direction: t.target_direction });
       });
       
@@ -820,8 +958,8 @@ const handler = async (req: Request): Promise<Response> => {
       });
       
       // Add Avg and Total columns
-      html += `<th style="${thStyle} background-color: #e8e8e8;">Avg ${year}</th>`;
-      html += `<th style="${thStyle} background-color: #e0e0e0;">Total ${year}</th>`;
+      html += `<th style="${thStyle} background-color: #e8e8e8;">Avg</th>`;
+      html += `<th style="${thStyle} background-color: #e0e0e0;">Total</th>`;
       html += `</tr></thead><tbody>`;
       
       FINANCIAL_METRICS.forEach(metric => {
@@ -829,10 +967,10 @@ const handler = async (req: Request): Promise<Response> => {
         
         // Add Q1-Q4 targets cell for yearly mode
         if (mode === "yearly") {
-          const q1Target = targetsMap.get(`${metric.dbName}_1`);
-          const q2Target = targetsMap.get(`${metric.dbName}_2`);
-          const q3Target = targetsMap.get(`${metric.dbName}_3`);
-          const q4Target = targetsMap.get(`${metric.dbName}_4`);
+          const q1Target = targetsMap.get(`${metric.dbName}_${year}_1`);
+          const q2Target = targetsMap.get(`${metric.dbName}_${year}_2`);
+          const q3Target = targetsMap.get(`${metric.dbName}_${year}_3`);
+          const q4Target = targetsMap.get(`${metric.dbName}_${year}_4`);
           
           const q1Value = q1Target?.value ?? 0;
           const q2Value = q2Target?.value ?? 0;
@@ -847,7 +985,57 @@ const handler = async (req: Request): Promise<Response> => {
         const periodValues: number[] = [];
         
         periods.forEach(p => {
-          if ('identifier' in p) {
+          // Handle quarterly-trend mode - aggregate monthly data into quarterly totals
+          if (mode === "quarterly-trend" && 'months' in p) {
+            const qPeriod = p as { year: number; quarter: number; months: string[] };
+            
+            // Get quarterly aggregated data
+            const quarterData = financialDataByQuarter.get(p.identifier) ?? {};
+            
+            let value = null;
+            if (metric.calc) {
+              value = metric.calc(quarterData);
+            } else {
+              value = quarterData[metric.dbName] ?? null;
+            }
+            
+            // Collect value for summary
+            if (value !== null) {
+              periodValues.push(value);
+            }
+            
+            // Get target for this quarter
+            const targetKey = `${metric.dbName}_${qPeriod.year}_${qPeriod.quarter}`;
+            const target = targetsMap.get(targetKey);
+            
+            // Calculate status
+            let cellClass = "";
+            if (value !== null && target && target.value !== null && target.value !== 0) {
+              const targetValue = target.value;
+              const direction = target.direction;
+              
+              const variance = metric.type === "percentage"
+                ? value - targetValue
+                : ((value - targetValue) / targetValue) * 100;
+              
+              if (direction === "above") {
+                if (variance >= 0) cellClass = "green";
+                else if (variance >= -10) cellClass = "yellow";
+                else cellClass = "red";
+              } else {
+                if (variance <= 0) cellClass = "green";
+                else if (variance <= 10) cellClass = "yellow";
+                else cellClass = "red";
+              }
+            }
+            
+            if (metric.type === "percentage" && value !== null) {
+              html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${value.toFixed(1)}%</td>`;
+            } else {
+              html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(value, metric.type)}</td>`;
+            }
+          } else if ('identifier' in p) {
+            // Original logic for monthly/yearly modes
             // Gather all financial data for this month to calculate percentages
             const monthData: any = financialDataByMonth.get(p.identifier) ?? {};
             
@@ -878,10 +1066,11 @@ const handler = async (req: Request): Promise<Response> => {
             
             // Determine quarter from month identifier
             const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
-            const quarter = Math.ceil((monthIndex + 1) / 3);
+            const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+            const periodYear = parseInt(p.identifier.split('-')[0]);
             
             // Get target for this metric and quarter
-            const targetKey = `${metric.dbName}_${quarter}`;
+            const targetKey = `${metric.dbName}_${periodYear}_${periodQuarter}`;
             const target = targetsMap.get(targetKey);
             
             // Calculate status - MUST match UI logic exactly
@@ -936,31 +1125,54 @@ const handler = async (req: Request): Promise<Response> => {
           
           const calcDef = percentageCalcs[metric.dbName];
           if (calcDef) {
-            // Sum numerator and denominator across all months
+            // Sum numerator and denominator across all periods
             let totalNumerator = 0;
             let totalDenominator = 0;
             
-            periods.forEach(p => {
-              if ('identifier' in p) {
-                const monthData: any = financialDataByMonth.get(p.identifier) ?? {};
+            if (mode === "quarterly-trend" && quarterlyPeriods) {
+              // For quarterly-trend, use quarterly aggregated data
+              for (const qPeriod of quarterlyPeriods) {
+                const quarterData = financialDataByQuarter.get(qPeriod.identifier) ?? {};
                 
-                // For department_profit, use stored value or calculate it
                 let numeratorVal: number | null = null;
                 if (calcDef.numerator === "department_profit") {
-                  numeratorVal = monthData.department_profit ?? (
-                    (monthData.gp_net != null && monthData.sales_expense != null && monthData.total_fixed_expense != null) ?
-                    monthData.gp_net - monthData.sales_expense - (monthData.semi_fixed_expense ?? 0) - monthData.total_fixed_expense : null
+                  numeratorVal = quarterData.department_profit ?? (
+                    (quarterData.gp_net != null && quarterData.sales_expense != null && quarterData.total_fixed_expense != null) ?
+                    quarterData.gp_net - quarterData.sales_expense - (quarterData.semi_fixed_expense ?? 0) - quarterData.total_fixed_expense : null
                   );
                 } else {
-                  numeratorVal = monthData[calcDef.numerator] ?? null;
+                  numeratorVal = quarterData[calcDef.numerator] ?? null;
                 }
                 
-                const denominatorVal = monthData[calcDef.denominator] ?? null;
+                const denominatorVal = quarterData[calcDef.denominator] ?? null;
                 
                 if (numeratorVal != null) totalNumerator += numeratorVal;
                 if (denominatorVal != null) totalDenominator += denominatorVal;
               }
-            });
+            } else {
+              // Original logic for monthly/yearly modes
+              periods.forEach(p => {
+                if ('identifier' in p) {
+                  const monthData: any = financialDataByMonth.get(p.identifier) ?? {};
+                  
+                  // For department_profit, use stored value or calculate it
+                  let numeratorVal: number | null = null;
+                  if (calcDef.numerator === "department_profit") {
+                    numeratorVal = monthData.department_profit ?? (
+                      (monthData.gp_net != null && monthData.sales_expense != null && monthData.total_fixed_expense != null) ?
+                      monthData.gp_net - monthData.sales_expense - (monthData.semi_fixed_expense ?? 0) - monthData.total_fixed_expense : null
+                    );
+                  } else {
+                    numeratorVal = monthData[calcDef.numerator] ?? null;
+                  }
+                  
+                  const denominatorVal = monthData[calcDef.denominator] ?? null;
+                  
+                  if (numeratorVal != null) totalNumerator += numeratorVal;
+                  if (denominatorVal != null) totalDenominator += denominatorVal;
+                }
+              });
+            }
             
             // Calculate average percentage from summed components
             if (totalDenominator !== 0) {
@@ -1022,6 +1234,8 @@ const handler = async (req: Request): Promise<Response> => {
         to: recipients,
         subject: mode === "yearly" 
           ? `${department.name} Scorecard - ${year} Annual Report`
+          : mode === "quarterly-trend"
+          ? `${department.name} Scorecard - Quarterly Trend (${year - 1}-${year})`
           : `${department.name} Scorecard - Q${quarter} ${year}`,
         html,
       }),
