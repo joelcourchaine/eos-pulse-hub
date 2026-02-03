@@ -203,6 +203,17 @@ async function convertFordYTDToMonthly(
 2. `src/utils/parseFinancialExcel.ts` - Add YTD conversion logic for Ford
 3. Database migration - Insert 42 cell mappings for FORD6 sheet
 
+## Implementation Status
+
+### Completed
+1. ✅ Database: Added 42 cell mappings for FORD6 sheet (Parts Y5-Y25, Service Z5-Z25)
+2. ✅ Config: Added `hasSubMetrics: true` to `total_fixed_expense` in FORD_METRICS
+3. ✅ Config: Added `total_fixed_expense_percent` metric with sub-metrics support
+4. ✅ Parser: Added `convertFordYTDToMonthly` function for YTD-to-monthly conversion
+5. ✅ Parser: Updated `importFinancialData` to accept optional brand parameter
+6. ✅ Parser: Stores both YTD entries (ytd:total_fixed_expense:...) and monthly entries (sub:total_fixed_expense:...)
+7. ✅ MonthDropZone: Updated to pass storeBrand to importFinancialData
+
 ## Testing Checklist
 - [ ] Import January Ford statement - values should equal YTD (no conversion)
 - [ ] Import February Ford statement - values should be Feb_YTD - Jan_YTD
