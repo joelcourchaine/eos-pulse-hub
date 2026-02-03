@@ -1405,29 +1405,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
               }
             } else {
-              // For direct database values
-              // Honda special case: legacy months may not have stored Total Direct Expenses, so compute it
-              if (isHondaBrand && metric.key === 'total_direct_expenses') {
-                const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
-                if (metricMonthCount > 0) {
-                  const total = getMetricTotal(metric.key, quarterMonthIds);
-                  const avg = total / metricMonthCount;
-                  averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
-                }
-                return;
-              }
-
-              const values = data
-                ?.filter(entry => 
-                  entry.metric_name === metric.key && 
-                  quarterMonthIds.includes(entry.month)
-                )
-                .map(entry => entry.value || 0) || [];
-              
-              if (values.length > 0) {
-                // For dollar metrics, sum all values and divide by actual months with data
-                const total = values.reduce((sum, val) => sum + val, 0);
-                const avg = total / monthCount;
+              // For direct database values - use getMonthValue which includes sub-metric sums
+              const metricMonthCount = getMonthsWithMetricData(metric.key, quarterMonthIds);
+              if (metricMonthCount > 0) {
+                const total = getMetricTotal(metric.key, quarterMonthIds);
+                const avg = total / metricMonthCount;
                 averages[`${metric.key}-Q${qtr.quarter}-${qtr.year}`] = avg;
               }
             }
