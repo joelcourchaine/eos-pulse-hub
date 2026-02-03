@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.mark-token-used]
 verify_jwt = false
+
+[functions.set-password-with-token]
+verify_jwt = false
