@@ -218,6 +218,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const [attachments, setAttachments] = useState<{ [monthId: string]: { id: string; file_name: string; file_path: string; file_type: string } }>({});
+  const [siblingAttachments, setSiblingAttachments] = useState<{ [monthId: string]: { file_name: string; file_path: string; file_type: string; department_name: string } }>({});
   const [expandedMetrics, setExpandedMetrics] = useState<Set<string>>(new Set());
   const [copyingMonth, setCopyingMonth] = useState<string | null>(null);
   const [copyMetadata, setCopyMetadata] = useState<{ [monthId: string]: { sourceLabel: string; copiedAt: string } }>({});
@@ -227,25 +228,78 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
-  // Fetch financial attachments
+  // Fetch financial attachments for current department AND sibling departments
   const fetchAttachments = useCallback(async () => {
-    if (!departmentId) return;
+    if (!departmentId || !storeId) {
+      // Fallback to department-only query if storeId not available
+      if (!departmentId) return;
+      const { data } = await supabase
+        .from('financial_attachments')
+        .select('id, month_identifier, file_name, file_path, file_type')
+        .eq('department_id', departmentId);
+      
+      const attachmentMap: typeof attachments = {};
+      data?.forEach(att => {
+        attachmentMap[att.month_identifier] = {
+          id: att.id,
+          file_name: att.file_name,
+          file_path: att.file_path,
+          file_type: att.file_type,
+        };
+      });
+      setAttachments(attachmentMap);
+      setSiblingAttachments({});
+      return;
+    }
+
+    // Get all department IDs for this store
+    const { data: storeDepartments } = await supabase
+      .from('departments')
+      .select('id, name')
+      .eq('store_id', storeId);
+    
+    if (!storeDepartments || storeDepartments.length === 0) return;
+    
+    const allDeptIds = storeDepartments.map(d => d.id);
+    const deptNameMap = Object.fromEntries(storeDepartments.map(d => [d.id, d.name]));
+
+    // Fetch attachments for ALL departments at this store
     const { data } = await supabase
       .from('financial_attachments')
-      .select('id, month_identifier, file_name, file_path, file_type')
-      .eq('department_id', departmentId);
+      .select('id, month_identifier, file_name, file_path, file_type, department_id')
+      .in('department_id', allDeptIds);
     
     const attachmentMap: typeof attachments = {};
+    const siblingMap: typeof siblingAttachments = {};
+    
     data?.forEach(att => {
-      attachmentMap[att.month_identifier] = {
-        id: att.id,
-        file_name: att.file_name,
-        file_path: att.file_path,
-        file_type: att.file_type,
-      };
+      if (att.department_id === departmentId) {
+        // This is our department's attachment
+        attachmentMap[att.month_identifier] = {
+          id: att.id,
+          file_name: att.file_name,
+          file_path: att.file_path,
+          file_type: att.file_type,
+        };
+      } else if (!attachmentMap[att.month_identifier] && !siblingMap[att.month_identifier]) {
+        // This is a sibling's attachment (only store first one found if no current dept attachment)
+        siblingMap[att.month_identifier] = {
+          file_name: att.file_name,
+          file_path: att.file_path,
+          file_type: att.file_type,
+          department_name: deptNameMap[att.department_id] || 'Another Department',
+        };
+      }
     });
+    
+    // Remove sibling attachments where current dept already has one
+    Object.keys(attachmentMap).forEach(monthId => {
+      delete siblingMap[monthId];
+    });
+    
     setAttachments(attachmentMap);
-  }, [departmentId]);
+    setSiblingAttachments(siblingMap);
+  }, [departmentId, storeId]);
 
   useEffect(() => {
     fetchAttachments();
@@ -2990,6 +3044,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   storeId={storeId || undefined}
                                   storeBrand={storeBrand || undefined}
                                   attachment={attachments[period.identifier]}
+                                  siblingAttachment={siblingAttachments[period.identifier]}
                                   onAttachmentChange={() => {
                                     fetchAttachments();
                                     loadFinancialData();
@@ -3047,6 +3102,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               storeId={storeId || undefined}
                               storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
+                              siblingAttachment={siblingAttachments[month.identifier]}
                               onAttachmentChange={() => {
                                 fetchAttachments();
                                 loadFinancialData();
@@ -3083,6 +3139,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               storeId={storeId || undefined}
                               storeBrand={storeBrand || undefined}
                               attachment={attachments[month.identifier]}
+                              siblingAttachment={siblingAttachments[month.identifier]}
                               onAttachmentChange={() => {
                                 fetchAttachments();
                                 loadFinancialData();

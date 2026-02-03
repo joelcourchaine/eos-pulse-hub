@@ -43,6 +43,13 @@ export interface CopySourceOption {
   isAverage?: boolean;
 }
 
+interface SiblingAttachment {
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  department_name: string;
+}
+
 interface MonthDropZoneProps {
   children: React.ReactNode;
   monthIdentifier: string;
@@ -62,6 +69,8 @@ interface MonthDropZoneProps {
   copiedFrom?: { sourceLabel: string; copiedAt: string } | null;
   /** Callback to clear all data for this month */
   onClearMonthData?: () => void;
+  /** Attachment from another department at the same store (for re-import) */
+  siblingAttachment?: SiblingAttachment | null;
 }
 
 const ACCEPTED_TYPES: Record<string, "excel" | "csv" | "pdf"> = {
@@ -87,6 +96,7 @@ export const MonthDropZone = ({
   isCopying = false,
   copiedFrom,
   onClearMonthData,
+  siblingAttachment,
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -469,6 +479,51 @@ export const MonthDropZone = ({
     }
   };
 
+  // Import from sibling department's attachment
+  const handleImportFromSibling = async () => {
+    if (!siblingAttachment || !storeId || !storeBrand) return;
+    
+    setIsUploading(true);
+    setValidationStatus(null);
+    setValidationDetails([]);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Download the sibling's file from storage
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from("financial-attachments")
+        .download(siblingAttachment.file_path);
+
+      if (downloadError || !fileData) {
+        throw new Error("Failed to download file");
+      }
+
+      // Convert to File object
+      const file = new File([fileData], siblingAttachment.file_name, { type: fileData.type });
+
+      // Process using existing processBrandExcel (creates attachments for ALL departments)
+      await processBrandExcel(file, siblingAttachment.file_path, user.id, storeBrand);
+
+      toast({
+        title: "Import complete",
+        description: `Imported data from ${siblingAttachment.department_name}'s statement`,
+      });
+
+      onAttachmentChange();
+    } catch (error: any) {
+      console.error("Import from sibling error:", error);
+      toast({
+        title: "Import failed",
+        description: error.message || "Failed to import from sibling statement",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
@@ -805,6 +860,35 @@ export const MonthDropZone = ({
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
+        </div>
+      )}
+
+      {/* Sibling attachment indicator - show when this dept has no attachment but another dept does */}
+      {!attachment && !isUploading && siblingAttachment && isSupportedBrand && (
+        <div className="absolute -top-1 -right-1 z-20">
+          <DropdownMenu>
+            <TooltipProvider>
+              <Tooltip delayDuration={100}>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button className="text-muted-foreground rounded-full p-0.5 border border-dashed border-muted-foreground/50 bg-background hover:bg-muted transition-colors">
+                      <FileSpreadsheet className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p className="text-xs">Statement available from {siblingAttachment.department_name}</p>
+                  <p className="text-xs text-muted-foreground">{siblingAttachment.file_name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <DropdownMenuContent align="end" className="bg-popover">
+              <DropdownMenuItem onClick={handleImportFromSibling}>
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Import from {siblingAttachment.department_name}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 
