@@ -488,23 +488,39 @@ const handler = async (req: Request): Promise<Response> => {
     }
     
     // For quarterly-trend, precompute quarterly aggregated data from monthly data
+    // CRITICAL: Must match UI behavior - show quarterly AVERAGES (sum / month count), not totals
     const financialDataByQuarter = new Map<string, Record<string, number | null>>();
+    const financialMonthCountByQuarter = new Map<string, Record<string, number>>(); // Track months with data per metric
+    
     if (mode === "quarterly-trend" && quarterlyPeriods) {
       for (const qPeriod of quarterlyPeriods) {
-        const quarterData: Record<string, number | null> = {};
+        const quarterSums: Record<string, number> = {};
+        const monthCounts: Record<string, number> = {};
         
-        // Aggregate monthly data for this quarter
+        // Sum monthly data for this quarter and count months with data
         for (const month of qPeriod.months) {
           const monthData = financialDataByMonth.get(month);
           if (!monthData) continue;
           
           for (const [key, value] of Object.entries(monthData)) {
             if (value == null) continue;
-            quarterData[key] = (quarterData[key] ?? 0) + value;
+            quarterSums[key] = (quarterSums[key] ?? 0) + value;
+            monthCounts[key] = (monthCounts[key] ?? 0) + 1;
           }
         }
         
+        // Convert sums to averages for dollar metrics (UI shows monthly averages per quarter)
+        // For percentage metrics, we'll recalculate from dollar totals later
+        const quarterData: Record<string, number | null> = {};
+        for (const [key, sum] of Object.entries(quarterSums)) {
+          const count = monthCounts[key] || 1;
+          // Store both sum (for percentage calculations) and average (for display)
+          // Dollar metrics display as average, percentage metrics recalculate from sums
+          quarterData[key] = sum; // Keep as sum - we'll divide later for dollar display
+        }
+        
         financialDataByQuarter.set(qPeriod.identifier, quarterData);
+        financialMonthCountByQuarter.set(qPeriod.identifier, monthCounts);
       }
     }
 
@@ -985,18 +1001,39 @@ const handler = async (req: Request): Promise<Response> => {
         const periodValues: number[] = [];
         
         periods.forEach(p => {
-          // Handle quarterly-trend mode - aggregate monthly data into quarterly totals
+          // Handle quarterly-trend mode - show quarterly AVERAGES to match UI
           if (mode === "quarterly-trend" && 'months' in p) {
             const qPeriod = p as { year: number; quarter: number; months: string[] };
             
-            // Get quarterly aggregated data
+            // Get quarterly aggregated data (sums) and month counts
             const quarterData = financialDataByQuarter.get(p.identifier) ?? {};
+            const monthCounts = financialMonthCountByQuarter.get(p.identifier) ?? {};
             
             let value = null;
-            if (metric.calc) {
+            
+            if (metric.type === "percentage" && metric.calc) {
+              // For percentage metrics: use calc function on summed data
+              // This correctly calculates percentage from total numerator/denominator
               value = metric.calc(quarterData);
+            } else if (metric.calc) {
+              // For calculated dollar metrics: calculate from summed components, then average
+              const calcValue = metric.calc(quarterData);
+              if (calcValue !== null) {
+                // Use max month count from base metrics to get proper divisor
+                // For calculated metrics, count months that have all required components
+                const baseMetricCounts = Object.values(monthCounts).filter(c => c > 0);
+                const avgMonthCount = baseMetricCounts.length > 0 
+                  ? Math.max(...baseMetricCounts) 
+                  : 3;
+                value = calcValue / avgMonthCount;
+              }
             } else {
-              value = quarterData[metric.dbName] ?? null;
+              // For direct dollar metrics: divide sum by month count to get average
+              const sum = quarterData[metric.dbName] ?? null;
+              const count = monthCounts[metric.dbName] || 3;
+              if (sum !== null) {
+                value = sum / count;
+              }
             }
             
             // Collect value for summary
