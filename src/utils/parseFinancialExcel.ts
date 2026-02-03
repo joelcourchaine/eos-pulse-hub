@@ -436,14 +436,89 @@ export const validateAgainstDatabase = async (
 };
 
 /**
+ * Convert Ford YTD sub-metric values to monthly values
+ * Ford financial statements display YTD totals, so we need to subtract the previous month's YTD
+ */
+const convertFordYTDToMonthly = async (
+  departmentId: string,
+  monthIdentifier: string,
+  ytdSubMetrics: SubMetricData[],
+  parentMetricKey: string
+): Promise<{ monthlySubMetrics: SubMetricData[]; ytdEntries: Array<{ metric_name: string; value: number | null }> }> => {
+  const [year, month] = monthIdentifier.split('-').map(Number);
+  
+  // Store the YTD values for reference (ytd:parent:order:name format)
+  const ytdEntries = ytdSubMetrics.map(sm => ({
+    metric_name: `ytd:${parentMetricKey}:${String(sm.orderIndex).padStart(3, '0')}:${sm.name}`,
+    value: sm.value,
+  }));
+  
+  // January - YTD equals monthly (no previous month to subtract)
+  if (month === 1) {
+    console.log('[Ford YTD] January detected - using YTD values as monthly values');
+    return { monthlySubMetrics: ytdSubMetrics, ytdEntries };
+  }
+  
+  // Calculate previous month identifier
+  const prevMonth = month - 1;
+  const prevYear = prevMonth === 0 ? year - 1 : year;
+  const actualPrevMonth = prevMonth === 0 ? 12 : prevMonth;
+  const prevMonthId = `${prevYear}-${String(actualPrevMonth).padStart(2, '0')}`;
+  
+  console.log(`[Ford YTD] Converting ${monthIdentifier} - fetching previous YTD from ${prevMonthId}`);
+  
+  // Fetch previous month's YTD values from database
+  const { data: prevYTDEntries, error } = await supabase
+    .from('financial_entries')
+    .select('metric_name, value')
+    .eq('department_id', departmentId)
+    .eq('month', prevMonthId)
+    .like('metric_name', `ytd:${parentMetricKey}:%`);
+  
+  if (error) {
+    console.error('[Ford YTD] Error fetching previous YTD:', error);
+    // Fall back to using YTD as monthly if we can't get previous month
+    return { monthlySubMetrics: ytdSubMetrics, ytdEntries };
+  }
+  
+  // Build lookup map from previous YTD entries
+  const prevYTDMap = new Map<string, number | null>();
+  prevYTDEntries?.forEach(entry => {
+    // Extract the name from the metric_name (ytd:parent:order:name -> name)
+    const parts = entry.metric_name.split(':');
+    if (parts.length >= 4) {
+      const name = parts.slice(3).join(':');
+      prevYTDMap.set(name, entry.value);
+    }
+  });
+  
+  console.log(`[Ford YTD] Found ${prevYTDMap.size} previous YTD entries for subtraction`);
+  
+  // Convert each sub-metric: monthly = current_ytd - previous_ytd
+  const monthlySubMetrics = ytdSubMetrics.map(sm => {
+    const prevYTD = prevYTDMap.get(sm.name) ?? 0;
+    const monthlyValue = (sm.value ?? 0) - prevYTD;
+    console.log(`[Ford YTD] ${sm.name}: ${sm.value} (YTD) - ${prevYTD} (prev YTD) = ${monthlyValue} (monthly)`);
+    return {
+      ...sm,
+      value: monthlyValue,
+    };
+  });
+  
+  return { monthlySubMetrics, ytdEntries };
+};
+
+/**
  * Import parsed Excel data into the database
  * Now also imports sub-metrics - OPTIMIZED with batch operations
+ * Ford brand sub-metrics are converted from YTD to monthly values
  */
 export const importFinancialData = async (
   parsedData: ParsedFinancialData,
   departmentsByName: Record<string, string>,
   monthIdentifier: string,
-  userId: string
+  userId: string,
+  brand?: string
 ): Promise<{ success: boolean; importedCount: number; error?: string }> => {
   let importedCount = 0;
   const errors: string[] = [];
@@ -497,6 +572,7 @@ export const importFinancialData = async (
   }
 
   // Import sub-metrics with their dynamic names
+  // For Ford brand, convert YTD values to monthly values
   const deptIdsWithSubMetrics = new Set<string>();
   const subMetricEntries: Array<{
     department_id: string;
@@ -505,6 +581,16 @@ export const importFinancialData = async (
     value: number | null;
     created_by: string;
   }> = [];
+  const ytdEntriesToStore: Array<{
+    department_id: string;
+    month: string;
+    metric_name: string;
+    value: number | null;
+    created_by: string;
+  }> = [];
+
+  const isFord = brand?.toLowerCase() === 'ford';
+  console.log(`[Excel Import] Processing sub-metrics. Brand: ${brand}, isFord: ${isFord}`);
 
   for (const [deptName, subMetrics] of Object.entries(parsedData.subMetrics)) {
     const departmentId = departmentsByName[deptName];
@@ -512,16 +598,52 @@ export const importFinancialData = async (
 
     deptIdsWithSubMetrics.add(departmentId);
 
-    for (const subMetric of subMetrics) {
-      // Format: sub:{parent_key}:{order_index}:{name}
-      const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
-      subMetricEntries.push({
-        department_id: departmentId,
-        month: monthIdentifier,
-        metric_name: metricName,
-        value: subMetric.value,
-        created_by: userId,
-      });
+    // Group sub-metrics by parent key for Ford YTD conversion
+    const subMetricsByParent = new Map<string, SubMetricData[]>();
+    for (const sm of subMetrics) {
+      if (!subMetricsByParent.has(sm.parentMetricKey)) {
+        subMetricsByParent.set(sm.parentMetricKey, []);
+      }
+      subMetricsByParent.get(sm.parentMetricKey)!.push(sm);
+    }
+
+    for (const [parentKey, parentSubMetrics] of subMetricsByParent) {
+      let processedSubMetrics = parentSubMetrics;
+
+      // For Ford brand and total_fixed_expense, convert YTD to monthly
+      if (isFord && parentKey === 'total_fixed_expense') {
+        console.log(`[Excel Import] Ford total_fixed_expense detected - converting YTD to monthly for ${deptName}`);
+        const { monthlySubMetrics, ytdEntries } = await convertFordYTDToMonthly(
+          departmentId,
+          monthIdentifier,
+          parentSubMetrics,
+          parentKey
+        );
+        processedSubMetrics = monthlySubMetrics;
+
+        // Store YTD entries for reference/auditing
+        for (const ytdEntry of ytdEntries) {
+          ytdEntriesToStore.push({
+            department_id: departmentId,
+            month: monthIdentifier,
+            metric_name: ytdEntry.metric_name,
+            value: ytdEntry.value,
+            created_by: userId,
+          });
+        }
+      }
+
+      // Add processed sub-metrics to entries
+      for (const subMetric of processedSubMetrics) {
+        const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
+        subMetricEntries.push({
+          department_id: departmentId,
+          month: monthIdentifier,
+          metric_name: metricName,
+          value: subMetric.value,
+          created_by: userId,
+        });
+      }
     }
   }
 
@@ -568,6 +690,34 @@ export const importFinancialData = async (
   } else {
     // No sub-metrics parsed - preserve existing data (don't delete anything)
     console.log('[Excel Import] No sub-metrics parsed from Excel - existing sub-metric data preserved');
+  }
+
+  // Store YTD entries for Ford (for future months' conversion)
+  if (ytdEntriesToStore.length > 0) {
+    console.log(`[Excel Import] Storing ${ytdEntriesToStore.length} YTD entries for Ford`);
+    
+    // Delete existing YTD entries first
+    const deptIds = [...new Set(ytdEntriesToStore.map(e => e.department_id))];
+    for (const deptId of deptIds) {
+      await supabase
+        .from('financial_entries')
+        .delete()
+        .eq('department_id', deptId)
+        .eq('month', monthIdentifier)
+        .like('metric_name', 'ytd:%');
+    }
+
+    // Insert new YTD entries
+    const { error: ytdError } = await supabase
+      .from('financial_entries')
+      .insert(ytdEntriesToStore);
+
+    if (ytdError) {
+      console.error('Error storing YTD entries:', ytdError);
+      errors.push(`YTD entries insert failed: ${ytdError.message}`);
+    } else {
+      importedCount += ytdEntriesToStore.length;
+    }
   }
 
   if (errors.length > 0) {

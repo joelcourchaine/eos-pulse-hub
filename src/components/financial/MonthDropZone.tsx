@@ -359,7 +359,7 @@ export const MonthDropZone = ({
     // Always import data when a file is dropped - this updates/refreshes all values
     // Even if validation shows 'match', we still import to ensure sub-metrics are updated
     // and any changes in the Excel file are reflected in the database
-    const importResult = await importFinancialData(parsedData, departmentsByName, monthIdentifier, userId);
+    const importResult = await importFinancialData(parsedData, departmentsByName, monthIdentifier, userId, storeBrand);
 
     if (importResult.success) {
       toast({

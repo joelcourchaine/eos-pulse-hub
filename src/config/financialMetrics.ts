@@ -219,7 +219,20 @@ export const FORD_METRICS: FinancialMetric[] = [
     key: "total_fixed_expense", 
     type: "dollar", 
     description: "Total fixed expenses", 
-    targetDirection: "below" 
+    targetDirection: "below",
+    hasSubMetrics: true
+  },
+  { 
+    name: "Total Fixed Expense %", 
+    key: "total_fixed_expense_percent", 
+    type: "percentage", 
+    description: "Fixed expenses as % of GP Net", 
+    targetDirection: "below",
+    calculation: {
+      numerator: "total_fixed_expense",
+      denominator: "gp_net"
+    },
+    hasSubMetrics: true
   },
   { 
     name: "Department Profit", 
