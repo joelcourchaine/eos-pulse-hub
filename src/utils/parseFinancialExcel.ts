@@ -232,13 +232,20 @@ export const parseFinancialExcel = (
           );
           
           // Use order index from the metric_key in the mapping, NOT the Excel row number.
-          // metric_key format: "sub:parent_key:order:Name" e.g., "sub:total_sales:001:Repair Shop"
+          // metric_key format: "sub:parent_key:order" (3 parts) e.g., "sub:total_sales:01"
+          // or with name: "sub:parent_key:order:Name" (4+ parts) e.g., "sub:total_sales:001:Repair Shop"
           // This ensures we use the intended order from the mappings.
           let fallbackOrderIndex = 0;
           const extractOrderFromMetricKey = (metricKey: string): number => {
             const parts = metricKey.split(':');
+            // Format with 3 parts: sub:parent:order (e.g., "sub:total_sales:01")
+            if (parts.length === 3) {
+              const orderPart = parts[2];
+              const parsed = parseInt(orderPart, 10);
+              if (!isNaN(parsed)) return parsed;
+            }
+            // Format with 4+ parts: sub:parent:order:name (e.g., "sub:total_sales:001:Repair Shop")
             if (parts.length >= 4) {
-              // Format: sub:parent:order:name
               const orderPart = parts[2];
               const parsed = parseInt(orderPart, 10);
               if (!isNaN(parsed)) return parsed;
