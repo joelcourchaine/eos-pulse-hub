@@ -1,5 +1,4 @@
-
-## Fix Hyundai/Genesis Expense Sub-Metric Name Column
+ ## ✅ Fix Hyundai/Genesis Expense Sub-Metric Name Column (COMPLETED)
 
 ### Problem
 The recently created expense sub-metric mappings use `name_cell_reference: B{row}` but the line item names on Page3 are actually in **Column C**.
@@ -33,7 +32,7 @@ WHERE brand IN ('Hyundai', 'Genesis')
 | `name_cell_reference: B23` | `name_cell_reference: C23` |
 | `name_cell_reference: B31` | `name_cell_reference: C31` |
 
-### Next Steps
-1. Update the 88 mappings in the database
-2. Re-import a Hyundai/Genesis financial statement
-3. Verify sub-metrics display with proper ALL CAPS names from the statement
+ ### Status
+ ✅ Migration completed - 88 mappings updated from Column B to Column C.
+ 
+ **Action Required:** Re-import a Hyundai/Genesis financial statement to see the proper ALL CAPS names.
