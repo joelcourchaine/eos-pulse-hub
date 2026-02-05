@@ -41,6 +41,7 @@ interface ParsedExcelData {
   advisorRowIndices: number[];
   advisorNames: { rowIndex: number; name: string }[];
   headerRowIndex: number; // Index of the header row in the displayed data
+  dateRowIndices: number[]; // Rows containing only date ranges (should be non-mappable)
 }
 
 const STORAGE_KEY = "scorecard-visual-mapper-state";
@@ -126,6 +127,24 @@ export const ScorecardVisualMapper = () => {
       existingMappingsInput: any[] | undefined,
       existingAliasesInput: any[] | undefined
     ) => {
+      // Helper to detect date-only rows (e.g., "01/01/2026 - 01/31/2026")
+      const isDateOnlyRow = (row: any[]): boolean => {
+        const dateRangePattern = /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—]\s*\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+        let hasDateRange = false;
+        let hasOtherContent = false;
+
+        for (const cell of row) {
+          const cellStr = String(cell ?? "").trim();
+          if (!cellStr) continue;
+          if (dateRangePattern.test(cellStr)) {
+            hasDateRange = true;
+          } else {
+            hasOtherContent = true;
+          }
+        }
+        return hasDateRange && !hasOtherContent;
+      };
+
       // Use first sheet or preferred sheet
       let sheetName = workbook.SheetNames[0];
       const preferredSheets = ["All Repair Orders", "Summary", "Service Advisor", "Data"];
@@ -167,8 +186,9 @@ export const ScorecardVisualMapper = () => {
       const dataRows: (string | number | null)[][] = [];
       const advisorRowIndices: number[] = [];
       const advisorNames: { rowIndex: number; name: string }[] = [];
+      const dateRowIndices: number[] = [];
 
-      // Include metadata rows (before header)
+      // Include metadata rows (before header) - also check for advisors here
       for (let i = 0; i < headerRowIndex; i++) {
         const row = rows[i];
         const normalizedRow = (row || []).map((cell: any) => {
@@ -180,6 +200,30 @@ export const ScorecardVisualMapper = () => {
         while (normalizedRow.length < headers.length) {
           normalizedRow.push(null);
         }
+        
+        const dataRowIndex = dataRows.length;
+        
+        // Check for date-only rows in metadata section
+        if (isDateOnlyRow(row || [])) {
+          dateRowIndices.push(dataRowIndex);
+        } else {
+          // Check for advisor pattern in metadata rows too
+          for (let colIdx = 0; colIdx < Math.min((row || []).length, 5); colIdx++) {
+            const cellValue = String((row || [])[colIdx] || "").trim();
+            const advisorMatch = cellValue.match(/Advisor\s+([A-Za-z0-9]+)\s*[-–—]\s*(.+)/i);
+            if (advisorMatch) {
+              advisorRowIndices.push(dataRowIndex);
+              advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
+              break;
+            }
+            if (/\ball\s+repair\s+orders?\b/i.test(cellValue)) {
+              advisorRowIndices.push(dataRowIndex);
+              advisorNames.push({ rowIndex: dataRowIndex, name: "All Repair Orders" });
+              break;
+            }
+          }
+        }
+        
         dataRows.push(normalizedRow);
       }
 
@@ -192,29 +236,31 @@ export const ScorecardVisualMapper = () => {
         const row = rows[i];
         if (!row || row.length === 0) continue;
 
-        // Scan first few columns for advisor pattern (some reports have extra leading columns)
-        let foundAdvisor = false;
-        for (let colIdx = 0; colIdx < Math.min(row.length, 5); colIdx++) {
-          const cellValue = String(row[colIdx] || "").trim();
-          
-          // Check for advisor pattern: "Advisor 1104 - Daniel Park"
-          // Also support alphanumeric IDs like "Advisor ABC123 - Name"
-          const advisorMatch = cellValue.match(/Advisor\s+([A-Za-z0-9]+)\s*[-–—]\s*(.+)/i);
-          if (advisorMatch) {
-            const dataRowIndex = dataRows.length;
-            advisorRowIndices.push(dataRowIndex);
-            advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
-            foundAdvisor = true;
-            break;
-          }
-          
-          // Also check for "All Repair Orders" totals row
-          if (/\ball\s+repair\s+orders?\b/i.test(cellValue)) {
-            const dataRowIndex = dataRows.length;
-            advisorRowIndices.push(dataRowIndex);
-            advisorNames.push({ rowIndex: dataRowIndex, name: "All Repair Orders" });
-            foundAdvisor = true;
-            break;
+        const dataRowIndex = dataRows.length;
+        
+        // Check for date-only rows
+        if (isDateOnlyRow(row)) {
+          dateRowIndices.push(dataRowIndex);
+        } else {
+          // Scan first few columns for advisor pattern (some reports have extra leading columns)
+          for (let colIdx = 0; colIdx < Math.min(row.length, 5); colIdx++) {
+            const cellValue = String(row[colIdx] || "").trim();
+            
+            // Check for advisor pattern: "Advisor 1104 - Daniel Park"
+            // Also support alphanumeric IDs like "Advisor ABC123 - Name"
+            const advisorMatch = cellValue.match(/Advisor\s+([A-Za-z0-9]+)\s*[-–—]\s*(.+)/i);
+            if (advisorMatch) {
+              advisorRowIndices.push(dataRowIndex);
+              advisorNames.push({ rowIndex: dataRowIndex, name: advisorMatch[2].trim() });
+              break;
+            }
+            
+            // Also check for "All Repair Orders" totals row
+            if (/\ball\s+repair\s+orders?\b/i.test(cellValue)) {
+              advisorRowIndices.push(dataRowIndex);
+              advisorNames.push({ rowIndex: dataRowIndex, name: "All Repair Orders" });
+              break;
+            }
           }
         }
 
@@ -233,6 +279,7 @@ export const ScorecardVisualMapper = () => {
         advisorRowIndices,
         advisorNames,
         headerRowIndex: displayedHeaderRowIndex,
+        dateRowIndices,
       };
 
       // Initialize column mappings from headers
@@ -1891,6 +1938,7 @@ export const ScorecardVisualMapper = () => {
                   canClickCells={!!selectedKpiOwnerId}
                   activeOwnerId={selectedKpiOwnerId}
                   columnTemplates={columnTemplates || []}
+                  dateRowIndices={parsedData.dateRowIndices}
                 />
               </div>
             </div>

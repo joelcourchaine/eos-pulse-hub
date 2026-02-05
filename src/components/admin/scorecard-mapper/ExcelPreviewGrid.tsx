@@ -62,6 +62,7 @@ interface ExcelPreviewGridProps {
   canClickCells?: boolean;
   activeOwnerId?: string | null;
   columnTemplates?: ColumnTemplate[]; // Full template data for highlighting mapped cells
+  dateRowIndices?: number[]; // Rows containing only date ranges (non-mappable)
 }
 
 export const ExcelPreviewGrid = ({
@@ -82,6 +83,7 @@ export const ExcelPreviewGrid = ({
   canClickCells = false,
   activeOwnerId = null,
   columnTemplates = [],
+  dateRowIndices = [],
 }: ExcelPreviewGridProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   
@@ -308,6 +310,7 @@ export const ExcelPreviewGrid = ({
             const isHeaderRow = rowIndex === headerRowIndex;
             const isMetadataRow = headerRowIndex > 0 && rowIndex < headerRowIndex;
             const isActiveOwnerRow = isAdvisorRow && userInfo?.userId === activeOwnerId;
+            const isDateRow = dateRowIndices.includes(rowIndex);
             
             return (
               <div
@@ -315,7 +318,8 @@ export const ExcelPreviewGrid = ({
                 className={cn(
                   "flex border-b hover:bg-muted/30 transition-colors",
                   isHeaderRow && "bg-amber-100 dark:bg-amber-900/30 font-semibold sticky top-10 z-[5]",
-                  isMetadataRow && "bg-slate-50 dark:bg-slate-800/30 text-muted-foreground",
+                  isMetadataRow && !isDateRow && "bg-slate-50 dark:bg-slate-800/30 text-muted-foreground",
+                  isDateRow && "bg-slate-200/50 dark:bg-slate-700/30 text-muted-foreground/60 italic",
                   isAdvisorRow && !isHeaderRow && !isActiveOwnerRow && "bg-blue-50 dark:bg-blue-900/20",
                   isActiveOwnerRow && "bg-green-100 dark:bg-green-900/30 ring-2 ring-green-500 ring-inset",
                   isUserRowMapped && !isHeaderRow && !isActiveOwnerRow && "bg-green-50 dark:bg-green-900/20",
@@ -366,12 +370,12 @@ export const ExcelPreviewGrid = ({
                   const isAdvisorCell = (isFirstCol && isAdvisorRow) || patternBasedAdvisorCell;
                   
                   // Allow clicking any cell when canClickCells is true (KPI owner is selected)
-                  // But NOT on advisor cells - those are for owner selection, and not header row
-                  const canMapCell = canClickCells && !isHeaderRow && !isAdvisorCell;
+                  // But NOT on advisor cells, header row, or date rows
+                  const canMapCell = canClickCells && !isHeaderRow && !isAdvisorCell && !isDateRow;
                   
-                  // Advisor cells are ALWAYS clickable to select as owner
+                  // Advisor cells are ALWAYS clickable to select as owner (unless it's a date row)
                   // Use both parser-detected rows AND pattern-matched cells
-                  const canSelectAsOwner = isAdvisorCell;
+                  const canSelectAsOwner = isAdvisorCell && !isDateRow;
                   
                   return (
                     <div
