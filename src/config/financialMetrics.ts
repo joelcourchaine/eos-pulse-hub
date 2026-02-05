@@ -411,6 +411,14 @@ export const NISSAN_METRICS: FinancialMetric[] = [
   },
 ];
 
+// Hyundai-specific metrics (like Nissan but without Semi Fixed Expense)
+export const HYUNDAI_METRICS: FinancialMetric[] = NISSAN_METRICS.filter(
+  metric => metric.key !== 'semi_fixed_expense' && metric.key !== 'semi_fixed_expense_percent'
+);
+
+// Genesis uses same metrics as Hyundai
+export const GENESIS_METRICS: FinancialMetric[] = HYUNDAI_METRICS;
+
 // Mazda-specific metrics (excludes Parts Transfer and Net Operating Profit)
 export const MAZDA_METRICS: FinancialMetric[] = [
   { 
@@ -763,10 +771,10 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
     return NISSAN_METRICS;
   }
   if (brand?.toLowerCase().includes('hyundai')) {
-    return NISSAN_METRICS;
+    return HYUNDAI_METRICS;
   }
   if (brand?.toLowerCase().includes('genesis')) {
-    return NISSAN_METRICS;
+    return GENESIS_METRICS;
   }
   if (brand?.toLowerCase().includes('ford')) {
     return FORD_METRICS;
