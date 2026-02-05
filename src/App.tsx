@@ -1,4 +1,5 @@
 import React from "react";
+import { useAutoRefreshOnReturn } from "@/hooks/useAutoRefreshOnReturn";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import ConsultingScheduler from "./pages/ConsultingScheduler";
@@ -40,7 +41,11 @@ const HomeRoute = () => {
   return isMurrayDomain ? <MurrayIndex /> : <Index />;
 };
 
-const App = () => (
+const App = () => {
+  // Auto-refresh when user returns after 2+ hours of inactivity
+  useAutoRefreshOnReturn();
+
+  return (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -78,6 +83,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ThemeProvider>
-);
+  );
+};
 
 export default App;
