@@ -1,56 +1,63 @@
- ## ✅ Genesis Sub-Metric Import Fix (COMPLETED)
- 
- ### Problem
- Genesis brand was missing the parent `sales_expense` mapping required for sub-metrics to import correctly.
- 
- ### Solution
- Added missing parent mappings for Genesis:
- - Parts: `sales_expense` → H30
- - Service: `sales_expense` → N30
- 
- ### Genesis Page4 Configuration (for reference)
- - **Service sub-metrics**: Rows 75-84, skip row 79
- - **Parts sub-metrics**: Same as Hyundai (rows 64-74)
- 
- **Status**: ✅ Migration completed. Re-import a Genesis financial statement to verify.
- 
- ---
- 
- ## ✅ Fix Hyundai/Genesis Expense Sub-Metric Name Column (COMPLETED)
+
+## Fix: Restrict Import Preview User Dropdown to Current Store Only
 
 ### Problem
-The recently created expense sub-metric mappings use `name_cell_reference: B{row}` but the line item names on Page3 are actually in **Column C**.
-
-This causes the parser to:
-1. Attempt to read names from Column B (which contains something else)
-2. Get null or short values
-3. Fall back to extracting "01", "02", etc. from the metric_key
+The "Select user" dropdown in the Scorecard Import Preview dialog shows users from the entire store group instead of just the selected store. This is confusing because users should only be able to map advisors to users who work at that specific dealership.
 
 ### Solution
-Update all 88 expense sub-metric mappings for Hyundai and Genesis to change `name_cell_reference` from Column B to Column C.
+Modify the `storeUsers` query to only fetch users whose `store_id` matches the current import store, removing the store group fallback.
 
-### Database Update
-```sql
-UPDATE financial_cell_mappings
-SET name_cell_reference = CONCAT('C', SUBSTRING(name_cell_reference FROM 2))
-WHERE brand IN ('Hyundai', 'Genesis')
-  AND metric_key LIKE 'sub:sales_expense:%'
-  AND name_cell_reference LIKE 'B%';
+### Technical Changes
 
-UPDATE financial_cell_mappings
-SET name_cell_reference = CONCAT('C', SUBSTRING(name_cell_reference FROM 2))
-WHERE brand IN ('Hyundai', 'Genesis')
-  AND metric_key LIKE 'sub:total_direct_expenses:%'
-  AND name_cell_reference LIKE 'B%';
+**File: `src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
+
+Update lines 93-113 to simplify the query:
+
+```typescript
+// Current (fetches store + group users):
+const { data: storeUsers } = useQuery({
+  queryKey: ["store-users-for-import", storeId, storeData?.group_id],
+  queryFn: async () => {
+    let query = supabase
+      .from("profiles")
+      .select("id, full_name, role, store_id, store_group_id")
+      .order("full_name");
+
+    if (storeData?.group_id) {
+      query = query.or(`store_id.eq.${storeId},store_group_id.eq.${storeData.group_id}`);
+    } else {
+      query = query.eq("store_id", storeId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  },
+  enabled: open && !!storeId,
+});
+
+// Fixed (fetches only current store users):
+const { data: storeUsers } = useQuery({
+  queryKey: ["store-users-for-import", storeId],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, full_name, role, store_id, store_group_id")
+      .eq("store_id", storeId)
+      .order("full_name");
+    if (error) throw error;
+    return data;
+  },
+  enabled: open && !!storeId,
+});
 ```
 
-### Result After Fix
-| Before | After |
-|--------|-------|
-| `name_cell_reference: B23` | `name_cell_reference: C23` |
-| `name_cell_reference: B31` | `name_cell_reference: C31` |
+### Changes Summary
+- Remove the store group fallback from the user query
+- Simplify query key (no longer depends on `storeData?.group_id`)
+- Users in the dropdown will now only be those directly assigned to the importing store
 
- ### Status
- ✅ Migration completed - 88 mappings updated from Column B to Column C.
- 
- **Action Required:** Re-import a Hyundai/Genesis financial statement to see the proper ALL CAPS names.
+### Impact
+- The dropdown will show fewer, more relevant users
+- Advisors can only be mapped to users who actually work at that store
+- No changes to the matching algorithm or alias creation logic
