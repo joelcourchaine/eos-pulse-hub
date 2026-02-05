@@ -1824,11 +1824,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // If no local value exists, nothing to save
     if (value === undefined) return;
     
+    // Prevent duplicate saves - if a save is already in progress for this key, skip
+    // This happens when Enter triggers save and then blur also tries to save
+    if (saveTimeoutRef.current[key]) {
+      return;
+    }
+    
     // Mark cell as active to prevent realtime overwrites during save
     activeCellRef.current = key;
     
     // Mark as pending save to prevent sync effect from clearing localValues
-    // Use a placeholder timeout that we'll clear later
+    // and to prevent duplicate saves from blur after Enter/Tab
     saveTimeoutRef.current[key] = setTimeout(() => {}, 0);
     
     // Accept pasted/formatted numbers like "$12,345" or "12,345".
