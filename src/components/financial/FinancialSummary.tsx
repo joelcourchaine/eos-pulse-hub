@@ -879,7 +879,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       Object.keys(prev).forEach(key => {
         if (entries[key] === undefined && !saveTimeoutRef.current[key]) {
           // Only clear if this is a metric-month key format (contains dash)
-          if (key.includes('-')) {
+          // AND the localValue is not empty string (user might be actively deleting)
+          if (key.includes('-') && prev[key] !== '') {
             console.log('[Sync] Clearing localValue for key (not in entries):', key, 'prev value:', prev[key]);
             delete updated[key];
           }
@@ -1878,12 +1879,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             delete newEntries[key];
             return newEntries;
           });
-          // Clear local value after successful delete
-          setLocalValues(prev => {
-            const newLocal = { ...prev };
-            delete newLocal[key];
-            return newLocal;
-          });
+          // Keep localValues[key] as empty string (don't delete it) to prevent
+          // the old value from entries from flashing during the render cycle.
+          // It will be cleaned up by the sync effect after entries is updated.
+          setLocalValues(prev => ({ ...prev, [key]: '' }));
         }
       } else {
         const { data: session } = await supabase.auth.getSession();
