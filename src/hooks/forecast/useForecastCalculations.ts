@@ -658,42 +658,74 @@ export function useForecastCalculations({
     };
     
     Object.entries(quarterMonths).forEach(([quarter, monthIndices]) => {
+      // First pass: sum all dollar values for the quarter
+      const quarterTotals: Record<string, { value: number; baseline: number; locked: boolean }> = {};
       METRIC_DEFINITIONS.forEach(metric => {
-        let totalValue = 0;
-        let totalBaseline = 0;
-        let anyLocked = false;
-        
-        monthIndices.forEach(i => {
-          const month = months[i];
-          const monthData = monthlyValues.get(month);
+        quarterTotals[metric.key] = { value: 0, baseline: 0, locked: false };
+      });
+      
+      monthIndices.forEach(i => {
+        const month = months[i];
+        const monthData = monthlyValues.get(month);
+        METRIC_DEFINITIONS.forEach(metric => {
           const metricData = monthData?.get(metric.key);
-          
           if (metricData) {
-            if (metric.type === 'percent') {
-              // Average percentages
-              totalValue += metricData.value;
-              totalBaseline += metricData.baseline_value;
-            } else {
-              // Sum currency/number values
-              totalValue += metricData.value;
-              totalBaseline += metricData.baseline_value;
-            }
-            if (metricData.is_locked) anyLocked = true;
+            quarterTotals[metric.key].value += metricData.value;
+            quarterTotals[metric.key].baseline += metricData.baseline_value;
+            if (metricData.is_locked) quarterTotals[metric.key].locked = true;
           }
         });
+      });
+      
+      // Second pass: calculate final values with proper percentage handling
+      METRIC_DEFINITIONS.forEach(metric => {
+        let finalValue = quarterTotals[metric.key].value;
+        let finalBaseline = quarterTotals[metric.key].baseline;
         
-        // For percentages, average instead of sum
-        if (metric.type === 'percent') {
-          totalValue = totalValue / 3;
-          totalBaseline = totalBaseline / 3;
+        // For percentage metrics, recalculate from quarter totals
+        if (metric.key === 'gp_percent') {
+          const gpNet = quarterTotals['gp_net']?.value ?? 0;
+          const totalSales = quarterTotals['total_sales']?.value ?? 0;
+          finalValue = totalSales > 0 ? (gpNet / totalSales) * 100 : 0;
+          const baselineGpNet = quarterTotals['gp_net']?.baseline ?? 0;
+          const baselineSales = quarterTotals['total_sales']?.baseline ?? 0;
+          finalBaseline = baselineSales > 0 ? (baselineGpNet / baselineSales) * 100 : 0;
+        } else if (metric.key === 'sales_expense_percent') {
+          const salesExp = quarterTotals['sales_expense']?.value ?? 0;
+          const gpNet = quarterTotals['gp_net']?.value ?? 0;
+          finalValue = gpNet > 0 ? (salesExp / gpNet) * 100 : 0;
+          const baselineSalesExp = quarterTotals['sales_expense']?.baseline ?? 0;
+          const baselineGpNet = quarterTotals['gp_net']?.baseline ?? 0;
+          finalBaseline = baselineGpNet > 0 ? (baselineSalesExp / baselineGpNet) * 100 : 0;
+        } else if (metric.key === 'semi_fixed_expense_percent') {
+          const semiFixed = quarterTotals['semi_fixed_expense']?.value ?? 0;
+          const gpNet = quarterTotals['gp_net']?.value ?? 0;
+          finalValue = gpNet > 0 ? (semiFixed / gpNet) * 100 : 0;
+          const baselineSemiFixed = quarterTotals['semi_fixed_expense']?.baseline ?? 0;
+          const baselineGpNet = quarterTotals['gp_net']?.baseline ?? 0;
+          finalBaseline = baselineGpNet > 0 ? (baselineSemiFixed / baselineGpNet) * 100 : 0;
+        } else if (metric.key === 'total_fixed_expense_percent') {
+          const fixedExp = quarterTotals['total_fixed_expense']?.value ?? 0;
+          const gpNet = quarterTotals['gp_net']?.value ?? 0;
+          finalValue = gpNet > 0 ? (fixedExp / gpNet) * 100 : 0;
+          const baselineFixedExp = quarterTotals['total_fixed_expense']?.baseline ?? 0;
+          const baselineGpNet = quarterTotals['gp_net']?.baseline ?? 0;
+          finalBaseline = baselineGpNet > 0 ? (baselineFixedExp / baselineGpNet) * 100 : 0;
+        } else if (metric.key === 'return_on_gross') {
+          const deptProfit = quarterTotals['department_profit']?.value ?? 0;
+          const gpNet = quarterTotals['gp_net']?.value ?? 0;
+          finalValue = gpNet > 0 ? (deptProfit / gpNet) * 100 : 0;
+          const baselineDeptProfit = quarterTotals['department_profit']?.baseline ?? 0;
+          const baselineGpNet = quarterTotals['gp_net']?.baseline ?? 0;
+          finalBaseline = baselineGpNet > 0 ? (baselineDeptProfit / baselineGpNet) * 100 : 0;
         }
         
         quarters[quarter].set(metric.key, {
           month: quarter,
           metric_name: metric.key,
-          value: totalValue,
-          baseline_value: totalBaseline,
-          is_locked: anyLocked,
+          value: finalValue,
+          baseline_value: finalBaseline,
+          is_locked: quarterTotals[metric.key].locked,
         });
       });
     });
@@ -805,6 +837,20 @@ export function useForecastCalculations({
         const baselineSemiFixed = totals['semi_fixed_expense']?.baseline ?? 0;
         const baselineGpNet = totals['gp_net']?.baseline ?? 0;
         finalBaseline = baselineGpNet > 0 ? (baselineSemiFixed / baselineGpNet) * 100 : 0;
+      } else if (metric.key === 'total_fixed_expense_percent') {
+        // Total Fixed Exp % = Total Fixed Expense / GP Net * 100
+        const fixedExp = totals['total_fixed_expense']?.value ?? 0;
+        const gpNet = totals['gp_net']?.value ?? 0;
+        
+        if (isPercentMetric && allSameValue && uniformValue !== null) {
+          finalValue = uniformValue;
+        } else {
+          finalValue = gpNet > 0 ? (fixedExp / gpNet) * 100 : 0;
+        }
+        
+        const baselineFixedExp = totals['total_fixed_expense']?.baseline ?? 0;
+        const baselineGpNet = totals['gp_net']?.baseline ?? 0;
+        finalBaseline = baselineGpNet > 0 ? (baselineFixedExp / baselineGpNet) * 100 : 0;
       } else if (metric.key === 'return_on_gross') {
         // Return on Gross = Dept Profit / GP Net * 100
         const deptProfit = totals['department_profit']?.value ?? 0;
