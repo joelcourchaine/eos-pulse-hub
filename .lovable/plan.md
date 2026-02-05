@@ -1,3 +1,21 @@
+ ## ✅ Genesis Sub-Metric Import Fix (COMPLETED)
+ 
+ ### Problem
+ Genesis brand was missing the parent `sales_expense` mapping required for sub-metrics to import correctly.
+ 
+ ### Solution
+ Added missing parent mappings for Genesis:
+ - Parts: `sales_expense` → H30
+ - Service: `sales_expense` → N30
+ 
+ ### Genesis Page4 Configuration (for reference)
+ - **Service sub-metrics**: Rows 75-84, skip row 79
+ - **Parts sub-metrics**: Same as Hyundai (rows 64-74)
+ 
+ **Status**: ✅ Migration completed. Re-import a Genesis financial statement to verify.
+ 
+ ---
+ 
  ## ✅ Fix Hyundai/Genesis Expense Sub-Metric Name Column (COMPLETED)
 
 ### Problem
