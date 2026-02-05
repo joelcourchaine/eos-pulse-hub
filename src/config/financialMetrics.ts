@@ -412,9 +412,15 @@ export const NISSAN_METRICS: FinancialMetric[] = [
 ];
 
 // Hyundai-specific metrics (like Nissan but without Semi Fixed Expense)
-export const HYUNDAI_METRICS: FinancialMetric[] = NISSAN_METRICS.filter(
-  metric => metric.key !== 'semi_fixed_expense' && metric.key !== 'semi_fixed_expense_percent'
-);
+export const HYUNDAI_METRICS: FinancialMetric[] = NISSAN_METRICS
+  .filter(metric => metric.key !== 'semi_fixed_expense' && metric.key !== 'semi_fixed_expense_percent')
+  .map(metric => {
+    // Enable sub-metrics expansion for total_fixed_expense
+    if (metric.key === 'total_fixed_expense') {
+      return { ...metric, hasSubMetrics: true };
+    }
+    return metric;
+  });
 
 // Genesis uses same metrics as Hyundai
 export const GENESIS_METRICS: FinancialMetric[] = HYUNDAI_METRICS;
