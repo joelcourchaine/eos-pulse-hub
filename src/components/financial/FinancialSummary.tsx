@@ -868,6 +868,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           // Only skip if there's an active save timeout for this key
           if (!saveTimeoutRef.current[key]) {
             updated[key] = value.toString();
+          } else {
+            console.log('[Sync] Skipping update for key (save in progress):', key);
           }
         }
       });
@@ -877,6 +879,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         if (entries[key] === undefined && !saveTimeoutRef.current[key]) {
           // Only clear if this is a metric-month key format (contains dash)
           if (key.includes('-')) {
+            console.log('[Sync] Clearing localValue for key (not in entries):', key, 'prev value:', prev[key]);
             delete updated[key];
           }
         }
@@ -1821,12 +1824,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const key = `${metricKey}-${monthId}`;
     const value = localValues[key];
     
+    console.log('[saveEntry] Called for:', key, 'localValue:', value, 'saveTimeoutRef exists:', !!saveTimeoutRef.current[key]);
+    
     // If no local value exists, nothing to save
-    if (value === undefined) return;
+    if (value === undefined) {
+      console.log('[saveEntry] Skipping - no local value');
+      return;
+    }
     
     // Prevent duplicate saves - if a save is already in progress for this key, skip
     // This happens when Enter triggers save and then blur also tries to save
     if (saveTimeoutRef.current[key]) {
+      console.log('[saveEntry] Skipping - save already in progress');
       return;
     }
     
@@ -1836,6 +1845,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // Mark as pending save to prevent sync effect from clearing localValues
     // and to prevent duplicate saves from blur after Enter/Tab
     saveTimeoutRef.current[key] = setTimeout(() => {}, 0);
+    console.log('[saveEntry] Set saveTimeoutRef for:', key);
     
     // Accept pasted/formatted numbers like "$12,345" or "12,345".
     const cleaned = value.replace(/[$,%\s]/g, "").replace(/,/g, "");
