@@ -1827,6 +1827,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // Mark cell as active to prevent realtime overwrites during save
     activeCellRef.current = key;
     
+    // Mark as pending save to prevent sync effect from clearing localValues
+    // Use a placeholder timeout that we'll clear later
+    saveTimeoutRef.current[key] = setTimeout(() => {}, 0);
+    
     // Accept pasted/formatted numbers like "$12,345" or "12,345".
     const cleaned = value.replace(/[$,%\s]/g, "").replace(/,/g, "");
     let numValue = cleaned === "" ? null : Number.parseFloat(cleaned);
@@ -1892,12 +1896,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       loadPrecedingQuartersData();
     } finally {
       setSaving(prev => ({ ...prev, [key]: false }));
-      // Clear active cell after a small delay to catch any straggling realtime events
+      // Clear save timeout marker and active cell after a delay
       setTimeout(() => {
+        if (saveTimeoutRef.current[key]) {
+          clearTimeout(saveTimeoutRef.current[key]);
+          delete saveTimeoutRef.current[key];
+        }
         if (activeCellRef.current === key) {
           activeCellRef.current = null;
         }
-      }, 100);
+      }, 150);
     }
   };
 
