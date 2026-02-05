@@ -378,6 +378,7 @@ export function useForecastCalculations({
         semi_fixed_expense_percent: baselineInputs.gp_net > 0 ? (baselineSemiFixed / baselineInputs.gp_net) * 100 : 0,
         net_selling_gross: baselineNetSellingGross,
         total_fixed_expense: baselineInputs.total_fixed_expense,
+        total_fixed_expense_percent: baselineInputs.gp_net > 0 ? (baselineInputs.total_fixed_expense / baselineInputs.gp_net) * 100 : 0,
         department_profit: baselineNetSellingGross - baselineInputs.total_fixed_expense,
         parts_transfer: derivedPartsTransfer,
         dealer_salary: baselineInputs.dealer_salary,
