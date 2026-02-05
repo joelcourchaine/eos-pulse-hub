@@ -3477,8 +3477,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   
                                   // Editable cells for non-calculated metrics
                                   const localValue = localValues[key];
+                                  // If localValue is defined (including empty string for deletions), use it
+                                  // Only fall back to mValue if localValue is truly undefined
                                   const displayValue =
-                                    localValue !== undefined && !(localValue === "" && mValue !== null && mValue !== undefined)
+                                    localValue !== undefined
                                       ? localValue
                                       : mValue !== null && mValue !== undefined
                                         ? String(mValue)
@@ -3521,12 +3523,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
                                             {(() => {
                                               // Check localValues first (most current), then mValue from entries
+                                              // If localValue is defined (even empty string), respect it - don't fall back to mValue
                                               let currentDisplayValue: number | undefined;
-                                              if (localValues[key] !== undefined && localValues[key] !== '') {
-                                                const parsed = parseFloat(localValues[key]);
-                                                if (!isNaN(parsed)) {
-                                                  currentDisplayValue = parsed;
+                                              if (localValues[key] !== undefined) {
+                                                if (localValues[key] !== '') {
+                                                  const parsed = parseFloat(localValues[key]);
+                                                  if (!isNaN(parsed)) {
+                                                    currentDisplayValue = parsed;
+                                                  }
                                                 }
+                                                // Empty string = user deleted, so currentDisplayValue stays undefined (shows placeholder)
                                               } else if (mValue !== null && mValue !== undefined) {
                                                 currentDisplayValue = mValue;
                                               }
@@ -4206,12 +4212,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                  const isFocused = focusedCell === key;
                                                  
                                                  // Determine display value - check localValues first (most current), then entries
+                                                 // If localValue is defined (even empty string), respect it - don't fall back to value
                                                  let displayValue: number | undefined;
-                                                 if (localValues[key] !== undefined && localValues[key] !== '') {
-                                                   const parsed = parseFloat(localValues[key]);
-                                                   if (!isNaN(parsed)) {
-                                                     displayValue = parsed;
+                                                 if (localValues[key] !== undefined) {
+                                                   if (localValues[key] !== '') {
+                                                     const parsed = parseFloat(localValues[key]);
+                                                     if (!isNaN(parsed)) {
+                                                       displayValue = parsed;
+                                                     }
                                                    }
+                                                   // Empty string = user deleted, so displayValue stays undefined (shows placeholder)
                                                  } else if (value !== null && value !== undefined) {
                                                    displayValue = value;
                                                  }
@@ -4259,7 +4269,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   step="any"
                                                   value={(() => {
                                                     const lv = localValues[key];
-                                                    if (lv !== undefined && !(lv === "" && value !== null && value !== undefined)) return lv;
+                                                    // If localValue is defined (including empty for deletions), use it
+                                                    if (lv !== undefined) return lv;
                                                     return value !== null && value !== undefined ? String(value) : "";
                                                   })()}
                                                   onChange={(e) =>
