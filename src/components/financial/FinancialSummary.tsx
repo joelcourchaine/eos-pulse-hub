@@ -3553,8 +3553,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                 currentDisplayValue = mValue;
                                               }
                                               
-                                              if (focusedCell === key) return null;
-                                              
+                                              // Always render the display div (it sits behind the input)
+                                              // This prevents flicker when Enter moves focus via setTimeout
+                                              // because there's no gap between input becoming invisible and display div rendering
                                               if (currentDisplayValue !== null && currentDisplayValue !== undefined) {
                                                 return (
                                                   <div 
