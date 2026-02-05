@@ -380,14 +380,19 @@ export const ScorecardVisualMapper = () => {
     },
   });
 
-  // Fetch departments for selected store
+  // Fetch departments for selected store (including manager info for auto-mapping)
   const { data: storeDepartments } = useQuery({
     queryKey: ["store-departments-for-mapper", selectedStoreId],
     queryFn: async () => {
       if (!selectedStoreId) return [];
       const { data, error } = await supabase
         .from("departments")
-        .select("id, name")
+        .select(`
+          id, 
+          name, 
+          manager_id,
+          manager:profiles!departments_manager_id_fkey(id, full_name)
+        `)
         .eq("store_id", selectedStoreId)
         .order("name");
       if (error) throw error;
@@ -890,6 +895,37 @@ export const ScorecardVisualMapper = () => {
       }));
     }
   }, [existingAliases, userMappings]);
+
+  // Auto-map "All Repair Orders" to department manager
+  useEffect(() => {
+    if (!selectedDepartmentId || !storeDepartments || userMappings.length === 0) return;
+    
+    // Find the selected department and its manager
+    const selectedDept = storeDepartments.find(d => d.id === selectedDepartmentId);
+    const managerId = selectedDept?.manager_id;
+    const managerName = (selectedDept?.manager as { id: string; full_name: string } | null)?.full_name;
+    
+    if (!managerId || !managerName) return;
+    
+    // Check if "All Repair Orders" needs auto-mapping (not already assigned)
+    const allRepairOrdersMapping = userMappings.find(um => 
+      /\ball\s+repair\s+orders?\b/i.test(um.advisorName)
+    );
+    
+    // Only auto-map if not already assigned
+    if (allRepairOrdersMapping && !allRepairOrdersMapping.userId) {
+      setUserMappings(prev => prev.map(um => {
+        if (/\ball\s+repair\s+orders?\b/i.test(um.advisorName)) {
+          return {
+            ...um,
+            userId: managerId,
+            matchedProfileName: managerName,
+          };
+        }
+        return um;
+      }));
+    }
+  }, [selectedDepartmentId, storeDepartments, userMappings]);
 
   // Parse Excel file
   const parseExcelFile = useCallback((file: File) => {
