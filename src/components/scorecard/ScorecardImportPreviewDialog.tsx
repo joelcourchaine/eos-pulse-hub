@@ -530,14 +530,27 @@ export const ScorecardImportPreviewDialog = ({
         }
       }
 
+      // Deduplicate entries - keep last value for each unique kpi_id/period/entry_type combination
+      // This prevents "ON CONFLICT DO UPDATE cannot affect row a second time" error
+      const deduplicatedEntries = Array.from(
+        entriesToUpsert.reduce((map, entry) => {
+          const key = isWeeklyImport 
+            ? `${entry.kpi_id}:${entry.week_start_date}:${entry.entry_type}`
+            : `${entry.kpi_id}:${entry.month}:${entry.entry_type}`;
+          map.set(key, entry);
+          return map;
+        }, new Map<string, typeof entriesToUpsert[0]>()).values()
+      );
+
       // Upsert entries - use appropriate conflict key based on import type
-      if (entriesToUpsert.length > 0) {
+      if (deduplicatedEntries.length > 0) {
+        console.log(`[Import] Upserting ${deduplicatedEntries.length} deduplicated entries (from ${entriesToUpsert.length} total)`);
         const conflictKey = isWeeklyImport 
           ? "kpi_id,week_start_date,entry_type" 
           : "kpi_id,month,entry_type";
         const { error } = await supabase
           .from("scorecard_entries")
-          .upsert(entriesToUpsert, {
+          .upsert(deduplicatedEntries, {
             onConflict: conflictKey,
           });
         if (error) throw error;
