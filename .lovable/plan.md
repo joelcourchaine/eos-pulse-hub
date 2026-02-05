@@ -1,72 +1,140 @@
 
+# Fix: Financial Summary Data Flickering for High-Volume Departments
 
-## Fix: Support Universal Import Profiles (All Groups)
+## Problem Analysis
+Steve Marshall Ford Service has 1,079+ financial entries for 2025 (due to Ford's YTD tracking and extensive sub-metrics). This creates several race conditions:
 
-### Problem
-The import system only looks for profiles with a `store_group_id` matching the importing store's group. Profiles configured as "All Groups" (where `store_group_id = NULL`) are never matched, so their mappings are ignored during import.
+1. **Initial load flicker**: `loadFinancialData()` calls `setEntries({})` to clear data before loading, creating a visible gap where data disappears then reappears
+2. **Async race conditions**: `loadPrecedingQuartersData()` is triggered on every realtime event. Multiple overlapping async requests can complete out of order, causing stale data to overwrite fresh data
+3. **Realtime event storms**: Active imports trigger many INSERT/UPDATE events, each calling `loadPrecedingQuartersData()`
 
-### Solution
-Update the import profile lookup to:
-1. First try to find a profile specific to the store's group
-2. If none found, fall back to a universal profile (where `store_group_id IS NULL`)
+## Solution
 
----
+### 1. Prevent Clearing Entries Before Load Completes
+Instead of clearing entries immediately, only update with new data when the load completes successfully.
 
-### Technical Changes
+**File**: `src/components/financial/FinancialSummary.tsx`
 
-**File: `src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
+**Change** (around line 1731-1736):
+```text
+Current code:
+  setLoading(true);
+  setEntries({});    // <-- This causes flicker
+  setNotes({});
 
-Update lines 108-123 to handle universal profiles:
-
-```typescript
-// Current query (only matches specific group):
-.eq("store_group_id", storeData.group_id)
-
-// Fixed query (matches group OR universal):
-// First try specific group, then fall back to universal
+Fixed code:
+  setLoading(true);
+  // Don't clear entries here - wait until new data is loaded
+  // This prevents UI flicker during async load
 ```
 
-The query should fetch profiles that either:
-- Match the store's `group_id` exactly, OR
-- Have `store_group_id = NULL` (universal/all groups)
-
-Then prioritize the specific one over the universal one if both exist.
-
-**Updated Logic:**
+Then at line 1813, replace entries atomically:
 ```typescript
-const { data: importProfile } = useQuery({
-  queryKey: ["import-profile-for-store", storeData?.group_id],
-  queryFn: async () => {
-    // Fetch profiles matching this group OR universal (null)
-    const { data, error } = await supabase
-      .from("scorecard_import_profiles")
-      .select("*")
-      .eq("is_active", true)
-      .or(`store_group_id.eq.${storeData.group_id},store_group_id.is.null`);
-    
-    if (error) throw error;
-    if (!data || data.length === 0) return null;
-    
-    // Prioritize specific group match over universal
-    const specificMatch = data.find(p => p.store_group_id === storeData.group_id);
-    const universalMatch = data.find(p => p.store_group_id === null);
-    
-    return specificMatch || universalMatch || null;
-  },
-  enabled: open && !!storeData?.group_id,
-});
+// Replace entries atomically only after successful load
+setEntries(entriesMap);
+setNotes(notesMap);
 ```
 
----
+### 2. Add Request Tracking to Prevent Stale Data Overwrites
+Use a request counter/timestamp to ensure only the latest request's data is applied.
 
-### Changes Summary
+**File**: `src/components/financial/FinancialSummary.tsx`
+
+Add a ref to track request IDs:
+```typescript
+const loadRequestIdRef = useRef(0);
+const precedingDataRequestIdRef = useRef(0);
+```
+
+In `loadFinancialData()`:
+```typescript
+const loadFinancialData = async () => {
+  if (!departmentId) {
+    setLoading(false);
+    return;
+  }
+
+  const requestId = ++loadRequestIdRef.current;
+  setLoading(true);
+  
+  // ... fetch data ...
+  
+  // Only apply if this is still the latest request
+  if (requestId !== loadRequestIdRef.current) {
+    console.log('[loadFinancialData] Stale request, discarding');
+    return;
+  }
+  
+  setEntries(entriesMap);
+  setNotes(notesMap);
+  setLoading(false);
+};
+```
+
+In `loadPrecedingQuartersData()`:
+```typescript
+const loadPrecedingQuartersData = async () => {
+  if (!departmentId) return;
+
+  const requestId = ++precedingDataRequestIdRef.current;
+  
+  // ... fetch data ...
+  
+  // Only apply if this is still the latest request
+  if (requestId !== precedingDataRequestIdRef.current) {
+    console.log('[loadPrecedingQuartersData] Stale request, discarding');
+    return;
+  }
+  
+  setPrecedingQuartersData(averages);
+};
+```
+
+### 3. Debounce Realtime-Triggered Reloads
+Prevent rapid-fire reloads by debouncing the `loadPrecedingQuartersData()` call in the realtime handler.
+
+**File**: `src/components/financial/FinancialSummary.tsx`
+
+Add debounce ref:
+```typescript
+const precedingDataDebounceRef = useRef<NodeJS.Timeout | null>(null);
+```
+
+In the realtime handler (around line 748):
+```typescript
+// Debounce reload of quarter aggregates to prevent rapid-fire requests
+if (precedingDataDebounceRef.current) {
+  clearTimeout(precedingDataDebounceRef.current);
+}
+precedingDataDebounceRef.current = setTimeout(() => {
+  loadPrecedingQuartersData();
+}, 500); // Wait 500ms after last event before reloading
+```
+
+Clean up in effect cleanup:
+```typescript
+return () => {
+  supabase.removeChannel(channel);
+  if (precedingDataDebounceRef.current) {
+    clearTimeout(precedingDataDebounceRef.current);
+  }
+};
+```
+
+## Summary of Changes
 
 | File | Change |
 |------|--------|
-| `ScorecardImportPreviewDialog.tsx` | Update import profile query to include universal profiles (`store_group_id IS NULL`) with fallback priority |
+| `FinancialSummary.tsx` | Remove immediate `setEntries({})` clear on load start |
+| `FinancialSummary.tsx` | Add request ID tracking to prevent stale data overwrites |
+| `FinancialSummary.tsx` | Debounce realtime-triggered `loadPrecedingQuartersData()` calls |
 
-### Result
-- Universal "CSR Productivity Report" profile (store_group_id = NULL) will be used for all stores that don't have a group-specific override
-- Group-specific profiles still take precedence if they exist
-- All mappings created in the Visual Mapper for the universal profile will apply to all stores
+## Expected Result
+- Data will no longer flicker/disappear during loads
+- Overlapping async requests won't cause data to appear/disappear randomly
+- Rapid realtime events (like during imports) will be batched instead of triggering many individual reloads
 
+## Technical Notes
+- The request ID pattern ensures that if request A starts, then request B starts, and A finishes after B, A's stale data won't overwrite B's fresh data
+- The 500ms debounce means during an import with many INSERT events, we'll only reload once after the batch completes rather than once per INSERT
+- Removing the immediate `setEntries({})` means the UI shows the previous data during load, which is better UX than showing empty cells
