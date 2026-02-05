@@ -105,19 +105,27 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeId,
   });
 
-  // Fetch the active import profile for this store group
+  // Fetch the active import profile for this store group (or universal profile if none exists)
   const { data: importProfile } = useQuery({
     queryKey: ["import-profile-for-store", storeData?.group_id],
     queryFn: async () => {
       if (!storeData?.group_id) return null;
+      
+      // Fetch profiles matching this group OR universal (store_group_id is null)
       const { data, error } = await supabase
         .from("scorecard_import_profiles")
         .select("*")
-        .eq("store_group_id", storeData.group_id)
         .eq("is_active", true)
-        .maybeSingle();
+        .or(`store_group_id.eq.${storeData.group_id},store_group_id.is.null`);
+      
       if (error) throw error;
-      return data;
+      if (!data || data.length === 0) return null;
+      
+      // Prioritize specific group match over universal
+      const specificMatch = data.find(p => p.store_group_id === storeData.group_id);
+      const universalMatch = data.find(p => p.store_group_id === null);
+      
+      return specificMatch || universalMatch || null;
     },
     enabled: open && !!storeData?.group_id,
   });
