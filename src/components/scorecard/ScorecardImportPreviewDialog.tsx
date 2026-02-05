@@ -90,22 +90,15 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeId,
   });
 
-  // Fetch store users for manual matching (store OR store group)
+  // Fetch store users for manual matching (current store only)
   const { data: storeUsers } = useQuery({
-    queryKey: ["store-users-for-import", storeId, storeData?.group_id],
+    queryKey: ["store-users-for-import", storeId],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, role, store_id, store_group_id")
+        .eq("store_id", storeId)
         .order("full_name");
-
-      if (storeData?.group_id) {
-        query = query.or(`store_id.eq.${storeId},store_group_id.eq.${storeData.group_id}`);
-      } else {
-        query = query.eq("store_id", storeId);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
