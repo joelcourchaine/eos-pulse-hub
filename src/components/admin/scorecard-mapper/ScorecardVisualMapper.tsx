@@ -127,22 +127,47 @@ export const ScorecardVisualMapper = () => {
       existingMappingsInput: any[] | undefined,
       existingAliasesInput: any[] | undefined
     ) => {
-      // Helper to detect date-only rows (e.g., "01/01/2026 - 01/31/2026")
-      const isDateOnlyRow = (row: any[]): boolean => {
+      // Helper to detect metadata/footer rows that should be excluded from mapping
+      // These include: date ranges, page indicators, report headers/footers
+      const isMetadataRow = (row: any[]): boolean => {
         const dateRangePattern = /^\d{1,2}\/\d{1,2}\/\d{2,4}\s*[-–—]\s*\d{1,2}\/\d{1,2}\/\d{2,4}$/;
-        let hasDateRange = false;
-        let hasOtherContent = false;
+        const singleDatePattern = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+        const pageIndicatorPattern = /^Page[:\s]*\d+/i;
+        
+        let hasDate = false;
+        let hasPageIndicator = false;
+        let hasMeaningfulData = false;
 
         for (const cell of row) {
           const cellStr = String(cell ?? "").trim();
           if (!cellStr) continue;
-          if (dateRangePattern.test(cellStr)) {
-            hasDateRange = true;
-          } else {
-            hasOtherContent = true;
+          
+          // Check for dates
+          if (dateRangePattern.test(cellStr) || singleDatePattern.test(cellStr)) {
+            hasDate = true;
+            continue;
+          }
+          
+          // Check for page indicators
+          if (pageIndicatorPattern.test(cellStr)) {
+            hasPageIndicator = true;
+            continue;
+          }
+          
+          // "All Repair Orders" in a row with a date/page is likely a footer, not a data row
+          if (hasDate && /^All\s+Repair\s+Orders/i.test(cellStr)) {
+            continue; // Don't count as meaningful data
+          }
+          
+          // Any other substantial content means this might be a data row
+          // Skip very short strings that are likely metadata
+          if (cellStr.length > 2 && !/^(Cash|CP|WP|INT|EXT)\.{0,3}$/i.test(cellStr)) {
+            hasMeaningfulData = true;
           }
         }
-        return hasDateRange && !hasOtherContent;
+        
+        // Exclude if: has page indicator, or has date but no meaningful data
+        return hasPageIndicator || (hasDate && !hasMeaningfulData);
       };
 
       // Use first sheet or preferred sheet
@@ -203,8 +228,8 @@ export const ScorecardVisualMapper = () => {
         
         const dataRowIndex = dataRows.length;
         
-        // Check for date-only rows in metadata section
-        if (isDateOnlyRow(row || [])) {
+        // Check for metadata/footer rows in metadata section
+        if (isMetadataRow(row || [])) {
           dateRowIndices.push(dataRowIndex);
         } else {
           // Check for advisor pattern in metadata rows too
@@ -238,8 +263,8 @@ export const ScorecardVisualMapper = () => {
 
         const dataRowIndex = dataRows.length;
         
-        // Check for date-only rows
-        if (isDateOnlyRow(row)) {
+        // Check for metadata/footer rows
+        if (isMetadataRow(row)) {
           dateRowIndices.push(dataRowIndex);
         } else {
           // Scan first few columns for advisor pattern (some reports have extra leading columns)
