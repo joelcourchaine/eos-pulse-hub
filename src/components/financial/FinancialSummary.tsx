@@ -229,6 +229,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [clearMonthTarget, setClearMonthTarget] = useState<string | null>(null);
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  // Request ID tracking to prevent stale async data from overwriting fresh data
+  const loadRequestIdRef = useRef(0);
+  const precedingDataRequestIdRef = useRef(0);
+  // Debounce ref to batch realtime-triggered reloads
+  const precedingDataDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch financial attachments for current department AND sibling departments
   const fetchAttachments = useCallback(async () => {
@@ -744,8 +749,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             });
           }
 
-          // Reload quarter aggregates quietly (no full table reload)
-          loadPrecedingQuartersData();
+          // Debounce reload of quarter aggregates to prevent rapid-fire requests during imports
+          if (precedingDataDebounceRef.current) {
+            clearTimeout(precedingDataDebounceRef.current);
+          }
+          precedingDataDebounceRef.current = setTimeout(() => {
+            loadPrecedingQuartersData();
+          }, 500);
 
           // Toast only for updates that are clearly from someone else
           if (
@@ -768,6 +778,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     return () => {
       supabase.removeChannel(channel);
+      if (precedingDataDebounceRef.current) {
+        clearTimeout(precedingDataDebounceRef.current);
+      }
     };
     // Note: activeCellRef is a ref (not state), so no need to include in dependencies
   }, [departmentId, currentUserId, FINANCIAL_METRICS]);
@@ -1088,6 +1101,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const loadPrecedingQuartersData = async () => {
     if (!departmentId) return;
 
+    const requestId = ++precedingDataRequestIdRef.current;
+
     if (isMonthlyTrendMode) {
       // Load data for all months in the monthly trend in a single query
       const averages: { [key: string]: number } = {};
@@ -1242,6 +1257,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         });
       }
       
+      // Only apply if this is still the latest request
+      if (requestId !== precedingDataRequestIdRef.current) {
+        console.log('[loadPrecedingQuartersData] Monthly trend - stale request, discarding');
+        return;
+      }
       setPrecedingQuartersData(averages);
       return;
     }
@@ -1426,6 +1446,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         });
       }
       
+      // Only apply if this is still the latest request
+      if (requestId !== precedingDataRequestIdRef.current) {
+        console.log('[loadPrecedingQuartersData] Quarter trend - stale request, discarding');
+        return;
+      }
       setPrecedingQuartersData(averages);
       return;
     }
@@ -1719,6 +1744,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       }
     });
 
+    // Only apply if this is still the latest request
+    if (requestId !== precedingDataRequestIdRef.current) {
+      console.log('[loadPrecedingQuartersData] Non-trend mode - stale request, discarding');
+      return;
+    }
     setPrecedingQuartersData(averages);
   };
 
@@ -1728,12 +1758,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       return;
     }
 
+    const requestId = ++loadRequestIdRef.current;
     setLoading(true);
-    // Clear existing data to prevent stale data from showing
-    // Note: Do NOT clear localValues here - it causes race conditions where
-    // pending user input is lost when realtime updates trigger a reload
-    setEntries({});
-    setNotes({});
+    // Don't clear entries here - wait until new data is loaded
+    // This prevents UI flicker during async load for high-volume departments
     
     // Skip loading individual month data in Quarter Trend or Monthly Trend mode
     if (isQuarterTrendMode || isMonthlyTrendMode) {
@@ -1810,6 +1838,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       });
     }
 
+    // Only apply if this is still the latest request
+    if (requestId !== loadRequestIdRef.current) {
+      console.log('[loadFinancialData] Stale request, discarding');
+      return;
+    }
+
+    // Replace entries atomically only after successful load
     setEntries(entriesMap);
     setNotes(notesMap);
     setLoading(false);
