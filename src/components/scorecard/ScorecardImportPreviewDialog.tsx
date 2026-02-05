@@ -90,6 +90,26 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeId,
   });
 
+  // Fetch department info including manager for auto-mapping "All Repair Orders"
+  const { data: departmentInfo } = useQuery({
+    queryKey: ["department-info-for-import", departmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("departments")
+        .select(`
+          id, 
+          name, 
+          manager_id,
+          manager:profiles!departments_manager_id_fkey(id, full_name)
+        `)
+        .eq("id", departmentId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!departmentId,
+  });
+
   // Fetch store users for manual matching (current store only)
   const { data: storeUsers } = useQuery({
     queryKey: ["store-users-for-import", storeId],
@@ -281,10 +301,36 @@ export const ScorecardImportPreviewDialog = ({
 
   // Track users with manual overrides for display in the preview
   // These use dept totals data source instead of individual advisor rows
+  // AUTO-MAP: Also include department manager for "All Repair Orders" if no explicit alias exists
   const deptTotalsUsers = useMemo(() => {
-    if (!storeUsers || !manualOverrideUserIds || manualOverrideUserIds.size === 0) return [];
-    return storeUsers.filter(u => manualOverrideUserIds.has(u.id));
-  }, [storeUsers, manualOverrideUserIds]);
+    const users: Array<{ id: string; full_name: string; role?: string; store_id?: string; store_group_id?: string }> = [];
+    
+    // Add users with explicit manual overrides (e.g., "All Repair Orders" alias)
+    if (storeUsers && manualOverrideUserIds && manualOverrideUserIds.size > 0) {
+      users.push(...storeUsers.filter(u => manualOverrideUserIds.has(u.id)));
+    }
+    
+    // AUTO-MAP: Add department manager if:
+    // 1. Department has a manager
+    // 2. There's department totals data in the parse result
+    // 3. Manager is not already in the list (no explicit alias)
+    const managerId = departmentInfo?.manager_id;
+    const manager = departmentInfo?.manager as { id: string; full_name: string } | null;
+    const hasDeptTotals = parseResult?.departmentTotals && (
+      Object.keys(parseResult.departmentTotals.total || {}).length > 0 ||
+      Object.keys(parseResult.departmentTotals.customer || {}).length > 0
+    );
+    
+    if (managerId && manager && hasDeptTotals && !users.some(u => u.id === managerId)) {
+      console.log(`[Import Preview] Auto-mapping department manager ${manager.full_name} to dept totals (All Repair Orders)`);
+      users.push({
+        id: manager.id,
+        full_name: manager.full_name,
+      });
+    }
+    
+    return users;
+  }, [storeUsers, manualOverrideUserIds, departmentInfo, parseResult?.departmentTotals]);
 
   const handleUserSelect = (advisorIndex: number, userId: string) => {
     setAdvisorMatches(prev => {
