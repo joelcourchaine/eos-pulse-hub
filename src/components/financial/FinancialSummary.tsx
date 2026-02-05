@@ -208,6 +208,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [pasteMonth, setPasteMonth] = useState<string>("");
   const [pasteYear, setPasteYear] = useState<number>(year);
   const [focusedCell, setFocusedCell] = useState<string | null>(null);
+  // Ref to track cells actively being edited or saved - used by realtime to avoid overwriting
+  const activeCellRef = useRef<string | null>(null);
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [issueContext, setIssueContext] = useState<{
     title: string;
@@ -710,8 +712,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
           const cellKey = `${metricName}-${monthId}`;
 
-          // If the user is actively editing this cell, do not overwrite.
-          if (focusedCell === cellKey) {
+          // If the user is actively editing or saving this cell, do not overwrite.
+          // Using ref instead of state to avoid recreating subscription on every focus/blur
+          if (activeCellRef.current === cellKey) {
             return;
           }
 
@@ -765,7 +768,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [departmentId, currentUserId, FINANCIAL_METRICS, focusedCell]);
+    // Note: activeCellRef is a ref (not state), so no need to include in dependencies
+  }, [departmentId, currentUserId, FINANCIAL_METRICS]);
 
   // Load preceding quarters data after FINANCIAL_METRICS is available
   useEffect(() => {
@@ -1820,6 +1824,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     // If no local value exists, nothing to save
     if (value === undefined) return;
     
+    // Mark cell as active to prevent realtime overwrites during save
+    activeCellRef.current = key;
+    
     // Accept pasted/formatted numbers like "$12,345" or "12,345".
     const cleaned = value.replace(/[$,%\s]/g, "").replace(/,/g, "");
     let numValue = cleaned === "" ? null : Number.parseFloat(cleaned);
@@ -1832,57 +1839,66 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     setSaving(prev => ({ ...prev, [key]: true }));
 
-    // If value is empty/null, delete the entry
-    if (numValue === null || value === '') {
-      const { error } = await supabase
-        .from("financial_entries")
-        .delete()
-        .eq("department_id", departmentId)
-        .eq("month", monthId)
-        .eq("metric_name", metricKey);
+    try {
+      // If value is empty/null, delete the entry
+      if (numValue === null || value === '') {
+        const { error } = await supabase
+          .from("financial_entries")
+          .delete()
+          .eq("department_id", departmentId)
+          .eq("month", monthId)
+          .eq("metric_name", metricKey);
 
-      if (error) {
-        toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+        if (error) {
+          toast({ title: "Error", description: "Failed to delete entry", variant: "destructive" });
+        } else {
+          setEntries(prev => {
+            const newEntries = { ...prev };
+            delete newEntries[key];
+            return newEntries;
+          });
+          // Clear local value after successful delete
+          setLocalValues(prev => {
+            const newLocal = { ...prev };
+            delete newLocal[key];
+            return newLocal;
+          });
+        }
       } else {
-        setEntries(prev => {
-          const newEntries = { ...prev };
-          delete newEntries[key];
-          return newEntries;
-        });
-        // Clear local value after successful delete
-        setLocalValues(prev => {
-          const newLocal = { ...prev };
-          delete newLocal[key];
-          return newLocal;
-        });
-      }
-    } else {
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session.session?.user?.id;
+        const { data: session } = await supabase.auth.getSession();
+        const userId = session.session?.user?.id;
 
-      const { error } = await supabase
-        .from("financial_entries")
-        .upsert({
-          department_id: departmentId,
-          month: monthId,
-          metric_name: metricKey,
-          value: numValue,
-          created_by: userId,
-        }, {
-          onConflict: "department_id,month,metric_name"
-        });
+        const { error } = await supabase
+          .from("financial_entries")
+          .upsert({
+            department_id: departmentId,
+            month: monthId,
+            metric_name: metricKey,
+            value: numValue,
+            created_by: userId,
+          }, {
+            onConflict: "department_id,month,metric_name"
+          });
 
-      if (error) {
-        toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
-      } else {
-        setEntries(prev => ({ ...prev, [key]: numValue }));
-        setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+        if (error) {
+          toast({ title: "Error", description: "Failed to save financial entry", variant: "destructive" });
+        } else {
+          setEntries(prev => ({ ...prev, [key]: numValue }));
+          setLocalValues(prev => ({ ...prev, [key]: String(numValue) }));
+        }
       }
+
+      // Reload preceding quarters data in background
+      loadPrecedingQuartersData();
+    } finally {
+      setSaving(prev => ({ ...prev, [key]: false }));
+      // Clear active cell after a small delay to catch any straggling realtime events
+      setTimeout(() => {
+        if (activeCellRef.current === key) {
+          activeCellRef.current = null;
+        }
+      }, 100);
     }
-
-    // Reload preceding quarters data in background
-    loadPrecedingQuartersData();
-    setSaving(prev => ({ ...prev, [key]: false }));
   };
 
   const formatValue = (value: number | undefined, type: string) => {
@@ -3576,7 +3592,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   saveEntry(metric.key, monthIdentifier);
                                                 }
                                               }}
-                                              onFocus={() => setFocusedCell(key)}
+                                              onFocus={() => {
+                                                setFocusedCell(key);
+                                                activeCellRef.current = key;
+                                              }}
                                               onBlur={() => {
                                                 setFocusedCell(null);
                                                 saveEntry(metric.key, monthIdentifier);
@@ -4269,6 +4288,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   }}
                                                   onFocus={() => {
                                                     setFocusedCell(key);
+                                                    activeCellRef.current = key;
                                                   }}
                                                   onBlur={() => {
                                                     setFocusedCell(null);
