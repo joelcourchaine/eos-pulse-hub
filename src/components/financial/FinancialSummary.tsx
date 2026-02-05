@@ -714,7 +714,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
           // If the user is actively editing or saving this cell, do not overwrite.
           // Using ref instead of state to avoid recreating subscription on every focus/blur
-          if (activeCellRef.current === cellKey) {
+          // Also check saveTimeoutRef - after Enter, focus moves to next cell but save is still in progress
+          if (activeCellRef.current === cellKey || saveTimeoutRef.current[cellKey]) {
             return;
           }
 
