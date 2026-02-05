@@ -177,7 +177,17 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       return data;
     },
     enabled: !!departmentId,
+    staleTime: 0, // Always consider data stale to ensure fresh baseline data
+    refetchOnMount: 'always', // Force refetch when drawer opens
   });
+
+  // Force fresh baseline data when drawer opens to pick up newly imported financial data
+  useEffect(() => {
+    if (open && departmentId) {
+      queryClient.invalidateQueries({ queryKey: ['prior-year-financial', departmentId, priorYear] });
+      queryClient.invalidateQueries({ queryKey: ['baseline-year-sales', departmentId, priorYear] });
+    }
+  }, [open, departmentId, priorYear, queryClient]);
 
   // Keep forecast baseline in sync when spreadsheets are imported (they write financial_entries).
   // Without this, React Query can hold onto stale prior-year data and the forecast won't update.
