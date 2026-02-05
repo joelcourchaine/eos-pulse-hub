@@ -158,7 +158,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     await queryClient.invalidateQueries({ queryKey: ['forecast-weights', forecast.id] });
     toast.success('Weights reset to original');
   };
-  const { data: priorYearData } = useQuery({
+  const { data: priorYearData, refetch: refetchPriorYearData } = useQuery({
     queryKey: ['prior-year-financial', departmentId, priorYear],
     queryFn: async () => {
       if (!departmentId) return [];
@@ -178,16 +178,18 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     },
     enabled: !!departmentId,
     staleTime: 0, // Always consider data stale to ensure fresh baseline data
-    refetchOnMount: 'always', // Force refetch when drawer opens
   });
 
   // Force fresh baseline data when drawer opens to pick up newly imported financial data
+  // Use refetch() directly instead of invalidateQueries to ensure data is fetched before render
   useEffect(() => {
     if (open && departmentId) {
-      queryClient.invalidateQueries({ queryKey: ['prior-year-financial', departmentId, priorYear] });
+      // Refetch prior year data directly to ensure fresh baseline
+      refetchPriorYearData();
+      // Also invalidate baseline-year-sales for weight calculations
       queryClient.invalidateQueries({ queryKey: ['baseline-year-sales', departmentId, priorYear] });
     }
-  }, [open, departmentId, priorYear, queryClient]);
+  }, [open, departmentId, priorYear, queryClient, refetchPriorYearData]);
 
   // Keep forecast baseline in sync when spreadsheets are imported (they write financial_entries).
   // Without this, React Query can hold onto stale prior-year data and the forecast won't update.
