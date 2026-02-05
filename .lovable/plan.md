@@ -1,6 +1,18 @@
-
-
-## Update Hyundai/Genesis Expense Sub-Metric Mappings
+ # ✅ COMPLETED: Update Hyundai/Genesis Expense Sub-Metric Mappings
+ 
+ **Status**: Implemented on 2026-02-05
+ 
+ ## Summary
+ - Deleted old 3-part expense sub-metric mappings for Hyundai and Genesis
+ - Inserted 88 new mappings with 4-part format (`sub:{parent}:{order}`)
+ - Covers Sales Expense (7 items, rows 23-29) and Total Direct Expenses (15 items, rows 31-45)
+ - Applied to both Parts (Column H) and Service (Column N) for both brands
+ 
+ **Next Step**: Re-import Hyundai/Genesis financial statements to see updated naming.
+ 
+ ---
+ 
+ ## Original Plan
 
 ### Problem
 The expense sub-metrics (`sales_expense` and `total_direct_expenses`) for Hyundai and Genesis brands use a 3-part metric_key format with hardcoded snake_case names:
@@ -92,7 +104,7 @@ Existing stored data with old metric_key format (e.g., `sub:sales_expense:001:ab
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Result
+ ### Expected Result
 After implementation:
 - Sub-metric names will display exactly as shown on the statement (e.g., "MANAGER COMPENSATION" instead of "manager_compensation")
 - Expense line items will appear in statement order (row 23 → row 29 for Sales Expense, row 31 → row 45 for Total Direct Expenses)
