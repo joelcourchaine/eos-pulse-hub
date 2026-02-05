@@ -3386,7 +3386,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         if (isFordServiceDept && fordServiceNoSubMetricSum.includes(k)) {
                                           return precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? entries[`${k}-${monthIdentifier}`] ?? 0;
                                         }
-                                        return getValueWithSubMetricFallback(k, monthIdentifier) ?? precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`] ?? 0;
+                                       // IMPORTANT: Check precedingQuartersData first for direct DB values
+                                       // This ensures stored parent values (e.g., gp_net) take precedence over sub-metric sums
+                                       const directValue = precedingQuartersData[`${k}-M${period.month + 1}-${period.year}`];
+                                       if (directValue !== undefined && directValue !== null) {
+                                         return directValue;
+                                       }
+                                       // Fall back to entries/sub-metric sum only if no direct value
+                                       return getValueWithSubMetricFallback(k, monthIdentifier) ?? 0;
                                       };
                                       
                                       if (metric.calculation.type === 'subtract') {
