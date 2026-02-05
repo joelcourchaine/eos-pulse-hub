@@ -772,6 +772,7 @@ const ScorecardGrid = ({
   // This fixes cases where get_profiles_basic() may not return all needed profiles
   useEffect(() => {
     if (storeUsers.length > 0) {
+      console.log("[ScorecardGrid] Merging storeUsers into profiles:", storeUsers.length, "users");
       setProfiles((prev) => {
         const updated = { ...prev };
         storeUsers.forEach((user) => {
@@ -784,6 +785,7 @@ const ScorecardGrid = ({
             };
           }
         });
+        console.log("[ScorecardGrid] Profiles map after merge:", Object.keys(updated).length, "entries");
         return updated;
       });
     }
