@@ -1,50 +1,58 @@
 
+## Auto-Refresh on Extended Inactivity
 
-# Fix User Login After Token Password Set
+This plan adds a visibility change handler that automatically refreshes the application when a user returns after being away for more than 2 hours. This is particularly important for PWA users who may leave the app installed and open for extended periods.
 
-## Problem
-When users set their password via the custom token flow (bypassing Supabase's native invite), their email is never confirmed (`email_confirmed_at` remains null). This causes login failures with "email invalid" errors.
+### What This Solves
 
-## Root Cause
-The `set-password-with-token` edge function only sets the password:
-```typescript
-await supabaseAdmin.auth.admin.updateUserById(
-  tokenData.user_id,
-  { password: password }  // Missing email_confirm: true
-);
+- Stale data issues when users return to the app after extended periods
+- Service worker cache inconsistencies in the PWA
+- Session token staleness that could cause API failures
+- Users seeing outdated scorecard/financial data after leaving the app open overnight
+
+### Implementation
+
+**1. Create a reusable hook** (`src/hooks/useAutoRefreshOnReturn.ts`)
+   - Encapsulates the visibility change logic in a clean, testable hook
+   - Configurable timeout threshold (default: 2 hours)
+   - Tracks when the user last had the tab active
+   - Triggers `window.location.reload()` when returning after the threshold
+
+**2. Add the hook to App.tsx**
+   - Place it at the app root level so it works across all routes
+   - This ensures the refresh behavior is consistent regardless of which page the user is on
+
+### Technical Details
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                     User leaves tab                          │
+│                           │                                  │
+│                           ▼                                  │
+│              Record lastActive = Date.now()                  │
+│                           │                                  │
+│                           ▼                                  │
+│                  User returns to tab                         │
+│                           │                                  │
+│                           ▼                                  │
+│         Calculate inactiveTime = now - lastActive            │
+│                           │                                  │
+│              ┌────────────┴────────────┐                     │
+│              │                         │                     │
+│     inactiveTime > 2hrs        inactiveTime ≤ 2hrs          │
+│              │                         │                     │
+│              ▼                         ▼                     │
+│     window.location.reload()      No action                  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Solution
-Add `email_confirm: true` to the Admin API call, which sets `email_confirmed_at` to the current timestamp.
+**Hook Implementation:**
+- Uses `useEffect` with `visibilitychange` event listener
+- Stores `lastActive` timestamp in a ref to persist across renders
+- Only triggers reload when `document.hidden` changes from `true` to `false` (returning to tab)
+- 2-hour threshold (7,200,000 ms) is reasonable for catching stale sessions without being too aggressive
 
-## Change Required
-
-**File:** `supabase/functions/set-password-with-token/index.ts`
-
-**Lines 70-74** - Update the `updateUserById` call:
-
-```typescript
-// Set the user's password AND confirm email using Admin API
-// This is critical: when bypassing Supabase's native invite flow,
-// we must manually confirm the email or the user won't be able to log in
-const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-  tokenData.user_id,
-  { 
-    password: password,
-    email_confirm: true  // Confirms the user's email
-  }
-);
-```
-
-## Additional Step: Fix Existing User
-For the user who already set their password but can't log in, run this SQL in Lovable Cloud:
-
-```sql
-UPDATE auth.users 
-SET email_confirmed_at = NOW()
-WHERE id = '08d1a5de-e669-4ec3-8902-f44c7f71494a';
-```
-
-## Files to Modify
-1. `supabase/functions/set-password-with-token/index.ts` - Add `email_confirm: true`
-
+**Files to Create/Modify:**
+1. **Create**: `src/hooks/useAutoRefreshOnReturn.ts` - New reusable hook
+2. **Modify**: `src/App.tsx` - Add hook usage at app root level
