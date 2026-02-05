@@ -3333,10 +3333,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                    // not by summing sub-metrics (which can include overlapping lines and inflate totals).
                                    const fordServiceNoSubMetricSum = ['total_sales', 'sales_expense', 'gp_net'];
                                    const precedingValue = precedingQuartersData[`${metric.key}-M${period.month + 1}-${period.year}`];
+                                   // In Monthly Trend mode, entries is NOT populated (loadEntries returns early).
+                                   // So we must prefer precedingValue (computed with parent-value-first logic)
+                                   // over getValueWithSubMetricFallback (which would fall back to sub-metric sums).
+                                   // This prevents showing incorrect sub-metric sums when parent values exist.
                                    const mValue =
                                      isFordServiceDept && fordServiceNoSubMetricSum.includes(metric.key)
                                        ? precedingValue
-                                       : (getValueWithSubMetricFallback(metric.key, monthIdentifier) ?? precedingValue);
+                                       : (precedingValue ?? getValueWithSubMetricFallback(metric.key, monthIdentifier));
                                    // Check if metric should use calculation for this month (Honda legacy handling)
                                    const isCalculated = !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
                                   
