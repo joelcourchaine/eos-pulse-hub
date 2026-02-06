@@ -3594,6 +3594,7 @@ export type Database = {
       generate_auth_token: { Args: never; Returns: string }
       get_current_user_store: { Args: never; Returns: string }
       get_current_user_store_group: { Args: never; Returns: string }
+      get_current_user_store_id: { Args: never; Returns: string }
       get_profiles_basic: {
         Args: never
         Returns: {
@@ -3644,6 +3645,12 @@ export type Database = {
       get_user_store_group_no_rls: {
         Args: { _user_id: string }
         Returns: string
+      }
+      get_user_store_ids_via_departments: {
+        Args: { _user_id: string }
+        Returns: {
+          store_id: string
+        }[]
       }
       get_user_store_no_rls: { Args: { _user_id: string }; Returns: string }
       get_user_stores: {

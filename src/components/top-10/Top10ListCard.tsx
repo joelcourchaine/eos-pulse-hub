@@ -425,9 +425,6 @@ export function Top10ListCard({
                   <CardTitle className="text-base font-medium">
                     {list.title}
                   </CardTitle>
-                  <span className="text-sm text-muted-foreground">
-                    ({items.length} items)
-                  </span>
                 </div>
               </CollapsibleTrigger>
 
