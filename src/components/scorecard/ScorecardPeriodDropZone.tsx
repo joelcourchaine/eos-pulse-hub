@@ -51,8 +51,13 @@ export const ScorecardPeriodDropZone = ({
 
     const file = files[0];
     
-    // Check file type
-    if (!ACCEPTED_TYPES[file.type]) {
+    // Check file type (MIME type + extension fallback for browsers that report empty/non-standard MIME)
+    const isExcel =
+      ACCEPTED_TYPES[file.type] ||
+      file.name.toLowerCase().endsWith('.xlsx') ||
+      file.name.toLowerCase().endsWith('.xls');
+
+    if (!isExcel) {
       toast({
         title: "Invalid file type",
         description: "Please drop an Excel file (.xlsx, .xls)",
