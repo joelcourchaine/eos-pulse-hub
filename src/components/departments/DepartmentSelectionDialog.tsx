@@ -22,29 +22,28 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
   const queryClient = useQueryClient();
 
   const { data: departmentTypes } = useQuery({
-    queryKey: ['department-types'],
+    queryKey: ["department-types"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('department_types')
-        .select('*')
-        .order('display_order');
+      const { data, error } = await supabase.from("department_types").select("*").order("display_order");
       if (error) throw error;
       return data;
     },
   });
 
   const { data: departments, isLoading: departmentsLoading } = useQuery({
-    queryKey: ['store-departments', storeId],
+    queryKey: ["store-departments", storeId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('departments')
-        .select(`
+        .from("departments")
+        .select(
+          `
           *,
           department_types (name, description),
           profiles!departments_manager_id_fkey (id, full_name)
-        `)
-        .eq('store_id', storeId)
-        .order('created_at');
+        `,
+        )
+        .eq("store_id", storeId)
+        .order("created_at");
       if (error) throw error;
       return data;
     },
@@ -52,13 +51,27 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
   });
 
   const { data: users } = useQuery({
-    queryKey: ['store-users', storeId],
+    queryKey: ["store-users", storeId],
     queryFn: async () => {
+      // First get users with appropriate roles from user_roles table
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .in("role", ["department_manager", "store_gm", "fixed_ops_manager"]);
+
+      if (roleError) throw roleError;
+
+      const userIds = roleData?.map((r) => r.user_id) || [];
+
+      if (userIds.length === 0) return [];
+
+      // Then get profiles for those users who are in this store
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, email, role')
-        .eq('store_id', storeId)
-        .in('role', ['department_manager', 'store_gm']);
+        .from("profiles")
+        .select("id, full_name, email")
+        .eq("store_id", storeId)
+        .in("id", userIds);
+
       if (error) throw error;
       return data;
     },
@@ -67,24 +80,22 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const selectedType = departmentTypes?.find(t => t.id === selectedTypeId);
+      const selectedType = departmentTypes?.find((t) => t.id === selectedTypeId);
       if (!selectedType) throw new Error("Please select a department type");
 
-      const { error } = await supabase
-        .from('departments')
-        .insert({
-          name: selectedType.name,
-          store_id: storeId,
-          department_type_id: selectedTypeId,
-          manager_id: managerId || null,
-        });
+      const { error } = await supabase.from("departments").insert({
+        name: selectedType.name,
+        store_id: storeId,
+        department_type_id: selectedTypeId,
+        manager_id: managerId || null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Department added successfully");
       setSelectedTypeId("");
       setManagerId("");
-      queryClient.invalidateQueries({ queryKey: ['store-departments', storeId] });
+      queryClient.invalidateQueries({ queryKey: ["store-departments", storeId] });
     },
     onError: (error: Error) => {
       toast.error(`Failed to add department: ${error.message}`);
@@ -93,15 +104,12 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
 
   const deleteMutation = useMutation({
     mutationFn: async (departmentId: string) => {
-      const { error } = await supabase
-        .from('departments')
-        .delete()
-        .eq('id', departmentId);
+      const { error } = await supabase.from("departments").delete().eq("id", departmentId);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Department removed successfully");
-      queryClient.invalidateQueries({ queryKey: ['store-departments', storeId] });
+      queryClient.invalidateQueries({ queryKey: ["store-departments", storeId] });
     },
     onError: (error: Error) => {
       toast.error(`Failed to remove department: ${error.message}`);
@@ -111,16 +119,16 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
   const updateManagerMutation = useMutation({
     mutationFn: async ({ departmentId, newManagerId }: { departmentId: string; newManagerId: string }) => {
       const { error } = await supabase
-        .from('departments')
+        .from("departments")
         .update({ manager_id: newManagerId === "none" ? null : newManagerId })
-        .eq('id', departmentId);
+        .eq("id", departmentId);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Manager updated successfully");
       setEditingDepartmentId(null);
       setEditingManagerId("");
-      queryClient.invalidateQueries({ queryKey: ['store-departments', storeId] });
+      queryClient.invalidateQueries({ queryKey: ["store-departments", storeId] });
     },
     onError: (error: Error) => {
       toast.error(`Failed to update manager: ${error.message}`);
@@ -133,11 +141,11 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
   };
 
   // Filter out department types that are already used (by type_id or by name to prevent duplicates)
-  const usedTypeIds = departments?.map(d => d.department_type_id).filter(Boolean) || [];
-  const usedNames = departments?.map(d => d.name.toLowerCase()) || [];
-  const availableTypes = departmentTypes?.filter(type => 
-    !usedTypeIds.includes(type.id) && !usedNames.includes(type.name.toLowerCase())
-  ) || [];
+  const usedTypeIds = departments?.map((d) => d.department_type_id).filter(Boolean) || [];
+  const usedNames = departments?.map((d) => d.name.toLowerCase()) || [];
+  const availableTypes =
+    departmentTypes?.filter((type) => !usedTypeIds.includes(type.id) && !usedNames.includes(type.name.toLowerCase())) ||
+    [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -204,9 +212,7 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                     <div className="flex-1">
                       <div className="font-medium">{dept.name}</div>
                       {dept.department_types && (
-                        <div className="text-xs text-muted-foreground">
-                          {dept.department_types.description}
-                        </div>
+                        <div className="text-xs text-muted-foreground">{dept.department_types.description}</div>
                       )}
                       {editingDepartmentId === dept.id ? (
                         <div className="mt-2 flex items-center gap-2">
@@ -225,10 +231,12 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
                           </Select>
                           <Button
                             size="sm"
-                            onClick={() => updateManagerMutation.mutate({ 
-                              departmentId: dept.id, 
-                              newManagerId: editingManagerId 
-                            })}
+                            onClick={() =>
+                              updateManagerMutation.mutate({
+                                departmentId: dept.id,
+                                newManagerId: editingManagerId,
+                              })
+                            }
                             disabled={updateManagerMutation.isPending || !editingManagerId}
                           >
                             Save
@@ -276,7 +284,9 @@ export function DepartmentSelectionDialog({ open, onOpenChange, storeId }: Depar
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground py-4">No departments added yet. Add departments from the predefined list above.</p>
+            <p className="text-sm text-muted-foreground py-4">
+              No departments added yet. Add departments from the predefined list above.
+            </p>
           )}
         </div>
       </DialogContent>
