@@ -1924,17 +1924,44 @@ export default function DealerComparison() {
               };
             })
         }
-        metrics={selectedMetrics.map(metricName => ({
-          metricName,
-          storeValues: stores.reduce((acc, [storeId, store]) => {
-            const metricData = store.metrics[metricName];
-            acc[storeId] = metricData || { value: null, target: null, variance: null };
-            return acc;
-          }, {} as Record<string, { value: number | null; target: number | null; variance: number | null }>),
-        }))}
+        metrics={orderedSelectedMetrics.map(selectionId => {
+          const displayName = selectionIdToDisplayName(selectionId);
+          return {
+            metricName: selectionId,
+            displayName,
+            isPercentage: (() => {
+              if (selectionId.startsWith("sub:")) {
+                const parts = selectionId.split(":");
+                const parentKey = parts.length >= 2 ? parts[1] : "";
+                const allDefs = getMetricsForBrand(null);
+                const parentDef = allDefs.find((d: any) => d.key === parentKey);
+                return parentDef?.type === "percentage";
+              }
+              const allDefs = getMetricsForBrand(null);
+              const metricDef = allDefs.find((d: any) => d.name === selectionId);
+              return metricDef?.type === "percentage" || selectionId.includes("%");
+            })(),
+            lowerIsBetter: (() => {
+              const allDefs = getMetricsForBrand(null);
+              const parsed = extractSubMetricParts(selectionId);
+              if (parsed) {
+                const parentDef = allDefs.find((d: any) => d.key === parsed.parentKey);
+                return parentDef?.targetDirection === "below";
+              }
+              const metricDef = allDefs.find((d: any) => d.name === selectionId);
+              return metricDef?.targetDirection === "below";
+            })(),
+            storeValues: stores.reduce((acc, [storeId, store]) => {
+              // Use same lookup as render: try selectionId first, then displayName
+              const metricData = store.metrics[selectionId] || store.metrics[displayName];
+              acc[storeId] = metricData || { value: null, target: null, variance: null };
+              return acc;
+            }, {} as Record<string, { value: number | null; target: number | null; variance: number | null }>),
+          };
+        })}
         questionnaireData={metricType === "dept_info" ? questionnaireAnswers : undefined}
         metricType={metricType}
-        selectedMetrics={selectedMetrics}
+        selectedMetrics={orderedSelectedMetrics}
         datePeriodType={datePeriodType}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
@@ -1944,6 +1971,9 @@ export default function DealerComparison() {
         filterName={filterName}
         brandDisplayName={brandDisplayName}
         selectedDepartmentNames={selectedDepartmentNames}
+        isYoyMonth={isYoyMonth}
+        yoyCurrentYear={yoyCurrentYear}
+        yoyPrevYear={yoyPrevYear}
       />
     </div>
   );
