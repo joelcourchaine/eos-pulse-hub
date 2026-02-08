@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, RefreshCw, CheckCircle2, AlertCircle, Mail, Printer } from "lucide-react";
@@ -207,6 +207,20 @@ export default function DealerComparison() {
     return selectionId;
   };
 
+  // Helper to extract (parentKey, subName) from any sub-metric key format.
+  // Handles both "sub:parent:name" and "sub:parent:order:name" (with numeric order index).
+  const extractSubMetricParts = (key: string): { parentKey: string; subName: string } | null => {
+    if (!key.startsWith("sub:")) return null;
+    const parts = key.split(":");
+    if (parts.length < 3) return null;
+    const parentKey = parts[1];
+    // If parts[2] is a numeric order index, subName starts at parts[3]
+    if (parts.length >= 4 && /^\d+$/.test(parts[2])) {
+      return { parentKey, subName: parts.slice(3).join(":") };
+    }
+    return { parentKey, subName: parts.slice(2).join(":") };
+  };
+
   // Build map from display name to full selection ID for lookup
   const displayNameToSelectionId = useMemo(() => {
     const result = new Map<string, string>();
@@ -215,6 +229,18 @@ export default function DealerComparison() {
       result.set(displayName, selectionId);
     });
     return result;
+  }, [selectedMetrics]);
+
+  // Map "parentKey|subName" → selectionId for matching DB sub-metric keys to selections
+  const subMetricSelectionMap = useMemo(() => {
+    const map = new Map<string, string>();
+    selectedMetrics.forEach(selId => {
+      const parsed = extractSubMetricParts(selId);
+      if (parsed) {
+        map.set(`${parsed.parentKey}|${parsed.subName}`, selId);
+      }
+    });
+    return map;
   }, [selectedMetrics]);
 
   // Order selected metrics so sub-metrics render directly under their parent metric.
@@ -1367,9 +1393,19 @@ export default function DealerComparison() {
       // Filter to only selected metrics.
       // Most rows are keyed by their display name (selectedMetricNames), but some computed
       // rows (like percentage sub-metrics) are keyed by the original selectionId.
-      const result = Object.values(dataMap).filter((item) =>
-        selectedMetricNames.includes(item.metricName) || selectedMetrics.includes(item.metricName),
-      );
+      // Dollar sub-metrics from DB may have an order index (sub:parent:0:name) that
+      // doesn't match the selectionId format (sub:parent:name), so we also match by parts.
+      const result = Object.values(dataMap).filter((item) => {
+        if (selectedMetricNames.includes(item.metricName) || selectedMetrics.includes(item.metricName)) {
+          return true;
+        }
+        // Match DB sub-metric keys (with order index) to selected sub-metrics
+        const parsed = extractSubMetricParts(item.metricName);
+        if (parsed) {
+          return subMetricSelectionMap.has(`${parsed.parentKey}|${parsed.subName}`);
+        }
+        return false;
+      });
       
       console.log("DealerComparison - Final comparison data:", result.length, "entries");
       console.log("DealerComparison - Has Total Direct Expenses?", result.some(r => r.metricName === "Total Direct Expenses"));
@@ -1434,6 +1470,18 @@ export default function DealerComparison() {
         variance: item.variance,
       };
     }
+    // Also index by matching selectionId for sub-metrics so render lookup succeeds
+    const parsed = extractSubMetricParts(item.metricName);
+    if (parsed) {
+      const selId = subMetricSelectionMap.get(`${parsed.parentKey}|${parsed.subName}`);
+      if (selId && !acc[item.storeId].metrics[selId]) {
+        acc[item.storeId].metrics[selId] = {
+          value: item.value,
+          target: item.target,
+          variance: item.variance,
+        };
+      }
+    }
     return acc;
   }, {} as Record<string, { storeName: string; metrics: Record<string, { value: number | null; target: number | null; variance: number | null }> }>);
 
@@ -1450,6 +1498,11 @@ export default function DealerComparison() {
       return bValue - aValue;
     });
   }
+
+  // YOY single-month mode: 3-column layout per store
+  const isYoyMonth = comparisonMode === "year_over_year" && datePeriodType === "month";
+  const yoyCurrentYear = selectedMonth ? parseInt(selectedMonth.split("-")[0]) : new Date().getFullYear();
+  const yoyPrevYear = yoyCurrentYear - 1;
 
   // Calculate data completeness for each store
   const storeDataCompleteness = useMemo(() => {
@@ -1573,6 +1626,41 @@ export default function DealerComparison() {
     }).format(value);
   };
 
+  // Format difference values with +/- sign
+  const formatDiffValue = (diff: number, metricName: string): string => {
+    const sign = diff >= 0 ? "+" : "";
+    if (metricName.startsWith("sub:")) {
+      const parts = metricName.split(":");
+      const parentKey = parts.length >= 2 ? parts[1] : "";
+      const allDefs = getMetricsForBrand(null);
+      const parentDef = allDefs.find((d: any) => d.key === parentKey);
+      if (parentDef?.type === "percentage") {
+        return `${sign}${diff.toFixed(1)}%`;
+      }
+      return `${sign}${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(diff)}`;
+    }
+    const metrics = getMetricsForBrand(null);
+    const metricDef = metrics.find((m: any) => m.name === metricName);
+    if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
+      return `${sign}${diff.toFixed(1)}%`;
+    }
+    return `${sign}${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(diff)}`;
+  };
+
+  // Determine if a positive diff is favorable for a metric
+  const isDiffFavorable = (diff: number, selectionId: string): boolean => {
+    const allDefs = getMetricsForBrand(null);
+    const parsed = extractSubMetricParts(selectionId);
+    if (parsed) {
+      const parentDef = allDefs.find((d: any) => d.key === parsed.parentKey);
+      if (parentDef?.targetDirection === "below") return diff < 0;
+      return diff > 0;
+    }
+    const metricDef = allDefs.find((d: any) => d.name === selectionId);
+    if (metricDef?.targetDirection === "below") return diff < 0;
+    return diff > 0;
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-[2000px] mx-auto space-y-6">
@@ -1672,13 +1760,13 @@ export default function DealerComparison() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-10 border-b-2">
+                      <TableHead className="sticky left-0 bg-background z-10 border-b-2" rowSpan={isYoyMonth ? 2 : 1}>
                         <div className="text-base font-bold">Metric</div>
                       </TableHead>
                       {stores.map(([storeId, store]) => {
                         const completeness = storeDataCompleteness[storeId];
                         return (
-                          <TableHead key={storeId} className="text-center min-w-[200px] border-b-2">
+                          <TableHead key={storeId} className="text-center min-w-[200px] border-b-2" colSpan={isYoyMonth ? 3 : 1}>
                             <div className="text-base font-bold">{store.storeName}</div>
                             {completeness && metricType === "financial" && !completeness.isComplete && (
                               <div className="flex justify-center mt-1">
@@ -1726,6 +1814,17 @@ export default function DealerComparison() {
                         );
                       })}
                     </TableRow>
+                    {isYoyMonth && (
+                      <TableRow>
+                        {stores.map(([storeId]) => (
+                          <Fragment key={storeId}>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyCurrentYear}</TableHead>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyPrevYear}</TableHead>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[80px]">Diff</TableHead>
+                          </Fragment>
+                        ))}
+                      </TableRow>
+                    )}
                   </TableHeader>
                   <TableBody>
                     {orderedSelectedMetrics.map((selectionId) => {
@@ -1740,6 +1839,27 @@ export default function DealerComparison() {
                         {stores.map(([storeId, store]) => {
                           // Lookup data by selectionId (how it's stored in comparisonData)
                           const metricData = store.metrics[selectionId];
+
+                          if (isYoyMonth) {
+                            const curValue = metricData?.value ?? null;
+                            const lyValue = metricData?.target ?? null;
+                            const diff = (curValue !== null && lyValue !== null) ? curValue - lyValue : null;
+                            const favorable = diff !== null ? isDiffFavorable(diff, selectionId) : null;
+                            return (
+                              <Fragment key={storeId}>
+                                <TableCell className="text-center px-2">
+                                  <span className="font-semibold">{formatValue(curValue, selectionId)}</span>
+                                </TableCell>
+                                <TableCell className="text-center px-2 text-muted-foreground">
+                                  {formatValue(lyValue, selectionId)}
+                                </TableCell>
+                                <TableCell className={`text-center px-2 font-medium ${diff !== null ? (favorable ? 'text-green-600' : 'text-red-600') : 'text-muted-foreground'}`}>
+                                  {diff !== null ? formatDiffValue(diff, selectionId) : '-'}
+                                </TableCell>
+                              </Fragment>
+                            );
+                          }
+
                           return (
                             <TableCell key={storeId} className="text-center">
                               {metricData ? (
