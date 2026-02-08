@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,11 +53,11 @@ export const SignatureRequestDialog = ({
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [signatureSpots, setSignatureSpots] = useState<SignatureSpot[]>([]);
-  
+
   // External signer fields (no account required)
   const [signerEmail, setSignerEmail] = useState("");
   const [signerName, setSignerName] = useState("");
-  
+
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,12 +68,12 @@ export const SignatureRequestDialog = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  
+
   // Existing PDFs state
   const [existingPdfs, setExistingPdfs] = useState<ExistingPdf[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [showExisting, setShowExisting] = useState(false);
-  
+
   // Drag/resize state
   const [dragMode, setDragMode] = useState<DragMode>("none");
   const [activeSpotId, setActiveSpotId] = useState<string | null>(null);
@@ -133,7 +134,7 @@ export const SignatureRequestDialog = ({
         setTitle(pdf.name.replace(".pdf", ""));
         setStep("mark");
         setShowExisting(false);
-        
+
         toast({
           title: "PDF selected",
           description: "You can now mark signature spots.",
@@ -164,7 +165,7 @@ export const SignatureRequestDialog = ({
     setIsUploading(true);
     setPdfFile(file);
     setTitle(file.name.replace(".pdf", ""));
-    
+
     try {
       // Immediately upload to storage
       const fileName = `${storeId}/${crypto.randomUUID()}.pdf`;
@@ -175,7 +176,7 @@ export const SignatureRequestDialog = ({
       if (uploadError) throw uploadError;
 
       setUploadedFilePath(fileName);
-      
+
       // Get signed URL for viewing
       const { data: signedData } = await supabase.storage
         .from("signature-documents")
@@ -188,9 +189,9 @@ export const SignatureRequestDialog = ({
         const url = URL.createObjectURL(file);
         setPdfUrl(url);
       }
-      
+
       setStep("mark");
-      
+
       toast({
         title: "PDF uploaded",
         description: "Document saved. You can now mark signature spots.",
@@ -200,7 +201,7 @@ export const SignatureRequestDialog = ({
       toast({
         variant: "destructive",
         title: "Upload failed",
-        description: error.message || "Failed to upload document",
+        description: getUserFriendlyError(error) || "Failed to upload document",
       });
       setPdfFile(null);
     } finally {
@@ -231,7 +232,7 @@ export const SignatureRequestDialog = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
-    
+
     const file = e.dataTransfer.files?.[0];
     if (file) {
       await processFile(file);
@@ -241,7 +242,7 @@ export const SignatureRequestDialog = ({
 
   const handleDeletePdf = async () => {
     if (!uploadedFilePath) return;
-    
+
     try {
       const { error } = await supabase.storage
         .from("signature-documents")
@@ -253,14 +254,14 @@ export const SignatureRequestDialog = ({
         title: "Document deleted",
         description: "The PDF has been removed",
       });
-      
+
       resetDialog();
     } catch (error: any) {
       console.error("Error deleting PDF:", error);
       toast({
         variant: "destructive",
         title: "Delete failed",
-        description: error.message || "Failed to delete document",
+        description: getUserFriendlyError(error) || "Failed to delete document",
       });
     }
   };
@@ -280,7 +281,7 @@ export const SignatureRequestDialog = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!pdfContainerRef.current) return;
-    
+
     // Only start drawing if in marking mode and clicking on the PDF (not on a spot)
     if (isMarkingMode && (e.target as HTMLElement).closest('.signature-spot') === null) {
       const pos = getRelativePosition(e);
@@ -292,21 +293,21 @@ export const SignatureRequestDialog = ({
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!pdfContainerRef.current) return;
-    
+
     const pos = getRelativePosition(e);
-    
+
     if (dragMode === "draw" && drawStart) {
       // Create or update temporary spot while drawing
       const minX = Math.min(drawStart.x, pos.x);
       const minY = Math.min(drawStart.y, pos.y);
       const width = Math.abs(pos.x - drawStart.x);
       const height = Math.abs(pos.y - drawStart.y);
-      
+
       // Convert percentage to pixels for width/height
       const rect = pdfContainerRef.current.getBoundingClientRect();
       const widthPx = (width / 100) * rect.width;
       const heightPx = (height / 100) * rect.height;
-      
+
       const existingIndex = signatureSpots.findIndex(s => s.id === "temp-drawing");
       const tempSpot: SignatureSpot = {
         id: "temp-drawing",
@@ -317,7 +318,7 @@ export const SignatureRequestDialog = ({
         height: Math.max(heightPx, 20),
         label: `Signature ${signatureSpots.filter(s => s.id !== "temp-drawing").length + 1}`,
       };
-      
+
       if (existingIndex >= 0) {
         setSignatureSpots(spots => spots.map(s => s.id === "temp-drawing" ? tempSpot : s));
       } else {
@@ -326,9 +327,9 @@ export const SignatureRequestDialog = ({
     } else if (dragMode === "move" && activeSpotId && initialSpot) {
       const deltaX = pos.x - dragOffset.x;
       const deltaY = pos.y - dragOffset.y;
-      
-      setSignatureSpots(spots => spots.map(s => 
-        s.id === activeSpotId 
+
+      setSignatureSpots(spots => spots.map(s =>
+        s.id === activeSpotId
           ? { ...s, xPosition: initialSpot.xPosition + deltaX, yPosition: initialSpot.yPosition + deltaY }
           : s
       ));
@@ -336,15 +337,15 @@ export const SignatureRequestDialog = ({
       const rect = pdfContainerRef.current.getBoundingClientRect();
       const deltaX = pos.x - dragOffset.x;
       const deltaY = pos.y - dragOffset.y;
-      
+
       let newWidth = initialSpot.width;
       let newHeight = initialSpot.height;
       let newX = initialSpot.xPosition;
       let newY = initialSpot.yPosition;
-      
+
       const deltaXPx = (deltaX / 100) * rect.width;
       const deltaYPx = (deltaY / 100) * rect.height;
-      
+
       switch (resizeHandle) {
         case "se":
           newWidth = Math.max(60, initialSpot.width + deltaXPx);
@@ -371,9 +372,9 @@ export const SignatureRequestDialog = ({
           newY = initialSpot.yPosition + (deltaYPx / rect.height * 100) / 2;
           break;
       }
-      
-      setSignatureSpots(spots => spots.map(s => 
-        s.id === activeSpotId 
+
+      setSignatureSpots(spots => spots.map(s =>
+        s.id === activeSpotId
           ? { ...s, width: newWidth, height: newHeight, xPosition: newX, yPosition: newY }
           : s
       ));
@@ -383,14 +384,14 @@ export const SignatureRequestDialog = ({
   const handleMouseUp = () => {
     if (dragMode === "draw") {
       // Finalize the drawn spot
-      setSignatureSpots(spots => spots.map(s => 
-        s.id === "temp-drawing" 
+      setSignatureSpots(spots => spots.map(s =>
+        s.id === "temp-drawing"
           ? { ...s, id: crypto.randomUUID() }
           : s
       ));
       setIsMarkingMode(false);
     }
-    
+
     setDragMode("none");
     setDrawStart(null);
     setActiveSpotId(null);
@@ -532,7 +533,7 @@ export const SignatureRequestDialog = ({
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to create signature request",
+        description: getUserFriendlyError(error) || "Failed to create signature request",
       });
     } finally {
       setIsSubmitting(false);
@@ -597,7 +598,7 @@ export const SignatureRequestDialog = ({
                   <FolderOpen className="h-4 w-4 mr-2" />
                   {showExisting ? "Hide" : "Select from"} previously uploaded PDFs ({existingPdfs.length})
                 </Button>
-                
+
                 {showExisting && (
                   <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
                     {loadingExisting ? (
@@ -642,12 +643,11 @@ export const SignatureRequestDialog = ({
             )}
 
             {/* Upload area */}
-            <div 
-              className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors ${
-                isDragOver 
-                  ? "border-primary bg-primary/5" 
-                  : "border-muted-foreground/25"
-              }`}
+            <div
+              className={`flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-lg transition-colors ${isDragOver
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25"
+                }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -747,56 +747,55 @@ export const SignatureRequestDialog = ({
                   />
                 </Document>
 
-              {/* Render signature spots for current page */}
-              {spotsOnCurrentPage.map((spot) => (
-                <div
-                  key={spot.id}
-                  className={`signature-spot absolute border-2 border-primary bg-primary/10 rounded flex items-center justify-center group ${
-                    dragMode === "none" ? "cursor-move" : ""
-                  } ${activeSpotId === spot.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
-                  style={{
-                    left: `${spot.xPosition}%`,
-                    top: `${spot.yPosition}%`,
-                    width: spot.width,
-                    height: spot.height,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                  onMouseDown={(e) => startMove(e, spot)}
-                >
-                  <span className="text-xs font-medium text-primary pointer-events-none">Sign Here</span>
-                  
-                  {/* Delete button */}
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSpot(spot.id);
+                {/* Render signature spots for current page */}
+                {spotsOnCurrentPage.map((spot) => (
+                  <div
+                    key={spot.id}
+                    className={`signature-spot absolute border-2 border-primary bg-primary/10 rounded flex items-center justify-center group ${dragMode === "none" ? "cursor-move" : ""
+                      } ${activeSpotId === spot.id ? "ring-2 ring-primary ring-offset-2" : ""}`}
+                    style={{
+                      left: `${spot.xPosition}%`,
+                      top: `${spot.yPosition}%`,
+                      width: spot.width,
+                      height: spot.height,
+                      transform: "translate(-50%, -50%)",
                     }}
+                    onMouseDown={(e) => startMove(e, spot)}
                   >
-                    <X className="h-3 w-3" />
-                  </Button>
-                  
-                  {/* Resize handles */}
-                  <div
-                    className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => startResize(e, spot, "se")}
-                  />
-                  <div
-                    className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-sw-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => startResize(e, spot, "sw")}
-                  />
-                  <div
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-ne-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => startResize(e, spot, "ne")}
-                  />
-                  <div
-                    className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity"
-                    onMouseDown={(e) => startResize(e, spot, "nw")}
-                  />
-                </div>
-              ))}
+                    <span className="text-xs font-medium text-primary pointer-events-none">Sign Here</span>
+
+                    {/* Delete button */}
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSpot(spot.id);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+
+                    {/* Resize handles */}
+                    <div
+                      className="absolute -bottom-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => startResize(e, spot, "se")}
+                    />
+                    <div
+                      className="absolute -bottom-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-sw-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => startResize(e, spot, "sw")}
+                    />
+                    <div
+                      className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-sm cursor-ne-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => startResize(e, spot, "ne")}
+                    />
+                    <div
+                      className="absolute -top-1 -left-1 w-3 h-3 bg-primary rounded-sm cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => startResize(e, spot, "nw")}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -861,7 +860,7 @@ export const SignatureRequestDialog = ({
                 />
               </div>
             </div>
-            
+
             <p className="text-sm text-muted-foreground">
               The signer will receive an email with a secure link to sign the document. No account required.
             </p>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,7 +95,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
   const loadProfiles = async () => {
     if (!departmentId) return;
-    
+
     try {
       // First get the store_id for this department
       const { data: department, error: deptError } = await supabase
@@ -104,14 +105,14 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
         .single();
 
       if (deptError) throw deptError;
-      
+
       // Get super admin user IDs
       const { data: superAdminRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "super_admin");
       const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
-      
+
       // Use security definer function to get basic profile data, then filter by store
       const { data, error } = await supabase.rpc("get_profiles_basic");
 
@@ -132,7 +133,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
   const loadIssues = async () => {
     if (!departmentId) return;
-    
+
     try {
       const { data, error } = await supabase
         .from("issues")
@@ -140,7 +141,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
         .eq("department_id", departmentId);
 
       if (error) throw error;
-      
+
       // Sort by severity: high first, then medium, then low
       const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
       const sorted = (data || []).sort((a, b) => {
@@ -148,20 +149,20 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
         const orderB = severityOrder[b.severity] ?? 1;
         return orderA - orderB;
       });
-      
+
       setIssues(sorted);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error loading issues",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
 
   const loadTodos = async () => {
     if (!departmentId) return;
-    
+
     try {
       const { data, error } = await supabase
         .from("todos")
@@ -175,7 +176,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error loading to-dos",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -229,7 +230,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
       loadIssues(); // Reload to reset order
     } finally {
@@ -258,7 +259,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -284,14 +285,14 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
 
   const handleToggleTodoStatus = async (todoId: string, currentStatus: string) => {
     const newStatus = currentStatus === "pending" ? "completed" : "pending";
-    
+
     try {
       const { error } = await supabase
         .from("todos")
@@ -309,7 +310,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -367,7 +368,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -385,7 +386,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -425,84 +426,84 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                 issues.map((issue) => {
                   const isInMotion = issueHasLinkedTodo(issue.id);
                   return (
-                  <ContextMenu key={issue.id}>
-                    <ContextMenuTrigger>
-                      <div
-                        draggable
-                        onDragStart={() => handleDragStart(issue)}
-                        onDragOver={(e) => handleDragOver(e, issue)}
-                        onDragEnd={handleDragEnd}
-                        className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity, isInMotion)}`}
-                      >
-                        <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium">{issue.title}</h4>
-                          {issue.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {issue.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
-                              {isInMotion ? "in progress" : issue.status}
-                            </Badge>
-                            <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
-                              <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
-                                <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="low">
-                                  <span className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-success" />
-                                    Low
-                                  </span>
-                                </SelectItem>
-                                <SelectItem value="medium">
-                                  <span className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-warning" />
-                                    Medium
-                                  </span>
-                                </SelectItem>
-                                <SelectItem value="high">
-                                  <span className="flex items-center gap-2">
-                                    <span className="h-2 w-2 rounded-full bg-destructive" />
-                                    High
-                                  </span>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                    <ContextMenu key={issue.id}>
+                      <ContextMenuTrigger>
+                        <div
+                          draggable
+                          onDragStart={() => handleDragStart(issue)}
+                          onDragOver={(e) => handleDragOver(e, issue)}
+                          onDragEnd={handleDragEnd}
+                          className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity, isInMotion)}`}
+                        >
+                          <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium">{issue.title}</h4>
+                            {issue.description && (
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {issue.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
+                                {isInMotion ? "in progress" : issue.status}
+                              </Badge>
+                              <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
+                                <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
+                                  <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="low">
+                                    <span className="flex items-center gap-2">
+                                      <span className="h-2 w-2 rounded-full bg-success" />
+                                      Low
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="medium">
+                                    <span className="flex items-center gap-2">
+                                      <span className="h-2 w-2 rounded-full bg-warning" />
+                                      Medium
+                                    </span>
+                                  </SelectItem>
+                                  <SelectItem value="high">
+                                    <span className="flex items-center gap-2">
+                                      <span className="h-2 w-2 rounded-full bg-destructive" />
+                                      High
+                                    </span>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <IssueManagementDialog
+                              departmentId={departmentId}
+                              onIssueAdded={loadIssues}
+                              issue={issue}
+                              trigger={
+                                <Button variant="ghost" size="sm">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              }
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteIssueId(issue.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <IssueManagementDialog
-                            departmentId={departmentId}
-                            onIssueAdded={loadIssues}
-                            issue={issue}
-                            trigger={
-                              <Button variant="ghost" size="sm">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                            }
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteIssueId(issue.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onClick={() => setSelectedIssueForTodo(issue)}>
-                        <CheckSquare className="h-4 w-4 mr-2" />
-                        Create To-Do from Issue
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onClick={() => setSelectedIssueForTodo(issue)}>
+                          <CheckSquare className="h-4 w-4 mr-2" />
+                          Create To-Do from Issue
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })
               )}

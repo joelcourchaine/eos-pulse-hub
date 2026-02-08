@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarIcon, CheckSquare, ArrowLeft, ArrowRight, Loader2, MapPin, AlertTriangle, CheckCircle2, User, Plus, Repeat, Building2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { format, isPast, isToday } from "date-fns";
 import goLogo from "@/assets/go-logo.png";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -82,17 +83,17 @@ const MyTasks = () => {
         return;
       }
       setUserId(session.user.id);
-      
+
       // Check user roles
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", session.user.id);
-      
+
       const userRoles = roles?.map(r => r.role) || [];
       setIsSuperAdmin(userRoles.includes("super_admin"));
       setIsStoreGM(userRoles.includes("store_gm"));
-      
+
       // If super admin or store GM, load stores for filtering
       if (userRoles.includes("super_admin") || userRoles.includes("store_gm")) {
         loadStores();
@@ -107,7 +108,7 @@ const MyTasks = () => {
         .from("stores")
         .select("id, name, group_id")
         .order("name");
-      
+
       if (error) throw error;
       setStores(data || []);
     } catch (error) {
@@ -121,7 +122,7 @@ const MyTasks = () => {
         .from("store_groups")
         .select("id, name")
         .order("name");
-      
+
       if (error) throw error;
       setStoreGroups(data || []);
     } catch (error) {
@@ -169,38 +170,38 @@ const MyTasks = () => {
     try {
       const uniqueDeptIds = [...new Set(departmentIds)];
       const profilesMap: Record<string, Profile[]> = {};
-      
+
       // Fetch all profiles using security definer function
       const { data: allProfiles, error: profilesError } = await supabase.rpc("get_profiles_basic");
-      
+
       if (profilesError) {
         console.error("Error loading profiles:", profilesError);
         return;
       }
-      
+
       // Create a map for quick lookup
       const profilesById = new Map<string, Profile>();
       (allProfiles || []).forEach((p: { id: string; full_name: string; store_id: string; store_group_id: string }) => {
         profilesById.set(p.id, { id: p.id, full_name: p.full_name, email: '' });
       });
-      
+
       // Fetch super admins (they should be available in all departments)
       const { data: superAdminRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "super_admin");
-      
+
       const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
-      
+
       const superAdminProfiles: Profile[] = superAdminIds
         .map(id => profilesById.get(id))
         .filter((p): p is Profile => !!p);
-      
+
       // For group-level tasks, only super admins can be assigned
       if (includeGroupLevel) {
         profilesMap['__group__'] = superAdminProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
       }
-      
+
       // For each department, fetch profiles that have access
       for (const deptId of uniqueDeptIds) {
         // Get the store_id for this department
@@ -209,55 +210,55 @@ const MyTasks = () => {
           .select("store_id, stores!inner(group_id)")
           .eq("id", deptId)
           .single();
-        
+
         if (!dept) continue;
-        
+
         const storeGroupId = (dept.stores as any)?.group_id;
-        
+
         // Get store GMs for this store's group
         const { data: storeGmRoles } = await supabase
           .from("user_roles")
           .select("user_id")
           .eq("role", "store_gm");
-        
+
         const storeGmIds = storeGmRoles?.map(r => r.user_id) || [];
-        
+
         // Filter store GM profiles that belong to the same store group
         const storeGmProfiles: Profile[] = storeGmIds
           .map(id => {
-            const profile = (allProfiles || []).find((p: { id: string; store_group_id: string }) => 
+            const profile = (allProfiles || []).find((p: { id: string; store_group_id: string }) =>
               p.id === id && p.store_group_id === storeGroupId
             );
             return profile ? { id: profile.id, full_name: profile.full_name, email: '' } : null;
           })
           .filter((p): p is Profile => !!p);
-        
+
         // Get profiles belonging to this store
         const storeProfiles: Profile[] = (allProfiles || [])
           .filter((p: { store_id: string }) => p.store_id === dept.store_id)
           .map((p: { id: string; full_name: string }) => ({ id: p.id, full_name: p.full_name, email: '' }));
-        
+
         // Get profiles with explicit department access
         const { data: deptAccess } = await supabase
           .from("user_department_access")
           .select("user_id")
           .eq("department_id", deptId);
-        
+
         const deptAccessUserIds = deptAccess?.map(a => a.user_id) || [];
-        
+
         const deptAccessProfiles: Profile[] = deptAccessUserIds
           .map(id => profilesById.get(id))
           .filter((p): p is Profile => !!p);
-        
+
         // Combine all profiles (store profiles + dept access + store GMs + super admins), removing duplicates
         const allDeptProfiles = [...storeProfiles, ...deptAccessProfiles, ...storeGmProfiles, ...superAdminProfiles];
-        const uniqueProfiles = allDeptProfiles.filter((p, i, arr) => 
+        const uniqueProfiles = allDeptProfiles.filter((p, i, arr) =>
           arr.findIndex(x => x.id === p.id) === i
         );
-        
+
         profilesMap[deptId] = uniqueProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
       }
-      
+
       setDepartmentProfiles(profilesMap);
     } catch (error: any) {
       console.error("Error loading department profiles:", error);
@@ -267,7 +268,7 @@ const MyTasks = () => {
   const loadTasks = async () => {
     if (!userId) return;
     setLoading(true);
-    
+
     try {
       let query = supabase
         .from("todos")
@@ -295,7 +296,7 @@ const MyTasks = () => {
           .from("departments")
           .select("id")
           .eq("store_id", selectedStoreFilter);
-        
+
         const deptIds = storeDepts?.map(d => d.id) || [];
         if (deptIds.length > 0) {
           query = query.in("department_id", deptIds);
@@ -308,13 +309,13 @@ const MyTasks = () => {
         // Filter by store group - get all stores in the group, then their departments
         const storesInGroup = stores.filter(s => s.group_id === selectedGroupFilter);
         const storeIdsInGroup = storesInGroup.map(s => s.id);
-        
+
         if (storeIdsInGroup.length > 0) {
           const { data: groupDepts } = await supabase
             .from("departments")
             .select("id")
             .in("store_id", storeIdsInGroup);
-          
+
           const deptIds = groupDepts?.map(d => d.id) || [];
           if (deptIds.length > 0) {
             query = query.in("department_id", deptIds);
@@ -343,11 +344,11 @@ const MyTasks = () => {
       }));
 
       setTodos(mappedTodos);
-      
+
       // Load profiles for all departments that have tasks
       const deptIds = mappedTodos.filter(t => t.department_id).map(t => t.department_id as string);
       const hasGroupLevelTasks = mappedTodos.some(t => !t.department_id);
-      
+
       if (deptIds.length > 0 || hasGroupLevelTasks) {
         loadProfilesForDepartments(deptIds, hasGroupLevelTasks);
       }
@@ -376,13 +377,13 @@ const MyTasks = () => {
         title: "Task completed!",
         description: "Great work!",
       });
-      
+
       setTodos(prev => prev.filter(t => t.id !== todoId));
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -400,7 +401,7 @@ const MyTasks = () => {
         title: "Owner updated",
         description: "Task has been reassigned",
       });
-      
+
       // If viewing "my tasks" and reassigned to someone else, remove from list
       if (selectedStoreFilter === "my_tasks" && newOwnerId !== userId) {
         setTodos(prev => prev.filter(t => t.id !== todoId));
@@ -412,7 +413,7 @@ const MyTasks = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -429,13 +430,13 @@ const MyTasks = () => {
       toast({
         title: "Due date updated",
       });
-      
+
       loadTasks();
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -452,13 +453,13 @@ const MyTasks = () => {
       toast({
         title: "Task updated",
       });
-      
+
       loadTasks();
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -532,7 +533,7 @@ const MyTasks = () => {
 
   const canFilterByStore = isSuperAdmin || isStoreGM;
   const isViewingAllTasks = selectedStoreFilter !== "my_tasks";
-  
+
   const getPageTitle = () => {
     if (selectedStoreFilter === "my_tasks") return "My Tasks";
     if (selectedStoreFilter === "all") return "All Tasks";
@@ -558,7 +559,7 @@ const MyTasks = () => {
                 </p>
               </div>
             </div>
-            
+
             {/* Action buttons - row on both mobile and desktop */}
             <div className="flex items-center gap-2">
               {isSuperAdmin && (
@@ -573,7 +574,7 @@ const MyTasks = () => {
               </Button>
             </div>
           </div>
-          
+
           {/* Store Group and Store Filters - Full width on mobile */}
           {canFilterByStore && (
             <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -600,7 +601,7 @@ const MyTasks = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               {/* Store Filter */}
               <Select value={selectedStoreFilter} onValueChange={setSelectedStoreFilter}>
                 <SelectTrigger className="w-full sm:w-[220px] h-9 text-sm">
@@ -610,8 +611,8 @@ const MyTasks = () => {
                   <SelectItem value="my_tasks">My Tasks</SelectItem>
                   <SelectItem value="all">All Tasks</SelectItem>
                   {isSuperAdmin && <SelectItem value="group_level">Group-Level Tasks</SelectItem>}
-                  {(selectedGroupFilter === "all_groups" 
-                    ? stores 
+                  {(selectedGroupFilter === "all_groups"
+                    ? stores
                     : stores.filter(s => s.group_id === selectedGroupFilter)
                   ).map((store) => (
                     <SelectItem key={store.id} value={store.id}>
@@ -652,9 +653,9 @@ const MyTasks = () => {
                 </div>
                 <div className="space-y-2 sm:space-y-3">
                   {overdueTasks.map((todo) => (
-                    <TaskCard 
-                      key={todo.id} 
-                      todo={todo} 
+                    <TaskCard
+                      key={todo.id}
+                      todo={todo}
                       profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
@@ -680,9 +681,9 @@ const MyTasks = () => {
                 </div>
                 <div className="space-y-2 sm:space-y-3">
                   {todayTasks.map((todo) => (
-                    <TaskCard 
-                      key={todo.id} 
-                      todo={todo} 
+                    <TaskCard
+                      key={todo.id}
+                      todo={todo}
                       profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
@@ -708,9 +709,9 @@ const MyTasks = () => {
                 </div>
                 <div className="space-y-2 sm:space-y-3">
                   {upcomingTasks.map((todo) => (
-                    <TaskCard 
-                      key={todo.id} 
-                      todo={todo} 
+                    <TaskCard
+                      key={todo.id}
+                      todo={todo}
                       profiles={todo.department_id ? (departmentProfiles[todo.department_id] || []) : (departmentProfiles['__group__'] || [])}
                       userId={userId || ""}
                       isMobile={isMobile}
@@ -729,7 +730,7 @@ const MyTasks = () => {
           </>
         )}
       </div>
-      
+
       {isSuperAdmin && userId && (
         <CreateTaskDialog
           open={showCreateDialog}
@@ -778,7 +779,7 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
     setEditDescription(todo.description || "");
     setEditDialogOpen(true);
   };
-  
+
   return (
     <>
       <Card className={`border-l-4 ${getSeverityStyles(todo.severity)} cursor-pointer hover:bg-muted/50 transition-colors`} onClick={handleOpenEdit}>
@@ -808,112 +809,112 @@ function TaskCard({ todo, profiles, userId, isMobile, onComplete, onUpdateOwner,
                   {todo.description}
                 </p>
               )}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-3">
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>
-                  {todo.store_name && todo.department_name 
-                    ? `${todo.store_name} • ${todo.department_name}`
-                    : todo.store_name 
-                      ? todo.store_name
-                      : "Group-level task"}
-                </span>
-              </div>
-            </div>
-            
-            {/* Editable fields */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {/* Owner Select */}
-              <div className="flex items-center gap-1 sm:gap-2">
-                <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                <Select
-                  value={todo.assigned_to || ""}
-                  onValueChange={(value) => onUpdateOwner(todo.id, value)}
-                >
-                  <SelectTrigger className="h-7 sm:h-8 w-[140px] sm:w-[180px] text-xs">
-                    <SelectValue placeholder="Assign to...">
-                      {ownerDisplayName}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {profiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                      {profile.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm mb-3">
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span>
+                    {todo.store_name && todo.department_name
+                      ? `${todo.store_name} • ${todo.department_name}`
+                      : todo.store_name
+                        ? todo.store_name
+                        : "Group-level task"}
+                  </span>
+                </div>
               </div>
 
-              {/* Due Date Picker */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      "h-7 sm:h-8 text-xs justify-start px-2",
-                      getDueDateStyles(todo.due_date)
-                    )}
-                    onClick={(e) => e.stopPropagation()}
+              {/* Editable fields */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                {/* Owner Select */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                  <Select
+                    value={todo.assigned_to || ""}
+                    onValueChange={(value) => onUpdateOwner(todo.id, value)}
                   >
-                    <CalendarIcon className="h-3 w-3 mr-1" />
-                    {dueLabel || (isMobile ? "Set date" : "Set due date")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
-                  <Calendar
-                    mode="single"
-                    selected={todo.due_date ? new Date(todo.due_date) : undefined}
-                    onSelect={(date) => onUpdateDueDate(todo.id, date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+                    <SelectTrigger className="h-7 sm:h-8 w-[140px] sm:w-[180px] text-xs">
+                      <SelectValue placeholder="Assign to...">
+                        {ownerDisplayName}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {profiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Due Date Picker */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "h-7 sm:h-8 text-xs justify-start px-2",
+                        getDueDateStyles(todo.due_date)
+                      )}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      {dueLabel || (isMobile ? "Set date" : "Set due date")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start" onClick={(e) => e.stopPropagation()}>
+                    <Calendar
+                      mode="single"
+                      selected={todo.due_date ? new Date(todo.due_date) : undefined}
+                      onSelect={(date) => onUpdateDueDate(todo.id, date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
 
-    {/* Edit Task Dialog */}
-    <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-      <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
-        <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
-            <Input
-              id="title"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              placeholder="Task title"
-            />
+      {/* Edit Task Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Task title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Task description (optional)"
+                rows={4}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
-              placeholder="Task description (optional)"
-              rows={4}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !editTitle.trim()}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !editTitle.trim()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

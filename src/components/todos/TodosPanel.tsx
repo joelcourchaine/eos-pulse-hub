@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
 
   const loadProfiles = async () => {
     if (!departmentId) return;
-    
+
     try {
       // Use the security definer function to get basic profile data
       const { data, error } = await supabase.rpc("get_profiles_basic");
@@ -99,7 +100,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     setLoading(true);
     // Clear existing data to prevent stale data from showing
     setTodos([]);
-    
+
     try {
       const { data, error } = await supabase
         .from("todos")
@@ -122,7 +123,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
 
   const handleToggleStatus = async (todoId: string, currentStatus: string) => {
     const newStatus = currentStatus === "pending" ? "completed" : "pending";
-    
+
     try {
       const { error } = await supabase
         .from("todos")
@@ -140,7 +141,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -166,7 +167,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -205,7 +206,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
       });
     }
   };
@@ -244,7 +245,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
               onCheckedChange={() => handleToggleStatus(todo.id, todo.status)}
               className="mt-1"
             />
-            
+
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h4 className={`font-medium ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
@@ -254,11 +255,11 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
                   <Badge variant="default" className="text-xs">Completed</Badge>
                 )}
               </div>
-              
+
               {todo.description && (
                 <p className="text-sm text-muted-foreground mb-2">{todo.description}</p>
               )}
-              
+
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
                   <SelectTrigger className="h-6 w-24 text-xs capitalize">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,11 +74,11 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const [copyToUserId, setCopyToUserId] = useState<string>("");
   const [isCopyingToOwner, setIsCopyingToOwner] = useState(false);
   const { toast } = useToast();
-  
+
   const { isSuperAdmin, isStoreGM, isDepartmentManager } = useUserRole(userId);
-  
+
   const canBulkAssign = isSuperAdmin || isStoreGM || isDepartmentManager;
-  
+
   const availableRoles = [
     { value: "department_manager", label: "Department Manager" },
     { value: "fixed_ops_manager", label: "Fixed Ops Manager" },
@@ -110,7 +111,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       .order("display_order");
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       return;
     }
 
@@ -158,7 +159,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         .from("profiles")
         .select("id, full_name, email")
         .in("id", storeAccessUserIds);
-      
+
       accessProfiles = accessData || [];
     }
 
@@ -217,14 +218,14 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         });
 
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+        toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
         setAddingPresetKpi(null);
         return;
       }
 
-      toast({ 
-        title: "Success", 
-        description: `Added "${preset.name}" KPI` 
+      toast({
+        title: "Success",
+        description: `Added "${preset.name}" KPI`
       });
       onKPIsChange();
     } finally {
@@ -256,23 +257,23 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       setIsAddingPreset(false);
       return;
     }
 
-    toast({ 
-      title: "Success", 
-      description: "New preset KPI added successfully" 
+    toast({
+      title: "Success",
+      description: "New preset KPI added successfully"
     });
-    
+
     // Reset form
     setNewPresetName("");
     setNewPresetType("dollar");
     setNewPresetDirection("above");
     setNewPresetAggregation("sum");
     setIsAddingPreset(false);
-    
+
     loadPresetKpis();
   };
 
@@ -283,7 +284,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       .eq("id", presetId);
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       return;
     }
 
@@ -314,21 +315,21 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       });
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       return;
     }
 
-    toast({ 
-      title: "Success", 
-      description: "Custom KPI added successfully" 
+    toast({
+      title: "Success",
+      description: "Custom KPI added successfully"
     });
-    
+
     // Reset form
     setCustomKPIName("");
     setCustomKPIType("dollar");
     setCustomKPIDirection("above");
     setCustomKPIAggregation("sum");
-    
+
     onKPIsChange();
   };
 
@@ -339,7 +340,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       .eq("id", id);
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       return;
     }
 
@@ -348,7 +349,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
 
   const handleNameBlur = async (kpiId: string) => {
     if (editingKpiId !== kpiId || !editingName.trim()) return;
-    
+
     await handleUpdateKPI(kpiId, "name", editingName.trim());
     toast({ title: "Success", description: "Name updated successfully" });
     setEditingKpiId(null);
@@ -372,7 +373,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
   const handleDrop = async (e: React.DragEvent, targetKpiId: string) => {
     e.preventDefault();
     setDragOverKpiId(null);
-    
+
     if (!draggedKpiId || draggedKpiId === targetKpiId) {
       setDraggedKpiId(null);
       return;
@@ -380,7 +381,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
 
     const draggedIndex = kpis.findIndex(k => k.id === draggedKpiId);
     const targetIndex = kpis.findIndex(k => k.id === targetKpiId);
-    
+
     if (draggedIndex === -1 || targetIndex === -1) {
       setDraggedKpiId(null);
       return;
@@ -402,7 +403,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
         .eq("id", update.id);
 
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+        toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
         setDraggedKpiId(null);
         return;
       }
@@ -420,7 +421,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
       .eq("id", id);
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
       return;
     }
 
@@ -502,7 +503,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: "destructive"
       });
     } finally {
@@ -580,7 +581,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: "destructive"
       });
     } finally {
@@ -621,7 +622,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     try {
       const selectedKpis = kpis.filter(k => selectedKpiIds.has(k.id));
       const targetOwner = profiles.find(p => p.id === copyToUserId);
-      
+
       const insertions = selectedKpis.map((kpi, index) => ({
         name: kpi.name,
         metric_type: kpi.metric_type,
@@ -650,7 +651,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getUserFriendlyError(error),
         variant: "destructive"
       });
     } finally {
@@ -737,8 +738,8 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       </Select>
                     </div>
                     <div className="flex items-end">
-                      <Button 
-                        onClick={handleAddNewPreset} 
+                      <Button
+                        onClick={handleAddNewPreset}
                         disabled={isAddingPreset}
                         className="w-full"
                       >
@@ -749,13 +750,13 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                   </div>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {presetKpis.map((preset) => {
                   const isAdding = addingPresetKpi === preset.name;
-                  
+
                   return (
-                    <div 
+                    <div
                       key={preset.id}
                       className="flex items-start justify-between p-3 rounded-lg border hover:bg-muted/30"
                     >
@@ -866,7 +867,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     Assign selected KPIs to all users with a specific role in this store
                   </p>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-1">
                     <Label htmlFor="bulk-role">Select Role</Label>
@@ -883,7 +884,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="md:col-span-2 flex items-end gap-2">
                     <Button
                       onClick={handleBulkAssignKPIsToRole}
@@ -909,7 +910,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                       Copy selected KPIs to a single user
                     </p>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="md:col-span-1">
                       <Label htmlFor="copy-owner">Select Owner</Label>
@@ -926,7 +927,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div className="md:col-span-2 flex items-end">
                       <Button
                         onClick={handleCopyKPIsToOwner}
@@ -966,18 +967,18 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                     {kpis.filter(kpi => kpi.metric_type && kpi.metric_type.trim() !== "" && kpi.target_direction && kpi.target_direction.trim() !== "").map((kpi) => {
+                    {kpis.filter(kpi => kpi.metric_type && kpi.metric_type.trim() !== "" && kpi.target_direction && kpi.target_direction.trim() !== "").map((kpi) => {
                       const owner = profiles.find(p => p.id === kpi.assigned_to);
                       const isEditingThis = editingKpiId === kpi.id;
                       const isDragging = draggedKpiId === kpi.id;
                       const isDragOver = dragOverKpiId === kpi.id && !isDragging;
-                      
+
                       // Ensure we have valid values with fallbacks
                       const safeMetricType = kpi.metric_type && kpi.metric_type.trim() !== "" ? kpi.metric_type : "dollar";
                       const safeTargetDirection = kpi.target_direction && kpi.target_direction.trim() !== "" ? kpi.target_direction : "above";
-                      
+
                       return (
-                        <TableRow 
+                        <TableRow
                           key={kpi.id}
                           draggable
                           onDragStart={(e) => handleDragStart(e, kpi.id)}
@@ -999,7 +1000,7 @@ export const KPIManagementDialog = ({ departmentId, kpis, onKPIsChange, year, qu
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
                           <TableCell>
-                      {presetKpis.some(p => p.name === kpi.name) ? (
+                            {presetKpis.some(p => p.name === kpi.name) ? (
                               <div className="text-sm font-medium min-w-[250px] px-3 py-2">
                                 {kpi.name}
                               </div>

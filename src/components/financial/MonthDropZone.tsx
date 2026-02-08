@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -627,16 +628,9 @@ export const MonthDropZone = ({
       } catch (error: any) {
         console.error("Upload error:", error);
 
-        // Handle RLS policy violation with a user-friendly message
-        let errorMessage = error.message || "Failed to upload file";
-        if (error.code === "42501" || error.message?.includes("row-level security policy")) {
-          errorMessage =
-            "You don't have permission to upload files for this department. Please contact your administrator if you need access.";
-        }
-
         toast({
           title: "Upload failed",
-          description: errorMessage,
+          description: getUserFriendlyError(error, "Failed to upload file"),
           variant: "destructive",
         });
       } finally {
