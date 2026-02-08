@@ -3665,6 +3665,13 @@ export type Database = {
           store_id: string
         }[]
       }
+      has_any_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_elevated_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
