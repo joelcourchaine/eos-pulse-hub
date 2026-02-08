@@ -482,13 +482,15 @@ export const MonthDropZone = ({
   // Import from sibling department's attachment
   const handleImportFromSibling = async () => {
     if (!siblingAttachment || !storeId || !storeBrand) return;
-    
+
     setIsUploading(true);
     setValidationStatus(null);
     setValidationDetails([]);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       // Download the sibling's file from storage
@@ -624,9 +626,17 @@ export const MonthDropZone = ({
         onAttachmentChange();
       } catch (error: any) {
         console.error("Upload error:", error);
+
+        // Handle RLS policy violation with a user-friendly message
+        let errorMessage = error.message || "Failed to upload file";
+        if (error.code === "42501" || error.message?.includes("row-level security policy")) {
+          errorMessage =
+            "You don't have permission to upload files for this department. Please contact your administrator if you need access.";
+        }
+
         toast({
           title: "Upload failed",
-          description: error.message || "Failed to upload file",
+          description: errorMessage,
           variant: "destructive",
         });
       } finally {
