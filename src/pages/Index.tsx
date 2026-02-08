@@ -53,7 +53,7 @@ const Index = () => {
       icon: Gauge,
       title: "Real-Time KPI Gauges",
       description:
-        "Test See your department's performance at a glance with color-coded gauges showing On Track, At Risk, and Off Track metrics. Know exactly where you stand before every meeting.",
+        "See your department's performance at a glance with color-coded gauges showing On Track, At Risk, and Off Track metrics. Know exactly where you stand before every meeting.",
       image: featureGauges,
       imageAlt: "KPI performance gauges showing on track, at risk, and off track metrics",
     },
