@@ -1837,8 +1837,20 @@ export default function DealerComparison() {
                           {displayName}
                         </TableCell>
                         {stores.map(([storeId, store]) => {
-                          // Lookup data by selectionId (how it's stored in comparisonData)
-                          const metricData = store.metrics[selectionId];
+                          // Lookup data by selectionId, with fallback for sub-metric key format mismatch
+                          let metricData = store.metrics[selectionId];
+                          if (!metricData && selectionId.startsWith("sub:")) {
+                            // Fallback: search for a matching sub-metric by parsed parts
+                            const selParsed = extractSubMetricParts(selectionId);
+                            if (selParsed) {
+                              const matchKey = Object.keys(store.metrics).find(k => {
+                                if (!k.startsWith("sub:")) return false;
+                                const kParsed = extractSubMetricParts(k);
+                                return kParsed && kParsed.parentKey === selParsed.parentKey && kParsed.subName === selParsed.subName;
+                              });
+                              if (matchKey) metricData = store.metrics[matchKey];
+                            }
+                          }
 
                           if (isYoyMonth) {
                             const curValue = metricData?.value ?? null;
