@@ -9,6 +9,9 @@ const corsHeaders = {
 
 interface ComparisonMetric {
   metricName: string;
+  displayName?: string;
+  isPercentage?: boolean;
+  lowerIsBetter?: boolean;
   storeValues: Record<string, { value: number | null; target: number | null; variance: number | null }>;
 }
 
@@ -44,29 +47,18 @@ interface EmailRequest {
   filterName?: string;
   brandDisplayName?: string;
   selectedDepartmentNames?: string[];
+  isYoyMonth?: boolean;
+  yoyCurrentYear?: number;
+  yoyPrevYear?: number;
 }
 
-function formatValue(value: number | null, metricName: string): string {
+function formatValue(value: number | null, isPercentage: boolean): string {
   if (value === null || value === undefined) return "-";
   
-  // Percentage metrics that don't have % in their name
-  const percentageMetrics = [
-    "Return on Gross",
-    "Service Absorption",
-    "Parts to Service Ratio",
-  ];
-  
-  // Check if it's a percentage metric
-  const lowerName = metricName.toLowerCase();
-  if (
-    metricName.includes("%") || 
-    lowerName.includes("percent") ||
-    percentageMetrics.some(m => lowerName === m.toLowerCase())
-  ) {
+  if (isPercentage) {
     return `${value.toFixed(1)}%`;
   }
   
-  // Format as currency for dollar metrics
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -75,17 +67,37 @@ function formatValue(value: number | null, metricName: string): string {
   }).format(value);
 }
 
-function getVarianceColor(variance: number | null): string {
-  if (variance === null) return "";
-  if (variance >= 10) return "background-color: #dcfce7;"; // Green
-  if (variance >= -10) return "background-color: #fef9c3;"; // Yellow
-  return "background-color: #fee2e2;"; // Red
+function formatDiffValue(diff: number, isPercentage: boolean): string {
+  const sign = diff >= 0 ? "+" : "";
+  if (isPercentage) {
+    return `${sign}${diff.toFixed(1)}%`;
+  }
+  return `${sign}${new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(diff)}`;
 }
 
 function formatMonthShort(month: string): string {
   const date = new Date(month + '-15');
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/**
+ * Detect if a metric is percentage-based from its name/selectionId.
+ * Used as fallback when isPercentage flag is not provided.
+ */
+function detectPercentage(metricName: string): boolean {
+  const lowerName = metricName.toLowerCase();
+  const percentageMetrics = ["return on gross", "service absorption", "parts to service ratio"];
+  return (
+    metricName.includes("%") ||
+    lowerName.includes("percent") ||
+    percentageMetrics.some(m => lowerName === m)
+  );
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -127,11 +139,14 @@ const handler = async (req: Request): Promise<Response> => {
       filterName,
       brandDisplayName,
       selectedDepartmentNames,
+      isYoyMonth,
+      yoyCurrentYear,
+      yoyPrevYear,
     }: EmailRequest = await req.json();
 
     console.log("Sending dealer comparison email to:", recipientEmails);
-    console.log("Metric type:", metricType);
-    console.log("Stores:", stores.length, "Metrics:", selectedMetrics.length);
+    console.log("Metric type:", metricType, "isYoyMonth:", isYoyMonth);
+    console.log("Stores:", stores.length, "Metrics:", metrics.length);
 
     // Build period description
     let periodDescription = "";
@@ -147,7 +162,7 @@ const handler = async (req: Request): Promise<Response> => {
     let comparisonDescription = "";
     if (comparisonMode === "targets") comparisonDescription = "vs Store Targets";
     else if (comparisonMode === "current_year_avg") comparisonDescription = "vs Current Year Average";
-    else if (comparisonMode === "previous_year") comparisonDescription = "vs Previous Year";
+    else if (comparisonMode === "year_over_year") comparisonDescription = "vs Year over Year";
 
     // Build title based on filter name
     const reportTitle = filterName ? filterName : (metricType === "dept_info" ? "Service Dept Info Comparison" : "Dealer Comparison Report");
@@ -202,7 +217,6 @@ const handler = async (req: Request): Promise<Response> => {
         if (lowerValue === 'n/a' || lowerValue === 'na') {
           return '<span style="color: #666;">N/A</span>';
         }
-        // Truncate long values
         if (value.length > 40) {
           return value.substring(0, 40) + '...';
         }
@@ -225,7 +239,6 @@ const handler = async (req: Request): Promise<Response> => {
                 <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;">Question</th>
       `;
 
-      // Add store headers
       storesArray.forEach(store => {
         html += `
           <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 150px;">
@@ -237,7 +250,6 @@ const handler = async (req: Request): Promise<Response> => {
 
       html += `</tr></thead><tbody>`;
 
-      // Add question rows
       uniqueQuestions.forEach(question => {
         html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500; max-width: 300px;">${question}</td>`;
         
@@ -264,8 +276,101 @@ const handler = async (req: Request): Promise<Response> => {
         </body>
         </html>
       `;
+    } else if (isYoyMonth) {
+      // ========== YOY Single-Month: 3-Column Layout ==========
+      console.log("Building YOY 3-column email layout");
+      const curYearLabel = yoyCurrentYear ?? "";
+      const prevYearLabel = yoyPrevYear ?? "";
+
+      html = `
+        <!DOCTYPE html>
+        <html>
+        <head></head>
+        <body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
+          <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
+          <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+            <strong>${brandLine}</strong>${departmentLine ? ` • <strong>${departmentLine}</strong>` : ''} • ${periodDescription} • Year over Year • ${stores.length} stores compared
+          </p>
+          
+          <table style="border-collapse: collapse; width: 100%; margin-top: 20px;">
+            <thead>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600;" rowspan="2">Metric</th>
+      `;
+
+      // Store header row (spanning 3 sub-columns each)
+      stores.forEach(store => {
+        html += `
+          <th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 280px;" colspan="3">
+            ${store.storeName}
+          </th>
+        `;
+      });
+
+      html += `</tr><tr>`;
+
+      // Sub-header row: Current Year | Last Year | Diff
+      stores.forEach(() => {
+        html += `
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 11px; background-color: #f0f0f0; font-weight: 600; min-width: 90px;">${curYearLabel}</th>
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 11px; background-color: #f0f0f0; font-weight: 600; min-width: 90px;">${prevYearLabel}</th>
+          <th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 11px; background-color: #f0f0f0; font-weight: 600; min-width: 80px;">Diff</th>
+        `;
+      });
+
+      html += `</tr></thead><tbody>`;
+
+      // Metric rows
+      metrics.forEach(metric => {
+        const displayName = metric.displayName || metric.metricName;
+        const isPercent = metric.isPercentage ?? detectPercentage(displayName);
+        const lowerIsBetter = metric.lowerIsBetter ?? false;
+
+        html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${displayName}</td>`;
+        
+        stores.forEach(store => {
+          const storeValue = metric.storeValues[store.storeId];
+          const curValue = storeValue?.value ?? null;
+          const lyValue = storeValue?.target ?? null;
+          const diff = (curValue !== null && lyValue !== null) ? curValue - lyValue : null;
+
+          // Determine if diff is favorable
+          let diffColor = "#666";
+          if (diff !== null && diff !== 0) {
+            const favorable = lowerIsBetter ? diff < 0 : diff > 0;
+            diffColor = favorable ? "#16a34a" : "#dc2626";
+          }
+
+          // Current year value
+          html += `<td style="border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 14px; font-weight: 600;">${formatValue(curValue, isPercent)}</td>`;
+          
+          // Last year value
+          html += `<td style="border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 13px; color: #666;">${formatValue(lyValue, isPercent)}</td>`;
+          
+          // Diff value with color
+          if (diff !== null) {
+            html += `<td style="border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 13px; font-weight: 500; color: ${diffColor};">${formatDiffValue(diff, isPercent)}</td>`;
+          } else {
+            html += `<td style="border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 13px; color: #999;">-</td>`;
+          }
+        });
+        
+        html += `</tr>`;
+      });
+
+      html += `
+            </tbody>
+          </table>
+          
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #888;">
+            <p>This report was generated by the Growth Scorecard application.</p>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+          </div>
+        </body>
+        </html>
+      `;
     } else {
-      // Build financial/KPI comparison email (existing logic)
+      // ========== Standard layout (non-YOY or multi-month) ==========
       html = `
         <!DOCTYPE html>
         <html>
@@ -299,14 +404,15 @@ const handler = async (req: Request): Promise<Response> => {
 
       html += `</tr></thead><tbody>`;
 
-      // Add metric rows
-      selectedMetrics.forEach(metricName => {
-        const metricData = metrics.find(m => m.metricName === metricName);
+      // Add metric rows using the ordered metrics array
+      metrics.forEach(metric => {
+        const displayName = metric.displayName || metric.metricName;
+        const isPercent = metric.isPercentage ?? detectPercentage(displayName);
         
-        html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${metricName}</td>`;
+        html += `<tr><td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 500;">${displayName}</td>`;
         
         stores.forEach(store => {
-          const storeValue = metricData?.storeValues[store.storeId];
+          const storeValue = metric.storeValues[store.storeId];
           
           if (storeValue && storeValue.value !== null) {
             let varianceBgColor = "";
@@ -324,10 +430,12 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
             
+            const targetLabel = comparisonMode === "year_over_year" ? "LY" : "Target";
+            
             html += `
               <td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px;">
-                <div style="font-size: 15px; font-weight: 600;">${formatValue(storeValue.value, metricName)}</div>
-                ${storeValue.target !== null ? `<div style="font-size: 11px; color: #888; margin-top: 2px;">Target: ${formatValue(storeValue.target, metricName)}</div>` : ''}
+                <div style="font-size: 15px; font-weight: 600;">${formatValue(storeValue.value, isPercent)}</div>
+                ${storeValue.target !== null ? `<div style="font-size: 11px; color: #888; margin-top: 2px;">${targetLabel}: ${formatValue(storeValue.target, isPercent)}</div>` : ''}
                 ${storeValue.variance !== null ? `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; margin-top: 4px; background-color: ${varianceBgColor}; color: ${varianceTextColor};">${storeValue.variance >= 0 ? '+' : ''}${storeValue.variance.toFixed(1)}%</span>` : ''}
               </td>
             `;

@@ -26,6 +26,9 @@ interface StoreInfo {
 
 interface ComparisonMetric {
   metricName: string;
+  displayName?: string;
+  isPercentage?: boolean;
+  lowerIsBetter?: boolean;
   storeValues: Record<string, { value: number | null; target: number | null; variance: number | null }>;
 }
 
@@ -54,6 +57,9 @@ interface EmailComparisonDialogProps {
   filterName?: string;
   brandDisplayName?: string;
   selectedDepartmentNames?: string[];
+  isYoyMonth?: boolean;
+  yoyCurrentYear?: number;
+  yoyPrevYear?: number;
 }
 
 export function EmailComparisonDialog({
@@ -74,6 +80,9 @@ export function EmailComparisonDialog({
   filterName,
   brandDisplayName,
   selectedDepartmentNames,
+  isYoyMonth,
+  yoyCurrentYear,
+  yoyPrevYear,
 }: EmailComparisonDialogProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
@@ -197,6 +206,9 @@ export function EmailComparisonDialog({
           filterName,
           brandDisplayName,
           selectedDepartmentNames,
+          isYoyMonth: isYoyMonth || false,
+          yoyCurrentYear,
+          yoyPrevYear,
         },
       });
 
