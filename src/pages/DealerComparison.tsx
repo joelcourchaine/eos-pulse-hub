@@ -44,7 +44,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "" } = location.state as {
+  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "", selectedComparisonQuarter = 4 } = location.state as {
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
@@ -60,6 +60,7 @@ export default function DealerComparison() {
     storeIds?: string[];
     brandDisplayName?: string;
     filterName?: string;
+    selectedComparisonQuarter?: number;
   };
 
   // Fetch departments for selected stores
@@ -395,6 +396,46 @@ export default function DealerComparison() {
     enabled: departmentIds.length > 0 && metricType === "financial" && comparisonMode === "year_over_year",
   });
 
+  // Fetch previous year average or quarter data for comparison
+  const { data: prevYearAvgData } = useQuery({
+    queryKey: ["dealer_comparison_prev_year_avg", departmentIds, selectedMonth, comparisonMode, selectedComparisonQuarter],
+    queryFn: async () => {
+      if (departmentIds.length === 0 || !selectedMonth) return [];
+      
+      const currentDate = new Date(selectedMonth + '-15');
+      const prevYear = currentDate.getFullYear() - 1;
+      
+      let monthFilter: string[];
+      
+      if (comparisonMode === "prev_year_avg") {
+        // All 12 months of previous year
+        monthFilter = Array.from({ length: 12 }, (_, i) => 
+          `${prevYear}-${String(i + 1).padStart(2, '0')}`
+        );
+      } else {
+        // Specific quarter of previous year
+        const quarterStartMonth = (selectedComparisonQuarter - 1) * 3 + 1;
+        monthFilter = Array.from({ length: 3 }, (_, i) =>
+          `${prevYear}-${String(quarterStartMonth + i).padStart(2, '0')}`
+        );
+      }
+      
+      console.log("Fetching prev year avg data for months:", monthFilter);
+      
+      const { data, error } = await supabase
+        .from("financial_entries")
+        .select("*, departments(id, name, store_id, stores(name, brands(name)))")
+        .in("department_id", departmentIds)
+        .in("month", monthFilter);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: departmentIds.length > 0 && metricType === "financial" && 
+             (comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") &&
+             datePeriodType === "month",
+  });
+
   // Fetch KPI data for polling
   const { data: kpiDefinitions, refetch: refetchKPIs } = useQuery({
     queryKey: ["dealer_comparison_kpis", departmentIds],
@@ -662,6 +703,109 @@ export default function DealerComparison() {
               const calc = metricDef.calculation;
               const num = metrics.get(calc.numerator);
               const denom = metrics.get(calc.denominator);
+              if (num !== undefined && denom !== undefined && denom !== 0) {
+                const percentValue = (num / denom) * 100;
+                const key = `${deptId}-${metricDef.key}`;
+                comparisonMap.set(key, { value: percentValue });
+              }
+            }
+          });
+        });
+      } else if ((comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && prevYearAvgData && prevYearAvgData.length > 0) {
+        // Group by department and calculate monthly averages
+        const prevByDept = new Map<string, Map<string, number>>();
+        const deptMetricMonths = new Map<string, Set<string>>();
+        
+        prevYearAvgData.forEach(entry => {
+          const deptId = (entry as any)?.departments?.id;
+          if (!prevByDept.has(deptId)) {
+            prevByDept.set(deptId, new Map());
+          }
+          const deptMetrics = prevByDept.get(deptId)!;
+          const metricKey = entry.metric_name;
+          const monthTrackKey = `${deptId}-${metricKey}`;
+          
+          if (!deptMetricMonths.has(monthTrackKey)) {
+            deptMetricMonths.set(monthTrackKey, new Set());
+          }
+          deptMetricMonths.get(monthTrackKey)!.add(entry.month);
+          
+          const currentValue = deptMetrics.get(metricKey) || 0;
+          deptMetrics.set(metricKey, currentValue + (entry.value ? Number(entry.value) : 0));
+        });
+        
+        // Convert sums to averages and calculate derived metrics
+        prevByDept.forEach((metrics, deptId) => {
+          // First, convert sums to monthly averages
+          const avgMetrics = new Map<string, number>();
+          metrics.forEach((sum, metricName) => {
+            const monthKey = `${deptId}-${metricName}`;
+            const monthCount = deptMetricMonths.get(monthKey)?.size || 1;
+            avgMetrics.set(metricName, sum / monthCount);
+          });
+          
+          // Store averaged raw values
+          avgMetrics.forEach((avgValue, metricName) => {
+            const key = `${deptId}-${metricName}`;
+            comparisonMap.set(key, { value: avgValue });
+          });
+          
+          // Calculate derived metrics using brand-specific formulas
+          const deptEntry = prevYearAvgData.find(e => (e as any)?.departments?.id === deptId);
+          const storeBrand = (deptEntry as any)?.departments?.stores?.brands?.name || null;
+          
+          const normalizedBrand = storeBrand?.toLowerCase() || '';
+          let brandKey = 'GMC';
+          if (normalizedBrand.includes('ford')) brandKey = 'Ford';
+          else if (normalizedBrand.includes('nissan')) brandKey = 'Nissan';
+          else if (normalizedBrand.includes('mazda')) brandKey = 'Mazda';
+          
+          const brandMetrics = brandMetricDefs.get(brandKey) || keyToDef;
+          
+          // Calculate derived dollar metrics
+          brandMetrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'dollar' && metricDef.calculation) {
+              const calc = metricDef.calculation;
+              let calculatedValue: number | null = null;
+              
+              if (calc.type === 'subtract') {
+                const base = avgMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = avgMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                }
+              } else if (calc.type === 'complex') {
+                const base = avgMetrics.get(calc.base);
+                if (base !== undefined) {
+                  calculatedValue = base;
+                  (calc.deductions || []).forEach((d: string) => {
+                    const val = avgMetrics.get(d);
+                    if (val !== undefined) calculatedValue! -= val;
+                  });
+                  (calc.additions || []).forEach((a: string) => {
+                    const val = avgMetrics.get(a);
+                    if (val !== undefined) calculatedValue! += val;
+                  });
+                }
+              }
+              
+              if (calculatedValue !== null) {
+                avgMetrics.set(metricDef.key, calculatedValue);
+                const key = `${deptId}-${metricDef.key}`;
+                comparisonMap.set(key, { value: calculatedValue });
+              }
+            }
+          });
+          
+          // Calculate percentage metrics
+          brandMetrics.forEach((metricDef: any) => {
+            if (metricDef.type === 'percentage' && metricDef.calculation && 'numerator' in metricDef.calculation) {
+              const calc = metricDef.calculation;
+              const num = avgMetrics.get(calc.numerator);
+              const denom = avgMetrics.get(calc.denominator);
               if (num !== undefined && denom !== undefined && denom !== 0) {
                 const percentValue = (num / denom) * 100;
                 const key = `${deptId}-${metricDef.key}`;
@@ -1421,7 +1565,7 @@ export default function DealerComparison() {
       setComparisonData(result);
       setLastRefresh(new Date());
     }
-  }, [financialEntries, financialTargets, yearOverYearData, metricType, selectedMetrics, comparisonMode, datePeriodType]);
+  }, [financialEntries, financialTargets, yearOverYearData, prevYearAvgData, metricType, selectedMetrics, comparisonMode, datePeriodType]);
 
   useEffect(() => {
     if (metricType !== "financial" && kpiDefinitions && scorecardEntries) {
@@ -1507,10 +1651,15 @@ export default function DealerComparison() {
     });
   }
 
-  // YOY single-month mode: 3-column layout per store
-  const isYoyMonth = comparisonMode === "year_over_year" && datePeriodType === "month";
+  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months
+  const isThreeColumnMode = (comparisonMode === "year_over_year" || comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && datePeriodType === "month";
   const yoyCurrentYear = selectedMonth ? parseInt(selectedMonth.split("-")[0]) : new Date().getFullYear();
   const yoyPrevYear = yoyCurrentYear - 1;
+  const comparisonColumnLabel: string | number = (() => {
+    if (comparisonMode === "prev_year_avg") return `${yoyPrevYear} Avg`;
+    if (comparisonMode === "prev_year_quarter") return `${yoyPrevYear} Q${selectedComparisonQuarter} Avg`;
+    return yoyPrevYear;
+  })();
 
   // Calculate data completeness for each store
   const storeDataCompleteness = useMemo(() => {
@@ -1701,6 +1850,8 @@ export default function DealerComparison() {
                   {" • "}
                   {comparisonMode === "targets" && "vs Store Targets"}
                   {comparisonMode === "year_over_year" && "vs Year over Year"}
+                  {comparisonMode === "prev_year_avg" && `vs ${yoyPrevYear} Avg`}
+                  {comparisonMode === "prev_year_quarter" && `vs ${yoyPrevYear} Q${selectedComparisonQuarter} Avg`}
                 </>
               )}
             </p>
@@ -1768,13 +1919,13 @@ export default function DealerComparison() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-background z-10 border-b-2" rowSpan={isYoyMonth ? 2 : 1}>
+                      <TableHead className="sticky left-0 bg-background z-10 border-b-2" rowSpan={isThreeColumnMode ? 2 : 1}>
                         <div className="text-base font-bold">Metric</div>
                       </TableHead>
                       {stores.map(([storeId, store]) => {
                         const completeness = storeDataCompleteness[storeId];
                         return (
-                          <TableHead key={storeId} className="text-center min-w-[200px] border-b-2" colSpan={isYoyMonth ? 3 : 1}>
+                          <TableHead key={storeId} className="text-center min-w-[200px] border-b-2" colSpan={isThreeColumnMode ? 3 : 1}>
                             <div className="text-base font-bold">{store.storeName}</div>
                             {completeness && metricType === "financial" && !completeness.isComplete && (
                               <div className="flex justify-center mt-1">
@@ -1822,12 +1973,12 @@ export default function DealerComparison() {
                         );
                       })}
                     </TableRow>
-                    {isYoyMonth && (
+                    {isThreeColumnMode && (
                       <TableRow>
                         {stores.map(([storeId]) => (
                           <Fragment key={storeId}>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyCurrentYear}</TableHead>
-                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyPrevYear}</TableHead>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{comparisonColumnLabel}</TableHead>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[80px]">Diff</TableHead>
                           </Fragment>
                         ))}
@@ -1849,7 +2000,7 @@ export default function DealerComparison() {
                           // are stored under their display name e.g. "↳ ABSENTEE COMPENSATION")
                           let metricData = store.metrics[selectionId] || store.metrics[displayName];
 
-                          if (isYoyMonth) {
+                          if (isThreeColumnMode) {
                             const curValue = metricData?.value ?? null;
                             const lyValue = metricData?.target ?? null;
                             const diff = (curValue !== null && lyValue !== null) ? curValue - lyValue : null;
@@ -1878,7 +2029,7 @@ export default function DealerComparison() {
                                   </div>
                                   {metricData.target !== null && (
                                     <div className="text-xs text-muted-foreground">
-                                      {comparisonMode === "year_over_year" ? "LY" : "Target"}: {formatValue(metricData.target, selectionId)}
+                                      {comparisonMode === "year_over_year" ? "LY" : comparisonMode === "prev_year_avg" ? `${yoyPrevYear} Avg` : comparisonMode === "prev_year_quarter" ? `${yoyPrevYear} Q${selectedComparisonQuarter}` : "Target"}: {formatValue(metricData.target, selectionId)}
                                     </div>
                                   )}
                                   {metricData.variance !== null && (
@@ -1979,9 +2130,9 @@ export default function DealerComparison() {
         filterName={filterName}
         brandDisplayName={brandDisplayName}
         selectedDepartmentNames={selectedDepartmentNames}
-        isYoyMonth={isYoyMonth}
+        isYoyMonth={isThreeColumnMode}
         yoyCurrentYear={yoyCurrentYear}
-        yoyPrevYear={yoyPrevYear}
+        yoyPrevYear={comparisonColumnLabel}
       />
     </div>
   );

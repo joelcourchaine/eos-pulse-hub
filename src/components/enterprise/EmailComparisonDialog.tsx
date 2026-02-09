@@ -60,7 +60,7 @@ interface EmailComparisonDialogProps {
   selectedDepartmentNames?: string[];
   isYoyMonth?: boolean;
   yoyCurrentYear?: number;
-  yoyPrevYear?: number;
+  yoyPrevYear?: number | string;
 }
 
 export function EmailComparisonDialog({
