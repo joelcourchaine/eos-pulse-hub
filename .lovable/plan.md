@@ -1,92 +1,86 @@
 
 
-## Add Excel Attachment with Color-Coded Cells to Enterprise Comparison Email
+## Add "Previous Year Avg" and "Previous Year Quarter Avg" Comparison Modes
 
 ### Overview
 
-When emailing the Enterprise dealer comparison report, the email will include an Excel (.xlsx) file attachment that preserves the red/green/yellow visual cues from the UI. The HTML email body will remain as a summary, and the Excel file will be attached for recipients to download and work with.
+Two new comparison modes will be added to the Enterprise "Compare Against" dropdown, allowing you to compare the currently selected month's metrics against:
 
-### What Changes
+1. **Previous Year Average** -- The average of all 12 months from the previous year (e.g., if viewing Jan 2026, compare against the monthly average of all 2025 data)
+2. **Previous Year Quarter** -- The average of a specific quarter from the previous year, with a quarter selector (e.g., compare Jan 2026 against Q3 2025 average)
 
-**1. Email Dialog -- Add "Attach Excel" Toggle**
+Both modes will use the same 3-column layout (Current | Comparison | Diff) already used by the Year-over-Year mode, with green/red color-coded differences.
 
-File: `src/components/enterprise/EmailComparisonDialog.tsx`
+### UI Changes
 
-- Add a checkbox/switch labeled "Attach Excel report" (default: on)
-- Pass a new `attachExcel: true/false` field in the request body to the backend function
-- No other UI changes needed -- the dialog stays the same otherwise
+**File: `src/pages/Enterprise.tsx`**
 
-**2. Backend Function -- Generate Excel with Color-Coded Cells**
+- Add two new values to the `ComparisonMode` type: `"prev_year_avg"` and `"prev_year_quarter"`
+- Add two new options to the "Compare Against" dropdown:
+  - "Previous Year Avg"
+  - "Previous Year Quarter"
+- When "Previous Year Quarter" is selected, show an additional quarter selector dropdown (Q1, Q2, Q3, Q4) to pick which quarter from the previous year to compare against
+- Add new state: `selectedComparisonQuarter` (default: most recent completed quarter)
+- Pass the new comparison mode and selected quarter to the DealerComparison page via navigation state
+- Persist `selectedComparisonQuarter` in sessionStorage alongside other filter state
 
-File: `supabase/functions/send-dealer-comparison-email/index.ts`
+**File: `src/pages/DealerComparison.tsx`**
 
-- Replace the `xlsx` import with `xlsx-js-style` (a drop-in replacement that supports cell fill colors, built on the same SheetJS 0.18.5 used elsewhere in the project)
-- Add a `generateExcelBuffer()` function that:
-  - Creates one worksheet with all stores as columns and metrics as rows
-  - Applies proper number formatting (currency `$#,##0` for dollar values, `0.0%` for percentages)
-  - Color-codes cells based on variance thresholds matching the UI logic:
-    - **Standard mode**: Green fill for variance >= 10%, yellow for -10% to +10%, red for < -10%
-    - **YOY mode**: Green fill for favorable difference, red for unfavorable (respecting `lowerIsBetter` flag)
-    - **Questionnaire mode**: Green fill for "Yes", red fill for "No"
-  - Handles all three report layouts (standard, YOY 3-column, questionnaire)
-- When `attachExcel` is true in the request body, generate the Excel buffer and include it as a Resend attachment alongside the existing HTML email body
-- The email subject and HTML body remain the same -- the Excel is purely additive
+- Accept new `selectedComparisonQuarter` from location state
+- Add two new data-fetching queries:
+  - **Previous Year Avg**: Fetch all financial entries for the previous year (all 12 months), then average the values per department/metric
+  - **Previous Year Quarter**: Fetch financial entries for the selected quarter of the previous year (e.g., Q3 = Jul-Sep), then average the values per department/metric
+- Integrate these into the `comparisonMap` builder alongside the existing `"targets"` and `"year_over_year"` branches
+- Reuse the existing 3-column YOY layout for display, updating the column headers:
+  - For Prev Year Avg: columns show "2026" | "2025 Avg" | "Diff"
+  - For Prev Year Quarter: columns show "2026" | "2025 Q3 Avg" | "Diff"
+- Update the subtitle text to show "vs Previous Year Avg" or "vs 2025 Q3 Avg"
 
-### Color Mapping (Excel Cell Fills)
+### Data Fetching Logic
 
+**Previous Year Average:**
 ```text
-Standard Comparison:
-  variance >= 10%  --> Green fill (RGB: C6EFCE), dark green font (RGB: 006100)
-  variance -10-10% --> Yellow fill (RGB: FFEB9C), dark yellow font (RGB: 9C5700)
-  variance < -10%  --> Red fill   (RGB: FFC7CE), dark red font   (RGB: 9C0006)
-
-YOY Comparison (Diff column):
-  Favorable diff   --> Green fill (RGB: C6EFCE)
-  Unfavorable diff  --> Red fill   (RGB: FFC7CE)
-
-Questionnaire:
-  "Yes" / "True"   --> Green fill (RGB: C6EFCE)
-  "No"  / "False"  --> Red fill   (RGB: FFC7CE)
+Selected month: 2026-01
+Fetch: financial_entries WHERE month >= '2025-01' AND month <= '2025-12'
+For each dept+metric: Sum values across months, divide by count of months with data
+Result: Monthly average for each metric in the previous year
 ```
 
-These are standard Excel conditional formatting colors that look clean in all spreadsheet applications.
-
-### Excel Layout
-
-**Standard mode** -- one sheet:
+**Previous Year Quarter:**
 ```text
-| Metric           | Store A  | Store B  | Store C  |
-|------------------|----------|----------|----------|
-| Total Sales      | $500,000 | $450,000 | $520,000 |
-| GP %             |   45.2%  |   42.1%  |   48.3%  |
+Selected month: 2026-01, Selected quarter: Q3
+Quarter months: 2025-07, 2025-08, 2025-09
+Fetch: financial_entries WHERE month IN ('2025-07', '2025-08', '2025-09')
+For each dept+metric: Sum values across months, divide by count of months with data
+Result: Monthly average for each metric in Q3 of the previous year
 ```
-Each value cell gets a background color based on its variance.
 
-**YOY mode** -- one sheet with 3 sub-columns per store:
-```text
-| Metric      | Store A (2025) | Store A (2024) | Store A Diff | Store B ... |
-|-------------|----------------|----------------|--------------|-----------|
-| Total Sales |     $500,000   |     $450,000   |    +$50,000  |    ...    |
-```
-The "Diff" column cells get colored green/red based on favorable/unfavorable.
+Both use the same derived metric calculation pipeline (brand-specific formulas for Department Profit, GP %, etc.) that's already applied to the YOY comparison data.
 
-**Questionnaire mode** -- one sheet:
+### Table Layout
+
+The display reuses the existing 3-column per store layout:
+
 ```text
-| Question              | Store A | Store B |
-|-----------------------|---------|---------|
-| Do you track CSI?     |   Yes   |   No    |
+| Metric      | Store A (Jan 2026) | Store A (2025 Avg) | Store A Diff |
+|-------------|--------------------|--------------------|--------------|
+| Total Sales |     $500,000       |     $420,000       |   +$80,000   |
+| GP %        |       45.2%        |       42.1%        |     +3.1%    |
 ```
+
+Diff column is color-coded green (favorable) or red (unfavorable) using the same `isDiffFavorable` logic.
+
+### Email Support
+
+The email dialog and edge function will receive the new comparison mode and quarter info. The Excel attachment will include the 3-column layout with color coding, following the same pattern as the existing YOY email support.
 
 ### Technical Details
 
-- Uses `xlsx-js-style` from `https://esm.sh/xlsx-js-style@1.6.0` -- this is a community fork of SheetJS that adds cell style support (fill, font color, borders) while maintaining full API compatibility
-- The Excel file is base64-encoded and sent via Resend's `attachments` API field (same pattern already used by the KPI Trend and Financial Trend email functions)
-- File naming convention: `Dealer_Comparison_Report_Jan_2025.xlsx`
+**Files modified:**
+1. `src/pages/Enterprise.tsx` -- ComparisonMode type, dropdown options, quarter selector, state persistence, navigation params
+2. `src/pages/DealerComparison.tsx` -- New data queries, comparison map builder branches, column headers, subtitle text
+3. `src/components/enterprise/EmailComparisonDialog.tsx` -- Pass new comparison labels to the email function
+4. `supabase/functions/send-dealer-comparison-email/index.ts` -- Handle new comparison modes in HTML and Excel output
 
-### Files Modified
-
-1. `src/components/enterprise/EmailComparisonDialog.tsx` -- add attach-Excel toggle + pass flag
-2. `supabase/functions/send-dealer-comparison-email/index.ts` -- add Excel generation with color fills + attachment logic
-
-### No Database Changes Required
+**No database changes required** -- all data comes from the existing `financial_entries` table.
 
