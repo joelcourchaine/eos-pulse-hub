@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
+import { sortMetricsWithSubMetrics } from "@/utils/sortMetricsWithSubMetrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -128,6 +129,13 @@ export function CombinedTrendView({
     },
     enabled: storeIds.length > 0,
   });
+
+  // Sort financial metrics so sub-metrics appear directly below their parent
+  const sortedFinancialMetrics = useMemo(() => {
+    if (!stores || stores.length === 0) return selectedFinancialMetrics;
+    const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
+    return sortMetricsWithSubMetrics(selectedFinancialMetrics, firstBrand);
+  }, [selectedFinancialMetrics, stores]);
 
   // Fetch all departments for stores
   const { data: departments } = useQuery({
@@ -636,7 +644,7 @@ export function CombinedTrendView({
           months,
           quarters: Object.keys(quarterlyMonths),
           selectedKpiMetrics,
-          selectedFinancialMetrics,
+          selectedFinancialMetrics: sortedFinancialMetrics,
           quarterlyData,
           startMonth,
           endMonth,
@@ -758,7 +766,7 @@ export function CombinedTrendView({
                   const value = kpiData[store.id]?.[month]?.get(metricName);
                   return value !== null && value !== undefined;
                 });
-                const hasFinancialData = selectedFinancialMetrics.some(metricName => {
+                const hasFinancialData = sortedFinancialMetrics.some(metricName => {
                   const { nameToKey } = financialMetricDefs;
                   const monthData = financialData[store.id]?.[month];
                   if (!monthData) return false;
@@ -873,7 +881,7 @@ export function CombinedTrendView({
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {selectedFinancialMetrics.map(metricName => {
+                            {sortedFinancialMetrics.map(metricName => {
                               const isSubMetric = metricName.startsWith('↳ ');
                               
                               return (
