@@ -1,80 +1,92 @@
 
 
-## Persist Enterprise Filters (Including Sub-Metrics) When Navigating Back
+## Add Excel Attachment with Color-Coded Cells to Enterprise Comparison Email
 
-### Problem
+### Overview
 
-When you navigate to the Dealer Comparison report and then press "Back", all your metric selections -- including sub-metrics -- are lost and reset to only parent metrics.
+When emailing the Enterprise dealer comparison report, the email will include an Excel (.xlsx) file attachment that preserves the red/green/yellow visual cues from the UI. The HTML email body will remain as a summary, and the Excel file will be attached for recipients to download and work with.
 
-### Root Cause
+### What Changes
 
-There are two effects in `Enterprise.tsx` that cause this:
+**1. Email Dialog -- Add "Attach Excel" Toggle**
 
-1. **Line 728-732**: A `useEffect` that watches `metricType` and clears all selected metrics (`setSelectedMetrics([])`) whenever it runs. This effect fires on every component mount, including when navigating back, even though `metricType` hasn't actually changed -- it was simply restored from session storage.
+File: `src/components/enterprise/EmailComparisonDialog.tsx`
 
-2. **Line 734-761**: A follow-up `useEffect` that auto-selects metrics when the selection is empty. Because the first effect just cleared everything, this one kicks in and only selects **parent metrics** (explicitly filtering out sub-metrics with `!m.isSubMetric`).
+- Add a checkbox/switch labeled "Attach Excel report" (default: on)
+- Pass a new `attachExcel: true/false` field in the request body to the backend function
+- No other UI changes needed -- the dialog stays the same otherwise
 
-So the sequence on "Back" navigation is:
+**2. Backend Function -- Generate Excel with Color-Coded Cells**
+
+File: `supabase/functions/send-dealer-comparison-email/index.ts`
+
+- Replace the `xlsx` import with `xlsx-js-style` (a drop-in replacement that supports cell fill colors, built on the same SheetJS 0.18.5 used elsewhere in the project)
+- Add a `generateExcelBuffer()` function that:
+  - Creates one worksheet with all stores as columns and metrics as rows
+  - Applies proper number formatting (currency `$#,##0` for dollar values, `0.0%` for percentages)
+  - Color-codes cells based on variance thresholds matching the UI logic:
+    - **Standard mode**: Green fill for variance >= 10%, yellow for -10% to +10%, red for < -10%
+    - **YOY mode**: Green fill for favorable difference, red for unfavorable (respecting `lowerIsBetter` flag)
+    - **Questionnaire mode**: Green fill for "Yes", red fill for "No"
+  - Handles all three report layouts (standard, YOY 3-column, questionnaire)
+- When `attachExcel` is true in the request body, generate the Excel buffer and include it as a Resend attachment alongside the existing HTML email body
+- The email subject and HTML body remain the same -- the Excel is purely additive
+
+### Color Mapping (Excel Cell Fills)
+
 ```text
-1. Component mounts
-2. selectedMetrics restored from sessionStorage (with sub-metrics) - GOOD
-3. "Clear on metricType change" effect fires on mount - WIPES everything
-4. "Auto-select" effect fires because selection is now empty - only adds parents
-5. Sub-metrics are gone
+Standard Comparison:
+  variance >= 10%  --> Green fill (RGB: C6EFCE), dark green font (RGB: 006100)
+  variance -10-10% --> Yellow fill (RGB: FFEB9C), dark yellow font (RGB: 9C5700)
+  variance < -10%  --> Red fill   (RGB: FFC7CE), dark red font   (RGB: 9C0006)
+
+YOY Comparison (Diff column):
+  Favorable diff   --> Green fill (RGB: C6EFCE)
+  Unfavorable diff  --> Red fill   (RGB: FFC7CE)
+
+Questionnaire:
+  "Yes" / "True"   --> Green fill (RGB: C6EFCE)
+  "No"  / "False"  --> Red fill   (RGB: FFC7CE)
 ```
 
-### Fix
+These are standard Excel conditional formatting colors that look clean in all spreadsheet applications.
 
-**File: `src/pages/Enterprise.tsx`**
+### Excel Layout
 
-**Change 1 -- Skip the "clear metrics" effect on initial mount:**
-
-Add a `useRef` flag (`isInitialMount`) that starts as `true`. On the first render, the clear-metrics effect will detect this flag, skip the clearing, and set the flag to `false`. On subsequent `metricType` changes (user actually switches the tab), it will clear as intended.
-
+**Standard mode** -- one sheet:
 ```text
-Before:
-  useEffect(() => {
-    setSelectedMetrics([]);
-    setSelectedKpiMetrics([]);
-    setSelectedFinancialMetrics([]);
-  }, [metricType]);
+| Metric           | Store A  | Store B  | Store C  |
+|------------------|----------|----------|----------|
+| Total Sales      | $500,000 | $450,000 | $520,000 |
+| GP %             |   45.2%  |   42.1%  |   48.3%  |
+```
+Each value cell gets a background color based on its variance.
 
-After:
-  const isInitialMount = useRef(true);
-  
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return; // Don't clear on initial mount -- session restored values
-    }
-    setSelectedMetrics([]);
-    setSelectedKpiMetrics([]);
-    setSelectedFinancialMetrics([]);
-  }, [metricType]);
+**YOY mode** -- one sheet with 3 sub-columns per store:
+```text
+| Metric      | Store A (2025) | Store A (2024) | Store A Diff | Store B ... |
+|-------------|----------------|----------------|--------------|-----------|
+| Total Sales |     $500,000   |     $450,000   |    +$50,000  |    ...    |
+```
+The "Diff" column cells get colored green/red based on favorable/unfavorable.
+
+**Questionnaire mode** -- one sheet:
+```text
+| Question              | Store A | Store B |
+|-----------------------|---------|---------|
+| Do you track CSI?     |   Yes   |   No    |
 ```
 
-**Change 2 -- Prevent auto-select from overwriting restored sub-metrics:**
+### Technical Details
 
-The auto-select effect (line 734-761) checks `selectedMetrics.length === 0` before auto-selecting. With the fix above, `selectedMetrics` will no longer be cleared on mount, so the auto-select will naturally skip since `selectedMetrics.length > 0`. No code change needed here.
+- Uses `xlsx-js-style` from `https://esm.sh/xlsx-js-style@1.6.0` -- this is a community fork of SheetJS that adds cell style support (fill, font color, borders) while maintaining full API compatibility
+- The Excel file is base64-encoded and sent via Resend's `attachments` API field (same pattern already used by the KPI Trend and Financial Trend email functions)
+- File naming convention: `Dealer_Comparison_Report_Jan_2025.xlsx`
 
-### What This Preserves
+### Files Modified
 
-After this fix, navigating back from any report view will restore:
-- Filter mode (brand/group/custom)
-- Selected brands, groups, and stores
-- Selected department names
-- Metric type (weekly/monthly/financial/combined)
-- **All selected metrics, including sub-metrics** (e.g., `sub:sales_expense:ABSENTEE COMPENSATION`)
-- Selected KPI metrics and financial metrics (for combined view)
-- Date period settings (month, year, custom range)
-- Sort-by metric
-- Comparison mode
-- Department manager filter toggle
+1. `src/components/enterprise/EmailComparisonDialog.tsx` -- add attach-Excel toggle + pass flag
+2. `supabase/functions/send-dealer-comparison-email/index.ts` -- add Excel generation with color fills + attachment logic
 
-### Scope
-
-- **1 file** modified: `src/pages/Enterprise.tsx`
-- **2 lines** added (the ref declaration and the guard check)
-- No database changes
-- No edge function changes
+### No Database Changes Required
 
