@@ -1,86 +1,92 @@
 
 
-## Add "Previous Year Avg" and "Previous Year Quarter Avg" Comparison Modes
+## Add Visual Emphasis to Parent Metrics in Enterprise Reports
 
 ### Overview
 
-Two new comparison modes will be added to the Enterprise "Compare Against" dropdown, allowing you to compare the currently selected month's metrics against:
+Parent metrics that have sub-metrics beneath them currently look the same as standalone metrics, making it hard to visually distinguish the hierarchy. This change will add subtle but clear visual emphasis to parent metric rows across all three Enterprise report views plus the DealerComparison page.
 
-1. **Previous Year Average** -- The average of all 12 months from the previous year (e.g., if viewing Jan 2026, compare against the monthly average of all 2025 data)
-2. **Previous Year Quarter** -- The average of a specific quarter from the previous year, with a quarter selector (e.g., compare Jan 2026 against Q3 2025 average)
+### Visual Treatment
 
-Both modes will use the same 3-column layout (Current | Comparison | Diff) already used by the Year-over-Year mode, with green/red color-coded differences.
+**Parent metrics** (any metric that has at least one `sub:parentKey:*` sibling in the selected list) will receive:
+- A slightly bolder font weight (`font-semibold`) on the metric name cell
+- A subtle left border accent (`border-l-2 border-primary`) to visually anchor the group
+- Optionally a very light background tint (`bg-primary/5`) to separate them from sub-metrics
 
-### UI Changes
+**Sub-metrics** already have:
+- `↳` prefix
+- Lighter text (`text-muted-foreground`)
+- Indented padding (`pl-6`)
+- Muted background (`bg-muted/50`)
 
-**File: `src/pages/Enterprise.tsx`**
+No changes needed for sub-metric styling -- they already look subordinate. The key is making parents stand out more.
 
-- Add two new values to the `ComparisonMode` type: `"prev_year_avg"` and `"prev_year_quarter"`
-- Add two new options to the "Compare Against" dropdown:
-  - "Previous Year Avg"
-  - "Previous Year Quarter"
-- When "Previous Year Quarter" is selected, show an additional quarter selector dropdown (Q1, Q2, Q3, Q4) to pick which quarter from the previous year to compare against
-- Add new state: `selectedComparisonQuarter` (default: most recent completed quarter)
-- Pass the new comparison mode and selected quarter to the DealerComparison page via navigation state
-- Persist `selectedComparisonQuarter` in sessionStorage alongside other filter state
+### Implementation
 
-**File: `src/pages/DealerComparison.tsx`**
+A small helper function will be added to determine if a given metric ID is a "parent" based on whether any subsequent metric in the sorted list starts with `sub:{parentKey}:`.
 
-- Accept new `selectedComparisonQuarter` from location state
-- Add two new data-fetching queries:
-  - **Previous Year Avg**: Fetch all financial entries for the previous year (all 12 months), then average the values per department/metric
-  - **Previous Year Quarter**: Fetch financial entries for the selected quarter of the previous year (e.g., Q3 = Jul-Sep), then average the values per department/metric
-- Integrate these into the `comparisonMap` builder alongside the existing `"targets"` and `"year_over_year"` branches
-- Reuse the existing 3-column YOY layout for display, updating the column headers:
-  - For Prev Year Avg: columns show "2026" | "2025 Avg" | "Diff"
-  - For Prev Year Quarter: columns show "2026" | "2025 Q3 Avg" | "Diff"
-- Update the subtitle text to show "vs Previous Year Avg" or "vs 2025 Q3 Avg"
+**Files to modify:**
 
-### Data Fetching Logic
+1. **`src/components/enterprise/FixedCombinedTrendView.tsx`** (lines ~673-678)
+   - Add a `parentMetricKeys` set computed via `useMemo` that identifies which metrics have sub-metrics in the sorted list
+   - Apply `font-semibold border-l-2 border-primary bg-primary/5` to the `TableRow` and metric name `TableCell` when the metric is a parent
 
-**Previous Year Average:**
-```text
-Selected month: 2026-01
-Fetch: financial_entries WHERE month >= '2025-01' AND month <= '2025-12'
-For each dept+metric: Sum values across months, divide by count of months with data
-Result: Monthly average for each metric in the previous year
+2. **`src/components/enterprise/CombinedTrendView.tsx`** (lines ~884-891)
+   - Same logic applied to the financial metrics table rows
+   - Add `parentMetricKeys` set from `sortedFinancialMetrics`
+
+3. **`src/pages/DealerComparison.tsx`** (lines ~1989-1995)
+   - Add parent detection using the ordered selected metrics list
+   - Apply the same visual emphasis to parent rows in both standard and three-column layouts
+
+### Technical Detail
+
+The parent detection logic:
+
+```typescript
+const parentMetricKeys = useMemo(() => {
+  const parents = new Set<string>();
+  const metrics = getMetricsForBrand(brandName);
+  const keySet = new Set(sortedMetrics);
+
+  for (const metric of metrics) {
+    const key = (metric as any).key;
+    const hasSubSelected = sortedMetrics.some(
+      id => id.startsWith(`sub:${key}:`)
+    );
+    if (hasSubSelected && keySet.has(metric.name)) {
+      parents.add(metric.name);
+    }
+  }
+  return parents;
+}, [sortedMetrics, brandName]);
 ```
 
-**Previous Year Quarter:**
-```text
-Selected month: 2026-01, Selected quarter: Q3
-Quarter months: 2025-07, 2025-08, 2025-09
-Fetch: financial_entries WHERE month IN ('2025-07', '2025-08', '2025-09')
-For each dept+metric: Sum values across months, divide by count of months with data
-Result: Monthly average for each metric in Q3 of the previous year
+Then in the row rendering:
+
+```tsx
+const isParent = parentMetricKeys.has(selectionId);
+
+<TableRow className={`
+  ${isSubMetric ? 'bg-muted/50' : ''}
+  ${isParent ? 'bg-primary/5' : ''}
+`}>
+  <TableCell className={`
+    font-medium sticky left-0 z-10
+    ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}
+    ${isParent ? 'font-semibold border-l-2 border-primary bg-primary/5' : ''}
+  `}>
+    {displayName}
+  </TableCell>
+  ...
+</TableRow>
 ```
 
-Both use the same derived metric calculation pipeline (brand-specific formulas for Department Profit, GP %, etc.) that's already applied to the YOY comparison data.
+### Files Modified
 
-### Table Layout
+1. `src/components/enterprise/FixedCombinedTrendView.tsx` -- parent detection + row styling
+2. `src/components/enterprise/CombinedTrendView.tsx` -- parent detection + row styling  
+3. `src/pages/DealerComparison.tsx` -- parent detection + row styling
 
-The display reuses the existing 3-column per store layout:
-
-```text
-| Metric      | Store A (Jan 2026) | Store A (2025 Avg) | Store A Diff |
-|-------------|--------------------|--------------------|--------------|
-| Total Sales |     $500,000       |     $420,000       |   +$80,000   |
-| GP %        |       45.2%        |       42.1%        |     +3.1%    |
-```
-
-Diff column is color-coded green (favorable) or red (unfavorable) using the same `isDiffFavorable` logic.
-
-### Email Support
-
-The email dialog and edge function will receive the new comparison mode and quarter info. The Excel attachment will include the 3-column layout with color coding, following the same pattern as the existing YOY email support.
-
-### Technical Details
-
-**Files modified:**
-1. `src/pages/Enterprise.tsx` -- ComparisonMode type, dropdown options, quarter selector, state persistence, navigation params
-2. `src/pages/DealerComparison.tsx` -- New data queries, comparison map builder branches, column headers, subtitle text
-3. `src/components/enterprise/EmailComparisonDialog.tsx` -- Pass new comparison labels to the email function
-4. `supabase/functions/send-dealer-comparison-email/index.ts` -- Handle new comparison modes in HTML and Excel output
-
-**No database changes required** -- all data comes from the existing `financial_entries` table.
+### No database changes required.
 
