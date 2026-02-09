@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
+import { sortMetricsWithSubMetrics } from "@/utils/sortMetricsWithSubMetrics";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -103,7 +104,7 @@ export function FixedCombinedTrendView({
           recipientEmails,
           stores: stores?.map(s => ({ id: s.id, name: s.name })) || [],
           months,
-          selectedMetrics,
+          selectedMetrics: sortedMetrics,
           processedData,
           startMonth,
           endMonth,
@@ -166,6 +167,13 @@ export function FixedCombinedTrendView({
     },
     enabled: storeIds.length > 0,
   });
+
+  // Sort metrics so sub-metrics appear directly below their parent
+  const sortedMetrics = useMemo(() => {
+    if (!stores || stores.length === 0) return selectedMetrics;
+    const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
+    return sortMetricsWithSubMetrics(selectedMetrics, firstBrand);
+  }, [selectedMetrics, stores]);
 
   // Fetch departments for stores - now flexible based on selectedDepartmentNames
   const { data: departments } = useQuery({
@@ -592,7 +600,7 @@ export function FixedCombinedTrendView({
               
               // Calculate months with data for this store
                const monthsWithData = months.filter(month => {
-                 return selectedMetrics.some(selectionId => {
+                 return sortedMetrics.some(selectionId => {
                    const metricData = storeData[selectionId] as Record<string, number | null> | undefined;
                    return metricData?.[month] !== null && metricData?.[month] !== undefined;
                  });
@@ -625,7 +633,7 @@ export function FixedCombinedTrendView({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {selectedMetrics.map((selectionId) => {
+                          {sortedMetrics.map((selectionId) => {
                             const metricData = storeData[selectionId] as Record<string, number | null> | undefined;
 
                             const isSubMetric = selectionId.startsWith('sub:');
