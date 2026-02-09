@@ -1,37 +1,80 @@
 
-## Fix: Percentage Metrics Incorrectly Summed in Enterprise YOY Comparison
+
+## Persist Enterprise Filters (Including Sub-Metrics) When Navigating Back
+
+### Problem
+
+When you navigate to the Dealer Comparison report and then press "Back", all your metric selections -- including sub-metrics -- are lost and reset to only parent metrics.
 
 ### Root Cause
 
-The "backfill parent totals from sub-metrics" logic (around line 959-1020 in DealerComparison.tsx) sums ALL sub-metric values to reconstruct missing parent metrics. This works correctly for dollar metrics (e.g., summing `sub:gp_net:001`, `sub:gp_net:002`, etc. to get `gp_net`), but is mathematically wrong for percentage metrics.
+There are two effects in `Enterprise.tsx` that cause this:
 
-For example, the database has entries like:
-- `sub:gp_percent:001:CUST. LAB CARS & LD TRKS` = 79.0%
-- `sub:gp_percent:005:Q/SRV LAB-CARS & LD TRKS` = 66.2%
-- `sub:gp_percent:013:WARRANTY CLAIM LAB` = 69.0%
-- ...plus ~15 more sub-percentage entries
+1. **Line 728-732**: A `useEffect` that watches `metricType` and clears all selected metrics (`setSelectedMetrics([])`) whenever it runs. This effect fires on every component mount, including when navigating back, even though `metricType` hasn't actually changed -- it was simply restored from session storage.
 
-The backfill sums these to ~570.3% and stores it as the parent `gp_percent`. Then, when the derived metric calculator runs (line 1180), it sees `gp_percent` already exists and skips the correct formula calculation (`gp_net / total_sales * 100 = 71.8%`).
+2. **Line 734-761**: A follow-up `useEffect` that auto-selects metrics when the selection is empty. Because the first effect just cleared everything, this one kicks in and only selects **parent metrics** (explicitly filtering out sub-metrics with `!m.isSubMetric`).
 
-The previous year value (64.2%) is correct because the `comparisonMap` builder at line 659-670 properly recalculates percentage metrics from their formula, overwriting any incorrect summed values.
+So the sequence on "Back" navigation is:
+```text
+1. Component mounts
+2. selectedMetrics restored from sessionStorage (with sub-metrics) - GOOD
+3. "Clear on metricType change" effect fires on mount - WIPES everything
+4. "Auto-select" effect fires because selection is now empty - only adds parents
+5. Sub-metrics are gone
+```
 
 ### Fix
 
-**File:** `src/pages/DealerComparison.tsx`
+**File: `src/pages/Enterprise.tsx`**
 
-**Change 1 - Single-month backfill (lines 959-1020):**
-Before summing a sub-metric's value into its parent total, check if the parent metric is a percentage type. If it is, skip the backfill for that parent -- percentage values must be calculated from their formula (numerator/denominator), not summed from sub-metric line items.
+**Change 1 -- Skip the "clear metrics" effect on initial mount:**
 
+Add a `useRef` flag (`isInitialMount`) that starts as `true`. On the first render, the clear-metrics effect will detect this flag, skip the clearing, and set the flag to `false`. On subsequent `metricType` changes (user actually switches the tab), it will clear as intended.
+
+```text
+Before:
+  useEffect(() => {
+    setSelectedMetrics([]);
+    setSelectedKpiMetrics([]);
+    setSelectedFinancialMetrics([]);
+  }, [metricType]);
+
+After:
+  const isInitialMount = useRef(true);
+  
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return; // Don't clear on initial mount -- session restored values
+    }
+    setSelectedMetrics([]);
+    setSelectedKpiMetrics([]);
+    setSelectedFinancialMetrics([]);
+  }, [metricType]);
 ```
-// In the backfill loop, skip percentage-type parents:
-const parentDef = getMetricDef(parentKey, null);
-if (parentDef?.type === 'percentage') return; // Don't sum percentage sub-metrics
-```
 
-**Change 2 - Multi-month backfill (backfillParentTotalsFromSubMetrics at lines 762-780):**
-Apply the same percentage-type check here. This path handles `full_year` and `custom_range` date periods, but could have the same problem. The multi-month path later recalculates percentages (lines 869-903), so it would overwrite the bad value, but preventing it from being backfilled in the first place is cleaner and prevents potential edge cases.
+**Change 2 -- Prevent auto-select from overwriting restored sub-metrics:**
 
-No changes needed to:
-- The `comparisonMap` (previous year) builder -- it already correctly recalculates percentages
-- The derived metric calculator -- it will now properly run for `gp_percent` since the backfill no longer creates a false entry
-- The `formatValue` or `formatDiffValue` functions -- they format correctly; the input values were wrong
+The auto-select effect (line 734-761) checks `selectedMetrics.length === 0` before auto-selecting. With the fix above, `selectedMetrics` will no longer be cleared on mount, so the auto-select will naturally skip since `selectedMetrics.length > 0`. No code change needed here.
+
+### What This Preserves
+
+After this fix, navigating back from any report view will restore:
+- Filter mode (brand/group/custom)
+- Selected brands, groups, and stores
+- Selected department names
+- Metric type (weekly/monthly/financial/combined)
+- **All selected metrics, including sub-metrics** (e.g., `sub:sales_expense:ABSENTEE COMPENSATION`)
+- Selected KPI metrics and financial metrics (for combined view)
+- Date period settings (month, year, custom range)
+- Sort-by metric
+- Comparison mode
+- Department manager filter toggle
+
+### Scope
+
+- **1 file** modified: `src/pages/Enterprise.tsx`
+- **2 lines** added (the ref declaration and the guard check)
+- No database changes
+- No edge function changes
+
