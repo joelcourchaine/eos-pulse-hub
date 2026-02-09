@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
 import { sortMetricsWithSubMetrics } from "@/utils/sortMetricsWithSubMetrics";
+import { getParentMetricKeys } from "@/utils/getParentMetricKeys";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -174,6 +175,13 @@ export function FixedCombinedTrendView({
     const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
     return sortMetricsWithSubMetrics(selectedMetrics, firstBrand);
   }, [selectedMetrics, stores]);
+
+  // Identify which metrics are "parents" (have sub-metrics selected)
+  const parentMetricKeys = useMemo(() => {
+    if (!stores || stores.length === 0) return new Set<string>();
+    const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
+    return getParentMetricKeys(sortedMetrics, firstBrand);
+  }, [sortedMetrics, stores]);
 
   // Fetch departments for stores - now flexible based on selectedDepartmentNames
   const { data: departments } = useQuery({
@@ -637,6 +645,7 @@ export function FixedCombinedTrendView({
                             const metricData = storeData[selectionId] as Record<string, number | null> | undefined;
 
                             const isSubMetric = selectionId.startsWith('sub:');
+                            const isParent = parentMetricKeys.has(selectionId);
                             const displayName = isSubMetric
                               ? (() => {
                                   const parts = selectionId.split(':');
@@ -672,9 +681,9 @@ export function FixedCombinedTrendView({
                               <>
                                 <TableRow
                                   key={selectionId}
-                                  className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}
+                                  className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''} ${isParent ? 'bg-primary/5' : ''}`}
                                 >
-                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
+                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : isParent ? 'bg-primary/5 font-semibold border-l-2 border-primary' : 'bg-background'}`}>
                                     {displayName}
                                   </TableCell>
                                   {months.map(month => (

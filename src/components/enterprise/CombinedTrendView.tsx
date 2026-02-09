@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
 import { format } from "date-fns";
 import { sortMetricsWithSubMetrics } from "@/utils/sortMetricsWithSubMetrics";
+import { getParentMetricKeys } from "@/utils/getParentMetricKeys";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -136,6 +137,13 @@ export function CombinedTrendView({
     const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
     return sortMetricsWithSubMetrics(selectedFinancialMetrics, firstBrand);
   }, [selectedFinancialMetrics, stores]);
+
+  // Identify which financial metrics are "parents" (have sub-metrics selected)
+  const parentFinancialMetricKeys = useMemo(() => {
+    if (!stores || stores.length === 0) return new Set<string>();
+    const firstBrand = stores[0]?.brand || (stores[0] as any)?.brands?.name || null;
+    return getParentMetricKeys(sortedFinancialMetrics, firstBrand);
+  }, [sortedFinancialMetrics, stores]);
 
   // Fetch all departments for stores
   const { data: departments } = useQuery({
@@ -883,10 +891,11 @@ export function CombinedTrendView({
                           <TableBody>
                             {sortedFinancialMetrics.map(metricName => {
                               const isSubMetric = metricName.startsWith('↳ ');
+                              const isParent = parentFinancialMetricKeys.has(metricName);
                               
                               return (
-                                <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''}`}>
-                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : 'bg-background'}`}>
+                                <TableRow key={metricName} className={`print:border-b print:border-gray-300 ${isSubMetric ? 'bg-muted/50' : ''} ${isParent ? 'bg-primary/5' : ''}`}>
+                                  <TableCell className={`font-medium sticky left-0 z-10 print:bg-white ${isSubMetric ? 'bg-muted pl-6 text-muted-foreground' : isParent ? 'bg-primary/5 font-semibold border-l-2 border-primary' : 'bg-background'}`}>
                                     {metricName}
                                   </TableCell>
                                   {trendViewMode === "monthly" ? (
