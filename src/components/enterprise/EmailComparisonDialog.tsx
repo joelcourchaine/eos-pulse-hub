@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, Loader2 } from "lucide-react";
+import { Mail, Loader2, FileSpreadsheet } from "lucide-react";
 
 interface Recipient {
   id: string;
@@ -88,6 +89,7 @@ export function EmailComparisonDialog({
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [attachExcel, setAttachExcel] = useState(true);
 
   useEffect(() => {
     if (open && storeIds.length > 0) {
@@ -209,6 +211,7 @@ export function EmailComparisonDialog({
           isYoyMonth: isYoyMonth || false,
           yoyCurrentYear,
           yoyPrevYear,
+          attachExcel,
         },
       });
 
@@ -282,6 +285,20 @@ export function EmailComparisonDialog({
               </div>
             </div>
           )}
+
+          <div className="flex items-center justify-between pt-3 border-t">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="attach-excel" className="text-sm cursor-pointer">
+                Attach Excel report
+              </Label>
+            </div>
+            <Switch
+              id="attach-excel"
+              checked={attachExcel}
+              onCheckedChange={setAttachExcel}
+            />
+          </div>
         </div>
 
         <DialogFooter>
