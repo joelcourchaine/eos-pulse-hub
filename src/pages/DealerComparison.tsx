@@ -768,6 +768,10 @@ export default function DealerComparison() {
               const parentKey = parts.length >= 2 ? parts[1] : "";
               if (!parentKey) continue;
 
+              // Skip percentage-type parents — they must be derived from formula, not summed
+              const parentDef = getMetricDef(parentKey, null);
+              if (parentDef?.type === 'percentage') continue;
+
               const numeric = typeof v === "number" ? v : v.count > 0 ? v.sum / v.count : 0;
               sums.set(parentKey, (sums.get(parentKey) || 0) + (numeric || 0));
             }
@@ -991,6 +995,10 @@ export default function DealerComparison() {
           parentSums.forEach((sum, parentKey) => {
             const existingKey = `${storeId}-${deptId}-${parentKey}`;
             if (dataMap[existingKey]) return;
+
+            // Skip percentage-type parents — they must be derived from formula, not summed
+            const parentDef = getMetricDef(parentKey, storeBrand);
+            if (parentDef?.type === 'percentage') return;
 
             const metricName = keyToName.get(parentKey) || parentKey;
 
