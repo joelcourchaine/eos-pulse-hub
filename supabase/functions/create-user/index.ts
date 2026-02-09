@@ -1,15 +1,26 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
-import { Resend } from 'https://esm.sh/resend@4.0.0';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.81.1";
+import { Resend } from "https://esm.sh/resend@4.0.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface CreateUserRequest {
   email: string;
   full_name: string;
-  role: 'super_admin' | 'store_gm' | 'department_manager' | 'read_only' | 'sales_advisor' | 'service_advisor' | 'technician' | 'parts_advisor' | 'fixed_ops_manager' | 'controller' | 'consulting_scheduler';
+  role:
+    | "super_admin"
+    | "store_gm"
+    | "department_manager"
+    | "read_only"
+    | "sales_advisor"
+    | "service_advisor"
+    | "technician"
+    | "parts_advisor"
+    | "fixed_ops_manager"
+    | "controller"
+    | "consulting_scheduler";
   store_id?: string;
   store_ids?: string[]; // New multi-store support
   store_group_id?: string;
@@ -37,7 +48,7 @@ function getInviteEmailHtml(inviteLink: string, fullName: string): string {
         <h1 style="color: #1a1a1a; margin-bottom: 10px;">Welcome to Dealer Growth Solutions</h1>
       </div>
       
-      <p>Hello ${fullName || 'there'},</p>
+      <p>Hello ${fullName || "there"},</p>
       
       <p>You've been invited to join Dealer Growth Solutions. Click the button below to set your password and access your account.</p>
       
@@ -63,49 +74,49 @@ function getInviteEmailHtml(inviteLink: string, fullName: string): string {
 
 // Send email via Resend
 async function sendInviteEmailViaResend(
-  email: string, 
-  inviteLink: string, 
-  fullName: string
+  email: string,
+  inviteLink: string,
+  fullName: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const resendApiKey = Deno.env.get('RESEND_API_KEY');
-  
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+
   if (!resendApiKey) {
-    console.error('RESEND_API_KEY is not configured');
-    return { success: false, error: 'Email service not configured' };
+    console.error("RESEND_API_KEY is not configured");
+    return { success: false, error: "Email service not configured" };
   }
 
   const resend = new Resend(resendApiKey);
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Dealer Growth Solutions <noreply@dealergrowth.solutions>',
+      from: "Dealer Growth Solutions <noreply@dealergrowth.solutions>",
       to: [email],
       subject: "You're Invited to Dealer Growth Solutions",
       html: getInviteEmailHtml(inviteLink, fullName),
     });
 
     if (error) {
-      console.error('Resend API error:', error);
+      console.error("Resend API error:", error);
       return { success: false, error: error.message };
     }
 
-    console.log('Invite email sent successfully via Resend:', data);
+    console.log("Invite email sent successfully via Resend:", data);
     return { success: true };
   } catch (err) {
-    console.error('Error sending email via Resend:', err);
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown email error' };
+    console.error("Error sending email via Resend:", err);
+    return { success: false, error: err instanceof Error ? err.message : "Unknown email error" };
   }
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     // Create admin client
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -116,12 +127,12 @@ Deno.serve(async (req) => {
     });
 
     // SECURITY: Verify caller has super_admin role
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized: Missing authorization header' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized: Missing authorization header" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
     }
 
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -129,146 +140,171 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await userClient.auth.getUser();
     if (authError || !user) {
-      console.error('Auth error:', authError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized: Invalid token' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      );
+      console.error("Auth error:", authError);
+      return new Response(JSON.stringify({ success: false, error: "Unauthorized: Invalid token" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
     }
 
     // Check if caller has super_admin, store_gm, or department_manager role
     // Use admin client to bypass RLS on user_roles table
     const { data: callerRoles, error: roleError } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .in('role', ['super_admin', 'store_gm', 'department_manager']);
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .in("role", ["super_admin", "store_gm", "department_manager"]);
 
     if (roleError || !callerRoles || callerRoles.length === 0) {
-      console.error('Role check failed:', roleError, 'User ID:', user.id, 'Roles found:', callerRoles);
+      console.error("Role check failed:", roleError, "User ID:", user.id, "Roles found:", callerRoles);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Forbidden: Only super admins, store GMs, and department managers can create users' 
+        JSON.stringify({
+          success: false,
+          error: "Forbidden: Only super admins, store GMs, and department managers can create users",
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
       );
     }
 
     const callerRole = callerRoles[0].role;
-    console.log('Caller role:', callerRole);
+    console.log("Caller role:", callerRole);
 
-    console.log('Authorization successful for user:', user.id);
+    console.log("Authorization successful for user:", user.id);
 
     const requestBody: CreateUserRequest = await req.json();
-    let { email, full_name, role, store_id, store_ids, store_group_id, department_id, department_ids, birthday_month, birthday_day, start_month, start_year, send_password_email } = requestBody;
-    
+    let {
+      email,
+      full_name,
+      role,
+      store_id,
+      store_ids,
+      store_group_id,
+      department_id,
+      department_ids,
+      birthday_month,
+      birthday_day,
+      start_month,
+      start_year,
+      send_password_email,
+    } = requestBody;
+
     // Support both legacy single department_id and new department_ids array
     const finalDepartmentIds: string[] = department_ids || (department_id ? [department_id] : []);
-    
+
     // Support both legacy single store_id and new store_ids array
     const finalStoreIds: string[] = store_ids || (store_id ? [store_id] : []);
 
     // SECURITY: For non-super-admins, enforce store assignment to their own store
-    if (callerRole === 'store_gm' || callerRole === 'department_manager') {
+    if (callerRole === "store_gm" || callerRole === "department_manager") {
       // Get caller's store and store group
       const { data: callerProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('store_id, store_group_id')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("store_id, store_group_id")
+        .eq("id", user.id)
         .single();
-      
+
       if (callerProfile?.store_id) {
         // Force the store_id to be the caller's store
         store_id = callerProfile.store_id;
         store_group_id = callerProfile.store_group_id;
-        console.log('Enforced store assignment to caller store:', store_id);
+        console.log("Enforced store assignment to caller store:", store_id);
       }
     }
 
     // If department manager, verify they can only add users to their own departments
-    if (callerRole === 'department_manager' && finalDepartmentIds.length > 0) {
-      const { data: callerDepts } = await supabaseAdmin
-        .from('departments')
-        .select('id')
-        .eq('manager_id', user.id);
-      
+    if (callerRole === "department_manager" && finalDepartmentIds.length > 0) {
+      const { data: callerDepts } = await supabaseAdmin.from("departments").select("id").eq("manager_id", user.id);
+
       const { data: callerAccess } = await supabaseAdmin
-        .from('user_department_access')
-        .select('department_id')
-        .eq('user_id', user.id);
-      
+        .from("user_department_access")
+        .select("department_id")
+        .eq("user_id", user.id);
+
       const allowedDeptIds = [
-        ...(callerDepts?.map(d => d.id) || []),
-        ...(callerAccess?.map(a => a.department_id) || [])
+        ...(callerDepts?.map((d) => d.id) || []),
+        ...(callerAccess?.map((a) => a.department_id) || []),
       ];
-      
-      const unauthorizedDepts = finalDepartmentIds.filter(id => !allowedDeptIds.includes(id));
+
+      const unauthorizedDepts = finalDepartmentIds.filter((id) => !allowedDeptIds.includes(id));
       if (unauthorizedDepts.length > 0) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Forbidden: You can only add users to departments you manage' 
+          JSON.stringify({
+            success: false,
+            error: "Forbidden: You can only add users to departments you manage",
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
         );
       }
     }
 
     // SECURITY: Validate role and enforce role creation restrictions
-    const validRoles = ['super_admin', 'store_gm', 'department_manager', 'read_only', 'sales_advisor', 'service_advisor', 'technician', 'parts_advisor', 'fixed_ops_manager', 'controller', 'consulting_scheduler'];
+    const validRoles = [
+      "super_admin",
+      "store_gm",
+      "department_manager",
+      "read_only",
+      "sales_advisor",
+      "service_advisor",
+      "technician",
+      "parts_advisor",
+      "fixed_ops_manager",
+      "controller",
+      "consulting_scheduler",
+    ];
     if (!validRoles.includes(role)) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Invalid role. Must be one of: ${validRoles.join(', ')}` 
+        JSON.stringify({
+          success: false,
+          error: `Invalid role. Must be one of: ${validRoles.join(", ")}`,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 },
       );
     }
 
     // Only super admins can create super_admin or consulting_scheduler users
-    if ((role === 'super_admin' || role === 'consulting_scheduler') && callerRole !== 'super_admin') {
+    if ((role === "super_admin" || role === "consulting_scheduler") && callerRole !== "super_admin") {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Forbidden: Only super admins can create super admin or consulting scheduler users' 
+        JSON.stringify({
+          success: false,
+          error: "Forbidden: Only super admins can create super admin or consulting scheduler users",
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
       );
     }
 
     // Only super admins and store GMs can create store_gm or controller users
-    if ((role === 'store_gm' || role === 'controller') && callerRole !== 'super_admin' && callerRole !== 'store_gm') {
+    if ((role === "store_gm" || role === "controller") && callerRole !== "super_admin" && callerRole !== "store_gm") {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Forbidden: Only super admins and store GMs can create store GM or controller users' 
+        JSON.stringify({
+          success: false,
+          error: "Forbidden: Only super admins and store GMs can create store GM or controller users",
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 403 },
       );
     }
 
-
     // Auto-generate email if not provided
-    if (!email || email.trim() === '') {
+    if (!email || email.trim() === "") {
       const randomId = crypto.randomUUID().slice(0, 8);
       email = `user-${randomId}@test.local`;
-      console.log('Auto-generated email:', email);
+      console.log("Auto-generated email:", email);
     }
 
-    console.log('Creating user:', { email, full_name, role });
+    console.log("Creating user:", { email, full_name, role });
 
     // Get the origin from the referer header for redirect URL
-    const referer = req.headers.get('referer') || '';
-    const origin = referer ? new URL(referer).origin : 'https://dealergrowth.solutions';
-    const appUrl = 'https://dealergrowth.solutions';
+    const referer = req.headers.get("referer") || "";
+    const origin = referer ? new URL(referer).origin : "https://dealergrowth.solutions";
+    const appUrl = "https://dealergrowth.solutions";
 
     // Generate the invite link (doesn't send email via Supabase)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'invite',
+      type: "invite",
       email: email,
       options: {
         redirectTo: `${origin}/set-password`,
@@ -283,46 +319,44 @@ Deno.serve(async (req) => {
     });
 
     if (linkError) {
-      console.error('Error generating invite link:', linkError);
+      console.error("Error generating invite link:", linkError);
       throw linkError;
     }
 
     if (!linkData?.properties?.action_link) {
-      console.error('No action link returned from generateLink');
-      throw new Error('Failed to generate invite link');
+      console.error("No action link returned from generateLink");
+      throw new Error("Failed to generate invite link");
     }
 
     const actionLink = linkData.properties.action_link;
     const userId = linkData.user.id;
 
-    console.log('User created in auth:', userId);
-    console.log('Invite link generated successfully');
+    console.log("User created in auth:", userId);
+    console.log("Invite link generated successfully");
 
     // Generate custom token with 7-day expiry
     const customToken = crypto.randomUUID();
-    const tokenType = 'invite';
+    const tokenType = "invite";
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    console.log('Generated custom invite token for new user:', userId);
+    console.log("Generated custom invite token for new user:", userId);
 
     // Store custom token with Supabase action_link
-    const { error: tokenError } = await supabaseAdmin
-      .from('auth_tokens')
-      .insert({
-        token: customToken,
-        token_type: tokenType,
-        user_id: userId,
-        email: email,
-        expires_at: expiresAt.toISOString(),
-        created_by: user.id, // admin who created the user
-        action_link: actionLink
-      });
+    const { error: tokenError } = await supabaseAdmin.from("auth_tokens").insert({
+      token: customToken,
+      token_type: tokenType,
+      user_id: userId,
+      email: email,
+      expires_at: expiresAt.toISOString(),
+      created_by: user.id, // admin who created the user
+      action_link: actionLink,
+    });
 
     if (tokenError) {
-      console.error('Error storing custom token:', tokenError);
+      console.error("Error storing custom token:", tokenError);
       // Don't throw - user was created, we can still proceed
     } else {
-      console.log('Custom token stored successfully');
+      console.log("Custom token stored successfully");
     }
 
     // Build invite link with custom token
@@ -331,95 +365,106 @@ Deno.serve(async (req) => {
     // Send the invite email via Resend
     const emailResult = await sendInviteEmailViaResend(email, inviteLink, full_name);
     if (!emailResult.success) {
-      console.error('Failed to send invite email:', emailResult.error);
+      console.error("Failed to send invite email:", emailResult.error);
       // Note: We continue even if email fails - user is created, admin can resend later
     } else {
-      console.log('Invite email sent successfully to:', email);
-      
+      console.log("Invite email sent successfully to:", email);
+
       // Update invited_at timestamp in profiles
       const { error: invitedAtError } = await supabaseAdmin
-        .from('profiles')
+        .from("profiles")
         .update({ invited_at: new Date().toISOString() })
-        .eq('id', userId);
-      
+        .eq("id", userId);
+
       if (invitedAtError) {
-        console.error('Error updating invited_at:', invitedAtError);
+        console.error("Error updating invited_at:", invitedAtError);
       }
     }
 
     // Insert into user_roles table (primary source of truth for roles)
-    const { error: userRoleError } = await supabaseAdmin
-      .from('user_roles')
-      .insert({
-        user_id: userId,
-        role: role,
-        assigned_by: user.id,
-      });
+    const { error: userRoleError } = await supabaseAdmin.from("user_roles").insert({
+      user_id: userId,
+      role: role,
+      assigned_by: user.id,
+    });
 
     if (userRoleError) {
-      console.error('Error creating user role:', userRoleError);
+      console.error("Error creating user role:", userRoleError);
       throw userRoleError;
     }
 
     // If store_group_id not provided but store_id is, get group from the store
     let finalStoreGroupId = store_group_id || null;
     if (!finalStoreGroupId && store_id) {
-      const { data: storeData } = await supabaseAdmin
-        .from('stores')
-        .select('group_id')
-        .eq('id', store_id)
-        .single();
-      
+      const { data: storeData } = await supabaseAdmin.from("stores").select("group_id").eq("id", store_id).single();
+
       if (storeData?.group_id) {
         finalStoreGroupId = storeData.group_id;
-        console.log('Auto-derived store_group_id from store:', finalStoreGroupId);
+        console.log("Auto-derived store_group_id from store:", finalStoreGroupId);
       }
     }
 
     // Update the profile with store_id and store_group_id
     const { error: profileError } = await supabaseAdmin
-      .from('profiles')
+      .from("profiles")
       .update({
         store_id: store_id || null,
         store_group_id: finalStoreGroupId,
       })
-      .eq('id', userId);
+      .eq("id", userId);
 
     if (profileError) {
-      console.error('Error updating profile:', profileError);
+      console.error("Error updating profile:", profileError);
       throw profileError;
     }
 
-    console.log('User role and profile updated successfully');
+    console.log("User role and profile updated successfully");
+
+    // Dual-write: upsert sensitive data into profile_sensitive_data table
+    const { error: sensitiveDataError } = await supabaseAdmin.from("profile_sensitive_data").upsert(
+      {
+        id: userId,
+        birthday_month: birthday_month || null,
+        birthday_day: birthday_day || null,
+        start_month: start_month || null,
+        start_year: start_year || null,
+      },
+      { onConflict: "id" },
+    );
+
+    if (sensitiveDataError) {
+      console.error("Error upserting profile_sensitive_data:", sensitiveDataError);
+      // Non-fatal: trigger should have already inserted, this is a safety net
+    } else {
+      console.log("Profile sensitive data upserted successfully");
+    }
 
     // If department_ids are provided, update departments and grant access
     if (finalDepartmentIds.length > 0) {
       for (const deptId of finalDepartmentIds) {
         // Set user as manager of the department
         const { error: departmentError } = await supabaseAdmin
-          .from('departments')
+          .from("departments")
           .update({ manager_id: userId })
-          .eq('id', deptId);
+          .eq("id", deptId);
 
         if (departmentError) {
-          console.error('Error assigning user to department:', deptId, departmentError);
+          console.error("Error assigning user to department:", deptId, departmentError);
         } else {
-          console.log('User assigned as department manager for department:', deptId);
+          console.log("User assigned as department manager for department:", deptId);
         }
-        
+
         // Add to user_department_access table for access control
-        const { error: accessError } = await supabaseAdmin
-          .from('user_department_access')
-          .insert({
-            user_id: userId,
-            department_id: deptId,
-            granted_by: user.id
-          });
+        const { error: accessError } = await supabaseAdmin.from("user_department_access").insert({
+          user_id: userId,
+          department_id: deptId,
+          granted_by: user.id,
+        });
 
         if (accessError) {
-          console.error('Error adding user department access:', deptId, accessError);
+          console.error("Error adding user department access:", deptId, accessError);
         } else {
-          console.log('User granted access to department:', deptId);
+          console.log("User granted access to department:", deptId);
         }
       }
     }
@@ -427,18 +472,16 @@ Deno.serve(async (req) => {
     // If store_ids are provided, add to user_store_access table
     if (finalStoreIds.length > 0) {
       for (const storeId of finalStoreIds) {
-        const { error: storeAccessError } = await supabaseAdmin
-          .from('user_store_access')
-          .insert({
-            user_id: userId,
-            store_id: storeId,
-            granted_by: user.id
-          });
+        const { error: storeAccessError } = await supabaseAdmin.from("user_store_access").insert({
+          user_id: userId,
+          store_id: storeId,
+          granted_by: user.id,
+        });
 
         if (storeAccessError) {
-          console.error('Error adding user store access:', storeId, storeAccessError);
+          console.error("Error adding user store access:", storeId, storeAccessError);
         } else {
-          console.log('User granted access to store:', storeId);
+          console.log("User granted access to store:", storeId);
         }
       }
     }
@@ -453,22 +496,22 @@ Deno.serve(async (req) => {
         emailSent: emailResult.success,
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
   } catch (error) {
-    console.error('Error in create-user function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error("Error in create-user function:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return new Response(
       JSON.stringify({
         success: false,
         error: errorMessage,
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
-      }
+      },
     );
   }
 });
