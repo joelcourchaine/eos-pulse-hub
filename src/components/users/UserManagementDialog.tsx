@@ -326,7 +326,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
         start_year !== undefined;
 
       if (hasSensitiveUpdate) {
-        const { error: sensitiveError } = await supabase.from("profile_sensitive_data").upsert(
+const { error: sensitiveError } = await (supabase.from as any)("profile_sensitive_data")
           {
             id: profileId,
             birthday_month: birthday_month ?? null,
