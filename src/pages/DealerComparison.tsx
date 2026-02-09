@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getMetricsForBrand } from "@/config/financialMetrics";
+import { getParentMetricKeys } from "@/utils/getParentMetricKeys";
 import { format } from "date-fns";
 
 interface ComparisonData {
@@ -311,6 +312,12 @@ export default function DealerComparison() {
 
     return ordered;
   }, [metricType, selectedMetrics]);
+
+  // Identify which metrics are "parents" (have sub-metrics selected)
+  const parentMetricKeys = useMemo(() => {
+    if (metricType !== "financial") return new Set<string>();
+    return getParentMetricKeys(orderedSelectedMetrics, null);
+  }, [metricType, orderedSelectedMetrics]);
 
   // Fetch financial targets
   const { data: financialTargets } = useQuery({
@@ -1990,9 +1997,11 @@ export default function DealerComparison() {
                       // Convert selection ID to display name for rendering
                       const displayName = selectionIdToDisplayName(selectionId);
                       const isSortedRow = sortByMetric && selectionId === sortByMetric;
+                      const isSubMetric = selectionId.startsWith('sub:') || displayName.startsWith('↳ ');
+                      const isParent = parentMetricKeys.has(selectionId);
                       return (
-                      <TableRow key={selectionId} className={isSortedRow ? "bg-primary/10" : ""}>
-                        <TableCell className={`font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : "bg-background"}`}>
+                      <TableRow key={selectionId} className={`${isSortedRow ? "bg-primary/10" : ""} ${isSubMetric ? "bg-muted/50" : ""} ${isParent ? "bg-primary/5" : ""}`}>
+                        <TableCell className={`font-medium sticky left-0 z-10 ${isSortedRow ? "bg-primary/10 font-semibold text-primary" : isSubMetric ? "bg-muted pl-6 text-muted-foreground" : isParent ? "bg-primary/5 font-semibold border-l-2 border-primary" : "bg-background"}`}>
                           {displayName}
                         </TableCell>
                         {stores.map(([storeId, store]) => {
