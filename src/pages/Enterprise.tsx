@@ -724,14 +724,14 @@ export default function Enterprise() {
     }
   }, [uniqueDepartmentNames]);
 
-  // Clear selected metrics when metric type changes to ensure fresh selection
-  // Skip on initial mount to preserve session-restored values (including sub-metrics)
-  const isInitialMount = useRef(true);
+  // Clear selected metrics only when metric type ACTUALLY changes (not on mount/restore)
+  const prevMetricTypeRef = useRef(metricType);
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (prevMetricTypeRef.current === metricType) {
+      // Same value (initial mount or restored from session) — don't clear
       return;
     }
+    prevMetricTypeRef.current = metricType;
     setSelectedMetrics([]);
     setSelectedKpiMetrics([]);
     setSelectedFinancialMetrics([]);
