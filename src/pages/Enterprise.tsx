@@ -24,7 +24,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
-type ComparisonMode = "none" | "targets" | "year_over_year" | "previous_year";
+type ComparisonMode = "none" | "targets" | "year_over_year" | "prev_year_avg" | "prev_year_quarter";
 type DatePeriodType = "month" | "full_year" | "custom_range" | "monthly_trend";
 type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
@@ -65,6 +65,7 @@ export default function Enterprise() {
   const [saveFilterName, setSaveFilterName] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [sortByMetric, setSortByMetric] = useState<string>(() => getStoredState('sortByMetric', ''));
+  const [selectedComparisonQuarter, setSelectedComparisonQuarter] = useState<number>(() => getStoredState('selectedComparisonQuarter', 4));
   const [viewMode, setViewMode] = useState<ViewMode>("filters");
   const [trendReportParams, setTrendReportParams] = useState<{
     storeIds: string[];
@@ -120,7 +121,8 @@ export default function Enterprise() {
     sessionStorage.setItem('enterprise_selectedKpiMetrics', JSON.stringify(selectedKpiMetrics));
     sessionStorage.setItem('enterprise_selectedFinancialMetrics', JSON.stringify(selectedFinancialMetrics));
     sessionStorage.setItem('enterprise_showDeptManagerOnly', JSON.stringify(showDeptManagerOnly));
-  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly]);
+    sessionStorage.setItem('enterprise_selectedComparisonQuarter', JSON.stringify(selectedComparisonQuarter));
+  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly, selectedComparisonQuarter]);
 
   // Set default 12-month range when switching to monthly_trend mode
   useEffect(() => {
@@ -1195,6 +1197,25 @@ export default function Enterprise() {
                       <SelectItem value="none">No Comparison</SelectItem>
                       <SelectItem value="targets">Store Targets</SelectItem>
                       <SelectItem value="year_over_year">Year over Year</SelectItem>
+                      <SelectItem value="prev_year_avg">Previous Year Avg</SelectItem>
+                      <SelectItem value="prev_year_quarter">Previous Year Quarter</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {metricType === "financial" && comparisonMode === "prev_year_quarter" && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Compare Quarter</label>
+                  <Select value={selectedComparisonQuarter.toString()} onValueChange={(v) => setSelectedComparisonQuarter(parseInt(v))}>
+                    <SelectTrigger className="bg-background z-50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="1">Q1 (Jan-Mar)</SelectItem>
+                      <SelectItem value="2">Q2 (Apr-Jun)</SelectItem>
+                      <SelectItem value="3">Q3 (Jul-Sep)</SelectItem>
+                      <SelectItem value="4">Q4 (Oct-Dec)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1864,6 +1885,7 @@ export default function Enterprise() {
                             selectedMetrics, // Keep full IDs like "sub:sales_expense_percent:Comp Managers"
                             ...dateParams,
                             comparisonMode,
+                            selectedComparisonQuarter,
                             departmentIds,
                             isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
                             selectedDepartmentNames,

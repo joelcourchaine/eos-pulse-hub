@@ -50,7 +50,7 @@ interface EmailRequest {
   selectedDepartmentNames?: string[];
   isYoyMonth?: boolean;
   yoyCurrentYear?: number;
-  yoyPrevYear?: number;
+  yoyPrevYear?: number | string;
   attachExcel?: boolean;
 }
 
@@ -605,6 +605,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (comparisonMode === "targets") comparisonDescription = "vs Store Targets";
     else if (comparisonMode === "current_year_avg") comparisonDescription = "vs Current Year Average";
     else if (comparisonMode === "year_over_year") comparisonDescription = "vs Year over Year";
+    else if (comparisonMode === "prev_year_avg") comparisonDescription = `vs ${yoyPrevYear || "Previous Year Avg"}`;
+    else if (comparisonMode === "prev_year_quarter") comparisonDescription = `vs ${yoyPrevYear || "Previous Year Quarter"}`;
 
     const reportTitle = filterName ? filterName : (metricType === "dept_info" ? "Service Dept Info Comparison" : "Dealer Comparison Report");
     const brandLine = brandDisplayName || "All Brands";
