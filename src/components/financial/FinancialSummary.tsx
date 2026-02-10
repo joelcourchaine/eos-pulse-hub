@@ -3685,13 +3685,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           )}
                                         >
                                           <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
-                                            <span className={cn(
+                                            <div className={cn(
+                                              "w-full h-full flex items-center justify-center",
                                               status === "success" && "text-success font-medium",
                                               status === "warning" && "text-warning font-medium",
                                               status === "destructive" && "text-destructive font-medium"
                                             )}>
                                               {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
-                                            </span>
+                                            </div>
                                           </TrendCellTooltip>
                                         </TableCell>
                                     );
@@ -4016,13 +4017,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   )}
                                 >
                                   <QuarterTrendCellTooltip metricKey={metric.key} metricType={metric.type} quarter={qtr.quarter} qtrYear={qtr.year}>
-                                    <span className={cn(
+                                    <div className={cn(
+                                      "w-full h-full flex items-center justify-center",
                                       status === "success" && "text-success font-medium",
                                       status === "warning" && "text-warning font-medium",
                                       status === "destructive" && "text-destructive font-medium"
                                     )}>
                                       {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
-                                    </span>
+                                    </div>
                                   </QuarterTrendCellTooltip>
                                 </TableCell>
                             );
