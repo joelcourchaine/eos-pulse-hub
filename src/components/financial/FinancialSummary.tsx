@@ -4782,18 +4782,34 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         getRockForSubMetric={getRockForSubMetric}
                         getForecastTarget={(subMetricName, monthId) => {
                           // Build the forecast metric_name key matching how forecast entries store sub-metrics
-                          // Try multiple formats: sub:parentKey:orderIndex:name and just the metric key
+                          // For percentage metrics, try the percentage parent key first (e.g. sub:gp_percent:001:NAME)
+                          // to avoid returning dollar values formatted as percentages
+                          const dollarParentKey = metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation
+                            ? metric.calculation.numerator : metric.key;
+                          const percentParentKey = metric.key;
+                          
                           const subMetricEntry = allSubMetrics.find(
-                            sm => sm.parentMetricKey === (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation ? metric.calculation.numerator : metric.key) && sm.name === subMetricName
+                            sm => sm.parentMetricKey === dollarParentKey && sm.name === subMetricName
                           );
                           if (subMetricEntry) {
                             const orderStr = String(subMetricEntry.orderIndex).padStart(3, '0');
-                            const parentKey = subMetricEntry.parentMetricKey;
-                            const fKey = `sub:${parentKey}:${orderStr}:${subMetricName}`;
+                            
+                            // For percentage metrics, try percentage key first
+                            if (metric.type === 'percentage' && percentParentKey !== dollarParentKey) {
+                              const pKey = `sub:${percentParentKey}:${orderStr}:${subMetricName}`;
+                              const pVal = getForecastTarget(pKey, monthId);
+                              if (pVal !== null) return pVal;
+                              const pKey2 = `sub:${percentParentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
+                              const pVal2 = getForecastTarget(pKey2, monthId);
+                              if (pVal2 !== null) return pVal2;
+                              // Don't fall back to dollar key for percentage metrics
+                              return null;
+                            }
+                            
+                            const fKey = `sub:${dollarParentKey}:${orderStr}:${subMetricName}`;
                             const val = getForecastTarget(fKey, monthId);
                             if (val !== null) return val;
-                            // Also try without padded order
-                            const fKey2 = `sub:${parentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
+                            const fKey2 = `sub:${dollarParentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
                             const val2 = getForecastTarget(fKey2, monthId);
                             if (val2 !== null) return val2;
                           }
