@@ -3841,7 +3841,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               data-metric-index={FINANCIAL_METRICS.findIndex(m => m.key === metric.key)}
                                               data-trend-period-index={periodIndex}
                                               className={cn(
-                                                "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10"
+                                                "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 pointer-events-none focus:pointer-events-auto focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10"
                                               )}
                                               placeholder="-"
                                               disabled={saving[key]}
