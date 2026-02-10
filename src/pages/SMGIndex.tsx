@@ -15,9 +15,8 @@ import {
   Download,
   X,
 } from "lucide-react";
-import smgLogo from "@/assets/SMG60/Black-Horizontal-PNG.png";
-import smgLogoVertical from "@/assets/SMG60/Black-Vertical-PNG.png";
-import smgLogoWhite from "@/assets/SMG60/White-Horizontal-PNG.png";
+import smgLogo from "@/assets/SMG60/White-Horizontal-PNG.png";
+import smgLogoVertical from "@/assets/SMG60/White-Vertical-PNG.png";
 import featureGauges from "@/assets/feature-gauges.png";
 import featureMeeting from "@/assets/feature-meeting.png";
 import featureScorecard from "@/assets/feature-scorecard-final.png";
@@ -136,11 +135,13 @@ const SMGIndex = () => {
         <div className="text-center mb-16">
           {/* SMG Logo */}
           <div className="flex items-center justify-center mb-8">
-            <img
-              src={smgLogoVertical}
-              alt="Steve Marshall Group - 60 Years"
-              className="w-48 sm:w-64 lg:w-80 object-contain"
-            />
+            <div className="bg-[#1a1a1a] rounded-2xl p-6 sm:p-8">
+              <img
+                src={smgLogoVertical}
+                alt="Steve Marshall Group - 60 Years"
+                className="w-48 sm:w-64 lg:w-80 object-contain"
+              />
+            </div>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">GO Scorecard Platform</h1>
@@ -245,7 +246,7 @@ const SMGIndex = () => {
         {/* Footer with SMG branding */}
         <div className="text-center text-sm text-muted-foreground pt-8 border-t border-border">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img src={smgLogo} alt="Steve Marshall Group" className="w-48 sm:w-56 object-contain" />
+            <img src={smgLogo} alt="Steve Marshall Group" className="w-48 sm:w-56 object-contain bg-[#1a1a1a] rounded-lg px-3 py-2" />
             <span>×</span>
             <span>Dealer Growth Solutions</span>
           </div>
