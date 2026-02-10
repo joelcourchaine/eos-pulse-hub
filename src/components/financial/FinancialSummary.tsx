@@ -1887,6 +1887,49 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       }
     });
 
+    // Store individual parent metric M-format entries for tooltip lookups
+    for (const monthId of allMonthIds) {
+      const [yrStr, moStr] = monthId.split('-');
+      const yr = parseInt(yrStr, 10);
+      const mo = parseInt(moStr, 10);
+
+      // First pass: dollar metrics (direct value or sub-metric sum)
+      FINANCIAL_METRICS.forEach(metric => {
+        if (metric.type === 'percentage') return; // Skip percentages in first pass
+        const mKey = `${metric.key}-M${mo}-${yr}`;
+        if (averages[mKey] !== undefined) return;
+
+        const directEntry = data?.find(e => e.month === monthId && e.metric_name === metric.key);
+        if (directEntry?.value !== null && directEntry?.value !== undefined) {
+          averages[mKey] = Number(directEntry.value);
+        } else {
+          const subPrefix = `sub:${metric.key}:`;
+          const subs = data?.filter(e =>
+            e.month === monthId &&
+            e.metric_name.startsWith(subPrefix) &&
+            e.value !== null && e.value !== undefined
+          ) || [];
+          if (subs.length > 0) {
+            averages[mKey] = subs.reduce((s, e) => s + Number(e.value), 0);
+          }
+        }
+      });
+
+      // Second pass: percentage metrics (derived from dollar values)
+      FINANCIAL_METRICS.forEach(metric => {
+        if (metric.type !== 'percentage' || !metric.calculation || !('numerator' in metric.calculation)) return;
+        const mKey = `${metric.key}-M${mo}-${yr}`;
+        if (averages[mKey] !== undefined) return;
+
+        const { numerator, denominator } = metric.calculation as { numerator: string; denominator: string };
+        const numVal = averages[`${numerator}-M${mo}-${yr}`];
+        const denVal = averages[`${denominator}-M${mo}-${yr}`];
+        if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
+          averages[mKey] = (numVal / denVal) * 100;
+        }
+      });
+    }
+
     // Store individual sub-metric M-format entries for LY tooltip lookups
     for (const monthId of allMonthIds) {
       const monthParts = monthId.split('-');
@@ -4314,13 +4357,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 !status && "text-muted-foreground"
                               )}
                             >
-                              <span className={cn(
-                                status === "success" && "text-success font-medium",
-                                status === "warning" && "text-warning font-medium",
-                                status === "destructive" && "text-destructive font-medium"
-                              )}>
-                                {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
-                              </span>
+                              <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={month.identifier}>
+                                <span className={cn(
+                                  "block w-full",
+                                  status === "success" && "text-success font-medium",
+                                  status === "warning" && "text-warning font-medium",
+                                  status === "destructive" && "text-destructive font-medium"
+                                )}>
+                                  {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
+                                </span>
+                              </TrendCellTooltip>
                             </TableCell>
                           );
                           })}
@@ -4554,6 +4600,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     status === "destructive" && "bg-destructive/10"
                                   )}
                                 >
+                                  <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={month.identifier}>
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -4719,6 +4766,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       )}
                                     </Tooltip>
                                   </TooltipProvider>
+                                  </TrendCellTooltip>
                                 </TableCell>
                               </ContextMenuTrigger>
                               <ContextMenuContent className="w-48 bg-popover z-50">
