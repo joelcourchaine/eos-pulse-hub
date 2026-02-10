@@ -3558,9 +3558,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         )}>
                                           {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
                                         </span>
-                                        {status && targetSource === 'forecast' && (
-                                          <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none">F</span>
-                                        )}
                                       </TableCell>
                                     );
                                   }
@@ -3716,9 +3713,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             )}
                                             {cellIssues.has(`${metric.key}-${monthIdentifier}`) && !saving[key] && (
                                               <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
-                                            )}
-                                            {status && targetSource2 === 'forecast' && !saving[key] && !cellIssues.has(`${metric.key}-${monthIdentifier}`) && (
-                                              <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                                             )}
                                           </div>
                                         </TableCell>
@@ -3891,9 +3885,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 )}>
                                   {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                                 </span>
-                                {status && qtrTargetSource === 'forecast' && (
-                                  <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none">F</span>
-                                )}
                               </TableCell>
                             );
                           })
@@ -4138,7 +4129,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     title={isForecastTarget ? "From forecast" : undefined}
                                   >
                                     {formatTarget(displayTarget, metric.type)}
-                                    {isForecastTarget && <span className="ml-0.5 text-[9px] font-bold text-primary/60">F</span>}
                                   </span>
                                 );
                               })()}
@@ -4336,9 +4326,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               {cellIssues.has(`${metric.key}-${month.identifier}`) && (
                                                 <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
                                               )}
-                                              {status !== 'default' && monthTargetSource === 'forecast' && !cellIssues.has(`${metric.key}-${month.identifier}`) && (
-                                                <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
-                                              )}
                                             </>
                                           ) : (
                                              // Manual input for non-calculated metrics
@@ -4467,9 +4454,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               )}
                                               {cellIssues.has(`${metric.key}-${month.identifier}`) && !saving[key] && (
                                                 <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
-                                              )}
-                                              {status !== 'default' && monthTargetSource === 'forecast' && !saving[key] && !cellIssues.has(`${metric.key}-${month.identifier}`) && (
-                                                <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                                               )}
                                             </>
                                           )}
