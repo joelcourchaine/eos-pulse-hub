@@ -1,90 +1,101 @@
 
 
-## Use Forecast Values as Monthly Target Indicators on Financial Summary
+## Fix: Monthly GP% Edits Should Update Total Sales and GP Net (Constant Cost)
 
-### Overview
+### Problem
 
-Currently, the Financial Summary uses quarterly `financial_targets` to determine green/yellow/red status indicators on each cell. This change will add forecast entries as a **per-month** target source, providing much more granular performance indicators. When a forecast exists for the department and year, each monthly cell will be compared against its corresponding `forecast_value` from `forecast_entries` -- including all sub-metrics.
+When editing GP% for a specific month in the forecast grid, only the GP% value is saved. The Total Sales and GP Net for that month are not recalculated using the "constant cost" assumption. This means the GP% change has no visible effect on the dollar metrics for that month.
 
-A small visual indicator will show whether the target source is the forecast or a manually set target, so users always know what they're being measured against.
+### Root Cause
+
+In `src/components/financial/ForecastDrawer.tsx`, the `handleCellEdit` function (line 772) simply saves the edited value:
+
+```
+updateEntry.mutate({ month, metricName, forecastValue: value });
+```
+
+It does not check whether the metric being edited is `gp_percent` and, if so, back-calculate `total_sales` and `gp_net` using constant cost.
+
+### Solution
+
+Add a special case in `handleCellEdit` for when `metricName` is `gp_percent`. When detected:
+
+1. Look up the current month's Total Sales and GP Net values (from `monthlyValues` map or entries)
+2. Calculate cost: `cost = currentTotalSales - currentGpNet`
+3. Back-calculate: `newTotalSales = cost / (1 - newGP% / 100)` and `newGpNet = newTotalSales - cost`
+4. Save all three values (`gp_percent`, `total_sales`, `gp_net`) together using `bulkUpdateEntries`
+5. Guard against GP% = 100 (division by zero)
+
+### Technical Changes
+
+**File: `src/components/financial/ForecastDrawer.tsx`** -- `handleCellEdit` function (~line 772)
+
+Replace the simple `updateEntry.mutate` call with logic that detects `gp_percent` edits:
+
+```typescript
+const handleCellEdit = (month: string, metricName: string, value: number) => {
+  if (view === 'quarter') {
+    // Quarter distribution - apply constant-cost logic per distributed month
+    const distributions = distributeQuarterToMonths(month as 'Q1'|'Q2'|'Q3'|'Q4', metricName, value);
+    if (metricName === 'gp_percent') {
+      const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+      distributions.forEach((d) => {
+        updates.push({ month: d.month, metricName: 'gp_percent', forecastValue: d.value });
+        // Get current Total Sales and GP Net for this month
+        const monthData = monthlyValues.get(d.month);
+        const currentSales = monthData?.get('total_sales')?.value ?? 0;
+        const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
+        const cost = currentSales - currentGpNet;
+        const gpDecimal = d.value / 100;
+        const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
+        const newGpNet = newSales - cost;
+        updates.push({ month: d.month, metricName: 'total_sales', forecastValue: newSales });
+        updates.push({ month: d.month, metricName: 'gp_net', forecastValue: newGpNet });
+      });
+      bulkUpdateEntries.mutate(updates);
+    } else {
+      distributions.forEach((d) => {
+        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
+      });
+    }
+  } else {
+    // Monthly edit
+    if (metricName === 'gp_percent') {
+      const monthData = monthlyValues.get(month);
+      const currentSales = monthData?.get('total_sales')?.value ?? 0;
+      const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
+      const cost = currentSales - currentGpNet;
+      const gpDecimal = value / 100;
+      const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
+      const newGpNet = newSales - cost;
+      bulkUpdateEntries.mutate([
+        { month, metricName: 'gp_percent', forecastValue: value },
+        { month, metricName: 'total_sales', forecastValue: newSales },
+        { month, metricName: 'gp_net', forecastValue: newGpNet },
+      ]);
+    } else {
+      updateEntry.mutate({ month, metricName, forecastValue: value });
+    }
+  }
+};
+```
 
 ### How It Works
 
-1. When the Financial Summary loads, it will also fetch the `department_forecasts` record for the current department + year
-2. If a forecast exists, it fetches all `forecast_entries` for that forecast
-3. For each monthly cell, the target lookup order becomes:
-   - **First**: Check `financial_targets` for a manually set quarterly target (existing behavior)
-   - **Fallback**: Check `forecast_entries` for a `forecast_value` matching that exact month and metric
-4. The same variance logic applies: green (on/above target), yellow (within 10%), red (more than 10% off)
-5. Sub-metrics follow the same pattern: their forecast entries use `metric_name` values like `sub:total_sales:0:NEW VEHICLES` which already exist in `forecast_entries`
+- User edits GP% for January from 20% to 25%
+- Current January values: Total Sales = $500K, GP Net = $100K
+- Cost = $500K - $100K = $400K (held constant)
+- New Total Sales = $400K / (1 - 0.25) = $533K
+- New GP Net = $533K - $400K = $133K
+- All three values saved together in one bulk operation
 
-### Visual Indicator
+### Edge Cases
 
-When a cell's status color comes from a forecast (not a manual target), a small icon or label will distinguish it:
-- Cells colored by manual targets: no extra indicator (current behavior)
-- Cells colored by forecast targets: a subtle "F" badge or forecast icon in the corner of the cell, visible on hover or always-on depending on density
-- The target column in quarterly view will show the forecast value with a "(forecast)" label when no manual target exists
+- **GP% set to 100%**: Guard prevents division by zero; keeps Total Sales unchanged
+- **Quarter view**: Same constant-cost logic applied to each distributed month
+- Works for all brands since it operates on the parent-level metrics directly
 
-### Scope of Changes
+### Files to Modify
 
-**Monthly Trend View** -- Each of the 12 month columns will compare actual vs forecast for that specific month
-
-**Standard Quarterly View** -- Each of the 3 month columns will compare actual vs the forecast value for that specific month (not the quarterly average)
-
-**Quarter Trend View** -- Each quarter will compare the quarterly average of actuals against the quarterly average of forecast values
-
-**Sub-metrics** -- All sub-metric rows (e.g., "NEW VEHICLES" under "Total Sales") will also get status indicators when a matching forecast entry exists
-
-### Technical Details
-
-**Files to modify:**
-
-1. **`src/components/financial/FinancialSummary.tsx`**
-   - Add new state: `forecastTargets` -- a Map of `{metricName}:{monthIdentifier}` to `forecast_value`
-   - In the data loading phase, query `department_forecasts` for the department + year, then fetch all `forecast_entries` for that forecast
-   - Create a helper function `getTargetForMonth(metricKey, monthIdentifier)` that returns `{ value, direction, source: 'manual' | 'forecast' }` by checking manual targets first, then falling back to forecast
-   - Update all status calculation blocks (there are ~4 places: monthly trend calculated metrics, monthly trend editable metrics, quarterly view previous-year months, quarterly view current months) to use the new helper
-   - For the target column in quarterly view, show forecast value with a visual distinction when no manual target exists
-   - Pass forecast target data down to `SubMetricsRow` component
-
-2. **`src/components/financial/SubMetricsRow.tsx`**
-   - Accept new prop: `getForecastTarget?: (subMetricName: string, monthId: string) => number | null`
-   - In monthly cells, when no sub-metric target exists from `financial_targets`, fall back to the forecast value
-   - Apply the same green/yellow/red status coloring to sub-metric cells
-
-**Data query (added to loadData):**
-```
--- Step 1: Get forecast for this department + year
-SELECT id FROM department_forecasts
-WHERE department_id = :departmentId AND forecast_year = :year
-LIMIT 1
-
--- Step 2: Get all forecast entries
-SELECT metric_name, month, forecast_value
-FROM forecast_entries
-WHERE forecast_id = :forecastId
-AND forecast_value IS NOT NULL
-```
-
-**Target resolution logic:**
-```
-function getTargetForMonth(metricKey, monthId, metricDefinition):
-  // 1. Check manual quarterly targets
-  quarter = getQuarterFromMonth(monthId)
-  manualTarget = trendTargets[metricKey]?.[`Q${quarter}-${year}`]
-  if manualTarget exists and value != 0:
-    return { value: manualTarget.value, direction: manualTarget.direction, source: 'manual' }
-
-  // 2. Fall back to forecast
-  forecastValue = forecastTargets.get(`${metricKey}:${monthId}`)
-  if forecastValue exists:
-    return { value: forecastValue, direction: metricDefinition.targetDirection, source: 'forecast' }
-
-  return null
-```
-
-**Visual indicator:** When `source === 'forecast'`, the cell will show a small "F" indicator (using a tiny badge or superscript) in the top-right corner of colored cells to distinguish forecast-sourced indicators from manual target indicators.
-
-### No database changes required
-All data comes from existing `department_forecasts` and `forecast_entries` tables.
+1. `src/components/financial/ForecastDrawer.tsx` -- Update `handleCellEdit` function
 
