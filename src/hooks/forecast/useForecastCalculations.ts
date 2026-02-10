@@ -1860,21 +1860,10 @@ export function useForecastCalculations({
         ? (baselineGpNetMonth / baselineSalesMonth) * 100 
         : baselineGpPercentAnnual;
       
-      // If GP Net has changed due to GP% overrides, update GP Net but keep Total Sales at growth-slider value
-      // This allows GP% to increase naturally when GP% sub-metrics are raised
-      if (gpNetFromSubs !== undefined && hasGpPercentOverrides) {
-        // Update GP Net with the sub-metric sum (rolled up from GP% overrides)
-        const gpNetCurrent = adjustedMetrics.get('gp_net');
-        if (gpNetCurrent) {
-          adjustedMetrics.set('gp_net', { ...gpNetCurrent, value: gpNetFromSubs });
-        }
-        // Total Sales stays at growth-slider value - DO NOT derive from GP Net
-        // This allows overall GP% to increase when GP% sub-metrics are raised
-      } else if (subSums) {
-        // Standard sub-metric rollup (no GP% override case)
+      // Roll up sub-metric sums to parent metrics
+      if (subSums) {
+        // Always roll up Total Sales from sub-metrics when overrides exist
         const updatedSales = subSums.get('total_sales');
-        const updatedGpNet = subSums.get('gp_net');
-        
         if (updatedSales !== undefined) {
           const current = adjustedMetrics.get('total_sales');
           if (current) {
@@ -1882,6 +1871,8 @@ export function useForecastCalculations({
           }
         }
         
+        // Always roll up GP Net from sub-metrics when overrides exist
+        const updatedGpNet = gpNetFromSubs ?? subSums.get('gp_net');
         if (updatedGpNet !== undefined) {
           const current = adjustedMetrics.get('gp_net');
           if (current) {
