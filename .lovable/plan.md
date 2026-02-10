@@ -1,34 +1,45 @@
 
 
-## Refresh Financial Summary Visual Cues on Forecast Drawer Close
+## Fix Missing Tooltips on Monthly Trend Cells
 
 ### Problem
-When the forecast drawer is closed after making changes, the Financial Summary's color-coded performance indicators (green/red/yellow) don't update because the forecast targets data isn't re-fetched.
+The `TrendCellTooltip` component wraps **outside** the `TableCell` and `ContextMenu` components. This causes two issues:
+1. `TooltipTrigger asChild` requires a single child that can accept a ref. The `ContextMenu` component (used for editable cells like Total Sales, GP Net, Sales Expense) does not forward refs, so the tooltip silently fails to attach.
+2. Wrapping outside `TableCell` can break the expected `<tr>` > `<td>` DOM hierarchy.
+
+Sub-metrics are rendered by `SubMetricsRow` which doesn't use `TrendCellTooltip` at all, so they also lack tooltips.
 
 ### Solution
-The `useForecastTargets` hook already exposes a `refetch` function. The `ForecastDrawer` component's `onOpenChange` callback fires when the drawer closes. We just need to trigger `refetch` when the drawer closes.
+Move the tooltip **inside** the table cells, wrapping the displayed content rather than the cell itself.
 
-### File to Modify
+### Technical Changes
 
-**`src/components/financial/FinancialSummary.tsx`**
+**File: `src/components/financial/FinancialSummary.tsx`**
 
-Replace the simple `setForecastDrawerOpen` passed to `ForecastDrawer`'s `onOpenChange` with a wrapper that also calls `refetch` from `useForecastTargets` when the drawer is closing (i.e., `open === false`).
+1. **Refactor `TrendCellTooltip`** to be a content-level wrapper rather than a cell-level wrapper. It will wrap the inner `<span>` or `<div>` content instead of the `<TableCell>`. This means changing its usage from:
+   ```text
+   <TrendCellTooltip ...>
+     <TableCell>...</TableCell>
+   </TrendCellTooltip>
+   ```
+   to:
+   ```text
+   <TableCell>
+     <TrendCellTooltip ...>
+       <span>formatted value</span>
+     </TrendCellTooltip>
+   </TableCell>
+   ```
 
-```text
-// Current (line ~4883):
-onOpenChange={setForecastDrawerOpen}
+2. **Calculated metric cells** (around line 3633): Move `TrendCellTooltip` from wrapping the `<TableCell>` to wrapping the inner `<span>` that displays the formatted value.
 
-// New:
-onOpenChange={(open) => {
-  setForecastDrawerOpen(open);
-  if (!open) {
-    refetch();  // from useForecastTargets destructuring
-  }
-}}
-```
+3. **Editable metric cells** (around line 3688): Move `TrendCellTooltip` from wrapping the `<ContextMenu>` to wrapping the display `<div>` inside the cell (the clickable value display around line 3723). This way the tooltip shows on hover over the displayed value, and the input/context menu functionality remains unaffected.
 
-The `refetch` is already returned from `useForecastTargets` (line ~429) but currently only called on initial mount. We need to ensure it's destructured -- checking current destructuring at that line to confirm `refetch` is included, and adding it if not.
+4. **Quarter trend cells** (around line 3963): Apply the same inside-the-cell pattern for `QuarterTrendCellTooltip`.
+
+5. **Sub-metrics**: The `SubMetricsRow` component renders its own cells independently. To add tooltips there, pass `getForecastTarget` and `precedingQuartersData` (or a simpler lookup function) as props to `SubMetricsRow`, and wrap sub-metric cell values with the same tooltip pattern. Sub-metric forecast keys use the format `sub:{parentKey}:{orderIndex}:{name}` and LY keys use `sub:{parentKey}:{orderIndex}:{name}-M{month}-{prevYear}`.
 
 ### Scope
-- Single file change, ~5 lines modified
-- No new dependencies or hooks needed
+- Primary file: `src/components/financial/FinancialSummary.tsx` (restructure tooltip placement)
+- Secondary file: `src/components/financial/SubMetricsRow.tsx` (add tooltip support for sub-metric cells in trend views)
+
