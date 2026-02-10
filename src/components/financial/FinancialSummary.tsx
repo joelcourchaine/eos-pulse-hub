@@ -1309,6 +1309,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 }
               }
             }
+            
+            // Synthesize percentage sub-metrics from dollar sub-metrics when not stored directly
+            // e.g., sub:gp_percent:NAME = (sub:gp_net:NAME / sub:total_sales:NAME) * 100
+            FINANCIAL_METRICS.forEach(metric => {
+              if (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation) {
+                const { numerator, denominator } = metric.calculation;
+                // Find all numerator sub-metric names stored for this month
+                const prefix = `sub:${numerator}:`;
+                const suffix = `-M${monthObj.month + 1}-${monthObj.year}`;
+                for (const key of Object.keys(averages)) {
+                  if (key.startsWith(prefix) && key.endsWith(suffix)) {
+                    const subName = key.slice(prefix.length, key.length - suffix.length);
+                    const pctKey = `sub:${metric.key}:${subName}${suffix}`;
+                    // Only synthesize if not already stored
+                    if (averages[pctKey] === undefined) {
+                      const numVal = averages[key];
+                      const denKey = `sub:${denominator}:${subName}${suffix}`;
+                      const denVal = averages[denKey];
+                      if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
+                        averages[pctKey] = (numVal / denVal) * 100;
+                      }
+                    }
+                  }
+                }
+              }
+            });
           }
         });
       }
@@ -1525,6 +1551,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               averages[`${normalizedKey}-Q${qtr.quarter}-${qtr.year}`] = avg;
             }
           }
+          
+          // Synthesize percentage sub-metric quarter averages from dollar sub-metrics
+          FINANCIAL_METRICS.forEach(metric => {
+            if (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation) {
+              const { numerator, denominator } = metric.calculation;
+              const prefix = `sub:${numerator}:`;
+              const suffix = `-Q${qtr.quarter}-${qtr.year}`;
+              for (const key of Object.keys(averages)) {
+                if (key.startsWith(prefix) && key.endsWith(suffix)) {
+                  const subName = key.slice(prefix.length, key.length - suffix.length);
+                  const pctKey = `sub:${metric.key}:${subName}${suffix}`;
+                  if (averages[pctKey] === undefined) {
+                    const numVal = averages[key];
+                    const denKey = `sub:${denominator}:${subName}${suffix}`;
+                    const denVal = averages[denKey];
+                    if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
+                      averages[pctKey] = (numVal / denVal) * 100;
+                    }
+                  }
+                }
+              }
+            }
+          });
         });
       }
       
