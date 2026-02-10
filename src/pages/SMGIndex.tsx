@@ -138,7 +138,7 @@ const SMGIndex = () => {
             <img
               src={smgLogo}
               alt="Steve Marshall Group - 60 Years"
-              className="h-16 sm:h-24 object-contain"
+              className="w-72 sm:w-96 lg:w-[500px] object-contain"
             />
           </div>
 
@@ -244,7 +244,7 @@ const SMGIndex = () => {
         {/* Footer with SMG branding */}
         <div className="text-center text-sm text-muted-foreground pt-8 border-t border-border">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img src={smgLogo} alt="Steve Marshall Group" className="h-8 object-contain" />
+            <img src={smgLogo} alt="Steve Marshall Group" className="h-10 sm:h-12 object-contain" />
             <span>×</span>
             <span>Dealer Growth Solutions</span>
           </div>
