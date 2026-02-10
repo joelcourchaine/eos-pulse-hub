@@ -1,79 +1,42 @@
 
-
-## Save Sub-Metric Forecasts on Drawer Open
+## Even Distribution for Total Fixed Expense in Forecast
 
 ### Problem
-The auto-save code added in the last change correctly includes sub-metric forecast values, but it only fires when `isDirtyRef.current = true` -- which only happens when the user actively changes a driver or weight. Simply opening the forecast drawer computes sub-metric values but never persists them because nothing is "dirty."
-
-### Fix
-Add a one-time effect in `ForecastDrawer.tsx` that runs after sub-metric forecasts are first computed. It checks whether any sub-metric forecast entries are missing from the database and, if so, marks the forecast as dirty to trigger the existing auto-save loop.
+When editing the annual total for "Total Fixed Expense" (or its sub-metrics) in the forecast, the value is distributed across months using weighted proportions (based on GP Net share). Fixed expenses should instead be distributed evenly across all 12 months since they don't fluctuate seasonally.
 
 ### Changes
 
 **File: `src/components/financial/ForecastDrawer.tsx`**
 
-Add a new `useEffect` that:
+1. **`handleMainMetricAnnualEdit` (around line 1355-1372):** Before the weighted distribution logic, add a check for `total_fixed_expense` and `semi_fixed_expense`. If the metric key matches, distribute evenly (value / 12) instead of using weights. This is a simple early-return branch similar to the existing special handling for `gp_percent`, `sales_expense_percent`, etc.
 
-1. Runs when the drawer is open, the forecast exists, drivers are initialized, and `subMetricForecasts` has entries
-2. Uses a ref (e.g., `subMetricSeedCheckedRef`) to ensure it only runs once per drawer open session
-3. Checks if any sub-metric keys from `subMetricForecasts` are missing from `entries`
-4. If missing entries are found, calls `markDirty()` to trigger the existing auto-save debounce
+2. **`handleSubMetricEdit` (around line 945):** This function stores an `overriddenAnnualValue` and the calculation engine distributes it. Need to check `useForecastCalculations.ts` to see how sub-metric overrides are distributed monthly.
 
-Reset the ref when the drawer closes (when `open` changes to false).
+**File: `src/hooks/forecast/useForecastCalculations.ts`**
 
+Check how sub-metric overrides with `overriddenAnnualValue` are distributed to monthly values. If they use weights or baseline proportions, update the logic for sub-metrics whose `parentKey` is `total_fixed_expense` (or `semi_fixed_expense`) to use even distribution (value / 12) instead.
+
+### Technical Details
+
+For the parent metric in `handleMainMetricAnnualEdit`:
 ```text
-Pseudocode:
-
-const subMetricSeedCheckedRef = useRef(false);
-
-// Reset when drawer closes
-useEffect(() => {
-  if (!open) subMetricSeedCheckedRef.current = false;
-}, [open]);
-
-// Check once after forecasts are ready
-useEffect(() => {
-  if (!open || !forecast || !driversInitialized.current) return;
-  if (subMetricSeedCheckedRef.current) return;
-  if (!subMetricForecasts || subMetricForecasts.size === 0) return;
-  
-  subMetricSeedCheckedRef.current = true;
-  
-  // Check if any sub-metric forecast values are missing from entries
-  let hasMissing = false;
-  subMetricForecasts.forEach((forecasts) => {
-    forecasts.forEach((sub) => {
-      sub.monthlyValues.forEach((value, month) => {
-        if (value === null || isNaN(value)) return;
-        const exists = entries?.some(
-          e => e.metric_name === sub.key && e.month === month
-        );
-        if (!exists) hasMissing = true;
-      });
-    });
-  });
-  
-  if (hasMissing) markDirty();
-}, [open, forecast, subMetricForecasts, entries]);
+// Before the weighted distribution block:
+if (metricKey === 'total_fixed_expense' || metricKey === 'semi_fixed_expense') {
+  const monthlyValue = newAnnualValue / 12;
+  const updates = weights.map(w => ({
+    month: `${forecastYear}-${String(w.month_number).padStart(2, '0')}`,
+    metricName: metricKey,
+    forecastValue: monthlyValue,
+  }));
+  await bulkUpdateEntries.mutateAsync(updates);
+  await queryClient.invalidateQueries(...);
+  markDirty();
+  return;
+}
 ```
 
-### No Other Changes Needed
-
-- The existing auto-save loop already handles persisting sub-metric values
-- The existing `useForecastTargets` hook already reads all `forecast_entries` including sub-metric keys
-- The existing `getForecastTarget` callback in `FinancialSummary.tsx` already matches sub-metric keys
-
-### How It Works
-
-1. User opens the Forecast Drawer for a department
-2. Sub-metric forecasts are computed from baseline data
-3. The new effect detects that no sub-metric entries exist in the database yet
-4. It sets `isDirtyRef.current = true`
-5. The existing auto-save loop fires after 800ms debounce
-6. Sub-metric forecast values are persisted to `forecast_entries`
-7. User closes the drawer and views Financial Summary
-8. `useForecastTargets` picks up the new sub-metric entries
-9. Visual cues (green/yellow/red) appear on sub-metric rows
+For sub-metrics in `useForecastCalculations.ts`, the same even-distribution logic applies when the override's `parentKey` is `total_fixed_expense` or `semi_fixed_expense`.
 
 ### Files to Modify
-1. `src/components/financial/ForecastDrawer.tsx` -- Add seed-check effect to trigger initial save of sub-metric forecasts
+1. `src/components/financial/ForecastDrawer.tsx` -- Add even-distribution branch for total_fixed_expense/semi_fixed_expense in `handleMainMetricAnnualEdit`
+2. `src/hooks/forecast/useForecastCalculations.ts` -- Update sub-metric override distribution for fixed expense sub-metrics to use even split instead of weighted/proportional
