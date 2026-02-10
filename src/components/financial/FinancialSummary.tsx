@@ -4601,6 +4601,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   )}
                                 >
                                   <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={month.identifier}>
+                                  <div className="w-full">
                                   <TooltipProvider>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -4766,6 +4767,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       )}
                                     </Tooltip>
                                   </TooltipProvider>
+                                  </div>
                                   </TrendCellTooltip>
                                 </TableCell>
                               </ContextMenuTrigger>
