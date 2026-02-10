@@ -1831,6 +1831,58 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_sensitive_data: {
+        Row: {
+          birthday_day: number | null
+          birthday_month: number | null
+          created_at: string
+          id: string
+          start_month: number | null
+          start_year: number | null
+          updated_at: string
+        }
+        Insert: {
+          birthday_day?: number | null
+          birthday_month?: number | null
+          created_at?: string
+          id: string
+          start_month?: number | null
+          start_year?: number | null
+          updated_at?: string
+        }
+        Update: {
+          birthday_day?: number | null
+          birthday_month?: number | null
+          created_at?: string
+          id?: string
+          start_month?: number | null
+          start_year?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_sensitive_data_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_sensitive_data_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles_limited"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_sensitive_data_id_fkey"
+            columns: ["id"]
+            isOneToOne: true
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           birthday_day: number | null
@@ -3631,6 +3683,17 @@ export type Database = {
           width: number
           x_position: number
           y_position: number
+        }[]
+      }
+      get_upcoming_celebrations: {
+        Args: { p_days_ahead?: number; p_store_id?: string }
+        Returns: {
+          celebration_date: string
+          celebration_type: string
+          days_until: number
+          full_name: string
+          profile_id: string
+          years_of_service: number
         }[]
       }
       get_user_department: { Args: { _user_id: string }; Returns: string }
