@@ -874,10 +874,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         });
       }
       
-      // When editing GP%, calculate the new GP Net for the same sub-metric
-      // GP Net = Total Sales × (GP% / 100)
+      // When editing GP%, hold cost constant and back-calculate Total Sales and GP Net
+      // Cost = Total Sales - GP Net (stays fixed)
+      // newTotalSales = Cost / (1 - newGP% / 100)
+      // newGpNet = newTotalSales - Cost
       if (parentKey === 'gp_percent') {
-        // Find the matching total_sales sub-metric to calculate GP Net
         const gpNetSubMetrics = subMetricForecasts?.get('gp_net') || [];
         const totalSalesSubMetrics = subMetricForecasts?.get('total_sales') || [];
         
@@ -895,26 +896,50 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         });
         
         if (matchingGpNet && matchingTotalSales) {
-          // Get the current or overridden Total Sales value
+          // Get current values (override or forecast)
           const totalSalesOverride = updated.find(o => o.subMetricKey === matchingTotalSales.key);
           const totalSalesValue = totalSalesOverride?.overriddenAnnualValue ?? matchingTotalSales.annualValue;
           
-          // Calculate new GP Net = Total Sales × (new GP% / 100)
-          const newGpNetValue = totalSalesValue * (newAnnualValue / 100);
+          const gpNetOverride = updated.find(o => o.subMetricKey === matchingGpNet.key);
+          const gpNetValue = gpNetOverride?.overriddenAnnualValue ?? matchingGpNet.annualValue;
           
-          // Add/update GP Net override
-          const gpNetOverrideIndex = updated.findIndex(o => o.subMetricKey === matchingGpNet.key);
-          if (gpNetOverrideIndex >= 0) {
-            updated[gpNetOverrideIndex] = { 
-              subMetricKey: matchingGpNet.key, 
-              parentKey: 'gp_net', 
-              overriddenAnnualValue: newGpNetValue 
+          // Cost stays constant
+          const cost = totalSalesValue - gpNetValue;
+          
+          // Back-calculate from new GP%
+          const newGpDecimal = newAnnualValue / 100;
+          const newTotalSales = newGpDecimal < 1 ? cost / (1 - newGpDecimal) : totalSalesValue;
+          const newGpNet = newTotalSales - cost;
+          
+          // Update Total Sales override
+          const tsOverrideIndex = updated.findIndex(o => o.subMetricKey === matchingTotalSales.key);
+          if (tsOverrideIndex >= 0) {
+            updated[tsOverrideIndex] = {
+              subMetricKey: matchingTotalSales.key,
+              parentKey: 'total_sales',
+              overriddenAnnualValue: newTotalSales,
             };
           } else {
-            updated.push({ 
-              subMetricKey: matchingGpNet.key, 
-              parentKey: 'gp_net', 
-              overriddenAnnualValue: newGpNetValue 
+            updated.push({
+              subMetricKey: matchingTotalSales.key,
+              parentKey: 'total_sales',
+              overriddenAnnualValue: newTotalSales,
+            });
+          }
+          
+          // Update GP Net override
+          const gpNetOverrideIndex = updated.findIndex(o => o.subMetricKey === matchingGpNet.key);
+          if (gpNetOverrideIndex >= 0) {
+            updated[gpNetOverrideIndex] = {
+              subMetricKey: matchingGpNet.key,
+              parentKey: 'gp_net',
+              overriddenAnnualValue: newGpNet,
+            };
+          } else {
+            updated.push({
+              subMetricKey: matchingGpNet.key,
+              parentKey: 'gp_net',
+              overriddenAnnualValue: newGpNet,
             });
           }
         }
