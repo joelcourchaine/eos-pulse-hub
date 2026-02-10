@@ -1,75 +1,51 @@
 
-## Fix: Add LY Tooltip Data for Sub-Metrics in Regular Quarter View
+## Fix: LY Tooltips for Percentage Sub-Metrics with Non-Matching Denominators
 
 ### Problem
-The `loadPrecedingQuartersData` function has three branches:
-1. **Monthly Trend mode** -- stores individual sub-metric M-format keys and synthesizes percentage sub-metrics (working)
-2. **Quarter Trend mode** -- stores sub-metric Q-format keys and synthesizes percentage sub-metrics (working)
-3. **Regular Quarter mode** (Q1, Q2, Q3, Q4) -- only stores parent metric Q-format averages, completely missing sub-metric storage
+The LY tooltip synthesis for percentage sub-metrics only works when the numerator and denominator have matching sub-metric names (e.g., GP %: `sub:gp_net:CUST. MECH. LABOUR` / `sub:total_sales:CUST. MECH. LABOUR`).
 
-When `SubMetricLYTooltip` tries to look up `sub:gp_percent:CUST. MECH. LABOUR-M1-2024`, there's nothing in `precedingQuartersData` because the regular quarter branch never stored it.
+For metrics like **Sales Expense %**, **Semi Fixed Expense %**, and **Total Fixed Expense %**, the denominator is `gp_net` but the sub-metric names are completely different (e.g., "ADVERTISING" under `sales_expense` has no corresponding "ADVERTISING" under `gp_net`). The synthesis fails silently because it tries to find `sub:gp_net:ADVERTISING-M1-2025` which doesn't exist.
 
 ### Fix (single file: `src/components/financial/FinancialSummary.tsx`)
 
-After the existing parent metric calculations in the non-trend branch (~line 1876, just before `setPrecedingQuartersData`), add:
+Update the percentage synthesis blocks in **both** the Monthly Trend branch and the Non-trend (Regular Quarter) branch to add a fallback: when a matching denominator sub-metric doesn't exist, use the parent-level denominator total instead.
 
-1. **Store individual sub-metric M-format entries** for each month in both the previous year quarter and current year quarter, mirroring the logic at lines 1296-1311:
-   - Loop through each month's raw data entries
-   - For entries starting with `sub:`, extract parent key and sub-name (stripping the order index)
-   - Store as `sub:{parentKey}:{subName}-M{month}-{year}`
-
-2. **Synthesize percentage sub-metrics** for the same months, mirroring lines 1313-1337:
-   - For each percentage metric with a numerator/denominator calculation, iterate through stored numerator sub-metric keys
-   - Calculate `(numerator / denominator) * 100` and store as `sub:{percentageKey}:{subName}-M{month}-{year}`
-   - Only synthesize if no direct value is already stored
+The change applies in **two locations** (same logic in both):
+1. Monthly Trend branch (~line 1326-1332)
+2. Non-trend branch (~line 1906-1912)
 
 ### Technical Details
 
-The code block to add is essentially a copy of the same pattern used in the Monthly Trend branch, applied to the `allRows` data and `allMonthIds` already loaded in the non-trend branch:
+Current logic (fails for non-matching denominators):
+```text
+numerator = sub:sales_expense:ADVERTISING-M1-2025
+denominator = sub:gp_net:ADVERTISING-M1-2025   <-- doesn't exist!
+result = undefined (no tooltip)
+```
+
+Updated logic (falls back to parent denominator):
+```text
+numerator = sub:sales_expense:ADVERTISING-M1-2025
+denominator = sub:gp_net:ADVERTISING-M1-2025   <-- doesn't exist
+fallback  = gp_net-M1-2025                     <-- parent total exists!
+result = (numerator / fallback) * 100
+```
+
+In both synthesis blocks, after the existing denominator lookup fails, add a fallback to the parent-level denominator:
 
 ```
-// After line ~1876 (after current year quarter averages calculation)
-// Store individual sub-metric entries for LY tooltip lookups
-for (const monthId of allMonthIds) {
-  const monthParts = monthId.split('-');
-  const yr = parseInt(monthParts[0], 10);
-  const mo = parseInt(monthParts[1], 10);
-  const monthEntries = data.filter(e => e.month === monthId);
-  
-  for (const entry of monthEntries) {
-    if (entry.metric_name?.startsWith('sub:') && entry.value != null) {
-      const parts = entry.metric_name.split(':');
-      if (parts.length >= 4) {
-        const parentKey = parts[1];
-        const subName = parts.slice(3).join(':');
-        averages[`sub:${parentKey}:${subName}-M${mo}-${yr}`] = entry.value;
-      }
-    }
+// Existing: try sub-metric denominator
+const denVal = averages[denKey];
+if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
+  averages[pctKey] = (numVal / denVal) * 100;
+} else if (numVal !== undefined) {
+  // Fallback: use parent-level denominator total
+  const parentDenKey = `${denominator}${suffix}`;
+  const parentDenVal = averages[parentDenKey];
+  if (parentDenVal !== undefined && parentDenVal !== 0) {
+    averages[pctKey] = (numVal / parentDenVal) * 100;
   }
-  
-  // Synthesize percentage sub-metrics
-  FINANCIAL_METRICS.forEach(metric => {
-    if (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation) {
-      const { numerator, denominator } = metric.calculation;
-      const prefix = `sub:${numerator}:`;
-      const suffix = `-M${mo}-${yr}`;
-      for (const key of Object.keys(averages)) {
-        if (key.startsWith(prefix) && key.endsWith(suffix)) {
-          const subName = key.slice(prefix.length, key.length - suffix.length);
-          const pctKey = `sub:${metric.key}:${subName}${suffix}`;
-          if (averages[pctKey] === undefined) {
-            const numVal = averages[key];
-            const denKey = `sub:${denominator}:${subName}${suffix}`;
-            const denVal = averages[denKey];
-            if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
-              averages[pctKey] = (numVal / denVal) * 100;
-            }
-          }
-        }
-      }
-    }
-  });
 }
 ```
 
-This ensures that when viewing Q1 2026, the sub-metric LY tooltips can find 2025 data stored with M-format keys matching the lookup pattern used by `SubMetricLYTooltip`.
+This mirrors the runtime calculation logic already used in `SubMetricsRow` (lines 547-553) where it falls back to the parent denominator total when no matching sub-metric denominator exists.
