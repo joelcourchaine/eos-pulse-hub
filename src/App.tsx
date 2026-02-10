@@ -11,6 +11,7 @@ import { AnnouncementBanner } from "@/components/announcements/AnnouncementBanne
 import { FloatingSupportButton } from "@/components/support/FloatingSupportButton";
 import Index from "./pages/Index";
 import MurrayIndex from "./pages/MurrayIndex";
+import SMGIndex from "./pages/SMGIndex";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Enterprise from "./pages/Enterprise";
@@ -38,7 +39,10 @@ const queryClient = new QueryClient();
 const HomeRoute = () => {
   const hostname = window.location.hostname;
   const isMurrayDomain = hostname === "murraygrowth.ca" || hostname === "www.murraygrowth.ca";
-  return isMurrayDomain ? <MurrayIndex /> : <Index />;
+  const isSMGDomain = hostname === "smggrowth.ca" || hostname === "www.smggrowth.ca";
+  if (isMurrayDomain) return <MurrayIndex />;
+  if (isSMGDomain) return <SMGIndex />;
+  return <Index />;
 };
 
 const App = () => {
