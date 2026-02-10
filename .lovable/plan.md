@@ -1,83 +1,53 @@
 
 
-## Fix: Correct Nissan 2026 Mapping Direction
+## Save Sub-Metric Forecast Values for Use as Targets
 
-### What Went Wrong
+### Problem
+The forecast system calculates sub-metric values (e.g., individual line items under Total Direct Expenses) but only saves parent-level metrics to `forecast_entries`. The Financial Summary's `useForecastTargets` hook reads from `forecast_entries` to display green/yellow/red indicators, so sub-metrics never get visual cues because their forecast values simply aren't stored.
 
-The previous migration assumed a row was **added** (shifting rows down by +1). The image shows the opposite: **"DIGITAL ADVERTISING (Memo)" was removed** in 2026, shifting everything from row 27 onward **up by 1**.
+### Approach
+Extend the existing auto-save logic in `ForecastDrawer.tsx` to also persist sub-metric forecast values to `forecast_entries`. Since `useForecastTargets` already queries all entries keyed by `metric_name:month`, once sub-metric values are stored with keys like `sub:total_direct_expenses:010:DATA PROCESSING`, the existing `getForecastTarget` callback in `FinancialSummary.tsx` will pick them up automatically -- no changes needed there.
 
-### Current (Incorrect) State vs. What We Need
+### Changes
 
-**Service Department example (Column D):**
+**File: `src/components/financial/ForecastDrawer.tsx`**
 
-| Metric | 2025 Cell | Current 2026 (WRONG) | Correct 2026 |
-|--------|-----------|---------------------|--------------|
-| 006: DIGITAL ADVERTISING | D27 | D27 (universal) | **REMOVED** |
-| 007: ADVERTISING - FACTORY | D28 | D28 (universal) | D27 |
-| 008: POLICY ADJUSTMENT | D29 | D29 (universal) | D28 |
-| 009: WARRANTY ADJUSTMENT | D30 | D30 (universal) | D29 |
-| 010: DATA PROCESSING | D31 | D32 (+1 wrong) | D30 |
-| 011: MEMBERSHIP | D32 | D33 (+1 wrong) | D31 |
-| 012: FREIGHT | D33 | D34 (+1 wrong) | D32 |
-| 013: TRAINING | D34 | D35 (+1 wrong) | D33 |
-| 014: INTEREST - FLOORPLAN | D35 | D36 (+1 wrong) | D34 |
-| 015: NIIF (ICE) | D36 | D37 (+1 wrong) | D35 |
-| 016: TRAVEL & ENTERTAIN | D37 | D38 (+1 wrong) | D36 |
-| total_direct_expenses | D38 | D39 (+1 wrong) | D37 |
-| total_fixed_expense | D61 | D62 (+1 wrong) | D60 |
+In the auto-save effect (around line 687-769), after building updates from `currentMonthlyValues` (parent metrics), also iterate over `subMetricForecasts` and add their monthly values to the updates array.
 
-Same pattern applies to **Parts (Col H)** and **Body Shop (Col L)**.
+The sub-metric forecast keys are already in the format `sub:{parentKey}:{orderIndex}:{name}` which matches what the `getForecastTarget` callback in FinancialSummary expects.
 
-### Migration Plan
+```text
+After line 744 (after the parent metrics loop):
 
-A single SQL migration that:
-
-1. **Delete all incorrect 2026 mappings** created by the previous migration
-2. **Set "DIGITAL ADVERTISING" (006)** to `effective_year = 2025` (it doesn't exist in 2026)
-3. **Set sub-metrics 007-009** (currently universal/NULL) to `effective_year = 2025` and create 2026 versions shifted -1
-4. **Fix sub-metrics 010-016** 2025 mappings stay as-is; update incorrect 2026 mappings to shift -1 from original (not +1)
-5. **Fix parent metrics** (total_direct_expenses, total_fixed_expense): update 2026 versions to -1
-6. **Delete incorrect January 2026 data** for re-import
-
-### Affected Departments (all on Nissan3 sheet)
-
-- Service Department (Column D)
-- Parts Department (Column H)
-- Body Shop Department (Column L)
-
-### No Code Changes Needed
-
-The `fetchCellMappings` year-aware logic from the previous change is correct. Only the database mapping values need fixing.
-
-### Technical Details
-
-```sql
--- 1. Delete wrong 2026 mappings for 010-016, totals (all 3 depts)
-DELETE FROM financial_cell_mappings
-WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
-  AND effective_year = 2026;
-
--- 2. Mark DIGITAL ADVERTISING (006) as 2025-only
-UPDATE financial_cell_mappings
-SET effective_year = 2025
-WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
-  AND metric_key LIKE '%006:DIGITAL ADVERTISING%'
-  AND effective_year IS NULL;
-
--- 3. Mark 007-009 as 2025-only (they were universal)
-UPDATE financial_cell_mappings
-SET effective_year = 2025
-WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
-  AND (metric_key LIKE '%007:%' OR metric_key LIKE '%008:%' OR metric_key LIKE '%009:%')
-  AND effective_year IS NULL;
-
--- 4. Create correct 2026 mappings for 007-016 and parents
---    (shifted -1 from 2025 cell references)
--- e.g., Service 007: D28 -> D27, 008: D29 -> D28, etc.
--- Parts 007: H28 -> H27, etc.
--- Body Shop 007: L28 -> L27, etc.
-
--- 5. Delete bad January 2026 financial data for re-import
+1. Get the latest subMetricForecasts from a ref
+2. For each parent key in subMetricForecasts:
+   - For each sub-metric forecast entry:
+     - For each month in its monthlyValues:
+       - Check if an entry already exists with this key+month
+       - If value has changed, add to updates array
 ```
 
-After approval, the full SQL will handle all three departments with the correct -1 cell reference shift for every affected row.
+This needs a new ref to track `subMetricForecasts`:
+- Add `latestSubMetricForecastsRef` alongside the existing `latestMonthlyValuesRef`
+- Keep it updated in the same `useEffect` that updates `latestMonthlyValuesRef`
+
+**File: `src/hooks/forecast/useForecastCalculations.ts`**
+
+The `SubMetricForecast` interface already has `key` (e.g., `sub:total_direct_expenses:010:DATA PROCESSING`) and `monthlyValues` map. No changes needed here -- the data is already available.
+
+### How It Works End-to-End
+
+1. User opens the Forecast Drawer and adjusts drivers/weights
+2. Auto-save fires, now saving both parent metrics AND sub-metric values to `forecast_entries`
+3. User closes the Forecast Drawer and views the Financial Summary
+4. `useForecastTargets` fetches all `forecast_entries` including sub-metric keys
+5. `getForecastTarget` in FinancialSummary matches `sub:parentKey:orderIndex:name` keys
+6. Sub-metrics now show green/yellow/red visual cues based on forecast values
+
+### Edge Cases
+- Sub-metrics that are synthesized (e.g., sales_expense_percent sub-metrics derived from dollar amounts) will also be saved, providing targets for percentage-type sub-metrics
+- The `targetDirection` for sub-metrics will inherit from their parent metric (already handled in the existing `getForecastTarget` callback)
+- Existing forecasts will get sub-metric entries on the next auto-save trigger (opening the drawer is sufficient)
+
+### Files to Modify
+1. `src/components/financial/ForecastDrawer.tsx` -- Add sub-metric forecast values to the auto-save loop
