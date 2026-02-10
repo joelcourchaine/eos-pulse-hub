@@ -1875,6 +1875,48 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       }
     });
 
+    // Store individual sub-metric M-format entries for LY tooltip lookups
+    for (const monthId of allMonthIds) {
+      const monthParts = monthId.split('-');
+      const yr = parseInt(monthParts[0], 10);
+      const mo = parseInt(monthParts[1], 10);
+      const monthEntries = data.filter(e => e.month === monthId);
+
+      for (const entry of monthEntries) {
+        if (entry.metric_name?.startsWith('sub:') && entry.value != null) {
+          const parts = entry.metric_name.split(':');
+          if (parts.length >= 4) {
+            const parentKey = parts[1];
+            const subName = parts.slice(3).join(':');
+            averages[`sub:${parentKey}:${subName}-M${mo}-${yr}`] = entry.value;
+          }
+        }
+      }
+
+      // Synthesize percentage sub-metrics
+      FINANCIAL_METRICS.forEach(metric => {
+        if (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation) {
+          const { numerator, denominator } = metric.calculation as { numerator: string; denominator: string };
+          const prefix = `sub:${numerator}:`;
+          const suffix = `-M${mo}-${yr}`;
+          for (const key of Object.keys(averages)) {
+            if (key.startsWith(prefix) && key.endsWith(suffix)) {
+              const subName = key.slice(prefix.length, key.length - suffix.length);
+              const pctKey = `sub:${metric.key}:${subName}${suffix}`;
+              if (averages[pctKey] === undefined) {
+                const numVal = averages[key];
+                const denKey = `sub:${denominator}:${subName}${suffix}`;
+                const denVal = averages[denKey];
+                if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
+                  averages[pctKey] = (numVal / denVal) * 100;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
     // Only apply if this is still the latest request
     if (requestId !== precedingDataRequestIdRef.current) {
       console.log('[loadPrecedingQuartersData] Non-trend mode - stale request, discarding');
