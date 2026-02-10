@@ -467,6 +467,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // doesn't need to depend on large Map objects (which change identity often).
   const latestMonthlyValuesRef = useRef(monthlyValues);
   const latestEntriesRef = useRef(entries);
+  const latestSubMetricForecastsRef = useRef(subMetricForecasts);
 
   useEffect(() => {
     latestMonthlyValuesRef.current = monthlyValues;
@@ -475,6 +476,10 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   useEffect(() => {
     latestEntriesRef.current = entries;
   }, [entries]);
+
+  useEffect(() => {
+    latestSubMetricForecastsRef.current = subMetricForecasts;
+  }, [subMetricForecasts]);
 
   // Create forecast if it doesn't exist when drawer opens
   useEffect(() => {
@@ -743,6 +748,34 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           }
         });
       });
+
+      // Also persist sub-metric forecast values so they show as targets in Financial Summary
+      const currentSubMetricForecasts = latestSubMetricForecastsRef.current;
+      if (currentSubMetricForecasts) {
+        currentSubMetricForecasts.forEach((forecasts, _parentKey) => {
+          forecasts.forEach((sub) => {
+            sub.monthlyValues.forEach((value, month) => {
+              if (value === null || value === undefined || isNaN(value)) return;
+
+              const entry = currentEntries.find((e) => e.month === month && e.metric_name === sub.key);
+
+              // Skip if locked
+              if (entry?.is_locked) return;
+
+              const prevForecast = entry?.forecast_value ?? null;
+              const forecastChanged = prevForecast === null ? true : Math.abs(prevForecast - value) > EPS;
+
+              if (!entry || forecastChanged) {
+                updates.push({
+                  month,
+                  metricName: sub.key,
+                  forecastValue: value,
+                });
+              }
+            });
+          });
+        });
+      }
 
       if (updates.length > 0) {
         bulkUpdateEntries.mutate(updates, {
