@@ -771,13 +771,44 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Handle cell edits - do NOT auto-lock; locking is only via explicit user action
   const handleCellEdit = (month: string, metricName: string, value: number) => {
     if (view === 'quarter') {
-      // Distribute to months (no auto-lock)
       const distributions = distributeQuarterToMonths(month as 'Q1' | 'Q2' | 'Q3' | 'Q4', metricName, value);
-      distributions.forEach((d) => {
-        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
-      });
+      if (metricName === 'gp_percent') {
+        const updates: { month: string; metricName: string; forecastValue: number }[] = [];
+        distributions.forEach((d) => {
+          updates.push({ month: d.month, metricName: 'gp_percent', forecastValue: d.value });
+          const monthData = monthlyValues.get(d.month);
+          const currentSales = monthData?.get('total_sales')?.value ?? 0;
+          const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
+          const cost = currentSales - currentGpNet;
+          const gpDecimal = d.value / 100;
+          const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
+          const newGpNet = newSales - cost;
+          updates.push({ month: d.month, metricName: 'total_sales', forecastValue: newSales });
+          updates.push({ month: d.month, metricName: 'gp_net', forecastValue: newGpNet });
+        });
+        bulkUpdateEntries.mutate(updates);
+      } else {
+        distributions.forEach((d) => {
+          updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
+        });
+      }
     } else {
-      updateEntry.mutate({ month, metricName, forecastValue: value });
+      if (metricName === 'gp_percent') {
+        const monthData = monthlyValues.get(month);
+        const currentSales = monthData?.get('total_sales')?.value ?? 0;
+        const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
+        const cost = currentSales - currentGpNet;
+        const gpDecimal = value / 100;
+        const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
+        const newGpNet = newSales - cost;
+        bulkUpdateEntries.mutate([
+          { month, metricName: 'gp_percent', forecastValue: value },
+          { month, metricName: 'total_sales', forecastValue: newSales },
+          { month, metricName: 'gp_net', forecastValue: newGpNet },
+        ]);
+      } else {
+        updateEntry.mutate({ month, metricName, forecastValue: value });
+      }
     }
   };
 
