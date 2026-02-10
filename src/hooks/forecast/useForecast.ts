@@ -75,13 +75,25 @@ export function useForecast(departmentId: string | undefined, year: number) {
     queryFn: async () => {
       if (!forecast?.id) return [];
       
-      const { data, error } = await supabase
-        .from('forecast_entries')
-        .select('*')
-        .eq('forecast_id', forecast.id);
+      const allRows: ForecastEntry[] = [];
+      let from = 0;
+      const pageSize = 1000;
       
-      if (error) throw error;
-      return data as ForecastEntry[];
+      while (true) {
+        const { data: page, error } = await supabase
+          .from('forecast_entries')
+          .select('*')
+          .eq('forecast_id', forecast.id)
+          .range(from, from + pageSize - 1);
+        
+        if (error) throw error;
+        if (!page || page.length === 0) break;
+        allRows.push(...(page as ForecastEntry[]));
+        if (page.length < pageSize) break;
+        from += pageSize;
+      }
+      
+      return allRows;
     },
     enabled: !!forecast?.id,
   });
