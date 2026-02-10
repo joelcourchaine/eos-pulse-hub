@@ -2013,6 +2013,95 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     return value.toString();
   };
 
+  /**
+   * Tooltip wrapper for trend cells showing Last Year and Forecast values.
+   * Uses a monospace-like grid layout so dollar amounts align perfectly.
+   */
+  const TrendCellTooltip = ({ metricKey, metricType, monthIdentifier, children }: {
+    metricKey: string;
+    metricType: string;
+    monthIdentifier: string; // e.g. "2025-03"
+    children: React.ReactNode;
+  }) => {
+    const monthNum = parseInt(monthIdentifier.split('-')[1], 10);
+    const yr = parseInt(monthIdentifier.split('-')[0], 10);
+    const lyKey = `${metricKey}-M${monthNum}-${yr - 1}`;
+    const lyValue = precedingQuartersData[lyKey];
+    const forecastValue = getForecastTarget(metricKey, monthIdentifier);
+
+    if (lyValue == null && forecastValue == null) return <>{children}</>;
+
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
+          <TooltipContent side="top" className="p-2">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+              {lyValue != null && (
+                <>
+                  <span className="text-muted-foreground">LY</span>
+                  <span className="text-right">{formatTarget(lyValue, metricType)}</span>
+                </>
+              )}
+              {forecastValue != null && (
+                <>
+                  <span className="text-muted-foreground">Forecast</span>
+                  <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
+                </>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  /**
+   * Tooltip wrapper for quarter trend cells showing Last Year and Forecast values.
+   */
+  const QuarterTrendCellTooltip = ({ metricKey, metricType, quarter: qtr, qtrYear, children }: {
+    metricKey: string;
+    metricType: string;
+    quarter: number;
+    qtrYear: number;
+    children: React.ReactNode;
+  }) => {
+    // Last year: same quarter, previous year
+    const lyKey = `${metricKey}-Q${qtr}-${qtrYear - 1}`;
+    const lyValue = precedingQuartersData[lyKey];
+
+    // Forecast: average of the 3 monthly forecast values for this quarter
+    const qtrMonthIds = getQuarterMonthsForCalculation(qtr, qtrYear).map(m => m.identifier);
+    const forecastValues = qtrMonthIds.map(mid => getForecastTarget(metricKey, mid)).filter((v): v is number => v !== null);
+    const forecastValue = forecastValues.length > 0 ? forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length : null;
+
+    if (lyValue == null && forecastValue == null) return <>{children}</>;
+
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
+          <TooltipContent side="top" className="p-2">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+              {lyValue != null && (
+                <>
+                  <span className="text-muted-foreground">LY</span>
+                  <span className="text-right">{formatTarget(lyValue, metricType)}</span>
+                </>
+              )}
+              {forecastValue != null && (
+                <>
+                  <span className="text-muted-foreground">Forecast</span>
+                  <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
+                </>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
   const canEditTargets = () => {
     return userRole === 'super_admin' || userRole === 'store_gm' || userRole === 'department_manager' || userRole === 'fixed_ops_manager';
   };
@@ -3541,25 +3630,27 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     }
                                     
                                     return (
-                                      <TableCell
-                                        key={period.identifier}
-                                        className={cn(
-                                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
-                                          status === "success" && "bg-success/10",
-                                          status === "warning" && "bg-warning/10",
-                                          status === "destructive" && "bg-destructive/10",
-                                          isDepartmentProfit && "bg-primary/5",
-                                          isNetSellingGross && !status && "bg-muted/30"
-                                        )}
-                                      >
-                                        <span className={cn(
-                                          status === "success" && "text-success font-medium",
-                                          status === "warning" && "text-warning font-medium",
-                                          status === "destructive" && "text-destructive font-medium"
-                                        )}>
-                                          {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
-                                        </span>
-                                      </TableCell>
+                                      <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
+                                        <TableCell
+                                          key={period.identifier}
+                                          className={cn(
+                                            "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
+                                            status === "success" && "bg-success/10",
+                                            status === "warning" && "bg-warning/10",
+                                            status === "destructive" && "bg-destructive/10",
+                                            isDepartmentProfit && "bg-primary/5",
+                                            isNetSellingGross && !status && "bg-muted/30"
+                                          )}
+                                        >
+                                          <span className={cn(
+                                            status === "success" && "text-success font-medium",
+                                            status === "warning" && "text-warning font-medium",
+                                            status === "destructive" && "text-destructive font-medium"
+                                          )}>
+                                            {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
+                                          </span>
+                                        </TableCell>
+                                      </TrendCellTooltip>
                                     );
                                   }
                                   
@@ -3594,18 +3685,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   }
                                   
                                   return (
-                                    <ContextMenu key={period.identifier}>
-                                      <ContextMenuTrigger asChild>
-                                        <TableCell
-                                          className={cn(
-                                            "p-1 relative min-w-[125px] max-w-[125px]",
-                                            status === "success" && "bg-success/10",
-                                            status === "warning" && "bg-warning/10",
-                                            status === "destructive" && "bg-destructive/10",
-                                            isDepartmentProfit && "bg-primary/5",
-                                            isNetSellingGross && !status && "bg-muted/30"
-                                          )}
-                                        >
+                                    <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
+                                      <ContextMenu key={period.identifier}>
+                                        <ContextMenuTrigger asChild>
+                                          <TableCell
+                                            className={cn(
+                                              "p-1 relative min-w-[125px] max-w-[125px]",
+                                              status === "success" && "bg-success/10",
+                                              status === "warning" && "bg-warning/10",
+                                              status === "destructive" && "bg-destructive/10",
+                                              isDepartmentProfit && "bg-primary/5",
+                                              isNetSellingGross && !status && "bg-muted/30"
+                                            )}
+                                          >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
                                             {(() => {
                                               // Check localValues first (most current), then mValue from entries
@@ -3731,8 +3823,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           <AlertCircle className="h-4 w-4 mr-2" />
                                           Create Issue from Cell
                                         </ContextMenuItem>
-                                      </ContextMenuContent>
-                                    </ContextMenu>
+                                        </ContextMenuContent>
+                                      </ContextMenu>
+                                    </TrendCellTooltip>
                                   );
                                 }
                                
@@ -3867,26 +3960,28 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                             
                             return (
-                              <TableCell
-                                key={qtr.label}
-                                className={cn(
-                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
-                                  status === "success" && "bg-success/10",
-                                  status === "warning" && "bg-warning/10",
-                                  status === "destructive" && "bg-destructive/10",
-                                  !status && "text-muted-foreground",
-                                  isDepartmentProfit && "bg-primary/5",
-                                  isNetSellingGross && !status && "bg-muted/30"
-                                )}
-                              >
-                                <span className={cn(
-                                  status === "success" && "text-success font-medium",
-                                  status === "warning" && "text-warning font-medium",
-                                  status === "destructive" && "text-destructive font-medium"
-                                )}>
-                                  {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
-                                </span>
-                              </TableCell>
+                              <QuarterTrendCellTooltip metricKey={metric.key} metricType={metric.type} quarter={qtr.quarter} qtrYear={qtr.year}>
+                                <TableCell
+                                  key={qtr.label}
+                                  className={cn(
+                                    "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
+                                    status === "success" && "bg-success/10",
+                                    status === "warning" && "bg-warning/10",
+                                    status === "destructive" && "bg-destructive/10",
+                                    !status && "text-muted-foreground",
+                                    isDepartmentProfit && "bg-primary/5",
+                                    isNetSellingGross && !status && "bg-muted/30"
+                                  )}
+                                >
+                                  <span className={cn(
+                                    status === "success" && "text-success font-medium",
+                                    status === "warning" && "text-warning font-medium",
+                                    status === "destructive" && "text-destructive font-medium"
+                                  )}>
+                                    {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                                  </span>
+                                </TableCell>
+                              </QuarterTrendCellTooltip>
                             );
                           })
                         ) : (
