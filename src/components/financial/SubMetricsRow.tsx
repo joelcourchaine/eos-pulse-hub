@@ -508,9 +508,6 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
                     )}
-                    {status && subTargetSource === 'forecast' && !hasCellIssue(subMetric.name, period.identifier) && (
-                      <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
-                    )}
                   </TableCell>
                 );
 
@@ -711,12 +708,44 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             {quarterTrendPeriods.map((qtr) => {
               const quarterValue = getQuarterSubMetricValue(subMetric.name, qtr);
               
+              // Get forecast target for this quarter by averaging monthly forecast values
+              let qtrForecastTarget: number | null = null;
+              if (getForecastTarget && getQuarterMonths) {
+                const qtrMonthIds = getQuarterMonths(qtr.quarter, qtr.year);
+                const forecastValues = qtrMonthIds.map(mid => getForecastTarget(subMetric.name, mid)).filter((v): v is number => v !== null);
+                if (forecastValues.length > 0) {
+                  qtrForecastTarget = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                }
+              }
+              
+              // Get quarterly manual target
+              const quarterlyTargetValue = getSubMetricTarget && currentYear
+                ? getSubMetricTarget(subMetric.name, qtr.quarter, qtr.year)
+                : null;
+              
+              const effectiveTarget = quarterlyTargetValue ?? qtrForecastTarget;
+              const status = effectiveTarget !== null 
+                ? getVarianceStatus(quarterValue, effectiveTarget, 'above') 
+                : null;
+              
               return (
                 <TableCell 
                   key={qtr.label} 
-                  className="text-center py-1 text-xs min-w-[125px] max-w-[125px] text-muted-foreground"
+                  className={cn(
+                    "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
+                    status === 'success' && "bg-success/10",
+                    status === 'warning' && "bg-warning/10",
+                    status === 'destructive' && "bg-destructive/10",
+                    !status && "text-muted-foreground"
+                  )}
                 >
-                  {quarterValue !== null ? formatValue(quarterValue) : "-"}
+                  <span className={cn(
+                    status === 'success' && "text-success font-medium",
+                    status === 'warning' && "text-warning font-medium",
+                    status === 'destructive' && "text-destructive font-medium"
+                  )}>
+                    {quarterValue !== null ? formatValue(quarterValue) : "-"}
+                  </span>
                 </TableCell>
               );
             })}
@@ -901,9 +930,6 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     )}
                     {hasCellIssue(subMetric.name, monthId) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
-                    )}
-                    {status && subTargetSource2 === 'forecast' && !hasCellIssue(subMetric.name, monthId) && (
-                      <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                     )}
                   </TableCell>
                 </ContextMenuTrigger>
