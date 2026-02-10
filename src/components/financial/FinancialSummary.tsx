@@ -428,6 +428,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const {
     getForecastTarget,
     hasForecastTargets,
+    refetch: refetchForecastTargets,
   } = useForecastTargets(departmentId, year);
 
   /**
@@ -4880,7 +4881,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       
       <ForecastDrawer
         open={forecastDrawerOpen}
-        onOpenChange={setForecastDrawerOpen}
+        onOpenChange={(open) => {
+          setForecastDrawerOpen(open);
+          if (!open) {
+            refetchForecastTargets();
+          }
+        }}
         departmentId={departmentId}
         departmentName={departmentName || 'Department'}
         onTargetsPushed={loadTargets}
