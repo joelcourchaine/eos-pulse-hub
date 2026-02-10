@@ -15,8 +15,8 @@ import {
   Download,
   X,
 } from "lucide-react";
-import smgLogo from "@/assets/SMG60/Black Horizontal PNG.png";
-import smgLogoWhite from "@/assets/SMG60/White Horizontal PNG.png";
+import smgLogo from "@/assets/SMG60/Black-Horizontal-PNG.png";
+import smgLogoWhite from "@/assets/SMG60/White-Horizontal-PNG.png";
 import featureGauges from "@/assets/feature-gauges.png";
 import featureMeeting from "@/assets/feature-meeting.png";
 import featureScorecard from "@/assets/feature-scorecard-final.png";
