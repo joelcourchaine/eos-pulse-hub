@@ -28,6 +28,7 @@ import { useSubMetricTargets } from "@/hooks/useSubMetricTargets";
 import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
 import { ForecastDrawer } from "./ForecastDrawer";
 import { useRockTargets } from "@/hooks/useRockTargets";
+import { useForecastTargets } from "@/hooks/useForecastTargets";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -422,6 +423,43 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     getRockForSubMetric,
     refetch: refetchRocks,
   } = useRockTargets(departmentId, quarter > 0 ? quarter : currentQuarter, year, true);
+
+  // Fetch forecast entries for use as fallback targets
+  const {
+    getForecastTarget,
+    hasForecastTargets,
+  } = useForecastTargets(departmentId, year);
+
+  /**
+   * Resolve target for a given metric+month. Priority:
+   * 1. Manual quarterly target from financial_targets
+   * 2. Forecast entry fallback
+   */
+  const getTargetForMonth = useCallback((metricKey: string, monthId: string, metricDef: { targetDirection: "above" | "below"; type: string }): { value: number; direction: "above" | "below"; source: "manual" | "forecast" } | null => {
+    // Extract quarter from month identifier (e.g., "2025-03" → Q1)
+    const monthNum = parseInt(monthId.split('-')[1], 10);
+    const monthQuarter = Math.ceil(monthNum / 3);
+    const monthYear = parseInt(monthId.split('-')[0], 10);
+
+    // 1. Check manual quarterly targets (trend mode uses trendTargets, standard uses targets)
+    const quarterYearKey = `Q${monthQuarter}-${monthYear}`;
+    const trendTarget = trendTargets[metricKey]?.[quarterYearKey];
+    if (trendTarget && trendTarget.value !== 0) {
+      return { value: trendTarget.value, direction: trendTarget.direction, source: 'manual' };
+    }
+    // Also check standard quarter targets for the current quarter view
+    if (!isQuarterTrendMode && !isMonthlyTrendMode && targets[metricKey] && targets[metricKey] !== 0) {
+      return { value: targets[metricKey], direction: targetDirections[metricKey] || metricDef.targetDirection, source: 'manual' };
+    }
+
+    // 2. Fallback to forecast
+    const forecastValue = getForecastTarget(metricKey, monthId);
+    if (forecastValue !== null) {
+      return { value: forecastValue, direction: metricDef.targetDirection, source: 'forecast' };
+    }
+
+    return null;
+  }, [trendTargets, targets, targetDirections, getForecastTarget, isQuarterTrendMode, isMonthlyTrendMode]);
   
   // Toggle metric expansion
   const toggleMetricExpansion = useCallback((metricKey: string) => {
@@ -3482,13 +3520,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         calculatedValue = base - deductions + additions;
                                       }
                                     }
-                                    // Calculate status for calculated metrics using quarter-specific targets
-                                    const monthQuarter = Math.floor(period.month / 3) + 1;
-                                    const quarterYearKey = `Q${monthQuarter}-${period.year}`;
-                                    const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
-                                    const rawTargetValue = trendTarget?.value ?? targets[metric.key];
-                                    const targetValue = rawTargetValue !== null && rawTargetValue !== undefined && rawTargetValue !== 0 ? rawTargetValue : null;
-                                    const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
+                                    // Calculate status for calculated metrics using forecast-aware target resolution
+                                    const resolvedTarget = getTargetForMonth(metric.key, monthIdentifier, metric);
+                                    const targetValue = resolvedTarget?.value ?? null;
+                                    const targetDirection = resolvedTarget?.direction ?? metric.targetDirection;
+                                    const targetSource = resolvedTarget?.source ?? null;
                                     let status: "success" | "warning" | "destructive" | null = null;
                                     
                                     if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null) {
@@ -3507,7 +3543,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       <TableCell
                                         key={period.identifier}
                                         className={cn(
-                                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
                                           status === "success" && "bg-success/10",
                                           status === "warning" && "bg-warning/10",
                                           status === "destructive" && "bg-destructive/10",
@@ -3522,6 +3558,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         )}>
                                           {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
                                         </span>
+                                        {status && targetSource === 'forecast' && (
+                                          <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none">F</span>
+                                        )}
                                       </TableCell>
                                     );
                                   }
@@ -3537,13 +3576,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         ? String(mValue)
                                         : "";
                                   
-                                  // Calculate status for non-calculated metrics using quarter-specific targets
-                                  const monthQuarter = Math.floor(period.month / 3) + 1;
-                                  const quarterYearKey = `Q${monthQuarter}-${period.year}`;
-                                  const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
-                                  const rawTargetValue = trendTarget?.value ?? targets[metric.key];
-                                  const targetValue = rawTargetValue !== null && rawTargetValue !== undefined && rawTargetValue !== 0 ? rawTargetValue : null;
-                                  const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
+                                  // Calculate status for non-calculated metrics using forecast-aware target resolution
+                                  const resolvedTarget2 = getTargetForMonth(metric.key, monthIdentifier, metric);
+                                  const targetValue = resolvedTarget2?.value ?? null;
+                                  const targetDirection = resolvedTarget2?.direction ?? metric.targetDirection;
+                                  const targetSource2 = resolvedTarget2?.source ?? null;
                                   let status: "success" | "warning" | "destructive" | null = null;
                                   
                                   if (mValue !== null && mValue !== undefined && targetValue !== null) {
@@ -3680,6 +3717,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             {cellIssues.has(`${metric.key}-${monthIdentifier}`) && !saving[key] && (
                                               <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
                                             )}
+                                            {status && targetSource2 === 'forecast' && !saving[key] && !cellIssues.has(`${metric.key}-${monthIdentifier}`) && (
+                                              <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
+                                            )}
                                           </div>
                                         </TableCell>
                                       </ContextMenuTrigger>
@@ -3799,11 +3839,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             const qKey = `${metric.key}-Q${qtr.quarter}-${qtr.year}`;
                             const qValue = precedingQuartersData[qKey];
                             
-                            // Get quarter-specific target from trendTargets
+                            // Get quarter-specific target from trendTargets, with forecast fallback
                             const quarterYearKey = `Q${qtr.quarter}-${qtr.year}`;
                             const trendTarget = trendTargets[metric.key]?.[quarterYearKey];
-                            const targetValue = trendTarget?.value ?? targets[metric.key];
-                            const targetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
+                            let targetValue = trendTarget?.value ?? null;
+                            let qtrTargetDirection = trendTarget?.direction ?? targetDirections[metric.key] ?? metric.targetDirection;
+                            let qtrTargetSource: 'manual' | 'forecast' | null = targetValue !== null && targetValue !== 0 ? 'manual' : null;
+                            
+                            // Fallback to quarterly average of forecast entries
+                            if (!targetValue || targetValue === 0) {
+                              const qtrMonthIds = getQuarterMonthsForCalculation(qtr.quarter, qtr.year).map(m => m.identifier);
+                              const forecastValues = qtrMonthIds.map(mid => getForecastTarget(metric.key, mid)).filter((v): v is number => v !== null);
+                              if (forecastValues.length > 0) {
+                                targetValue = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                                qtrTargetDirection = metric.targetDirection;
+                                qtrTargetSource = 'forecast';
+                              }
+                            }
                             
                             let status: "success" | "warning" | "destructive" | null = null;
                             
@@ -3812,7 +3864,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 ? qValue - targetValue 
                                 : ((qValue - targetValue) / targetValue) * 100;
                               
-                              if (targetDirection === "above") {
+                              if (qtrTargetDirection === "above") {
                                 status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
                               } else {
                                 status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
@@ -3823,7 +3875,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               <TableCell
                                 key={qtr.label}
                                 className={cn(
-                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
+                                  "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
                                   status === "success" && "bg-success/10",
                                   status === "warning" && "bg-warning/10",
                                   status === "destructive" && "bg-destructive/10",
@@ -3839,6 +3891,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 )}>
                                   {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
                                 </span>
+                                {status && qtrTargetSource === 'forecast' && (
+                                  <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none">F</span>
+                                )}
                               </TableCell>
                             );
                           })
@@ -4057,15 +4112,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </div>
                           ) : (
                             <div className="flex items-center justify-center gap-2">
-                              <span
-                                className={cn(
-                                  "font-semibold",
-                                  canEditTargets() && "cursor-pointer hover:text-foreground"
-                                )}
-                                onClick={() => canEditTargets() && handleTargetEdit(metric.key)}
-                              >
-                                {formatTarget(target, metric.type)}
-                              </span>
+                              {(() => {
+                                // Show manual target, or fall back to average forecast for the quarter
+                                const hasManualTarget = target !== null && target !== undefined && target !== 0;
+                                let displayTarget = target;
+                                let isForecastTarget = false;
+                                
+                                if (!hasManualTarget && hasForecastTargets) {
+                                  const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(m => m.identifier);
+                                  const forecastVals = qtrMonths.map(mid => getForecastTarget(metric.key, mid)).filter((v): v is number => v !== null);
+                                  if (forecastVals.length > 0) {
+                                    displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
+                                    isForecastTarget = true;
+                                  }
+                                }
+                                
+                                return (
+                                  <span
+                                    className={cn(
+                                      "font-semibold",
+                                      canEditTargets() && "cursor-pointer hover:text-foreground",
+                                      isForecastTarget && "text-primary/70"
+                                    )}
+                                    onClick={() => canEditTargets() && handleTargetEdit(metric.key)}
+                                    title={isForecastTarget ? "From forecast" : undefined}
+                                  >
+                                    {formatTarget(displayTarget, metric.type)}
+                                    {isForecastTarget && <span className="ml-0.5 text-[9px] font-bold text-primary/60">F</span>}
+                                  </span>
+                                );
+                              })()}
                               {canEditTargets() && (
                                 <Popover>
                                   <PopoverTrigger asChild>
@@ -4205,14 +4281,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           const isHondaLegacyTotalDirect = isHondaBrand && metric.key === 'total_direct_expenses' && isHondaLegacyMonth(month.identifier);
                           const isCalculated = isPercentageCalculated || isDollarCalculated || isHondaLegacyTotalDirect;
                           
-                          // Calculate status based on target and value
+                          // Calculate status based on target and value, with forecast fallback
+                          const resolvedMonthTarget = getTargetForMonth(metric.key, month.identifier, metric);
+                          const effectiveTarget = resolvedMonthTarget?.value ?? target;
+                          const effectiveDir = resolvedMonthTarget?.direction ?? targetDirection;
+                          const monthTargetSource = resolvedMonthTarget?.source ?? (target ? 'manual' : null);
                           let status = "default";
-                          if (value !== null && value !== undefined && target) {
+                          if (value !== null && value !== undefined && effectiveTarget) {
                             const variance = metric.type === "percentage" 
-                              ? value - target 
-                              : ((value - target) / target) * 100;
+                              ? value - effectiveTarget 
+                              : ((value - effectiveTarget) / effectiveTarget) * 100;
                             
-                            if (targetDirection === "above") {
+                            if (effectiveDir === "above") {
                               // Higher is better
                               status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
                             } else {
@@ -4255,6 +4335,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               )}
                                               {cellIssues.has(`${metric.key}-${month.identifier}`) && (
                                                 <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                              )}
+                                              {status !== 'default' && monthTargetSource === 'forecast' && !cellIssues.has(`${metric.key}-${month.identifier}`) && (
+                                                <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                                               )}
                                             </>
                                           ) : (
@@ -4384,6 +4467,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               )}
                                               {cellIssues.has(`${metric.key}-${month.identifier}`) && !saving[key] && (
                                                 <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                                              )}
+                                              {status !== 'default' && monthTargetSource === 'forecast' && !saving[key] && !cellIssues.has(`${metric.key}-${month.identifier}`) && (
+                                                <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                                               )}
                                             </>
                                           )}
@@ -4569,6 +4655,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         cellIssues={cellIssues}
                         hasRockForSubMetric={hasRockForSubMetric}
                         getRockForSubMetric={getRockForSubMetric}
+                        getForecastTarget={(subMetricName, monthId) => {
+                          // Build the forecast metric_name key matching how forecast entries store sub-metrics
+                          // Try multiple formats: sub:parentKey:orderIndex:name and just the metric key
+                          const subMetricEntry = allSubMetrics.find(
+                            sm => sm.parentMetricKey === (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation ? metric.calculation.numerator : metric.key) && sm.name === subMetricName
+                          );
+                          if (subMetricEntry) {
+                            const orderStr = String(subMetricEntry.orderIndex).padStart(3, '0');
+                            const parentKey = subMetricEntry.parentMetricKey;
+                            const fKey = `sub:${parentKey}:${orderStr}:${subMetricName}`;
+                            const val = getForecastTarget(fKey, monthId);
+                            if (val !== null) return val;
+                            // Also try without padded order
+                            const fKey2 = `sub:${parentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
+                            const val2 = getForecastTarget(fKey2, monthId);
+                            if (val2 !== null) return val2;
+                          }
+                          return null;
+                        }}
                       />
                       </React.Fragment>
                     );

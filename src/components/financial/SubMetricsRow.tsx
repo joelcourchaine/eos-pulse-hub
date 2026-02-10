@@ -84,6 +84,8 @@ interface SubMetricsRowProps {
     target_direction: "above" | "below";
     monthly_targets: { month: string; target_value: number }[];
   } | null;
+  // Forecast target fallback for sub-metrics
+  getForecastTarget?: (subMetricName: string, monthId: string) => number | null;
 }
 
 // Helper to calculate average from values
@@ -143,6 +145,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   cellIssues,
   hasRockForSubMetric,
   getRockForSubMetric,
+  getForecastTarget,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -454,9 +457,11 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 const periodYear = parseInt(period.identifier.split('-')[0]);
                 const isCurrentYear = periodYear === currentYear;
                 
-                // Use rock target if available, otherwise fall back to quarterly target
-                const effectiveTarget = rockTargetValue ?? quarterlyTargetValue;
+                // Use rock target if available, then quarterly target, then forecast fallback
+                const forecastVal = getForecastTarget ? getForecastTarget(subMetric.name, period.identifier) : null;
+                const effectiveTarget = rockTargetValue ?? quarterlyTargetValue ?? forecastVal;
                 const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+                const subTargetSource = rockTargetValue !== null ? 'rock' : quarterlyTargetValue !== null ? 'manual' : forecastVal !== null ? 'forecast' : null;
                 
                 const status = isCurrentYear && effectiveTarget !== null 
                   ? getVarianceStatus(value, effectiveTarget, effectiveDirection) 
@@ -502,6 +507,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     )}
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                    )}
+                    {status && subTargetSource === 'forecast' && !hasCellIssue(subMetric.name, period.identifier) && (
+                      <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                     )}
                   </TableCell>
                 );
@@ -843,9 +851,11 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             const periodYear = parseInt(monthId.split('-')[0]);
             const isCurrentYear = periodYear === currentYear;
             
-            // Use rock target if available, otherwise fall back to quarterly target
-            const effectiveTarget = rockTargetValue ?? quarterlyTargetValue;
+            // Use rock target if available, then quarterly target, then forecast fallback
+            const forecastVal2 = getForecastTarget ? getForecastTarget(subMetric.name, monthId) : null;
+            const effectiveTarget = rockTargetValue ?? quarterlyTargetValue ?? forecastVal2;
             const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+            const subTargetSource2 = rockTargetValue !== null ? 'rock' : quarterlyTargetValue !== null ? 'manual' : forecastVal2 !== null ? 'forecast' : null;
             
             const status = isCurrentYear && effectiveTarget !== null 
               ? getVarianceStatus(value, effectiveTarget, effectiveDirection) 
@@ -891,6 +901,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     )}
                     {hasCellIssue(subMetric.name, monthId) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
+                    )}
+                    {status && subTargetSource2 === 'forecast' && !hasCellIssue(subMetric.name, monthId) && (
+                      <span className="absolute top-0 right-0.5 text-[8px] font-bold text-primary/60 leading-none z-20">F</span>
                     )}
                   </TableCell>
                 </ContextMenuTrigger>
