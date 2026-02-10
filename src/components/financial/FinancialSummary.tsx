@@ -1329,6 +1329,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       const denVal = averages[denKey];
                       if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
                         averages[pctKey] = (numVal / denVal) * 100;
+                      } else if (numVal !== undefined) {
+                        const parentDenKey = `${denominator}${suffix}`;
+                        const parentDenVal = averages[parentDenKey];
+                        if (parentDenVal !== undefined && parentDenVal !== 0) {
+                          averages[pctKey] = (numVal / parentDenVal) * 100;
+                        }
                       }
                     }
                   }
@@ -1568,6 +1574,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     const denVal = averages[denKey];
                     if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
                       averages[pctKey] = (numVal / denVal) * 100;
+                    } else if (numVal !== undefined) {
+                      const parentDenKey = `${denominator}${suffix}`;
+                      const parentDenVal = averages[parentDenKey];
+                      if (parentDenVal !== undefined && parentDenVal !== 0) {
+                        averages[pctKey] = (numVal / parentDenVal) * 100;
+                      }
                     }
                   }
                 }
@@ -1909,6 +1921,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 const denVal = averages[denKey];
                 if (numVal !== undefined && denVal !== undefined && denVal !== 0) {
                   averages[pctKey] = (numVal / denVal) * 100;
+                } else if (numVal !== undefined) {
+                  const parentDenKey = `${denominator}${suffix}`;
+                  const parentDenVal = averages[parentDenKey];
+                  if (parentDenVal !== undefined && parentDenVal !== 0) {
+                    averages[pctKey] = (numVal / parentDenVal) * 100;
+                  }
                 }
               }
             }
