@@ -92,6 +92,8 @@ interface SubMetricsRowProps {
   formatTargetForTooltip?: (value: number, metricType: string) => string;
   // Metric type for tooltip formatting
   metricType?: string;
+  // The actual DB parent key for sub-metrics (e.g., 'gp_net' when parentMetricKey is 'gp_percent')
+  subMetricSourceKey?: string;
 }
 
 // Helper to calculate average from values
@@ -155,6 +157,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   precedingQuartersData,
   formatTargetForTooltip,
   metricType,
+  subMetricSourceKey,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -192,8 +195,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
     const monthNum = parseInt(monthIdentifier.split('-')[1], 10);
     const yr = parseInt(monthIdentifier.split('-')[0], 10);
-    // LY key format used by sub-metrics in precedingQuartersData
-    const lyKey = `sub:${parentMetricKey}:${subMetricName}-M${monthNum}-${yr - 1}`;
+    // Use subMetricSourceKey (actual DB parent) if available, otherwise parentMetricKey
+    const sourceKey = subMetricSourceKey || parentMetricKey;
+    const lyKey = `sub:${sourceKey}:${subMetricName}-M${monthNum}-${yr - 1}`;
     const lyValue = precedingQuartersData[lyKey];
     const forecastValue = getForecastTarget ? getForecastTarget(subMetricName, monthIdentifier) : null;
     if (lyValue == null && forecastValue == null) return <>{children}</>;
@@ -230,7 +234,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     children: React.ReactNode;
   }) => {
     if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
-    const lyKey = `sub:${parentMetricKey}:${subMetricName}-Q${qtr}-${qtrYear - 1}`;
+    const sourceKey = subMetricSourceKey || parentMetricKey;
+    const lyKey = `sub:${sourceKey}:${subMetricName}-Q${qtr}-${qtrYear - 1}`;
     const lyValue = precedingQuartersData[lyKey];
     // Forecast: average monthly forecast for the quarter
     let forecastValue: number | null = null;

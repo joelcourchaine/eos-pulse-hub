@@ -1292,6 +1292,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 }
               }
             });
+            
+            // Also store individual sub-metric entries for LY tooltip lookups
+            // Key format: sub:{parent}:{name}-M{month}-{year}  (without order index, for simpler lookup)
+            if (monthData) {
+              for (const entry of monthData) {
+                if (entry.metric_name?.startsWith('sub:') && entry.value !== null && entry.value !== undefined) {
+                  // Extract parent and name from metric_name like "sub:total_sales:001:Civic"
+                  const parts = entry.metric_name.split(':');
+                  if (parts.length >= 4) {
+                    const parentKey = parts[1];
+                    const subName = parts.slice(3).join(':'); // Handle names with colons
+                    const smKey = `sub:${parentKey}:${subName}-M${monthObj.month + 1}-${monthObj.year}`;
+                    averages[smKey] = entry.value;
+                  }
+                }
+              }
+            }
           }
         });
       }
@@ -1482,6 +1499,32 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               }
             }
           });
+          
+          // Also store individual sub-metric quarter averages for LY tooltip lookups
+          // Collect all sub-metric entries for this quarter, group by normalized name, and average
+          const subMetricMonthlyValues: Record<string, number[]> = {};
+          for (const monthId of quarterMonthIds) {
+            const monthEntries = data?.filter(e => e.month === monthId && e.metric_name?.startsWith('sub:'));
+            if (monthEntries) {
+              for (const entry of monthEntries) {
+                if (entry.value === null || entry.value === undefined) continue;
+                const parts = entry.metric_name.split(':');
+                if (parts.length >= 4) {
+                  const parentKey = parts[1];
+                  const subName = parts.slice(3).join(':');
+                  const normalizedKey = `sub:${parentKey}:${subName}`;
+                  if (!subMetricMonthlyValues[normalizedKey]) subMetricMonthlyValues[normalizedKey] = [];
+                  subMetricMonthlyValues[normalizedKey].push(entry.value);
+                }
+              }
+            }
+          }
+          for (const [normalizedKey, values] of Object.entries(subMetricMonthlyValues)) {
+            if (values.length > 0) {
+              const avg = values.reduce((s, v) => s + v, 0) / values.length;
+              averages[`${normalizedKey}-Q${qtr.quarter}-${qtr.year}`] = avg;
+            }
+          }
         });
       }
       
@@ -4757,6 +4800,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         precedingQuartersData={precedingQuartersData}
                         formatTargetForTooltip={formatTarget}
                         metricType={metric.type}
+                        subMetricSourceKey={subMetricSourceKey}
                       />
                       </React.Fragment>
                     );
