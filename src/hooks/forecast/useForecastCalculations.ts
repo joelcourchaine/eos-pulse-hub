@@ -1860,23 +1860,45 @@ export function useForecastCalculations({
         ? (baselineGpNetMonth / baselineSalesMonth) * 100 
         : baselineGpPercentAnnual;
       
-      // Roll up sub-metric sums to parent metrics
-      if (subSums) {
-        // Always roll up Total Sales from sub-metrics when overrides exist
-        const updatedSales = subSums.get('total_sales');
-        if (updatedSales !== undefined) {
-          const current = adjustedMetrics.get('total_sales');
-          if (current) {
-            adjustedMetrics.set('total_sales', { ...current, value: updatedSales });
-          }
-        }
-        
-        // Always roll up GP Net from sub-metrics when overrides exist
-        const updatedGpNet = gpNetFromSubs ?? subSums.get('gp_net');
-        if (updatedGpNet !== undefined) {
-          const current = adjustedMetrics.get('gp_net');
-          if (current) {
-            adjustedMetrics.set('gp_net', { ...current, value: updatedGpNet });
+      // Apply sub-metric override DELTAS to parent metrics
+      // Instead of replacing the parent with the sub-metric sum (which may not equal the parent
+      // due to items not captured in sub-metrics), apply only the incremental change from overrides.
+      if (hasSubMetricOverrides) {
+        for (const parentKey of ['total_sales', 'gp_net'] as const) {
+          const subs = subMetricForecasts.get(parentKey) ?? [];
+          if (subs.length === 0) continue;
+          // Only process if at least one sub has an override
+          if (!subs.some(s => s.isOverridden)) continue;
+          
+          // Sum the delta for each overridden sub-metric in this month:
+          // delta = overridden monthly value - baseline monthly value
+          let totalDelta = 0;
+          subs.forEach(sub => {
+            if (!sub.isOverridden) return;
+            const forecastValue = sub.monthlyValues.get(month) ?? 0;
+            // Get the baseline monthly value from prior year
+            const priorMonthKey = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+            // Find matching baseline sub-metric by label
+            const matchingBaseline = subMetricBaselines?.find(b => 
+              b.parentKey === parentKey && b.name.trim().toLowerCase() === sub.label.trim().toLowerCase()
+            );
+            const baselineMonthValue = matchingBaseline?.monthlyValues.get(priorMonthKey) ?? 0;
+            
+            // Apply growth to baseline to get what the value "would have been" without the override
+            const parentMonthly = baseMetrics.get(parentKey);
+            const parentBaselineVal = parentMonthly?.baseline_value ?? 0;
+            const parentForecastVal = parentMonthly?.value ?? 0;
+            const growthRatio = parentBaselineVal > 0 ? parentForecastVal / parentBaselineVal : 1;
+            const expectedValue = baselineMonthValue * growthRatio;
+            
+            totalDelta += forecastValue - expectedValue;
+          });
+          
+          if (Math.abs(totalDelta) > 0.01) {
+            const current = adjustedMetrics.get(parentKey);
+            if (current) {
+              adjustedMetrics.set(parentKey, { ...current, value: current.value + totalDelta });
+            }
           }
         }
       }
