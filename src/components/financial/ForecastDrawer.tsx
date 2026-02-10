@@ -1348,6 +1348,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       return;
     }
     
+    // Fixed expenses should be distributed evenly across all 12 months (not weighted)
+    if (metricKey === 'total_fixed_expense' || metricKey === 'semi_fixed_expense') {
+      const monthlyValue = newAnnualValue / 12;
+      const updates = weights.map(w => ({
+        month: `${forecastYear}-${String(w.month_number).padStart(2, '0')}`,
+        metricName: metricKey,
+        forecastValue: monthlyValue,
+      }));
+      await bulkUpdateEntries.mutateAsync(updates);
+      await queryClient.invalidateQueries({ queryKey: ['forecast-entries', forecast?.id] });
+      markDirty();
+      return;
+    }
+
     // Calculate total weight
     const totalWeight = weights.reduce((sum, w) => sum + (w.adjusted_weight || 0), 0);
     if (totalWeight === 0 && !isPercent) return;

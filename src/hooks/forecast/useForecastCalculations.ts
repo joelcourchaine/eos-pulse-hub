@@ -1121,29 +1121,40 @@ export function useForecastCalculations({
             annualValue += overriddenAnnual;
           });
         } else {
-          // For currency sub-metrics, distribute proportionally based on baseline pattern
-          let totalBaselineWeight = 0;
-          months.forEach((forecastMonth, monthIndex) => {
-            const monthNumber = monthIndex + 1;
-            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-            totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
-          });
+          // For fixed expense sub-metrics, distribute evenly across all 12 months
+          const isFixedExpenseParent = parentKey === 'total_fixed_expense' || parentKey === 'semi_fixed_expense';
           
-          months.forEach((forecastMonth, monthIndex) => {
-            const monthNumber = monthIndex + 1;
-            const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
-            const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+          if (isFixedExpenseParent) {
+            const evenMonthlyValue = overriddenAnnual / 12;
+            months.forEach((forecastMonth) => {
+              forecastMonthlyValues.set(forecastMonth, evenMonthlyValue);
+              annualValue += evenMonthlyValue;
+            });
+          } else {
+            // For other currency sub-metrics, distribute proportionally based on baseline pattern
+            let totalBaselineWeight = 0;
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              totalBaselineWeight += sub.monthlyValues.get(priorMonth) ?? 0;
+            });
             
-            let forecastValue: number;
-            if (totalBaselineWeight > 0) {
-              forecastValue = (subBaseline / totalBaselineWeight) * overriddenAnnual;
-            } else {
-              forecastValue = overriddenAnnual / 12;
-            }
-            
-            forecastMonthlyValues.set(forecastMonth, forecastValue);
-            annualValue += forecastValue;
-          });
+            months.forEach((forecastMonth, monthIndex) => {
+              const monthNumber = monthIndex + 1;
+              const priorMonth = `${forecastYear - 1}-${String(monthNumber).padStart(2, '0')}`;
+              const subBaseline = sub.monthlyValues.get(priorMonth) ?? 0;
+              
+              let forecastValue: number;
+              if (totalBaselineWeight > 0) {
+                forecastValue = (subBaseline / totalBaselineWeight) * overriddenAnnual;
+              } else {
+                forecastValue = overriddenAnnual / 12;
+              }
+              
+              forecastMonthlyValues.set(forecastMonth, forecastValue);
+              annualValue += forecastValue;
+            });
+          }
         }
       } else {
         // Standard calculation (no override)
