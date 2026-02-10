@@ -22,9 +22,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 8) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Password must be at least 6 characters' }),
+        JSON.stringify({ success: false, error: 'Password must be at least 8 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Password must contain at least one uppercase letter' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!/[0-9]/.test(password)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Password must contain at least one number' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
