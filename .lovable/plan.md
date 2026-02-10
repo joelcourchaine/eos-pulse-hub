@@ -1,101 +1,116 @@
 
 
-## Fix: Monthly GP% Edits Should Update Total Sales and GP Net (Constant Cost)
+## Year-Aware Nissan Financial Mappings
 
 ### Problem
+Nissan's manufacturer added a row to the Nissan3 sheet starting in 2026, shifting cells from row 31 downward. We need to support both the 2025 layout and the 2026+ layout so dealers can import statements from either year.
 
-When editing GP% for a specific month in the forecast grid, only the GP% value is saved. The Total Sales and GP Net for that month are not recalculated using the "constant cost" assumption. This means the GP% change has no visible effect on the dollar metrics for that month.
+### Approach
+Add an `effective_year` column to the `financial_cell_mappings` table. Mappings with `effective_year = NULL` apply to all years (default). When a year-specific override exists, it takes precedence.
 
-### Root Cause
+### Database Changes
 
-In `src/components/financial/ForecastDrawer.tsx`, the `handleCellEdit` function (line 772) simply saves the edited value:
+**1. Add `effective_year` column**
 
+```sql
+ALTER TABLE financial_cell_mappings 
+ADD COLUMN effective_year integer;
 ```
-updateEntry.mutate({ month, metricName, forecastValue: value });
-```
 
-It does not check whether the metric being edited is `gp_percent` and, if so, back-calculate `total_sales` and `gp_net` using constant cost.
+**2. Create 2026 mappings for affected Nissan rows**
 
-### Solution
+Duplicate the Nissan Service, Parts, and Body Shop rows on `Nissan3` where `row >= 31`, set the originals to `effective_year = 2025`, and create new copies with `effective_year = 2026` and cell references shifted +1.
 
-Add a special case in `handleCellEdit` for when `metricName` is `gp_percent`. When detected:
+Affected rows per department:
+- **Service (Col D)**: D31-D38, D61 (10 rows including sub:total_fixed_expense:001 and total_fixed_expense)
+- **Parts (Col H)**: H31-H38, H61 (10 rows including sub:total_fixed_expense:001 and total_fixed_expense)
+- **Body Shop (Col L)**: L31-L37, L61 (9 rows -- same pattern)
 
-1. Look up the current month's Total Sales and GP Net values (from `monthlyValues` map or entries)
-2. Calculate cost: `cost = currentTotalSales - currentGpNet`
-3. Back-calculate: `newTotalSales = cost / (1 - newGP% / 100)` and `newGpNet = newTotalSales - cost`
-4. Save all three values (`gp_percent`, `total_sales`, `gp_net`) together using `bulkUpdateEntries`
-5. Guard against GP% = 100 (division by zero)
+Rows below 31 and rows on other sheets (Nissan5, etc.) remain unchanged with `effective_year = NULL`.
 
-### Technical Changes
+**3. Remove redundant mapping**
 
-**File: `src/components/financial/ForecastDrawer.tsx`** -- `handleCellEdit` function (~line 772)
+Delete the `sub:total_fixed_expense:001:TOTAL FIXED EXPENSE` entries that duplicate the parent `total_fixed_expense` mapping (same cell reference). This applies to all three departments.
 
-Replace the simple `updateEntry.mutate` call with logic that detects `gp_percent` edits:
+### Code Changes
+
+**File: `src/utils/parseFinancialExcel.ts`**
+
+Update `fetchCellMappings` to accept an optional `year` parameter:
 
 ```typescript
-const handleCellEdit = (month: string, metricName: string, value: number) => {
-  if (view === 'quarter') {
-    // Quarter distribution - apply constant-cost logic per distributed month
-    const distributions = distributeQuarterToMonths(month as 'Q1'|'Q2'|'Q3'|'Q4', metricName, value);
-    if (metricName === 'gp_percent') {
-      const updates: { month: string; metricName: string; forecastValue: number }[] = [];
-      distributions.forEach((d) => {
-        updates.push({ month: d.month, metricName: 'gp_percent', forecastValue: d.value });
-        // Get current Total Sales and GP Net for this month
-        const monthData = monthlyValues.get(d.month);
-        const currentSales = monthData?.get('total_sales')?.value ?? 0;
-        const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
-        const cost = currentSales - currentGpNet;
-        const gpDecimal = d.value / 100;
-        const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
-        const newGpNet = newSales - cost;
-        updates.push({ month: d.month, metricName: 'total_sales', forecastValue: newSales });
-        updates.push({ month: d.month, metricName: 'gp_net', forecastValue: newGpNet });
-      });
-      bulkUpdateEntries.mutate(updates);
-    } else {
-      distributions.forEach((d) => {
-        updateEntry.mutate({ month: d.month, metricName, forecastValue: d.value });
-      });
+export const fetchCellMappings = async (
+  brand: string, 
+  year?: number
+): Promise<CellMapping[]> => {
+  let query = supabase
+    .from('financial_cell_mappings')
+    .select('*')
+    .eq('brand', brand);
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+
+  if (year) {
+    // For each metric_key + department combo, prefer year-specific 
+    // mapping over NULL (universal) mapping
+    const grouped = new Map<string, CellMapping[]>();
+    for (const m of data) {
+      const key = `${m.department_name}::${m.metric_key}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(m);
     }
-  } else {
-    // Monthly edit
-    if (metricName === 'gp_percent') {
-      const monthData = monthlyValues.get(month);
-      const currentSales = monthData?.get('total_sales')?.value ?? 0;
-      const currentGpNet = monthData?.get('gp_net')?.value ?? 0;
-      const cost = currentSales - currentGpNet;
-      const gpDecimal = value / 100;
-      const newSales = gpDecimal < 1 ? cost / (1 - gpDecimal) : currentSales;
-      const newGpNet = newSales - cost;
-      bulkUpdateEntries.mutate([
-        { month, metricName: 'gp_percent', forecastValue: value },
-        { month, metricName: 'total_sales', forecastValue: newSales },
-        { month, metricName: 'gp_net', forecastValue: newGpNet },
-      ]);
-    } else {
-      updateEntry.mutate({ month, metricName, forecastValue: value });
+    const result: CellMapping[] = [];
+    for (const entries of grouped.values()) {
+      const yearMatch = entries.find(e => e.effective_year === year);
+      const universal = entries.find(e => e.effective_year === null);
+      result.push(yearMatch || universal || entries[0]);
     }
+    return result;
   }
+
+  return data;
 };
 ```
 
+Update the `CellMapping` interface to include:
+```typescript
+effective_year?: number | null;
+```
+
+**File: `src/components/financial/MonthDropZone.tsx`**
+
+Pass the year (extracted from `monthIdentifier`) to `fetchCellMappings`:
+
+```typescript
+const year = parseInt(monthIdentifier.split('-')[0], 10);
+const mappings = await fetchCellMappings(storeBrand, year);
+```
+
+This change applies to all three places `fetchCellMappings` is called in this file (around lines 131, 223, 309).
+
+**File: `src/components/financial/FinancialDataImport.tsx`**
+
+If `fetchCellMappings` is used here for manual imports, pass the year from the month column as well.
+
 ### How It Works
 
-- User edits GP% for January from 20% to 25%
-- Current January values: Total Sales = $500K, GP Net = $100K
-- Cost = $500K - $100K = $400K (held constant)
-- New Total Sales = $400K / (1 - 0.25) = $533K
-- New GP Net = $533K - $400K = $133K
-- All three values saved together in one bulk operation
+1. User drops a January 2026 Nissan statement onto the January column
+2. `monthIdentifier` is `"2026-01"`, so year = 2026
+3. `fetchCellMappings("Nissan", 2026)` fetches all Nissan mappings
+4. For rows that have both a 2025 and 2026 version, the 2026 version (shifted +1) is selected
+5. For rows with only `effective_year = NULL`, those universal mappings are used as-is
+6. Parser reads the correct cells from the shifted layout
 
-### Edge Cases
+If a dealer drops a 2025 statement, `fetchCellMappings("Nissan", 2025)` picks the 2025-specific mappings instead.
 
-- **GP% set to 100%**: Guard prevents division by zero; keeps Total Sales unchanged
-- **Quarter view**: Same constant-cost logic applied to each distributed month
-- Works for all brands since it operates on the parent-level metrics directly
+### Data Cleanup
+
+After deploying, delete the incorrect January 2026 financial entries for the affected departments so they can be cleanly re-imported with the corrected mappings.
 
 ### Files to Modify
 
-1. `src/components/financial/ForecastDrawer.tsx` -- Update `handleCellEdit` function
-
+1. **Database migration** -- Add `effective_year` column, duplicate and shift affected mappings, clean up redundant rows
+2. `src/utils/parseFinancialExcel.ts` -- Update `CellMapping` interface and `fetchCellMappings` function
+3. `src/components/financial/MonthDropZone.tsx` -- Pass year to `fetchCellMappings` calls
+4. `src/components/financial/FinancialDataImport.tsx` -- Pass year to `fetchCellMappings` if applicable
