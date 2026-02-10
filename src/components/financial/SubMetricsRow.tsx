@@ -195,9 +195,10 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
     const monthNum = parseInt(monthIdentifier.split('-')[1], 10);
     const yr = parseInt(monthIdentifier.split('-')[0], 10);
-    // Use subMetricSourceKey (actual DB parent) if available, otherwise parentMetricKey
-    const sourceKey = subMetricSourceKey || parentMetricKey;
-    const lyKey = `sub:${sourceKey}:${subMetricName}-M${monthNum}-${yr - 1}`;
+    // For LY lookups, use parentMetricKey (e.g. 'gp_percent') so we get the correct
+    // value type. subMetricSourceKey points to the dollar parent (e.g. 'gp_net')
+    // which would return dollar values for percentage metrics.
+    const lyKey = `sub:${parentMetricKey}:${subMetricName}-M${monthNum}-${yr - 1}`;
     const lyValue = precedingQuartersData[lyKey];
     const forecastValue = getForecastTarget ? getForecastTarget(subMetricName, monthIdentifier) : null;
     if (lyValue == null && forecastValue == null) return <>{children}</>;
@@ -234,8 +235,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     children: React.ReactNode;
   }) => {
     if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
-    const sourceKey = subMetricSourceKey || parentMetricKey;
-    const lyKey = `sub:${sourceKey}:${subMetricName}-Q${qtr}-${qtrYear - 1}`;
+    const lyKey = `sub:${parentMetricKey}:${subMetricName}-Q${qtr}-${qtrYear - 1}`;
     const lyValue = precedingQuartersData[lyKey];
     // Forecast: average monthly forecast for the quarter
     let forecastValue: number | null = null;
