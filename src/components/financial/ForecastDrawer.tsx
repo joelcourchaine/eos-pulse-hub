@@ -481,6 +481,38 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     latestSubMetricForecastsRef.current = subMetricForecasts;
   }, [subMetricForecasts]);
 
+  // Seed sub-metric forecast entries on first drawer open
+  const subMetricSeedCheckedRef = useRef(false);
+
+  // Reset when drawer closes
+  useEffect(() => {
+    if (!open) subMetricSeedCheckedRef.current = false;
+  }, [open]);
+
+  // Check once after forecasts are ready — if sub-metric entries are missing, trigger auto-save
+  useEffect(() => {
+    if (!open || !forecast || !driversInitialized.current) return;
+    if (subMetricSeedCheckedRef.current) return;
+    if (!subMetricForecasts || subMetricForecasts.size === 0) return;
+
+    subMetricSeedCheckedRef.current = true;
+
+    let hasMissing = false;
+    subMetricForecasts.forEach((forecasts) => {
+      forecasts.forEach((sub) => {
+        sub.monthlyValues.forEach((value, month) => {
+          if (value === null || isNaN(value)) return;
+          const exists = entries?.some(
+            (e) => e.metric_name === sub.key && e.month === month
+          );
+          if (!exists) hasMissing = true;
+        });
+      });
+    });
+
+    if (hasMissing) markDirty();
+  }, [open, forecast, subMetricForecasts, entries]);
+
   // Create forecast if it doesn't exist when drawer opens
   useEffect(() => {
     if (open && !forecast && !isLoading && calculatedWeights.length > 0 && !createForecast.isPending) {
