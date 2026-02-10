@@ -1,116 +1,83 @@
 
 
-## Year-Aware Nissan Financial Mappings
+## Fix: Correct Nissan 2026 Mapping Direction
 
-### Problem
-Nissan's manufacturer added a row to the Nissan3 sheet starting in 2026, shifting cells from row 31 downward. We need to support both the 2025 layout and the 2026+ layout so dealers can import statements from either year.
+### What Went Wrong
 
-### Approach
-Add an `effective_year` column to the `financial_cell_mappings` table. Mappings with `effective_year = NULL` apply to all years (default). When a year-specific override exists, it takes precedence.
+The previous migration assumed a row was **added** (shifting rows down by +1). The image shows the opposite: **"DIGITAL ADVERTISING (Memo)" was removed** in 2026, shifting everything from row 27 onward **up by 1**.
 
-### Database Changes
+### Current (Incorrect) State vs. What We Need
 
-**1. Add `effective_year` column**
+**Service Department example (Column D):**
+
+| Metric | 2025 Cell | Current 2026 (WRONG) | Correct 2026 |
+|--------|-----------|---------------------|--------------|
+| 006: DIGITAL ADVERTISING | D27 | D27 (universal) | **REMOVED** |
+| 007: ADVERTISING - FACTORY | D28 | D28 (universal) | D27 |
+| 008: POLICY ADJUSTMENT | D29 | D29 (universal) | D28 |
+| 009: WARRANTY ADJUSTMENT | D30 | D30 (universal) | D29 |
+| 010: DATA PROCESSING | D31 | D32 (+1 wrong) | D30 |
+| 011: MEMBERSHIP | D32 | D33 (+1 wrong) | D31 |
+| 012: FREIGHT | D33 | D34 (+1 wrong) | D32 |
+| 013: TRAINING | D34 | D35 (+1 wrong) | D33 |
+| 014: INTEREST - FLOORPLAN | D35 | D36 (+1 wrong) | D34 |
+| 015: NIIF (ICE) | D36 | D37 (+1 wrong) | D35 |
+| 016: TRAVEL & ENTERTAIN | D37 | D38 (+1 wrong) | D36 |
+| total_direct_expenses | D38 | D39 (+1 wrong) | D37 |
+| total_fixed_expense | D61 | D62 (+1 wrong) | D60 |
+
+Same pattern applies to **Parts (Col H)** and **Body Shop (Col L)**.
+
+### Migration Plan
+
+A single SQL migration that:
+
+1. **Delete all incorrect 2026 mappings** created by the previous migration
+2. **Set "DIGITAL ADVERTISING" (006)** to `effective_year = 2025` (it doesn't exist in 2026)
+3. **Set sub-metrics 007-009** (currently universal/NULL) to `effective_year = 2025` and create 2026 versions shifted -1
+4. **Fix sub-metrics 010-016** 2025 mappings stay as-is; update incorrect 2026 mappings to shift -1 from original (not +1)
+5. **Fix parent metrics** (total_direct_expenses, total_fixed_expense): update 2026 versions to -1
+6. **Delete incorrect January 2026 data** for re-import
+
+### Affected Departments (all on Nissan3 sheet)
+
+- Service Department (Column D)
+- Parts Department (Column H)
+- Body Shop Department (Column L)
+
+### No Code Changes Needed
+
+The `fetchCellMappings` year-aware logic from the previous change is correct. Only the database mapping values need fixing.
+
+### Technical Details
 
 ```sql
-ALTER TABLE financial_cell_mappings 
-ADD COLUMN effective_year integer;
+-- 1. Delete wrong 2026 mappings for 010-016, totals (all 3 depts)
+DELETE FROM financial_cell_mappings
+WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
+  AND effective_year = 2026;
+
+-- 2. Mark DIGITAL ADVERTISING (006) as 2025-only
+UPDATE financial_cell_mappings
+SET effective_year = 2025
+WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
+  AND metric_key LIKE '%006:DIGITAL ADVERTISING%'
+  AND effective_year IS NULL;
+
+-- 3. Mark 007-009 as 2025-only (they were universal)
+UPDATE financial_cell_mappings
+SET effective_year = 2025
+WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
+  AND (metric_key LIKE '%007:%' OR metric_key LIKE '%008:%' OR metric_key LIKE '%009:%')
+  AND effective_year IS NULL;
+
+-- 4. Create correct 2026 mappings for 007-016 and parents
+--    (shifted -1 from 2025 cell references)
+-- e.g., Service 007: D28 -> D27, 008: D29 -> D28, etc.
+-- Parts 007: H28 -> H27, etc.
+-- Body Shop 007: L28 -> L27, etc.
+
+-- 5. Delete bad January 2026 financial data for re-import
 ```
 
-**2. Create 2026 mappings for affected Nissan rows**
-
-Duplicate the Nissan Service, Parts, and Body Shop rows on `Nissan3` where `row >= 31`, set the originals to `effective_year = 2025`, and create new copies with `effective_year = 2026` and cell references shifted +1.
-
-Affected rows per department:
-- **Service (Col D)**: D31-D38, D61 (10 rows including sub:total_fixed_expense:001 and total_fixed_expense)
-- **Parts (Col H)**: H31-H38, H61 (10 rows including sub:total_fixed_expense:001 and total_fixed_expense)
-- **Body Shop (Col L)**: L31-L37, L61 (9 rows -- same pattern)
-
-Rows below 31 and rows on other sheets (Nissan5, etc.) remain unchanged with `effective_year = NULL`.
-
-**3. Remove redundant mapping**
-
-Delete the `sub:total_fixed_expense:001:TOTAL FIXED EXPENSE` entries that duplicate the parent `total_fixed_expense` mapping (same cell reference). This applies to all three departments.
-
-### Code Changes
-
-**File: `src/utils/parseFinancialExcel.ts`**
-
-Update `fetchCellMappings` to accept an optional `year` parameter:
-
-```typescript
-export const fetchCellMappings = async (
-  brand: string, 
-  year?: number
-): Promise<CellMapping[]> => {
-  let query = supabase
-    .from('financial_cell_mappings')
-    .select('*')
-    .eq('brand', brand);
-
-  const { data, error } = await query;
-  if (error || !data) return [];
-
-  if (year) {
-    // For each metric_key + department combo, prefer year-specific 
-    // mapping over NULL (universal) mapping
-    const grouped = new Map<string, CellMapping[]>();
-    for (const m of data) {
-      const key = `${m.department_name}::${m.metric_key}`;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key)!.push(m);
-    }
-    const result: CellMapping[] = [];
-    for (const entries of grouped.values()) {
-      const yearMatch = entries.find(e => e.effective_year === year);
-      const universal = entries.find(e => e.effective_year === null);
-      result.push(yearMatch || universal || entries[0]);
-    }
-    return result;
-  }
-
-  return data;
-};
-```
-
-Update the `CellMapping` interface to include:
-```typescript
-effective_year?: number | null;
-```
-
-**File: `src/components/financial/MonthDropZone.tsx`**
-
-Pass the year (extracted from `monthIdentifier`) to `fetchCellMappings`:
-
-```typescript
-const year = parseInt(monthIdentifier.split('-')[0], 10);
-const mappings = await fetchCellMappings(storeBrand, year);
-```
-
-This change applies to all three places `fetchCellMappings` is called in this file (around lines 131, 223, 309).
-
-**File: `src/components/financial/FinancialDataImport.tsx`**
-
-If `fetchCellMappings` is used here for manual imports, pass the year from the month column as well.
-
-### How It Works
-
-1. User drops a January 2026 Nissan statement onto the January column
-2. `monthIdentifier` is `"2026-01"`, so year = 2026
-3. `fetchCellMappings("Nissan", 2026)` fetches all Nissan mappings
-4. For rows that have both a 2025 and 2026 version, the 2026 version (shifted +1) is selected
-5. For rows with only `effective_year = NULL`, those universal mappings are used as-is
-6. Parser reads the correct cells from the shifted layout
-
-If a dealer drops a 2025 statement, `fetchCellMappings("Nissan", 2025)` picks the 2025-specific mappings instead.
-
-### Data Cleanup
-
-After deploying, delete the incorrect January 2026 financial entries for the affected departments so they can be cleanly re-imported with the corrected mappings.
-
-### Files to Modify
-
-1. **Database migration** -- Add `effective_year` column, duplicate and shift affected mappings, clean up redundant rows
-2. `src/utils/parseFinancialExcel.ts` -- Update `CellMapping` interface and `fetchCellMappings` function
-3. `src/components/financial/MonthDropZone.tsx` -- Pass year to `fetchCellMappings` calls
-4. `src/components/financial/FinancialDataImport.tsx` -- Pass year to `fetchCellMappings` if applicable
+After approval, the full SQL will handle all three departments with the correct -1 cell reference shift for every affected row.
