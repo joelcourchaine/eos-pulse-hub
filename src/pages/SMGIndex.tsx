@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import smgLogo from "@/assets/SMG60/Black-Horizontal-PNG.png";
+import smgLogoVertical from "@/assets/SMG60/Black-Vertical-PNG.png";
 import smgLogoWhite from "@/assets/SMG60/White-Horizontal-PNG.png";
 import featureGauges from "@/assets/feature-gauges.png";
 import featureMeeting from "@/assets/feature-meeting.png";
@@ -136,9 +137,9 @@ const SMGIndex = () => {
           {/* SMG Logo */}
           <div className="flex items-center justify-center mb-8">
             <img
-              src={smgLogo}
+              src={smgLogoVertical}
               alt="Steve Marshall Group - 60 Years"
-              className="w-72 sm:w-96 lg:w-[500px] object-contain"
+              className="w-48 sm:w-64 lg:w-80 object-contain"
             />
           </div>
 
@@ -244,7 +245,7 @@ const SMGIndex = () => {
         {/* Footer with SMG branding */}
         <div className="text-center text-sm text-muted-foreground pt-8 border-t border-border">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img src={smgLogo} alt="Steve Marshall Group" className="h-10 sm:h-12 object-contain" />
+            <img src={smgLogo} alt="Steve Marshall Group" className="w-48 sm:w-56 object-contain" />
             <span>×</span>
             <span>Dealer Growth Solutions</span>
           </div>
