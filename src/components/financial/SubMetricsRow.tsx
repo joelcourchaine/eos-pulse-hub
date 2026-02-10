@@ -86,6 +86,12 @@ interface SubMetricsRowProps {
   } | null;
   // Forecast target fallback for sub-metrics
   getForecastTarget?: (subMetricName: string, monthId: string) => number | null;
+  // Preceding quarters data for Last Year lookups in tooltips
+  precedingQuartersData?: Record<string, number | undefined>;
+  // Format function for tooltip values (uses parent's formatting)
+  formatTargetForTooltip?: (value: number, metricType: string) => string;
+  // Metric type for tooltip formatting
+  metricType?: string;
 }
 
 // Helper to calculate average from values
@@ -146,6 +152,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   hasRockForSubMetric,
   getRockForSubMetric,
   getForecastTarget,
+  precedingQuartersData,
+  formatTargetForTooltip,
+  metricType,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -172,6 +181,88 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   const hasCellIssue = (subMetricName: string, periodIdentifier: string): boolean => {
     if (!cellIssues || !parentMetricKey) return false;
     return cellIssues.has(`sub:${parentMetricKey}:${subMetricName}-${periodIdentifier}`);
+  };
+
+  // Helper: LY/Forecast tooltip for sub-metric cells (mirrors parent TrendCellTooltip)
+  const SubMetricLYTooltip = ({ subMetricName, monthIdentifier, children }: {
+    subMetricName: string;
+    monthIdentifier: string;
+    children: React.ReactNode;
+  }) => {
+    if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
+    const monthNum = parseInt(monthIdentifier.split('-')[1], 10);
+    const yr = parseInt(monthIdentifier.split('-')[0], 10);
+    // LY key format used by sub-metrics in precedingQuartersData
+    const lyKey = `sub:${parentMetricKey}:${subMetricName}-M${monthNum}-${yr - 1}`;
+    const lyValue = precedingQuartersData[lyKey];
+    const forecastValue = getForecastTarget ? getForecastTarget(subMetricName, monthIdentifier) : null;
+    if (lyValue == null && forecastValue == null) return <>{children}</>;
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
+          <TooltipContent side="top" className="p-2">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+              {lyValue != null && (
+                <>
+                  <span className="text-muted-foreground">LY</span>
+                  <span className="text-right">{formatTargetForTooltip(lyValue, metricType)}</span>
+                </>
+              )}
+              {forecastValue != null && (
+                <>
+                  <span className="text-muted-foreground">Forecast</span>
+                  <span className="text-right">{formatTargetForTooltip(forecastValue, metricType)}</span>
+                </>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  // Helper: LY/Forecast tooltip for quarter trend sub-metric cells
+  const SubMetricQtrLYTooltip = ({ subMetricName, qtr, qtrYear, children }: {
+    subMetricName: string;
+    qtr: number;
+    qtrYear: number;
+    children: React.ReactNode;
+  }) => {
+    if (!precedingQuartersData || !formatTargetForTooltip || !metricType || !parentMetricKey) return <>{children}</>;
+    const lyKey = `sub:${parentMetricKey}:${subMetricName}-Q${qtr}-${qtrYear - 1}`;
+    const lyValue = precedingQuartersData[lyKey];
+    // Forecast: average monthly forecast for the quarter
+    let forecastValue: number | null = null;
+    if (getForecastTarget && getQuarterMonths) {
+      const qtrMonthIds = getQuarterMonths(qtr, qtrYear);
+      const fVals = qtrMonthIds.map(mid => getForecastTarget(subMetricName, mid)).filter((v): v is number => v !== null);
+      if (fVals.length > 0) forecastValue = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+    }
+    if (lyValue == null && forecastValue == null) return <>{children}</>;
+    return (
+      <TooltipProvider>
+        <Tooltip delayDuration={150}>
+          <TooltipTrigger asChild>{children}</TooltipTrigger>
+          <TooltipContent side="top" className="p-2">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+              {lyValue != null && (
+                <>
+                  <span className="text-muted-foreground">LY</span>
+                  <span className="text-right">{formatTargetForTooltip(lyValue, metricType)}</span>
+                </>
+              )}
+              {forecastValue != null && (
+                <>
+                  <span className="text-muted-foreground">Forecast</span>
+                  <span className="text-right">{formatTargetForTooltip(forecastValue, metricType)}</span>
+                </>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   if (!isExpanded) return null;
@@ -497,13 +588,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <span className={cn(
-                        status === 'success' && "text-success font-medium",
-                        status === 'warning' && "text-warning font-medium",
-                        status === 'destructive' && "text-destructive font-medium"
-                      )}>
-                        {value !== null ? formatValue(value) : "-"}
-                      </span>
+                      <SubMetricLYTooltip subMetricName={subMetric.name} monthIdentifier={period.identifier}>
+                        <span className={cn(
+                          status === 'success' && "text-success font-medium",
+                          status === 'warning' && "text-warning font-medium",
+                          status === 'destructive' && "text-destructive font-medium"
+                        )}>
+                          {value !== null ? formatValue(value) : "-"}
+                        </span>
+                      </SubMetricLYTooltip>
                     )}
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
@@ -739,13 +832,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     !status && "text-muted-foreground"
                   )}
                 >
-                  <span className={cn(
-                    status === 'success' && "text-success font-medium",
-                    status === 'warning' && "text-warning font-medium",
-                    status === 'destructive' && "text-destructive font-medium"
-                  )}>
-                    {quarterValue !== null ? formatValue(quarterValue) : "-"}
-                  </span>
+                  <SubMetricQtrLYTooltip subMetricName={subMetric.name} qtr={qtr.quarter} qtrYear={qtr.year}>
+                    <span className={cn(
+                      status === 'success' && "text-success font-medium",
+                      status === 'warning' && "text-warning font-medium",
+                      status === 'destructive' && "text-destructive font-medium"
+                    )}>
+                      {quarterValue !== null ? formatValue(quarterValue) : "-"}
+                    </span>
+                  </SubMetricQtrLYTooltip>
                 </TableCell>
               );
             })}

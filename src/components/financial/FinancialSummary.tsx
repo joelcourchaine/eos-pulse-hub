@@ -3630,7 +3630,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     }
                                     
                                     return (
-                                      <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
                                         <TableCell
                                           key={period.identifier}
                                           className={cn(
@@ -3642,15 +3641,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                             isNetSellingGross && !status && "bg-muted/30"
                                           )}
                                         >
-                                          <span className={cn(
-                                            status === "success" && "text-success font-medium",
-                                            status === "warning" && "text-warning font-medium",
-                                            status === "destructive" && "text-destructive font-medium"
-                                          )}>
-                                            {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
-                                          </span>
+                                          <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
+                                            <span className={cn(
+                                              status === "success" && "text-success font-medium",
+                                              status === "warning" && "text-warning font-medium",
+                                              status === "destructive" && "text-destructive font-medium"
+                                            )}>
+                                              {calculatedValue !== null && calculatedValue !== undefined ? formatTarget(calculatedValue, metric.type) : "-"}
+                                            </span>
+                                          </TrendCellTooltip>
                                         </TableCell>
-                                      </TrendCellTooltip>
                                     );
                                   }
                                   
@@ -3685,7 +3685,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   }
                                   
                                   return (
-                                    <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
                                       <ContextMenu key={period.identifier}>
                                         <ContextMenuTrigger asChild>
                                           <TableCell
@@ -3720,21 +3719,23 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                               // because there's no gap between input becoming invisible and display div rendering
                                               if (currentDisplayValue !== null && currentDisplayValue !== undefined) {
                                                 return (
-                                                  <div 
-                                                    className={cn(
-                                                      "h-full w-full flex items-center justify-center cursor-text",
-                                                      status === "success" && "text-success font-medium",
-                                                      status === "warning" && "text-warning font-medium",
-                                                      status === "destructive" && "text-destructive font-medium"
-                                                    )}
-                                                    onClick={(e) => {
-                                                      const input = e.currentTarget.nextElementSibling as HTMLInputElement;
-                                                      input?.focus();
-                                                      input?.select();
-                                                    }}
-                                                  >
-                                                    {formatTarget(currentDisplayValue, metric.type)}
-                                                  </div>
+                                                  <TrendCellTooltip metricKey={metric.key} metricType={metric.type} monthIdentifier={monthIdentifier}>
+                                                    <div 
+                                                      className={cn(
+                                                        "h-full w-full flex items-center justify-center cursor-text",
+                                                        status === "success" && "text-success font-medium",
+                                                        status === "warning" && "text-warning font-medium",
+                                                        status === "destructive" && "text-destructive font-medium"
+                                                      )}
+                                                      onClick={(e) => {
+                                                        const input = (e.currentTarget.parentElement?.querySelector('input') || e.currentTarget.nextElementSibling) as HTMLInputElement;
+                                                        input?.focus();
+                                                        input?.select();
+                                                      }}
+                                                    >
+                                                      {formatTarget(currentDisplayValue, metric.type)}
+                                                    </div>
+                                                  </TrendCellTooltip>
                                                 );
                                               }
                                               
@@ -3825,7 +3826,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         </ContextMenuItem>
                                         </ContextMenuContent>
                                       </ContextMenu>
-                                    </TrendCellTooltip>
                                   );
                                 }
                                
@@ -3960,7 +3960,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             }
                             
                             return (
-                              <QuarterTrendCellTooltip metricKey={metric.key} metricType={metric.type} quarter={qtr.quarter} qtrYear={qtr.year}>
                                 <TableCell
                                   key={qtr.label}
                                   className={cn(
@@ -3973,15 +3972,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     isNetSellingGross && !status && "bg-muted/30"
                                   )}
                                 >
-                                  <span className={cn(
-                                    status === "success" && "text-success font-medium",
-                                    status === "warning" && "text-warning font-medium",
-                                    status === "destructive" && "text-destructive font-medium"
-                                  )}>
-                                    {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
-                                  </span>
+                                  <QuarterTrendCellTooltip metricKey={metric.key} metricType={metric.type} quarter={qtr.quarter} qtrYear={qtr.year}>
+                                    <span className={cn(
+                                      status === "success" && "text-success font-medium",
+                                      status === "warning" && "text-warning font-medium",
+                                      status === "destructive" && "text-destructive font-medium"
+                                    )}>
+                                      {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
+                                    </span>
+                                  </QuarterTrendCellTooltip>
                                 </TableCell>
-                              </QuarterTrendCellTooltip>
                             );
                           })
                         ) : (
@@ -4754,6 +4754,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           }
                           return null;
                         }}
+                        precedingQuartersData={precedingQuartersData}
+                        formatTargetForTooltip={formatTarget}
+                        metricType={metric.type}
                       />
                       </React.Fragment>
                     );
