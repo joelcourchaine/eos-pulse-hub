@@ -12,6 +12,7 @@ export interface CellMapping {
   name_cell_reference?: string | null;
   parent_metric_key?: string | null;
   is_sub_metric?: boolean;
+  effective_year?: number | null;
 }
 
 export interface ParsedDepartmentData {
@@ -43,7 +44,7 @@ export interface ValidationResult {
 /**
  * Fetch cell mappings for a specific brand
  */
-export const fetchCellMappings = async (brand: string): Promise<CellMapping[]> => {
+export const fetchCellMappings = async (brand: string, year?: number): Promise<CellMapping[]> => {
   const { data, error } = await supabase
     .from('financial_cell_mappings')
     .select('*')
@@ -54,7 +55,27 @@ export const fetchCellMappings = async (brand: string): Promise<CellMapping[]> =
     return [];
   }
 
-  return data || [];
+  if (!data) return [];
+
+  if (year) {
+    // For each metric_key + department combo, prefer year-specific
+    // mapping over NULL (universal) mapping
+    const grouped = new Map<string, CellMapping[]>();
+    for (const m of data) {
+      const key = `${m.department_name}::${m.metric_key}`;
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(m);
+    }
+    const result: CellMapping[] = [];
+    for (const entries of grouped.values()) {
+      const yearMatch = entries.find(e => e.effective_year === year);
+      const universal = entries.find(e => e.effective_year === null);
+      result.push(yearMatch || universal || entries[0]);
+    }
+    return result;
+  }
+
+  return data;
 };
 
 /**

@@ -875,6 +875,7 @@ export type Database = {
           cell_reference: string
           created_at: string
           department_name: string
+          effective_year: number | null
           id: string
           is_sub_metric: boolean | null
           metric_key: string
@@ -888,6 +889,7 @@ export type Database = {
           cell_reference: string
           created_at?: string
           department_name: string
+          effective_year?: number | null
           id?: string
           is_sub_metric?: boolean | null
           metric_key: string
@@ -901,6 +903,7 @@ export type Database = {
           cell_reference?: string
           created_at?: string
           department_name?: string
+          effective_year?: number | null
           id?: string
           is_sub_metric?: boolean | null
           metric_key?: string

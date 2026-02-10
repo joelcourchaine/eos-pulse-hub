@@ -1,0 +1,1 @@
+ALTER TABLE financial_cell_mappings ADD COLUMN effective_year integer;

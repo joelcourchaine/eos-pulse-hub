@@ -128,7 +128,8 @@ export const MonthDropZone = ({
         const file = new File([fileData], attachment.file_name, { type: fileData.type });
 
         // Fetch cell mappings for the brand
-        const mappings = await fetchCellMappings(storeBrand);
+        const year = parseInt(monthIdentifier.split('-')[0], 10);
+        const mappings = await fetchCellMappings(storeBrand, year);
         if (mappings.length === 0) return;
 
         // Get all departments for this store
@@ -220,7 +221,8 @@ export const MonthDropZone = ({
 
     if (isStellantisFile) {
       // Always fetch cell mappings
-      const mappings = await fetchCellMappings(brand);
+      const year = parseInt(monthIdentifier.split('-')[0], 10);
+      const mappings = await fetchCellMappings(brand, year);
 
       // Get department names for parsing
       const deptNames = storeDepartments.map((d) => d.name);
@@ -306,7 +308,8 @@ export const MonthDropZone = ({
       }
     } else {
       // Standard flow for other brands - fetch cell mappings
-      const mappings = await fetchCellMappings(brand);
+      const year = parseInt(monthIdentifier.split('-')[0], 10);
+      const mappings = await fetchCellMappings(brand, year);
       if (mappings.length === 0) {
         console.log(`No cell mappings found for ${brand}`);
         return;
