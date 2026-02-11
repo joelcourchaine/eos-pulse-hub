@@ -566,19 +566,25 @@ export default function Enterprise() {
       if (error) throw error;
       
       // Parse sub-metric names and group by parent
-      const subMetricMap = new Map<string, Set<string>>();
+      // Map: parentKey -> Map<subName, minOrderIndex>
+      const subMetricMap = new Map<string, Map<string, number>>();
       
       data?.forEach(entry => {
         const parts = entry.metric_name.split(':');
         if (parts.length >= 4) {
           // Format: sub:parent_key:order:name
           const parentKey = parts[1];
+          const orderIndex = parseInt(parts[2], 10) || 999;
           const name = parts.slice(3).join(':'); // Handle names with colons
           
           if (!subMetricMap.has(parentKey)) {
-            subMetricMap.set(parentKey, new Set());
+            subMetricMap.set(parentKey, new Map());
           }
-          subMetricMap.get(parentKey)!.add(name);
+          const parentMap = subMetricMap.get(parentKey)!;
+          const existing = parentMap.get(name);
+          if (existing === undefined || orderIndex < existing) {
+            parentMap.set(name, orderIndex);
+          }
         }
       });
       
@@ -595,7 +601,7 @@ export default function Enterprise() {
       const baseMetrics = getMetricsForBrand(brand);
       
       // Include sub-metrics if available
-      const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
+      const subMetricData: Map<string, Map<string, number>> = subMetrics instanceof Map ? subMetrics as Map<string, Map<string, number>> : new Map();
       const result: any[] = [];
       
        baseMetrics.forEach((metric: any) => {
@@ -610,7 +616,9 @@ export default function Enterprise() {
              : metric.key;
 
          if (subMetricData.has(subMetricSourceKey)) {
-           const subNames = Array.from(subMetricData.get(subMetricSourceKey)!).sort();
+           const subEntries = Array.from(subMetricData.get(subMetricSourceKey)!.entries());
+           subEntries.sort((a, b) => a[1] - b[1]);
+           const subNames = subEntries.map(e => e[0]);
            subNames.forEach((subName) => {
              result.push({
                name: `↳ ${subName}`,
@@ -678,7 +686,7 @@ export default function Enterprise() {
     
     // Build list with sub-metrics inserted after their parents
     const result: any[] = [];
-    const subMetricData = subMetrics instanceof Map ? subMetrics : new Map<string, Set<string>>();
+    const subMetricData: Map<string, Map<string, number>> = subMetrics instanceof Map ? subMetrics as Map<string, Map<string, number>> : new Map();
     
      baseMetrics.forEach((metric: any) => {
        result.push(metric);
@@ -690,7 +698,9 @@ export default function Enterprise() {
 
        // Check if this metric has sub-metrics
        if (subMetricData.has(subMetricSourceKey)) {
-         const subNames = Array.from(subMetricData.get(subMetricSourceKey)!).sort();
+         const subEntries = Array.from(subMetricData.get(subMetricSourceKey)!.entries());
+         subEntries.sort((a, b) => a[1] - b[1]);
+         const subNames = subEntries.map(e => e[0]);
          subNames.forEach((subName) => {
            result.push({
              name: `↳ ${subName}`,
