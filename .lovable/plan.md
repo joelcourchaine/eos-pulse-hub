@@ -1,62 +1,83 @@
 
 
-## Fix: GP Net Sub-Metrics Appearing Under Total Sales Parent
+## Fix: Sort Sub-Metrics by Excel Statement Order (Matching Financial Summary)
 
 ### Problem
-In the Dealer Comparison table, sub-metrics that belong to GP Net (e.g., "CUST. MECH. LABOUR") are visually showing under the Total Sales parent instead of their correct parent. The data values may also be wrong because one parent's sub-metric value overwrites the other's.
+Sub-metrics in the Dealer Comparison (and Enterprise metric picker) appear in alphabetical order instead of the original Excel statement order used in the Financial Summary. The Financial Summary preserves order via the `orderIndex` embedded in the DB key format `sub:parentKey:orderIndex:name`, but Enterprise and DealerComparison discard this information.
 
-### Root Cause
-In the single-month code path (line 1088-1139), each financial entry's `metricName` is resolved to a **display name** via `keyToName`. Both `sub:gp_net:001:CUST. MECH. LABOUR` and `sub:total_sales:001:CUST. MECH. LABOUR` resolve to the identical display name `"↳ CUST. MECH. LABOUR"`.
+### Root Cause (2 files)
 
-This causes two cascading failures:
+1. **Enterprise.tsx (line 569-583)**: The sub-metric query groups names into a `Map<string, Set<string>>`, discarding the order index entirely. Then on line 613, it sorts alphabetically: `Array.from(...).sort()`.
 
-1. **Data collision**: In the `storeData` reducer (line 1722), `acc[storeId].metrics["↳ CUST. MECH. LABOUR"]` is set by whichever entry is processed first. The second entry (from the other parent) is silently dropped because the key already exists.
-
-2. **Selection ID mapping failure**: On line 1730, `extractSubMetricParts(item.metricName)` is called to map data to the correct selection ID. But since `item.metricName` is `"↳ CUST. MECH. LABOUR"` (not starting with `"sub:"`), the function returns null and no selection-ID-based indexing happens. The render then falls back to display name lookup (line 2107: `store.metrics[displayName]`), which returns whichever parent's value happened to be stored first.
+2. **DealerComparison.tsx (line 292-299)**: Sub-metrics within each parent group are rendered in the order they appear in `selectedMetrics` (which inherits the alphabetical order from Enterprise).
 
 ### Fix
 
-**File: `src/pages/DealerComparison.tsx`**
+**File 1: `src/pages/Enterprise.tsx`**
 
-**Change 1 - Use raw DB keys for sub-metric metricName (single-month path, ~line 1091-1094)**
+Change the sub-metric query result from `Map<string, Set<string>>` to `Map<string, Map<string, number>>` where the inner map is `name -> minOrderIndex`. This preserves the order index from the DB key.
 
-When processing single-month entries, keep sub-metric `metricName` as the raw DB key (e.g., `sub:gp_net:001:CUST. MECH. LABOUR`) instead of converting to display name. This prevents collisions and allows `extractSubMetricParts` to work correctly in the reducer.
+- **Query parsing (line 569-583)**: Extract the order index (`parts[2]`) and store it alongside the name. Use the minimum order index seen across departments for each sub-metric name.
+- **Available metrics builder (line 613)**: Replace `.sort()` with a sort by order index: `subNames.sort((a, b) => orderA - orderB)`.
+- **Combined view metrics (line 693)**: Same sorting fix.
 
+**File 2: `src/pages/DealerComparison.tsx`**
+
+In `orderedSelectedMetrics` (line 292-299), sort sub-metrics within each parent group by their order index from the DB. Since the DealerComparison already fetches `financialEntries` which contain the raw metric keys with order indices, extract the order index for each selection ID by matching against the raw keys.
+
+- Build a `subMetricOrderMap: Map<string, number>` from the financial entries that maps `parentKey|subName` to order index
+- When adding subs for each parent (line 294), sort them by this order before pushing
+
+### Technical Details
+
+**Enterprise.tsx sub-metric map change:**
 ```text
-Before:
-  const metricName = keyToName.get(k) || k;
-
-After:
-  // For sub-metrics, preserve the raw DB key as metricName to avoid display name collisions
-  // (e.g., both sub:gp_net:001:NAME and sub:total_sales:001:NAME produce "NAME")
-  const metricName = k.startsWith("sub:") ? k : (keyToName.get(k) || k);
+Before: Map<string, Set<string>>  (parentKey -> set of names)
+After:  Map<string, Map<string, number>>  (parentKey -> map of name -> orderIndex)
 ```
 
-**Change 2 - Also fix multi-month path (~line 981)**
-
-Same issue exists in the multi-month aggregation path where `keyToName.get(metricKey)` converts sub-metric raw keys to display names.
-
+**Enterprise.tsx sorting change:**
 ```text
-Before:
-  const metricName = keyToName.get(metricKey) || metricKey;
-
-After:
-  const metricName = metricKey.startsWith("sub:") ? metricKey : (keyToName.get(metricKey) || metricKey);
+Before: const subNames = Array.from(subMetricData.get(key)!).sort();
+After:  const subEntries = Array.from(subMetricData.get(key)!.entries());
+        subEntries.sort((a, b) => a[1] - b[1]);
+        const subNames = subEntries.map(e => e[0]);
 ```
 
-These two changes ensure that:
-- Sub-metric entries in `dataMap` use unique raw DB keys, preventing collisions
-- The `storeData` reducer's `extractSubMetricParts` call (line 1730) successfully parses the raw key and maps it to the correct selection ID
-- GP Net sub-metrics map to `sub:gp_net:NAME` selections and Total Sales sub-metrics map to `sub:total_sales:NAME` selections
-- The render lookup (line 2107) finds data via `store.metrics[selectionId]` correctly
+**DealerComparison.tsx ordering fix:**
+```text
+// Build order map from financial entries
+const subOrderMap = new Map<string, number>();
+financialEntries?.forEach(entry => {
+  const parts = (entry.metric_name as string).split(':');
+  if (parts.length >= 4) {
+    const parentKey = parts[1];
+    const orderIdx = parseInt(parts[2], 10) || 999;
+    const name = parts.slice(3).join(':');
+    const mapKey = `${parentKey}|${name}`;
+    const existing = subOrderMap.get(mapKey);
+    if (existing === undefined || orderIdx < existing) {
+      subOrderMap.set(mapKey, orderIdx);
+    }
+  }
+});
+
+// Then when adding subs for a parent, sort by order:
+subs.sort((a, b) => {
+  const parsedA = extractSubMetricParts(a);
+  const parsedB = extractSubMetricParts(b);
+  const orderA = parsedA ? (subOrderMap.get(`${parsedA.parentKey}|${parsedA.subName}`) ?? 999) : 999;
+  const orderB = parsedB ? (subOrderMap.get(`${parsedB.parentKey}|${parsedB.subName}`) ?? 999) : 999;
+  return orderA - orderB;
+});
+```
 
 ### What This Affects
-- Sub-metric data is correctly separated by parent in both single-month and multi-month views
-- All brands benefit (not just Nissan)
-- No changes to Enterprise.tsx or the metric picker
+- Sub-metric display order in Enterprise metric picker and Dealer Comparison table
+- All brands benefit
+- Order now matches the Financial Summary (which uses the Excel statement order)
 
 ### What Stays the Same
-- Parent metric display names are unchanged
-- Percentage sub-metric synthesis continues to work (it already uses selectionId as metricName)
-- The ordering/grouping logic in `orderedSelectedMetrics` is unaffected (it uses selection IDs, not display names)
-
+- Sub-metric values and calculations are unchanged
+- Parent metric ordering is unchanged
+- Financial Summary behavior is unchanged (already correct)
