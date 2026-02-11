@@ -1,83 +1,47 @@
 
 
-## Fix: Sort Sub-Metrics by Excel Statement Order (Matching Financial Summary)
+## Fix: Order Parent Metrics by Brand Config in Dealer Comparison
 
 ### Problem
-Sub-metrics in the Dealer Comparison (and Enterprise metric picker) appear in alphabetical order instead of the original Excel statement order used in the Financial Summary. The Financial Summary preserves order via the `orderIndex` embedded in the DB key format `sub:parentKey:orderIndex:name`, but Enterprise and DealerComparison discard this information.
+"Total Direct Expenses" and its sub-metrics appear out of order in the Dealer Comparison table. Parent metrics are displayed in selection order (the order the user clicked them in the picker) rather than the brand's canonical order defined in `financialMetrics.ts`, which matches the Financial Summary / Excel statement layout.
 
-### Root Cause (2 files)
-
-1. **Enterprise.tsx (line 569-583)**: The sub-metric query groups names into a `Map<string, Set<string>>`, discarding the order index entirely. Then on line 613, it sorts alphabetically: `Array.from(...).sort()`.
-
-2. **DealerComparison.tsx (line 292-299)**: Sub-metrics within each parent group are rendered in the order they appear in `selectedMetrics` (which inherits the alphabetical order from Enterprise).
+### Root Cause
+In `src/pages/DealerComparison.tsx` (line 313), `parentIds` is iterated in the order items appear in `selectedMetrics`, which is arbitrary. No step reorders parents to match the brand config.
 
 ### Fix
 
-**File 1: `src/pages/Enterprise.tsx`**
+**File: `src/pages/DealerComparison.tsx`**
 
-Change the sub-metric query result from `Map<string, Set<string>>` to `Map<string, Map<string, number>>` where the inner map is `name -> minOrderIndex`. This preserves the order index from the DB key.
+Before iterating `parentIds` to build the ordered list (line 308-330), sort `parentIds` according to the brand's canonical metric order from `getMetricsForBrand`. Metrics not found in the config get pushed to the end.
 
-- **Query parsing (line 569-583)**: Extract the order index (`parts[2]`) and store it alongside the name. Use the minimum order index seen across departments for each sub-metric name.
-- **Available metrics builder (line 613)**: Replace `.sort()` with a sort by order index: `subNames.sort((a, b) => orderA - orderB)`.
-- **Combined view metrics (line 693)**: Same sorting fix.
+```text
+// After line 306 (after sortSubsByOrder), add:
 
-**File 2: `src/pages/DealerComparison.tsx`**
+// Sort parent metrics by brand config order
+const brandMetrics = getMetricsForBrand(brandName);
+const parentOrderMap = new Map<string, number>();
+brandMetrics.forEach((m: any, idx: number) => parentOrderMap.set(m.name, idx));
 
-In `orderedSelectedMetrics` (line 292-299), sort sub-metrics within each parent group by their order index from the DB. Since the DealerComparison already fetches `financialEntries` which contain the raw metric keys with order indices, extract the order index for each selection ID by matching against the raw keys.
+parentIds.sort((a, b) => {
+  const ai = parentOrderMap.get(a) ?? 9999;
+  const bi = parentOrderMap.get(b) ?? 9999;
+  return ai - bi;
+});
+```
 
-- Build a `subMetricOrderMap: Map<string, number>` from the financial entries that maps `parentKey|subName` to order index
-- When adding subs for each parent (line 294), sort them by this order before pushing
+This ensures "Total Direct Expenses" appears in its correct position (after GP Net, before Semi Fixed Expense, etc.) matching the Financial Summary order. Sub-metrics within each parent are already sorted by `orderIndex` from the previous fix.
 
 ### Technical Details
-
-**Enterprise.tsx sub-metric map change:**
-```text
-Before: Map<string, Set<string>>  (parentKey -> set of names)
-After:  Map<string, Map<string, number>>  (parentKey -> map of name -> orderIndex)
-```
-
-**Enterprise.tsx sorting change:**
-```text
-Before: const subNames = Array.from(subMetricData.get(key)!).sort();
-After:  const subEntries = Array.from(subMetricData.get(key)!.entries());
-        subEntries.sort((a, b) => a[1] - b[1]);
-        const subNames = subEntries.map(e => e[0]);
-```
-
-**DealerComparison.tsx ordering fix:**
-```text
-// Build order map from financial entries
-const subOrderMap = new Map<string, number>();
-financialEntries?.forEach(entry => {
-  const parts = (entry.metric_name as string).split(':');
-  if (parts.length >= 4) {
-    const parentKey = parts[1];
-    const orderIdx = parseInt(parts[2], 10) || 999;
-    const name = parts.slice(3).join(':');
-    const mapKey = `${parentKey}|${name}`;
-    const existing = subOrderMap.get(mapKey);
-    if (existing === undefined || orderIdx < existing) {
-      subOrderMap.set(mapKey, orderIdx);
-    }
-  }
-});
-
-// Then when adding subs for a parent, sort by order:
-subs.sort((a, b) => {
-  const parsedA = extractSubMetricParts(a);
-  const parsedB = extractSubMetricParts(b);
-  const orderA = parsedA ? (subOrderMap.get(`${parsedA.parentKey}|${parsedA.subName}`) ?? 999) : 999;
-  const orderB = parsedB ? (subOrderMap.get(`${parsedB.parentKey}|${parsedB.subName}`) ?? 999) : 999;
-  return orderA - orderB;
-});
-```
+- `brandName` is already available in scope from the component state
+- `getMetricsForBrand` is already imported
+- The sort is applied to `parentIds` in-place before the first pass loop that builds `ordered[]`
+- Sub-metric ordering within each parent remains handled by `sortSubsByOrder`
 
 ### What This Affects
-- Sub-metric display order in Enterprise metric picker and Dealer Comparison table
-- All brands benefit
-- Order now matches the Financial Summary (which uses the Excel statement order)
+- Parent metric display order in Dealer Comparison table now matches Financial Summary / Excel layout
+- All brands benefit, not just Nissan
 
 ### What Stays the Same
-- Sub-metric values and calculations are unchanged
-- Parent metric ordering is unchanged
-- Financial Summary behavior is unchanged (already correct)
+- Sub-metric ordering within parents (already fixed)
+- Enterprise metric picker ordering (separate code path)
+- Values, calculations, and synthesis logic are untouched
