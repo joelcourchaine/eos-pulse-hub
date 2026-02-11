@@ -124,25 +124,16 @@ export const ScorecardImportPreviewDialog = ({
   });
 
   // Fetch cell mappings filtered to users belonging to the current store
+  // Fetch cell mappings for the import profile (universal template, not store-filtered)
   const { data: cellMappings } = useQuery({
-    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId],
+    queryKey: ["cell-mappings-for-import", importProfile?.id],
     queryFn: async () => {
-      if (!importProfile?.id || !storeId) return [];
-      
-      const { data: storeProfiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("store_id", storeId);
-      if (profilesError) throw profilesError;
-      
-      const storeUserIds = storeProfiles?.map(p => p.id) || [];
-      if (storeUserIds.length === 0) return [];
+      if (!importProfile?.id) return [];
       
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*, kpi_definitions(name)")
-        .eq("import_profile_id", importProfile.id)
-        .in("user_id", storeUserIds);
+        .eq("import_profile_id", importProfile.id);
       if (error) throw error;
       
       const mappingsWithNames = (data || []).map(cm => ({
@@ -152,7 +143,7 @@ export const ScorecardImportPreviewDialog = ({
       
       return mappingsWithNames;
     },
-    enabled: open && !!importProfile?.id && !!storeId,
+    enabled: open && !!importProfile?.id,
     staleTime: 0,
     refetchOnMount: "always",
   });
