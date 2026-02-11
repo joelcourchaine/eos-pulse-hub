@@ -861,15 +861,18 @@ export default function DealerComparison() {
         }
       });
       
+      // Hoisted so percentage sub-metric synthesis can access aggregated raw keys
+      type AvgAgg = { sum: number; count: number };
+      const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
+      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range";
+
       // For full_year and custom_range, we need to aggregate data first
-      if (datePeriodType === "full_year" || datePeriodType === "custom_range") {
+      if (isMultiMonth) {
         console.log("Aggregating data for multi-month period");
         
         // Group entries by store+dept and collect raw values
         // NOTE: sub-metrics that are percentage-based should be averaged (not summed) across months.
         const allMetricDefs = getMetricsForBrand(null);
-        type AvgAgg = { sum: number; count: number };
-        const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
 
         financialEntries.forEach(entry => {
           const storeId = (entry as any)?.departments?.store_id || "";
@@ -1466,20 +1469,44 @@ export default function DealerComparison() {
         storeDeptPairs.forEach((pair) => {
           const [storeId, deptId] = pair.split("|");
 
-          // Rebuild the values map for this store/dept (including previously calculated metrics)
+          // Rebuild the values map for this store/dept using RAW DB keys.
+          // We avoid nameToKey for sub-metrics because multiple sub-metrics across
+          // different parents share the same display name (e.g. "↳ CUST. MECH. LABOUR"),
+          // so nameToKey can only return one raw key per display name, losing the other.
           const allValues = new Map<string, number>();
+
+          // 1. Add parent metric values from dataMap (no collision for non-sub metrics)
           Object.values(dataMap).forEach((d) => {
             if (d.storeId === storeId && d.departmentId === deptId && d.value !== null && d.value !== undefined) {
               const k = nameToKey.get(d.metricName);
-              if (k) {
-                allValues.set(k, d.value);
-              } else if (d.metricName.startsWith("sub:")) {
-                // Include sub-metric entries directly by their raw DB key
-                // so the percentage synthesis lookup can find numerator sub-metrics
-                allValues.set(d.metricName, d.value);
-              }
+              if (k && !k.startsWith("sub:")) allValues.set(k, d.value);
             }
           });
+
+          // 2. Add ALL sub-metric values directly using raw DB keys,
+          //    bypassing the lossy nameToKey display-name lookup entirely.
+          if (isMultiMonth) {
+            // Multi-month: read from aggregated storeMetrics (already keyed by raw DB key)
+            const storeDeptAgg = aggregatedByStoreDept.get(`${storeId}-${deptId}`);
+            if (storeDeptAgg) {
+              for (const [k, v] of storeDeptAgg) {
+                if (!k.startsWith("sub:")) continue;
+                const numeric = typeof v === "number" ? v : (v.count > 0 ? v.sum / v.count : 0);
+                allValues.set(k, numeric);
+              }
+            }
+          } else {
+            // Single-month: read directly from financialEntries
+            financialEntries.forEach((entry) => {
+              const rawKey = entry.metric_name as string;
+              if (!rawKey?.startsWith("sub:")) return;
+              const entryStoreId = (entry as any)?.departments?.store_id || "";
+              const entryDeptId = (entry as any)?.departments?.id;
+              if (entryStoreId !== storeId || entryDeptId !== deptId) return;
+              const val = entry.value !== null ? Number(entry.value) : null;
+              if (val !== null) allValues.set(rawKey, val);
+            });
+          }
 
           const sampleEntry = Object.values(dataMap).find((d) => d.storeId === storeId && d.departmentId === deptId);
           if (!sampleEntry) return;
@@ -1535,6 +1562,31 @@ export default function DealerComparison() {
             };
           });
         });
+
+        // After synthesis, remove the original raw-dollar numerator entries that were
+        // replaced by synthesized percentage entries, to prevent duplicate rows.
+        if (percentSubSelections.length > 0) {
+          const keysToRemove: string[] = [];
+          for (const dmKey of Object.keys(dataMap)) {
+            // dmKey = storeId-deptId-rawMetricName
+            const lastDash = dmKey.indexOf("-", dmKey.indexOf("-") + 1);
+            if (lastDash < 0) continue;
+            const rawMetricName = dmKey.substring(lastDash + 1);
+            if (!rawMetricName.startsWith("sub:")) continue;
+
+            // Check if this raw key is a numerator sub-metric that was replaced
+            for (const sel of percentSubSelections) {
+              if (!rawMetricName.startsWith(`sub:${sel.numeratorKey}:`)) continue;
+              const parts = rawMetricName.split(":");
+              const importedSubName = parts.length >= 4 ? parts.slice(3).join(":") : "";
+              if (importedSubName === sel.subName) {
+                keysToRemove.push(dmKey);
+                break;
+              }
+            }
+          }
+          keysToRemove.forEach((k) => delete dataMap[k]);
+        }
       }
 
       // Build complete list of all store+dept combinations from initial department IDs
