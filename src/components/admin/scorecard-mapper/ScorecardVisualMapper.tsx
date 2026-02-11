@@ -578,19 +578,21 @@ export const ScorecardVisualMapper = () => {
     })();
   }, [parsedData, storedReportPath, parseWorkbookToParsedData]);
 
-  // Fetch existing cell KPI mappings for selected profile
+  // Fetch existing cell KPI mappings for selected profile, filtered to current store's users
+  const storeUserIds = storeUsers?.map(u => u.id) || [];
   const { data: existingCellMappings } = useQuery({
-    queryKey: ["existing-cell-mappings", selectedProfileId],
+    queryKey: ["existing-cell-mappings", selectedProfileId, selectedStoreId],
     queryFn: async () => {
-      if (!selectedProfileId) return [];
+      if (!selectedProfileId || storeUserIds.length === 0) return [];
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*")
-        .eq("import_profile_id", selectedProfileId);
+        .eq("import_profile_id", selectedProfileId)
+        .in("user_id", storeUserIds);
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedProfileId,
+    enabled: !!selectedProfileId && storeUserIds.length > 0,
   });
 
   // Fetch existing column templates for selected profile
