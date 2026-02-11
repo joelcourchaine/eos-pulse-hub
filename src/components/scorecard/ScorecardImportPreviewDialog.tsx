@@ -18,6 +18,36 @@ import { Check, AlertCircle, Loader2, UserPlus } from "lucide-react";
 import { CSRParseResult, AdvisorData } from "@/utils/parsers/parseCSRProductivityReport";
 import { createUserAlias, getStandardKpiName } from "@/utils/scorecardImportMatcher";
 
+/**
+ * Generate candidate KPI names by stripping common prefixes.
+ * e.g. "Total CP ELR" → ["total cp elr", "cp elr"]
+ */
+const getKpiNameCandidates = (name: string): string[] => {
+  const n = name.toLowerCase().trim();
+  const candidates = new Set<string>();
+  candidates.add(n);
+  if (n.startsWith("total cp ")) candidates.add(n.replace(/^total cp /, "cp "));
+  if (n.startsWith("total ")) candidates.add(n.replace(/^total /, ""));
+  // Also handle apostrophe variants: RO's vs ROs
+  for (const c of [...candidates]) {
+    candidates.add(c.replace(/'/g, ""));
+    candidates.add(c.replace(/s$/, "'s"));
+  }
+  return [...candidates];
+};
+
+const findKpiByFlexibleName = (
+  userKpis: Array<{ id: string; name: string; [key: string]: any }>,
+  templateKpiName: string
+) => {
+  const candidates = getKpiNameCandidates(templateKpiName);
+  for (const candidate of candidates) {
+    const match = userKpis.find(k => k.name.toLowerCase().trim() === candidate);
+    if (match) return match;
+  }
+  return undefined;
+};
+
 interface ScorecardImportPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -339,7 +369,7 @@ export const ScorecardImportPreviewDialog = ({
             
             for (const [, tmpl] of universalMappingTemplate) {
               const { kpiName, colIndex, rowOffset } = tmpl;
-              const userKpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+              const userKpi = findKpiByFlexibleName(userKpis, kpiName);
               if (!userKpi) continue;
               
               const payType = (mapping.advisor as any).payTypeByRowOffset?.[rowOffset];
@@ -360,7 +390,7 @@ export const ScorecardImportPreviewDialog = ({
             
             for (const [, tmpl] of universalMappingTemplate) {
               const { kpiName, colIndex, rowOffset } = tmpl;
-              const userKpi = userKpis.find(k => k.name.toLowerCase() === kpiName.toLowerCase());
+              const userKpi = findKpiByFlexibleName(userKpis, kpiName);
               if (!userKpi) continue;
               
               // Determine intended pay type from advisor row offsets
