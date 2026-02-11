@@ -150,22 +150,32 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeData?.group_id,
   });
 
-  // Fetch cell mappings from Visual Mapper for this import profile - UNIVERSAL (not filtered by user)
-  // These mappings define the relative positions of KPIs and apply to ALL users
+  // Fetch cell mappings filtered to users belonging to the current store
+  // These mappings define the relative positions of KPIs and apply as universal templates
   // IMPORTANT: Always refetch fresh data when dialog opens to pick up newly added KPI mappings
   const { data: cellMappings } = useQuery({
-    queryKey: ["cell-mappings-for-import", importProfile?.id],
+    queryKey: ["cell-mappings-for-import", importProfile?.id, storeId],
     queryFn: async () => {
-      if (!importProfile?.id) return [];
+      if (!importProfile?.id || !storeId) return [];
       
-      console.log("[Import Preview] Fetching UNIVERSAL cell mappings for profile:", importProfile.id);
+      // First get user IDs belonging to this store
+      const { data: storeProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("store_id", storeId);
+      if (profilesError) throw profilesError;
       
-      // Fetch ALL cell mappings for this import profile - they are universal templates
-      // JOIN kpi_definitions to get kpi_name since it's not stored directly
+      const storeUserIds = storeProfiles?.map(p => p.id) || [];
+      if (storeUserIds.length === 0) return [];
+      
+      console.log("[Import Preview] Fetching cell mappings for store users:", storeUserIds.length);
+      
+      // Fetch cell mappings filtered to this store's users
       const { data, error } = await supabase
         .from("scorecard_cell_mappings")
         .select("*, kpi_definitions(name)")
-        .eq("import_profile_id", importProfile.id);
+        .eq("import_profile_id", importProfile.id)
+        .in("user_id", storeUserIds);
       if (error) throw error;
       
       // Flatten the kpi_name from the join
@@ -174,11 +184,11 @@ export const ScorecardImportPreviewDialog = ({
         kpi_name: cm.kpi_definitions?.name || cm.kpi_name || 'Unknown KPI'
       }));
       
-      console.log("[Import Preview] Fetched universal cell mappings:", mappingsWithNames.length);
+      console.log("[Import Preview] Fetched store-scoped cell mappings:", mappingsWithNames.length);
       return mappingsWithNames;
     },
-    enabled: open && !!importProfile?.id,
-    staleTime: 0, // Always refetch to pick up newly added mappings
+    enabled: open && !!importProfile?.id && !!storeId,
+    staleTime: 0,
     refetchOnMount: "always",
   });
 
