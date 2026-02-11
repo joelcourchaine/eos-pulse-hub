@@ -261,6 +261,22 @@ export default function DealerComparison() {
       getMetricsForBrand(b).forEach((d: any) => keyToNameLocal.set(d.key, d.name));
     });
 
+    // Build sub-metric order map from financial entries (parentKey|subName -> orderIndex)
+    const subOrderMap = new Map<string, number>();
+    financialEntries?.forEach((entry: any) => {
+      const parts = (entry.metric_name as string).split(':');
+      if (parts.length >= 4) {
+        const parentKey = parts[1];
+        const orderIdx = parseInt(parts[2], 10) || 999;
+        const name = parts.slice(3).join(':');
+        const mapKey = `${parentKey}|${name}`;
+        const existing = subOrderMap.get(mapKey);
+        if (existing === undefined || orderIdx < existing) {
+          subOrderMap.set(mapKey, orderIdx);
+        }
+      }
+    });
+
     // Separate parent metrics and sub-metrics
     const parentIds: string[] = [];
     const subMetricsByParent = new Map<string, string[]>();
@@ -278,6 +294,17 @@ export default function DealerComparison() {
       }
     });
 
+    // Sort sub-metrics within each parent group by orderIndex
+    const sortSubsByOrder = (subs: string[]) => {
+      subs.sort((a, b) => {
+        const parsedA = extractSubMetricParts(a);
+        const parsedB = extractSubMetricParts(b);
+        const orderA = parsedA ? (subOrderMap.get(`${parsedA.parentKey}|${parsedA.subName}`) ?? 999) : 999;
+        const orderB = parsedB ? (subOrderMap.get(`${parsedB.parentKey}|${parsedB.subName}`) ?? 999) : 999;
+        return orderA - orderB;
+      });
+    };
+
     // Build ordered list: for each parent, add the parent then its sub-metrics
     const ordered: string[] = [];
     const added = new Set<string>();
@@ -288,9 +315,10 @@ export default function DealerComparison() {
         ordered.push(parentId);
         added.add(parentId);
       }
-      // Add any sub-metrics for this parent
+      // Add any sub-metrics for this parent (sorted by order index)
       const subs = subMetricsByParent.get(parentId);
       if (subs) {
+        sortSubsByOrder(subs);
         subs.forEach((subId) => {
           if (!added.has(subId)) {
             ordered.push(subId);
@@ -302,13 +330,12 @@ export default function DealerComparison() {
     });
 
     // Second pass: add remaining sub-metrics whose parent wasn't explicitly selected
-    // Insert the parent first (even if not selected) then the subs
     subMetricsByParent.forEach((subs, parentName) => {
-      // Find if parent exists in our remaining items
       if (!added.has(parentName) && selectedMetrics.includes(parentName)) {
         ordered.push(parentName);
         added.add(parentName);
       }
+      sortSubsByOrder(subs);
       subs.forEach((subId) => {
         if (!added.has(subId)) {
           ordered.push(subId);
@@ -318,7 +345,7 @@ export default function DealerComparison() {
     });
 
     return ordered;
-  }, [metricType, selectedMetrics]);
+  }, [metricType, selectedMetrics, financialEntries]);
 
   // Identify which metrics are "parents" (have sub-metrics selected)
   const parentMetricKeys = useMemo(() => {
