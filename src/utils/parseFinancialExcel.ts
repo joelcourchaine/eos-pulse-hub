@@ -247,15 +247,24 @@ export const parseFinancialExcel = (
           subMetricsResult[deptName] = [];
           console.log(`[Excel Parse Sub] Processing ${deptSubMappings.length} sub-metric mappings for ${deptName}`);
           
-          // Sort by metric_key to preserve order (e.g., total_sales_sub_1, total_sales_sub_2, ...)
-          const sortedMappings = [...deptSubMappings].sort((a, b) => 
-            a.metric_key.localeCompare(b.metric_key, undefined, { numeric: true })
-          );
+          // Sort by cell_reference row number to preserve Excel spreadsheet order
+          // This ensures sub-metrics appear in the same order as the original statement
+          const getRowFromCellRef = (ref: string): number => {
+            const match = ref.match(/\d+$/);
+            return match ? parseInt(match[0], 10) : 9999;
+          };
+          const sortedMappings = [...deptSubMappings].sort((a, b) => {
+            // First sort by sheet name to group by sheet
+            const sheetCmp = a.sheet_name.localeCompare(b.sheet_name);
+            if (sheetCmp !== 0) return sheetCmp;
+            // Then sort by cell row number within the sheet
+            return getRowFromCellRef(a.cell_reference) - getRowFromCellRef(b.cell_reference);
+          });
           
-          // Use order index from the metric_key in the mapping, NOT the Excel row number.
+          // Extract order index from the metric_key if it has an explicit order number.
           // metric_key format: "sub:parent_key:order" (3 parts) e.g., "sub:total_sales:01"
           // or with name: "sub:parent_key:order:Name" (4+ parts) e.g., "sub:total_sales:001:Repair Shop"
-          // This ensures we use the intended order from the mappings.
+          // Fallback uses incrementing index based on cell_reference row order (spreadsheet order).
           let fallbackOrderIndex = 0;
           const extractOrderFromMetricKey = (metricKey: string): number => {
             const parts = metricKey.split(':');
