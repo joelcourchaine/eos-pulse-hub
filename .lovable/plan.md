@@ -1,73 +1,62 @@
 
 
-## Fix: Percentage Sub-Metric Synthesis Fails Due to Display Name Collision
+## Fix: GP Net Sub-Metrics Appearing Under Total Sales Parent
 
 ### Problem
-GP % sub-metrics (CUST. MECH. LABOUR, INTERNAL MECH. LABOUR, etc.) still show raw dollar values (24553.0%, 27014.0%) instead of calculated percentages. The previous synthesis fix is structurally correct but fails at runtime.
+In the Dealer Comparison table, sub-metrics that belong to GP Net (e.g., "CUST. MECH. LABOUR") are visually showing under the Total Sales parent instead of their correct parent. The data values may also be wrong because one parent's sub-metric value overwrites the other's.
 
 ### Root Cause
-The `allValues` map used by the synthesis step is built using `nameToKey.get(d.metricName)` to convert display names back to raw DB keys. But multiple sub-metrics across different parents share the **same display name** (e.g., both `sub:gp_net:001:CUST. MECH. LABOUR` and `sub:total_sales:001:CUST. MECH. LABOUR` produce `"↳ CUST. MECH. LABOUR"`). The `nameToKey` map can only store one mapping per display name, so only the last-registered parent's sub-metric is recoverable. The synthesis then can't find both the numerator (gp_net) and denominator (total_sales) sub-metrics, causing it to silently skip the calculation.
+In the single-month code path (line 1088-1139), each financial entry's `metricName` is resolved to a **display name** via `keyToName`. Both `sub:gp_net:001:CUST. MECH. LABOUR` and `sub:total_sales:001:CUST. MECH. LABOUR` resolve to the identical display name `"↳ CUST. MECH. LABOUR"`.
+
+This causes two cascading failures:
+
+1. **Data collision**: In the `storeData` reducer (line 1722), `acc[storeId].metrics["↳ CUST. MECH. LABOUR"]` is set by whichever entry is processed first. The second entry (from the other parent) is silently dropped because the key already exists.
+
+2. **Selection ID mapping failure**: On line 1730, `extractSubMetricParts(item.metricName)` is called to map data to the correct selection ID. But since `item.metricName` is `"↳ CUST. MECH. LABOUR"` (not starting with `"sub:"`), the function returns null and no selection-ID-based indexing happens. The render then falls back to display name lookup (line 2107: `store.metrics[displayName]`), which returns whichever parent's value happened to be stored first.
 
 ### Fix
 
 **File: `src/pages/DealerComparison.tsx`**
 
-Replace the `allValues` map construction (around line 1469-1482) to build directly from `financialEntries` instead of going through the lossy `nameToKey` lookup. This guarantees all sub-metric values are accessible by their raw DB keys.
+**Change 1 - Use raw DB keys for sub-metric metricName (single-month path, ~line 1091-1094)**
 
-**Current (broken):**
+When processing single-month entries, keep sub-metric `metricName` as the raw DB key (e.g., `sub:gp_net:001:CUST. MECH. LABOUR`) instead of converting to display name. This prevents collisions and allows `extractSubMetricParts` to work correctly in the reducer.
+
 ```text
-const allValues = new Map();
-Object.values(dataMap).forEach((d) => {
-  // nameToKey.get("↳ CUST. MECH. LABOUR") returns only ONE raw key
-  // due to display name collision across parents
-  const k = nameToKey.get(d.metricName);
-  if (k) allValues.set(k, d.value);
-  else if (d.metricName.startsWith("sub:")) allValues.set(d.metricName, d.value);
-});
+Before:
+  const metricName = keyToName.get(k) || k;
+
+After:
+  // For sub-metrics, preserve the raw DB key as metricName to avoid display name collisions
+  // (e.g., both sub:gp_net:001:NAME and sub:total_sales:001:NAME produce "NAME")
+  const metricName = k.startsWith("sub:") ? k : (keyToName.get(k) || k);
 ```
 
-**Fixed:**
+**Change 2 - Also fix multi-month path (~line 981)**
+
+Same issue exists in the multi-month aggregation path where `keyToName.get(metricKey)` converts sub-metric raw keys to display names.
+
 ```text
-const allValues = new Map();
+Before:
+  const metricName = keyToName.get(metricKey) || metricKey;
 
-// 1. Add parent metric values from dataMap (no collision for base metrics)
-Object.values(dataMap).forEach((d) => {
-  if (d.storeId === storeId && d.departmentId === deptId && d.value !== null) {
-    const k = nameToKey.get(d.metricName);
-    if (k && !k.startsWith("sub:")) allValues.set(k, d.value);
-  }
-});
-
-// 2. Add ALL sub-metric values directly from financialEntries using raw DB keys
-//    This avoids the nameToKey display-name collision entirely
-financialEntries.forEach((entry) => {
-  const rawKey = entry.metric_name as string;
-  if (!rawKey?.startsWith("sub:")) return;
-  const entryStoreId = entry?.departments?.store_id || "";
-  const entryDeptId = entry?.departments?.id;
-  if (entryStoreId !== storeId || entryDeptId !== deptId) return;
-  const val = entry.value !== null ? Number(entry.value) : null;
-  if (val !== null) allValues.set(rawKey, val);
-});
+After:
+  const metricName = metricKey.startsWith("sub:") ? metricKey : (keyToName.get(metricKey) || metricKey);
 ```
 
-This same fix needs to be applied in the multi-month aggregation path as well, where the allValues map is built similarly. For multi-month, the raw sub-metric values should come from the aggregated `storeMetrics` map (which already uses raw DB keys) rather than going through display names.
-
-Additionally, the original raw-dollar entries for percentage sub-metrics should be **excluded** from the final result set to prevent duplicate rows. After synthesis, filter out any dataMap entry whose raw DB key belongs to a numerator sub-metric that was replaced by a synthesized percentage entry.
-
-### Technical Summary
-
-1. Build `allValues` from `financialEntries` directly (raw keys) instead of through `nameToKey` (lossy display names)
-2. This ensures both `sub:gp_net:001:CUST. MECH. LABOUR` AND `sub:total_sales:001:CUST. MECH. LABOUR` are available for the division
-3. After synthesis, remove original dollar entries that were replaced by percentage values to prevent duplicate rows in the output
+These two changes ensure that:
+- Sub-metric entries in `dataMap` use unique raw DB keys, preventing collisions
+- The `storeData` reducer's `extractSubMetricParts` call (line 1730) successfully parses the raw key and maps it to the correct selection ID
+- GP Net sub-metrics map to `sub:gp_net:NAME` selections and Total Sales sub-metrics map to `sub:total_sales:NAME` selections
+- The render lookup (line 2107) finds data via `store.metrics[selectionId]` correctly
 
 ### What This Affects
-- DealerComparison percentage sub-metric synthesis only
-- Both single-month and multi-month code paths
+- Sub-metric data is correctly separated by parent in both single-month and multi-month views
 - All brands benefit (not just Nissan)
+- No changes to Enterprise.tsx or the metric picker
 
 ### What Stays the Same
-- Dollar sub-metrics continue to display raw values
-- Parent metric calculations are unaffected
-- Financial Summary page is unaffected
+- Parent metric display names are unchanged
+- Percentage sub-metric synthesis continues to work (it already uses selectionId as metricName)
+- The ordering/grouping logic in `orderedSelectedMetrics` is unaffected (it uses selection IDs, not display names)
 
