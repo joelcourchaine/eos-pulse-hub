@@ -106,9 +106,11 @@ export default function DealerComparison() {
   const metricKeyMap = useMemo(() => {
     if (metricType === "financial" && comparisonData.length > 0) {
       const map = new Map<string, string>();
-      // Get metrics for all brands to build the map (we'll filter by brand in the main processing)
-      const metrics = getMetricsForBrand(null);
-      metrics.forEach((m: any) => map.set(m.name, m.key));
+      // Get metrics for all brands to build a comprehensive map
+      const allBrands = ['GMC', 'Ford', 'Nissan', 'Mazda', 'Honda', 'Hyundai', 'Genesis', 'Stellantis', 'KTRV', 'Other'];
+      allBrands.forEach(b => {
+        getMetricsForBrand(b).forEach((m: any) => map.set(m.name, m.key));
+      });
       return map;
     }
     return new Map<string, string>();
@@ -182,7 +184,9 @@ export default function DealerComparison() {
   // Sub-metric type map by full selection ID (e.g., "sub:sales_expense_percent:Comp Managers")
   const subMetricTypeBySelectionId = useMemo(() => {
     const result = new Map<string, "percentage" | "dollar">();
-    const allDefs = getMetricsForBrand(null);
+    // Check all brand definitions to find the parent metric type
+    const allBrandNames = ['GMC', 'Ford', 'Nissan', 'Mazda', 'Honda', 'Hyundai', 'Genesis', 'Stellantis', 'KTRV', 'Other'];
+    const allBrandDefs = allBrandNames.flatMap(b => getMetricsForBrand(b));
 
     // Map full selection IDs (sub:parent_key:subName) to their parent type
     selectedMetrics.forEach(selectionId => {
@@ -191,7 +195,7 @@ export default function DealerComparison() {
       if (parts.length < 3) return;
 
       const parentKey = parts[1];
-      const parentDef = allDefs.find((d: any) => d.key === parentKey);
+      const parentDef = allBrandDefs.find((d: any) => d.key === parentKey);
       result.set(selectionId, parentDef?.type === "percentage" ? "percentage" : "dollar");
     });
 
@@ -250,9 +254,12 @@ export default function DealerComparison() {
   const orderedSelectedMetrics = useMemo(() => {
     if (metricType !== "financial") return selectedMetrics;
 
-    const defs = getMetricsForBrand(null);
-    const keyToName = new Map<string, string>();
-    defs.forEach((d: any) => keyToName.set(d.key, d.name));
+    // Build key-to-name map from all brands to handle any brand's metrics
+    const allBrandNames = ['GMC', 'Ford', 'Nissan', 'Mazda', 'Honda', 'Hyundai', 'Genesis', 'Stellantis', 'KTRV', 'Other'];
+    const keyToNameLocal = new Map<string, string>();
+    allBrandNames.forEach(b => {
+      getMetricsForBrand(b).forEach((d: any) => keyToNameLocal.set(d.key, d.name));
+    });
 
     // Separate parent metrics and sub-metrics
     const parentIds: string[] = [];
@@ -261,7 +268,7 @@ export default function DealerComparison() {
     selectedMetrics.forEach((id) => {
       if (id.startsWith("sub:")) {
         const parentKey = id.split(":")[1];
-        const parentName = keyToName.get(parentKey) ?? parentKey;
+        const parentName = keyToNameLocal.get(parentKey) ?? parentKey;
         if (!subMetricsByParent.has(parentName)) {
           subMetricsByParent.set(parentName, []);
         }
@@ -564,7 +571,7 @@ export default function DealerComparison() {
 
       // Build brand-specific metric definition maps
       const brandMetricDefs = new Map<string, Map<string, any>>();
-      const brands = ['GMC', 'Ford', 'Nissan', 'Mazda'];
+      const brands = ['GMC', 'Ford', 'Nissan', 'Mazda', 'Honda', 'Hyundai', 'Genesis', 'Stellantis', 'KTRV', 'Other'];
       brands.forEach(brandName => {
         const brandMetrics = getMetricsForBrand(brandName);
         const brandMap = new Map<string, any>();
@@ -594,22 +601,39 @@ export default function DealerComparison() {
         subMetricParentKeyByName.set(displayName, parentKey);
       });
 
-      // Build a default keyToDef for non-brand-specific operations (use GMC as default)
-      const keyToDef = brandMetricDefs.get('GMC') || new Map<string, any>();
+      // Detect the primary brand key for fallback operations
+      const normalizedDetectedBrand = brand?.toLowerCase() || '';
+      let detectedBrandKey = 'GMC';
+      if (normalizedDetectedBrand.includes('nissan')) detectedBrandKey = 'Nissan';
+      else if (normalizedDetectedBrand.includes('ford')) detectedBrandKey = 'Ford';
+      else if (normalizedDetectedBrand.includes('mazda')) detectedBrandKey = 'Mazda';
+      else if (normalizedDetectedBrand.includes('honda')) detectedBrandKey = 'Honda';
+      else if (normalizedDetectedBrand.includes('hyundai')) detectedBrandKey = 'Hyundai';
+      else if (normalizedDetectedBrand.includes('genesis')) detectedBrandKey = 'Genesis';
+      else if (normalizedDetectedBrand.includes('stellantis') || normalizedDetectedBrand.includes('chrysler') || normalizedDetectedBrand.includes('jeep') || normalizedDetectedBrand.includes('dodge') || normalizedDetectedBrand.includes('ram')) detectedBrandKey = 'Stellantis';
+      else if (normalizedDetectedBrand.includes('ktrv') || normalizedDetectedBrand === 'other') detectedBrandKey = 'KTRV';
+
+      // Build a default keyToDef using the detected brand instead of always GMC
+      const keyToDef = brandMetricDefs.get(detectedBrandKey) || brandMetricDefs.get('GMC') || new Map<string, any>();
 
       // Helper to get brand-specific metric definition
       const getMetricDef = (metricKey: string, storeBrand: string | null): any => {
-        const normalizedBrand = storeBrand?.toLowerCase() || '';
-        let brandKey = 'GMC'; // default
-        if (normalizedBrand.includes('ford')) brandKey = 'Ford';
-        else if (normalizedBrand.includes('nissan')) brandKey = 'Nissan';
-        else if (normalizedBrand.includes('mazda')) brandKey = 'Mazda';
-        else if (normalizedBrand.includes('gmc') || normalizedBrand.includes('chevrolet')) brandKey = 'GMC';
+        const nb = storeBrand?.toLowerCase() || '';
+        let brandKey = detectedBrandKey; // default to detected brand
+        if (nb.includes('ford')) brandKey = 'Ford';
+        else if (nb.includes('nissan')) brandKey = 'Nissan';
+        else if (nb.includes('mazda')) brandKey = 'Mazda';
+        else if (nb.includes('honda')) brandKey = 'Honda';
+        else if (nb.includes('hyundai')) brandKey = 'Hyundai';
+        else if (nb.includes('genesis')) brandKey = 'Genesis';
+        else if (nb.includes('stellantis') || nb.includes('chrysler') || nb.includes('jeep') || nb.includes('dodge') || nb.includes('ram')) brandKey = 'Stellantis';
+        else if (nb.includes('ktrv') || nb === 'other') brandKey = 'KTRV';
+        else if (nb.includes('gmc') || nb.includes('chevrolet')) brandKey = 'GMC';
 
         return brandMetricDefs.get(brandKey)?.get(metricKey) || keyToDef.get(metricKey);
       };
 
-      // Use all metrics from the default map for the combined list
+      // Use all metrics from the detected brand's map for the combined list
       const metrics = Array.from(keyToDef.values());
 
       // Convert selection IDs (e.g., "sub:parent:Name") into the metric names used throughout processing (e.g., "↳ Name")
@@ -1414,6 +1438,7 @@ export default function DealerComparison() {
 
           const parentKey = parts[1];
           const subName = parts.slice(parts.length >= 4 ? 3 : 2).join(":");
+          // Use detected brand's definitions so Nissan/Honda/etc. parents are found
           const parentDef = keyToDef.get(parentKey);
 
           if (!parentDef || parentDef.type !== "percentage" || !parentDef.calculation) return null;
@@ -1546,7 +1571,7 @@ export default function DealerComparison() {
           // Only add placeholder if it doesn't exist
           if (!dataMap[key]) {
             // Check if this metric is in selected metrics - if not, only add if it's needed for calculations
-            const metricDef = keyToDef.get(metricKey);
+            const metricDef = keyToDef.get(metricKey); // now uses detected brand
             const isSelected = selectedMetricNames.includes(metricName);
             
             // Add placeholder for selected metrics or metrics needed for calculations
