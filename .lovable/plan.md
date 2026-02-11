@@ -1,41 +1,56 @@
 
-
-## Fix: Clear Sub-Metric Selections When Store/Brand Changes
+## Fix: Use Brand-Specific Metrics Exclusively in DealerComparison
 
 ### Problem
-When switching between brands (e.g., from GMC to Nissan) in Enterprise reports, previously selected sub-metrics persist via sessionStorage. Since sub-metrics are brand-specific (GMC has "CUST. LAB CARS & LD TRKS", Nissan has "CUST. MECH. LABOUR"), the old selections show "No data" for the new brand's stores.
+When comparing Nissan stores in the Enterprise dealer comparison, the system falls back to GMC metric definitions throughout the processing pipeline. Nissan has unique metrics (like `total_direct_expenses`) that don't exist in GMC's definition set. This causes:
+- Sub-metric lookups to fail silently (parent def not found)
+- Placeholder rows to be created for wrong metrics
+- Percentage sub-metric synthesis to skip Nissan entries entirely
 
-### Root Cause
-The `selectedMetrics` state in `Enterprise.tsx` is only cleared when the `metricType` changes (e.g., Weekly to Financial). It is NOT cleared when the store filter, brand filter, or group filter changes. Sub-metrics are brand-specific, so they become invalid when switching brands.
+### Root Causes (6 locations in `DealerComparison.tsx`)
+
+1. **Line 567**: The `brandMetricDefs` map only includes `['GMC', 'Ford', 'Nissan', 'Mazda']`, missing Honda, Hyundai, Genesis, Stellantis, KTRV, Other
+2. **Line 598**: `keyToDef` is hardcoded to `brandMetricDefs.get('GMC')` and used as the global fallback
+3. **Lines 185 and 253**: `getMetricsForBrand(null)` returns GMC metrics, so Nissan-specific metric keys (like `total_direct_expenses`) are never registered in the type map or ordering logic
+4. **Line 1417**: The percentage sub-metric synthesis block uses `keyToDef` (GMC) to look up parent definitions -- Nissan parents are not found, so synthesis is skipped
+5. **Line 1549**: Placeholder creation for missing metrics uses `keyToDef` (GMC) instead of the store's actual brand
 
 ### Fix
 
-**File: `src/pages/Enterprise.tsx`**
+**File: `src/pages/DealerComparison.tsx`**
 
-Add an effect that strips sub-metric selections (IDs starting with `sub:`) from `selectedMetrics` whenever the store/brand/group filter changes. This preserves parent metric selections (like "Total Sales", "GP Net") which are shared across brands, while removing brand-specific sub-metrics that won't match the new stores.
+1. **Expand brand list** (line 567): Include all supported brands in the `brandMetricDefs` map: GMC, Ford, Nissan, Mazda, Honda, Hyundai, Genesis, Stellantis, KTRV, Other.
 
-```text
-Trigger: selectedStoreIds, selectedBrandIds, or selectedGroupIds changes
-Action: Remove any item from selectedMetrics that starts with "sub:"
-```
+2. **Use detected brand for fallback** (line 598): Instead of hardcoding `keyToDef` to GMC, detect the primary brand from the financial entries (already done on line 554 as `brand`) and use that brand's definitions as the default.
 
-This uses a `prevStoreFilterRef` to avoid clearing on initial mount (same pattern as `prevMetricTypeRef`), so selections restored from sessionStorage are preserved on page load.
+3. **Fix `subMetricTypeBySelectionId`** (line 185): Replace `getMetricsForBrand(null)` with a lookup that checks all brand definitions, so Nissan-specific parent keys like `total_direct_expenses` are correctly identified.
+
+4. **Fix metric ordering** (line 253): Similarly, use `brandDisplayName` or detected brand instead of `getMetricsForBrand(null)` so the ordering logic uses the correct brand's metric list.
+
+5. **Fix percentage sub-metric synthesis** (line 1417): Replace `keyToDef.get(parentKey)` with the brand-specific lookup using the store's actual brand from `storeBrands`.
+
+6. **Fix placeholder creation** (line 1549): Replace `keyToDef.get(metricKey)` with the brand-specific lookup.
 
 ### Technical Detail
 
-1. Track previous filter values with a ref (storeIds + brandIds + groupIds serialized)
-2. On change (but not on initial mount), filter out all `sub:*` entries from `selectedMetrics`
-3. This keeps parent metrics selected while removing stale sub-metrics
-4. The user can then re-select the correct sub-metrics for the new brand from the picker
+The key change is making the `keyToDef` fallback map use the **detected brand** instead of always GMC:
+
+```text
+Before: const keyToDef = brandMetricDefs.get('GMC') || new Map();
+After:  const keyToDef = brandMetricDefs.get(detectedBrandKey) || brandMetricDefs.get('GMC') || new Map();
+```
+
+Where `detectedBrandKey` is derived from the `brand` variable already computed on line 554 (or from `brandDisplayName` passed via location state).
+
+For the percentage sub-metric synthesis (the most critical fix), the `percentSubSelections` block will use `getMetricDef(parentKey, storeBrand)` per-store instead of the global `keyToDef.get(parentKey)`.
 
 ### What This Affects
-- Enterprise.tsx only
-- Sub-metric selections are cleared when switching stores/brands/groups
-- Parent metric selections (Total Sales, GP %, etc.) are preserved across brand switches
-- Initial page load from sessionStorage is unaffected
+- All financial metric lookups in DealerComparison now use the correct brand definitions
+- Nissan-specific metrics (total_direct_expenses, semi_fixed_expense derived from it) will be properly recognized
+- Percentage sub-metric synthesis will work for all brands, not just GMC
+- All other brands (Honda, Hyundai, Genesis, Stellantis) also benefit from this fix
 
 ### What Stays the Same
-- DealerComparison.tsx is unchanged
-- Filter persistence for non-sub-metric selections continues to work
-- The metric picker correctly shows available sub-metrics based on current departments
-
+- Enterprise.tsx metric selection UI is unchanged
+- Financial Summary page is unaffected (already handles this correctly)
+- The sub-metric clearing on brand switch (just added) remains in place
