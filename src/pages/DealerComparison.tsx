@@ -1446,7 +1446,13 @@ export default function DealerComparison() {
           Object.values(dataMap).forEach((d) => {
             if (d.storeId === storeId && d.departmentId === deptId && d.value !== null && d.value !== undefined) {
               const k = nameToKey.get(d.metricName);
-              if (k) allValues.set(k, d.value);
+              if (k) {
+                allValues.set(k, d.value);
+              } else if (d.metricName.startsWith("sub:")) {
+                // Include sub-metric entries directly by their raw DB key
+                // so the percentage synthesis lookup can find numerator sub-metrics
+                allValues.set(d.metricName, d.value);
+              }
             }
           });
 
@@ -1454,9 +1460,6 @@ export default function DealerComparison() {
           if (!sampleEntry) return;
 
           percentSubSelections.forEach((sel) => {
-            const denom = allValues.get(sel.denominatorKey) || 0;
-            if (denom === 0) return;
-
             // Find the imported numerator sub-metric that matches this subName
             let rawSubMetricKey: string | null = null;
             let subDollarValue: number | null = null;
@@ -1473,6 +1476,23 @@ export default function DealerComparison() {
             }
 
             if (!rawSubMetricKey || subDollarValue === null) return;
+
+            // Try to find a matching sub-metric denominator first (e.g., sub:total_sales:001:CUST. MECH. LABOUR)
+            // Fall back to parent denominator total if no sub-metric denominator exists
+            let denom = 0;
+            for (const [k, v] of allValues) {
+              if (!k.startsWith(`sub:${sel.denominatorKey}:`)) continue;
+              const parts = k.split(":");
+              const importedSubName = parts.length >= 4 ? parts.slice(3).join(":") : "";
+              if (importedSubName === sel.subName) {
+                denom = v;
+                break;
+              }
+            }
+            if (denom === 0) {
+              denom = allValues.get(sel.denominatorKey) || 0;
+            }
+            if (denom === 0) return;
 
             const percentValue = (subDollarValue / denom) * 100;
             const dataKey = `${storeId}-${deptId}-${sel.selectionId}`;
