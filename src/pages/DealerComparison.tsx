@@ -305,6 +305,16 @@ export default function DealerComparison() {
       });
     };
 
+    // Sort parent metrics by brand config order
+    const brandMetrics = getMetricsForBrand(brandDisplayName);
+    const parentOrderMap = new Map<string, number>();
+    brandMetrics.forEach((m: any, idx: number) => parentOrderMap.set(m.name, idx));
+    parentIds.sort((a, b) => {
+      const ai = parentOrderMap.get(a) ?? 9999;
+      const bi = parentOrderMap.get(b) ?? 9999;
+      return ai - bi;
+    });
+
     // Build ordered list: for each parent, add the parent then its sub-metrics
     const ordered: string[] = [];
     const added = new Set<string>();
