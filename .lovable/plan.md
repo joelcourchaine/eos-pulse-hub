@@ -1,56 +1,73 @@
 
-## Fix: Use Brand-Specific Metrics Exclusively in DealerComparison
+
+## Fix: Percentage Sub-Metric Synthesis Fails Due to Display Name Collision
 
 ### Problem
-When comparing Nissan stores in the Enterprise dealer comparison, the system falls back to GMC metric definitions throughout the processing pipeline. Nissan has unique metrics (like `total_direct_expenses`) that don't exist in GMC's definition set. This causes:
-- Sub-metric lookups to fail silently (parent def not found)
-- Placeholder rows to be created for wrong metrics
-- Percentage sub-metric synthesis to skip Nissan entries entirely
+GP % sub-metrics (CUST. MECH. LABOUR, INTERNAL MECH. LABOUR, etc.) still show raw dollar values (24553.0%, 27014.0%) instead of calculated percentages. The previous synthesis fix is structurally correct but fails at runtime.
 
-### Root Causes (6 locations in `DealerComparison.tsx`)
-
-1. **Line 567**: The `brandMetricDefs` map only includes `['GMC', 'Ford', 'Nissan', 'Mazda']`, missing Honda, Hyundai, Genesis, Stellantis, KTRV, Other
-2. **Line 598**: `keyToDef` is hardcoded to `brandMetricDefs.get('GMC')` and used as the global fallback
-3. **Lines 185 and 253**: `getMetricsForBrand(null)` returns GMC metrics, so Nissan-specific metric keys (like `total_direct_expenses`) are never registered in the type map or ordering logic
-4. **Line 1417**: The percentage sub-metric synthesis block uses `keyToDef` (GMC) to look up parent definitions -- Nissan parents are not found, so synthesis is skipped
-5. **Line 1549**: Placeholder creation for missing metrics uses `keyToDef` (GMC) instead of the store's actual brand
+### Root Cause
+The `allValues` map used by the synthesis step is built using `nameToKey.get(d.metricName)` to convert display names back to raw DB keys. But multiple sub-metrics across different parents share the **same display name** (e.g., both `sub:gp_net:001:CUST. MECH. LABOUR` and `sub:total_sales:001:CUST. MECH. LABOUR` produce `"↳ CUST. MECH. LABOUR"`). The `nameToKey` map can only store one mapping per display name, so only the last-registered parent's sub-metric is recoverable. The synthesis then can't find both the numerator (gp_net) and denominator (total_sales) sub-metrics, causing it to silently skip the calculation.
 
 ### Fix
 
 **File: `src/pages/DealerComparison.tsx`**
 
-1. **Expand brand list** (line 567): Include all supported brands in the `brandMetricDefs` map: GMC, Ford, Nissan, Mazda, Honda, Hyundai, Genesis, Stellantis, KTRV, Other.
+Replace the `allValues` map construction (around line 1469-1482) to build directly from `financialEntries` instead of going through the lossy `nameToKey` lookup. This guarantees all sub-metric values are accessible by their raw DB keys.
 
-2. **Use detected brand for fallback** (line 598): Instead of hardcoding `keyToDef` to GMC, detect the primary brand from the financial entries (already done on line 554 as `brand`) and use that brand's definitions as the default.
-
-3. **Fix `subMetricTypeBySelectionId`** (line 185): Replace `getMetricsForBrand(null)` with a lookup that checks all brand definitions, so Nissan-specific parent keys like `total_direct_expenses` are correctly identified.
-
-4. **Fix metric ordering** (line 253): Similarly, use `brandDisplayName` or detected brand instead of `getMetricsForBrand(null)` so the ordering logic uses the correct brand's metric list.
-
-5. **Fix percentage sub-metric synthesis** (line 1417): Replace `keyToDef.get(parentKey)` with the brand-specific lookup using the store's actual brand from `storeBrands`.
-
-6. **Fix placeholder creation** (line 1549): Replace `keyToDef.get(metricKey)` with the brand-specific lookup.
-
-### Technical Detail
-
-The key change is making the `keyToDef` fallback map use the **detected brand** instead of always GMC:
-
+**Current (broken):**
 ```text
-Before: const keyToDef = brandMetricDefs.get('GMC') || new Map();
-After:  const keyToDef = brandMetricDefs.get(detectedBrandKey) || brandMetricDefs.get('GMC') || new Map();
+const allValues = new Map();
+Object.values(dataMap).forEach((d) => {
+  // nameToKey.get("↳ CUST. MECH. LABOUR") returns only ONE raw key
+  // due to display name collision across parents
+  const k = nameToKey.get(d.metricName);
+  if (k) allValues.set(k, d.value);
+  else if (d.metricName.startsWith("sub:")) allValues.set(d.metricName, d.value);
+});
 ```
 
-Where `detectedBrandKey` is derived from the `brand` variable already computed on line 554 (or from `brandDisplayName` passed via location state).
+**Fixed:**
+```text
+const allValues = new Map();
 
-For the percentage sub-metric synthesis (the most critical fix), the `percentSubSelections` block will use `getMetricDef(parentKey, storeBrand)` per-store instead of the global `keyToDef.get(parentKey)`.
+// 1. Add parent metric values from dataMap (no collision for base metrics)
+Object.values(dataMap).forEach((d) => {
+  if (d.storeId === storeId && d.departmentId === deptId && d.value !== null) {
+    const k = nameToKey.get(d.metricName);
+    if (k && !k.startsWith("sub:")) allValues.set(k, d.value);
+  }
+});
+
+// 2. Add ALL sub-metric values directly from financialEntries using raw DB keys
+//    This avoids the nameToKey display-name collision entirely
+financialEntries.forEach((entry) => {
+  const rawKey = entry.metric_name as string;
+  if (!rawKey?.startsWith("sub:")) return;
+  const entryStoreId = entry?.departments?.store_id || "";
+  const entryDeptId = entry?.departments?.id;
+  if (entryStoreId !== storeId || entryDeptId !== deptId) return;
+  const val = entry.value !== null ? Number(entry.value) : null;
+  if (val !== null) allValues.set(rawKey, val);
+});
+```
+
+This same fix needs to be applied in the multi-month aggregation path as well, where the allValues map is built similarly. For multi-month, the raw sub-metric values should come from the aggregated `storeMetrics` map (which already uses raw DB keys) rather than going through display names.
+
+Additionally, the original raw-dollar entries for percentage sub-metrics should be **excluded** from the final result set to prevent duplicate rows. After synthesis, filter out any dataMap entry whose raw DB key belongs to a numerator sub-metric that was replaced by a synthesized percentage entry.
+
+### Technical Summary
+
+1. Build `allValues` from `financialEntries` directly (raw keys) instead of through `nameToKey` (lossy display names)
+2. This ensures both `sub:gp_net:001:CUST. MECH. LABOUR` AND `sub:total_sales:001:CUST. MECH. LABOUR` are available for the division
+3. After synthesis, remove original dollar entries that were replaced by percentage values to prevent duplicate rows in the output
 
 ### What This Affects
-- All financial metric lookups in DealerComparison now use the correct brand definitions
-- Nissan-specific metrics (total_direct_expenses, semi_fixed_expense derived from it) will be properly recognized
-- Percentage sub-metric synthesis will work for all brands, not just GMC
-- All other brands (Honda, Hyundai, Genesis, Stellantis) also benefit from this fix
+- DealerComparison percentage sub-metric synthesis only
+- Both single-month and multi-month code paths
+- All brands benefit (not just Nissan)
 
 ### What Stays the Same
-- Enterprise.tsx metric selection UI is unchanged
-- Financial Summary page is unaffected (already handles this correctly)
-- The sub-metric clearing on brand switch (just added) remains in place
+- Dollar sub-metrics continue to display raw values
+- Parent metric calculations are unaffected
+- Financial Summary page is unaffected
+
