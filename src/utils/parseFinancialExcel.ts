@@ -662,13 +662,19 @@ export const importFinancialData = async (
       }
 
       // Add processed sub-metrics to entries
+      const isStellantis = brand?.toLowerCase() === 'stellantis';
       for (const subMetric of processedSubMetrics) {
         const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
+        // Stellantis files may store values as negative (accounting credits).
+        // Normalize to positive since our system always displays sub-metrics as positive.
+        const normalizedValue = isStellantis && subMetric.value !== null
+          ? Math.abs(subMetric.value)
+          : subMetric.value;
         subMetricEntries.push({
           department_id: departmentId,
           month: monthIdentifier,
           metric_name: metricName,
-          value: subMetric.value,
+          value: normalizedValue,
           created_by: userId,
         });
       }
