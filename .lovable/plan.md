@@ -1,80 +1,44 @@
 
 
-## Fix: Negative Sub-Metric Values from Stellantis Imports
+## Filter Cell Mappings by Store in Visual Mapper and Import Preview
 
 ### Problem
-When importing a Stellantis financial file where raw values follow accounting conventions (all negative), the sub-metric values get stored as negative numbers even though the parent metrics are correctly positive.
+When viewing the Visual Mapper for a specific store (e.g., Winnipeg Chevrolet), cell KPI mappings from advisors at OTHER stores (e.g., Murray Merritt) are also loaded and displayed. The mappings themselves are correctly tied to individual user IDs, but the fetch queries don't filter by store -- they load every mapping for the entire import profile.
 
-**What's happening in the database for May 2025 Parts:**
-- Parent `total_sales` = 158,414 (correct, positive)
-- Sub-metric `sub:total_sales:001:CUSTOMER REPAIRS...` = -243,511 (wrong, should be positive)
-- All fixed expense sub-metrics are also negative
+### What Changes
 
-**Why June and other months are fine:** Those files happened to have sub-metric source values already positive. The May file used a different accounting convention where everything is negative.
+The column templates and KPI position mappings stay universal (they define report format). Only the **user-specific cell mappings** need to be filtered so you only see the advisors/managers from the currently selected store.
 
-### Root Cause
-There are two parsers involved, and neither corrects the sign on sub-metrics:
+### Fix (2 files, 2 queries)
 
-1. **Data dump parser** (`parseStellantisExcel.ts`): Correctly negates `SALES*` codes for parent metrics (line 344), but stores fixed expense sub-metrics as raw values without correction (lines 384 and 413).
+**1. Visual Mapper (`ScorecardVisualMapper.tsx`) -- Line ~582-593**
 
-2. **Cell mapping parser** (`parseFinancialExcel.ts`): Reads sub-metric values directly from Chrysler5 sheet cells (line 337) and stores them as-is with no sign correction. These are the source of the `total_sales` and `gp_net` sub-metrics.
-
-### Fix (3 locations across 2 files)
-
-#### 1. `parseStellantisExcel.ts` -- Fix fixed expense sub-metrics from E-code format (~line 384)
-Apply `Math.abs()` to the value when storing fixed expense sub-metrics:
-
-```typescript
-// Before:
-value: value,
-
-// After:
-value: Math.abs(value),
+Currently fetches ALL cell mappings for the profile:
+```
+.from("scorecard_cell_mappings")
+.select("*")
+.eq("import_profile_id", selectedProfileId)
 ```
 
-#### 2. `parseStellantisExcel.ts` -- Fix fixed expense sub-metrics from EXP format (~line 413)
-Same fix for the alternative data dump format extraction path:
+Fix: Also filter by user IDs belonging to the selected store. Use the `storeUsers` data (already fetched at line 404-418) to build a list of valid user IDs and add `.in("user_id", storeUserIds)` to the query. Add `selectedStoreId` to the query key so it refetches on store change.
 
-```typescript
-// Before:
-value: value,
+**2. Import Preview (`ScorecardImportPreviewDialog.tsx`) -- Line ~156-183**
 
-// After:
-value: Math.abs(value),
+Currently fetches ALL cell mappings for the profile:
+```
+.from("scorecard_cell_mappings")
+.select("*, kpi_definitions(name)")
+.eq("import_profile_id", importProfile.id)
 ```
 
-#### 3. `parseFinancialExcel.ts` -- Fix cell-mapped sub-metrics for Stellantis (~line 664-674)
-In `importFinancialData`, normalize Stellantis sub-metric values to positive when building the entries array. This is the correct place because the cell mapping parser is generic and used by all brands -- the sign correction should only apply to Stellantis.
+Fix: Filter by users belonging to the current `storeId`. Fetch store user IDs first, then add `.in("user_id", storeUserIds)` to the cell mappings query.
 
-```typescript
-// Inside the sub-metric entries loop, before pushing to subMetricEntries:
-const isStellantis = brand?.toLowerCase() === 'stellantis';
+### Why This Works
+- Cell mappings are already keyed per user (`user_id` column)
+- Users belong to specific stores (`profiles.store_id`)
+- By filtering to only users from the selected store, each store sees only its own advisors' mappings
+- The column templates remain universal -- only the user-level cell mappings are scoped
+- No database schema changes needed
 
-for (const subMetric of processedSubMetrics) {
-  const metricName = `sub:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
-  
-  // Stellantis files may store values as negative (accounting credits).
-  // Normalize to positive since our system always displays sub-metrics as positive.
-  const normalizedValue = isStellantis && subMetric.value !== null
-    ? Math.abs(subMetric.value)
-    : subMetric.value;
-  
-  subMetricEntries.push({
-    department_id: departmentId,
-    month: monthIdentifier,
-    metric_name: metricName,
-    value: normalizedValue,
-    created_by: userId,
-  });
-}
-```
-
-### Data Fix
-After deploying the code fix, re-import the May 2025 file for River City Ram. This will overwrite the negative sub-metric values with correct positive values.
-
-### Why This Is Safe
-- June and other months already have positive sub-metrics -- `Math.abs()` is a no-op on positive values
-- Percentage sub-metrics (gp_percent) are always positive, so `Math.abs()` is safe
-- Parent metrics are unaffected (they already have their own sign correction)
-- No other brands are impacted by the Stellantis-specific normalization in `importFinancialData`; the data dump parser fix uses `Math.abs()` which is also safe for all values
-
+### Edge Case: Users with No Store
+If `storeUsers` is empty or not yet loaded, the query will return no mappings (safe default -- prevents cross-store leakage).
