@@ -567,6 +567,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       }
 
       driversInitialized.current = true;
+      // Mark dirty so auto-save persists initial forecast values to DB
+      // This ensures performance status colors appear on the Financial Summary
+      markDirty();
     }
   }, [priorYearData]);
 
@@ -587,10 +590,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   useEffect(() => {
     if (!forecast?.id) return;
     if (!driversInitialized.current) return;
-    if (!driversLoadedFromDb.current && !driverSettings) {
-      // First time, no saved settings yet - only save if user made changes
-      return;
-    }
+    // Allow first-time save of baseline-derived driver settings
+    // so forecast values persist without requiring manual adjustment
 
     // Debounce driver settings save
     if (driverSaveTimerRef.current) {
