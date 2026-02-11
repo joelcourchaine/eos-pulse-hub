@@ -978,7 +978,7 @@ export default function DealerComparison() {
               }
             }
 
-            const metricName = keyToName.get(metricKey) || metricKey;
+            const metricName = metricKey.startsWith("sub:") ? metricKey : (keyToName.get(metricKey) || metricKey);
             const entryKey = `${storeId}-${deptId}-${metricKey}`;
 
             // Get comparison baseline for this metric
@@ -1090,7 +1090,9 @@ export default function DealerComparison() {
         financialEntries.forEach(entry => {
           const metricName = (() => {
             const k = entry.metric_name as string;
-            return keyToName.get(k) || k;
+            // For sub-metrics, preserve the raw DB key to avoid display name collisions
+            // (e.g., both sub:gp_net:001:NAME and sub:total_sales:001:NAME produce "↳ NAME")
+            return k.startsWith("sub:") ? k : (keyToName.get(k) || k);
           })();
           if (entry.metric_name === 'total_direct_expenses') {
             console.log("Found total_direct_expenses entry:", {
