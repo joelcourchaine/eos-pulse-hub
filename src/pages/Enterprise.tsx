@@ -739,6 +739,22 @@ export default function Enterprise() {
     setSelectedFinancialMetrics([]);
   }, [metricType]);
 
+  // Clear brand-specific sub-metric selections when store/brand/group filters change
+  const prevStoreFilterRef = useRef(
+    JSON.stringify([selectedStoreIds, selectedBrandIds, selectedGroupIds])
+  );
+  useEffect(() => {
+    const currentKey = JSON.stringify([selectedStoreIds, selectedBrandIds, selectedGroupIds]);
+    if (prevStoreFilterRef.current === currentKey) {
+      return; // Same value (initial mount or restored from session) — don't clear
+    }
+    prevStoreFilterRef.current = currentKey;
+    setSelectedMetrics(prev => {
+      const filtered = prev.filter(id => !id.startsWith("sub:"));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [selectedStoreIds, selectedBrandIds, selectedGroupIds]);
+
   // Auto-select all metrics when switching types (only if none are selected)
   useEffect(() => {
     if (metricType === "monthly_combined") {
