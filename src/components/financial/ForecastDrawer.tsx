@@ -502,10 +502,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       forecasts.forEach((sub) => {
         sub.monthlyValues.forEach((value, month) => {
           if (value === null || isNaN(value)) return;
-          const exists = entries?.some(
+          const existingEntry = entries?.find(
             (e) => e.metric_name === sub.key && e.month === month
           );
-          if (!exists) hasMissing = true;
+          // Trigger save if entry doesn't exist OR exists but forecast_value is null
+          if (!existingEntry || existingEntry.forecast_value === null) {
+            hasMissing = true;
+          }
         });
       });
     });
