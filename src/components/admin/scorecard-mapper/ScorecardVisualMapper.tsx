@@ -1278,10 +1278,16 @@ export const ScorecardVisualMapper = () => {
     enabled: !!selectedDepartmentId,
   });
 
-  // Filter department KPIs to those assigned to the manually selected KPI owner
+  // Deduplicate department KPIs by name — one entry per unique KPI
   const userAssignedKpis = useMemo(() => {
     if (!departmentKpis) return [];
-    return departmentKpis;
+    const seen = new Map<string, typeof departmentKpis[0]>();
+    for (const kpi of departmentKpis) {
+      if (!seen.has(kpi.name)) {
+        seen.set(kpi.name, kpi);
+      }
+    }
+    return Array.from(seen.values());
   }, [departmentKpis]);
 
   // Build a set of KPI IDs that have been mapped for the active owner
