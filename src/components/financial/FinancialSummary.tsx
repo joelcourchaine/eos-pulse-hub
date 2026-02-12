@@ -235,6 +235,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const precedingDataRequestIdRef = useRef(0);
   // Debounce ref to batch realtime-triggered reloads
   const precedingDataDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // Ref to always call the latest version of loadPrecedingQuartersData from realtime handler
+  const loadPrecedingQuartersDataRef = useRef<() => void>(() => {});
 
   // Fetch financial attachments for current department AND sibling departments
   const fetchAttachments = useCallback(async () => {
@@ -793,7 +795,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             clearTimeout(precedingDataDebounceRef.current);
           }
           precedingDataDebounceRef.current = setTimeout(() => {
-            loadPrecedingQuartersData();
+            loadPrecedingQuartersDataRef.current();
           }, 500);
 
           // Toast only for updates that are clearly from someone else
@@ -823,6 +825,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     };
     // Note: activeCellRef is a ref (not state), so no need to include in dependencies
   }, [departmentId, currentUserId, FINANCIAL_METRICS]);
+
+   // Keep ref in sync so the realtime handler always calls the latest version
+  useEffect(() => {
+    loadPrecedingQuartersDataRef.current = loadPrecedingQuartersData;
+  });
 
   // Load preceding quarters data after FINANCIAL_METRICS is available
   useEffect(() => {
