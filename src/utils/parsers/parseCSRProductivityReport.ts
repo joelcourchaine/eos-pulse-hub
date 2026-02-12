@@ -248,6 +248,35 @@ export const parseCSRProductivityReport = (
         const advisors: AdvisorData[] = [];
         let currentAdvisor: AdvisorData | null = null;
         let currentAdvisorAnchorRowIndex: number | null = null;
+
+        // Check rows BEFORE the header row for the first advisor header.
+        // In many CSR reports, the first advisor's name appears 1-3 rows
+        // above the first "Pay Type" column header row, so the main loop
+        // (which starts at headerInfo.rowIndex + 1) never sees it.
+        for (let i = Math.max(0, headerInfo.rowIndex - 5); i < headerInfo.rowIndex; i++) {
+          const row = rows[i];
+          if (!row) continue;
+          for (let colIdx = 0; colIdx < Math.min(15, row.length); colIdx++) {
+            const cellValue = String(row[colIdx] ?? "").trim();
+            if (cellValue) {
+              const info = parseAdvisorHeader(cellValue);
+              if (info) {
+                currentAdvisor = {
+                  rawName: cellValue,
+                  displayName: info.displayName,
+                  employeeId: info.employeeId,
+                  metrics: { customer: {}, warranty: {}, internal: {}, total: {} },
+                  metricsByIndex: { customer: {}, warranty: {}, internal: {}, total: {} },
+                  payTypeByRowOffset: {},
+                };
+                currentAdvisorAnchorRowIndex = i;
+                console.log(`[CSR Parse] Found first advisor (pre-header): ${info.displayName} (${info.employeeId})`);
+                break;
+              }
+            }
+          }
+          if (currentAdvisor) break;
+        }
         let departmentTotals: PayTypeMetrics = {
           customer: {},
           warranty: {},
