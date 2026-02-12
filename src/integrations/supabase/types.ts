@@ -1896,6 +1896,7 @@ export type Database = {
           id: string
           invited_at: string | null
           is_system_user: boolean
+          last_active_at: string | null
           last_sign_in_at: string | null
           password_set_at: string | null
           reports_to: string | null
@@ -1915,6 +1916,7 @@ export type Database = {
           id: string
           invited_at?: string | null
           is_system_user?: boolean
+          last_active_at?: string | null
           last_sign_in_at?: string | null
           password_set_at?: string | null
           reports_to?: string | null
@@ -1934,6 +1936,7 @@ export type Database = {
           id?: string
           invited_at?: string | null
           is_system_user?: boolean
+          last_active_at?: string | null
           last_sign_in_at?: string | null
           password_set_at?: string | null
           reports_to?: string | null
