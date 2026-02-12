@@ -1,69 +1,75 @@
 
 
-## Fix: First Advisor in CSR Report Is Skipped During Parsing
+## Fix: Track Actual User Activity Instead of Relying on Stale Login Timestamps
 
 ### Problem
-Kayla Bender (the first advisor in the report) is not being parsed. Her data rows are processed but silently discarded because no advisor context exists yet.
+`last_sign_in_at` in both `auth.users` and `profiles` only updates when a user does a fresh password login. Users who stay logged in via token refresh (which is most users, since sessions persist) show stale dates -- sometimes days or weeks old. This makes the Admin "Recent Logins" list and "Active Users" chart inaccurate.
 
-### Root Cause
-The parser's `findHeaderRow` function locates the first row containing column labels like "Pay Type", "#SO", "Sold Hrs", etc. In the report, this row appears **inside** the first advisor's section:
+**Example from today:**
+- Joel Courchaine: Active today (Feb 12) via token refresh, but `last_sign_in_at` shows Feb 4
+- Bryce V: Active today, but shows Feb 11
 
-```text
-Row 4:  Advisor 1099 - Kayla Bender     <-- advisor header
-Row 5:  Pay Type | #SO | Sold Hrs | ... <-- findHeaderRow returns THIS row
-Row 6:  Customer | 53  | 211      | ... <-- loop starts HERE
+### Solution
+Add a `last_active_at` column to `profiles` and update it whenever the app detects an active session. This captures actual app usage, not just password logins.
+
+### Steps
+
+**1. Database Migration**
+- Add `last_active_at` column to `profiles` table (timestamptz, default now())
+- Backfill existing rows from `last_sign_in_at` so historical data isn't lost
+
+```sql
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_active_at timestamptz;
+UPDATE profiles SET last_active_at = COALESCE(last_sign_in_at, created_at);
 ```
 
-The main parsing loop starts at `headerInfo.rowIndex + 1` (row 6), so it never encounters Kayla's advisor header on row 4. Her Customer/Warranty/Internal/Total data rows are parsed, but since `currentAdvisor` is still `null`, the condition `if (metrics && metricsByIdx)` fails and values are silently dropped.
+**2. Update the Dashboard to track activity**
 
-All subsequent advisors (TAYLER, QUICK LUBE, TRINA ALEXIS, etc.) work correctly because their headers appear within the loop's scan range.
+**File: `src/pages/Dashboard.tsx`**
 
-### Fix
-
-**File: `src/utils/parsers/parseCSRProductivityReport.ts`**
-
-After `findHeaderRow` returns, scan backwards from the header row to find an advisor header that precedes it. If found, initialize `currentAdvisor` before the main loop begins.
-
-Add this block after line 236 (after the header row is found) and before line 248 (where the main loop begins):
+Add a lightweight call when the dashboard loads (after session is confirmed) to update `last_active_at`:
 
 ```typescript
-// Check rows BEFORE the header row for the first advisor header.
-// In many CSR reports, the first advisor's name appears 1-3 rows
-// above the first "Pay Type" column header row, so the main loop
-// (which starts at headerInfo.rowIndex + 1) never sees it.
-for (let i = Math.max(0, headerInfo.rowIndex - 5); i < headerInfo.rowIndex; i++) {
-  const row = rows[i];
-  if (!row) continue;
-  for (let colIdx = 0; colIdx < Math.min(15, row.length); colIdx++) {
-    const cellValue = String(row[colIdx] ?? "").trim();
-    if (cellValue) {
-      const info = parseAdvisorHeader(cellValue);
-      if (info) {
-        currentAdvisor = {
-          rawName: cellValue,
-          displayName: info.displayName,
-          employeeId: info.employeeId,
-          metrics: { customer: {}, warranty: {}, internal: {}, total: {} },
-          metricsByIndex: { customer: {}, warranty: {}, internal: {}, total: {} },
-          payTypeByRowOffset: {},
-        };
-        currentAdvisorAnchorRowIndex = i;
-        console.log(`[CSR Parse] Found first advisor (pre-header): ${info.displayName} (${info.employeeId})`);
-        break;
-      }
-    }
-  }
-  if (currentAdvisor) break;
-}
+// After session is confirmed, update last_active_at
+await supabase
+  .from('profiles')
+  .update({ last_active_at: new Date().toISOString() })
+  .eq('id', session.user.id);
 ```
 
-### What This Fixes
-- Kayla Bender (and any first advisor in any CSR report) will now be detected and parsed
-- Her Customer, Warranty, Internal, and Total metrics will be captured correctly
-- No impact on subsequent advisors or department totals -- they continue to work as before
+This is throttled to avoid excessive writes -- only fires on page load, not on every re-render.
 
-### No Other Changes Needed
-- The advisor header regex already handles the format correctly
-- The data row parsing logic is correct -- it was just missing the advisor context
-- No database changes required
+**3. Update Admin Overview to use `last_active_at`**
+
+**File: `src/components/admin/AdminOverviewTab.tsx`**
+
+Change the "Recent Logins" query to sort by `last_active_at` instead of `last_sign_in_at`:
+
+```typescript
+// Before
+.select("id, full_name, email, last_sign_in_at")
+.not("last_sign_in_at", "is", null)
+.order("last_sign_in_at", { ascending: false })
+
+// After
+.select("id, full_name, email, last_active_at")
+.not("last_active_at", "is", null)
+.order("last_active_at", { ascending: false })
+```
+
+**4. Update Admin Login Chart to use `last_active_at`**
+
+**File: `src/components/admin/AdminLoginChart.tsx`**
+
+Change all references from `last_sign_in_at` to `last_active_at` for accurate activity tracking in the chart.
+
+### What This Fixes
+- Admin dashboard shows actual user activity, not stale password-login timestamps
+- Users who stay logged in via token refresh are correctly shown as active
+- The "Active Users" chart reflects real usage patterns
+
+### What Stays the Same
+- The existing `last_sign_in_at` column and trigger remain for backward compatibility
+- No changes to authentication flow
+- No changes to RLS policies (profiles already has update policies)
 
