@@ -563,7 +563,8 @@ export default function Enterprise() {
         .from("financial_entries")
         .select("metric_name")
         .in("department_id", departmentIds)
-        .like("metric_name", "sub:%");
+        .like("metric_name", "sub:%")
+        .limit(10000);
       
       if (error) throw error;
       
