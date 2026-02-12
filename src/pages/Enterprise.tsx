@@ -326,6 +326,8 @@ export default function Enterprise() {
     if (filter.selected_year) setSelectedYear(filter.selected_year);
     if (filter.selected_metrics) setSelectedMetrics(filter.selected_metrics);
     setLoadedFilterName(filter.name);
+    // Mark as started so loading a saved filter doesn't trigger reset on next click
+    hasStartedNewSelection.current = true;
     toast.success(`Loaded filter: ${filter.name}`);
   };
 
@@ -806,7 +808,26 @@ export default function Enterprise() {
   const hasTotalHours = selectedKpiMetrics.includes('Total Hours');
   const isValidCombinedSelection = !isTotalHoursRequired || hasTotalHours;
 
+  // Track whether user has started a new selection since page mount
+  const hasStartedNewSelection = useRef(false);
+
+  const clearStaleSelections = () => {
+    setSelectedStoreIds([]);
+    setSelectedBrandIds([]);
+    setSelectedGroupIds([]);
+    setSelectedDepartmentNames([]);
+    setSelectedMetrics([]);
+    setSelectedKpiMetrics([]);
+    setSelectedFinancialMetrics([]);
+  };
+
   const toggleStoreSelection = (storeId: string) => {
+    if (!hasStartedNewSelection.current) {
+      hasStartedNewSelection.current = true;
+      clearStaleSelections();
+      setSelectedStoreIds([storeId]);
+      return;
+    }
     setSelectedStoreIds(prev =>
       prev.includes(storeId)
         ? prev.filter(id => id !== storeId)
@@ -815,6 +836,12 @@ export default function Enterprise() {
   };
 
   const toggleBrandSelection = (brandId: string) => {
+    if (!hasStartedNewSelection.current) {
+      hasStartedNewSelection.current = true;
+      clearStaleSelections();
+      setSelectedBrandIds([brandId]);
+      return;
+    }
     setSelectedBrandIds(prev =>
       prev.includes(brandId)
         ? prev.filter(id => id !== brandId)
@@ -823,6 +850,12 @@ export default function Enterprise() {
   };
 
   const toggleGroupSelection = (groupId: string) => {
+    if (!hasStartedNewSelection.current) {
+      hasStartedNewSelection.current = true;
+      clearStaleSelections();
+      setSelectedGroupIds([groupId]);
+      return;
+    }
     setSelectedGroupIds(prev =>
       prev.includes(groupId)
         ? prev.filter(id => id !== groupId)
