@@ -369,9 +369,9 @@ export const ExcelPreviewGrid = ({
                   // 2. It matches the advisor pattern (fallback for edge cases)
                   const isAdvisorCell = (isFirstCol && isAdvisorRow) || patternBasedAdvisorCell;
                   
-                  // Allow clicking any cell when canClickCells is true (KPI owner is selected)
+                  // Allow clicking any data cell (no need to pre-select an advisor)
                   // But NOT on advisor cells, header row, or date rows
-                  const canMapCell = canClickCells && !isHeaderRow && !isAdvisorCell && !isDateRow;
+                  const canMapCell = !isHeaderRow && !isAdvisorCell && !isDateRow && !isMetadataRow;
                   
                   // Advisor cells are ALWAYS clickable to select as owner (unless it's a date row)
                   // Use both parser-detected rows AND pattern-matched cells
@@ -386,7 +386,7 @@ export const ExcelPreviewGrid = ({
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
                         canSelectAsOwner && "cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800/40",
-                        canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20",
+                        canMapCell && "cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:ring-1 hover:ring-purple-200 dark:hover:ring-purple-800",
                         // Template-based mapping (from column templates) - solid purple
                         isTemplateMapped && "bg-purple-100 dark:bg-purple-900/30 ring-1 ring-purple-300 dark:ring-purple-700",
                         // Direct cell mapping - also solid purple
