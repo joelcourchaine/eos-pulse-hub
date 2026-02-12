@@ -381,7 +381,7 @@ export const ExcelPreviewGrid = ({
                     <div
                       key={colIndex}
                       className={cn(
-                        "p-2 border-r text-sm relative",
+                        "p-2 border-r text-sm relative min-h-[44px] flex flex-col justify-center",
                         isAdvisorCell ? "min-w-[280px] max-w-[320px]" : "min-w-[120px] max-w-[180px] truncate",
                         isMappedCol && "bg-green-50/50 dark:bg-green-900/10",
                         isSelectedCol && "bg-primary/5",
@@ -459,11 +459,13 @@ export const ExcelPreviewGrid = ({
                           </span>
                         </div>
                       ) : (
-                        <span className={cn(
-                          typeof cell === "number" && "font-mono"
-                        )}>
-                          {formatCellValue(cell)}
-                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <span className={cn(
+                            typeof cell === "number" && "font-mono"
+                          )}>
+                            {formatCellValue(cell)}
+                          </span>
+                        </div>
                       )}
                     </div>
                   );
