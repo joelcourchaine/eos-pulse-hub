@@ -1,158 +1,89 @@
 
-## Fix: Return on Gross Percentages Not Showing for Nissan in Enterprise Report
 
-### Problem
-"Return on Gross" shows as blank/missing for Nissan brand stores in the Dealer Comparison table (accessed from the Enterprise report). Other percentage metrics like "GP %" work fine.
+## Fix: Edge Function Build Error and Mazda Upload Debugging
 
-### Root Cause
-The single-month derived metric calculation loop (lines 1376-1468 in `DealerComparison.tsx`) has two issues:
+### Issue 1: Edge Function Build Error (blocking deployment)
+The `send-dealer-comparison-email` edge function fails to build because it imports `npm:xlsx-js-style@^1.2.0`, which cannot be resolved in the Deno edge runtime. This blocks deployment of all edge functions.
 
-1. **Only iterates selected metrics**: It loops over `selectedMetricNames` to calculate derived values. If intermediate metrics like `Department Profit` or `Net Selling Gross` are not selected by the user, they are never calculated -- even though they are needed as inputs for `Return on Gross`.
+**Fix**: Change the import to use the `esm.sh` CDN instead of `npm:` specifier.
 
-2. **Insufficient passes for deep dependency chains**: Nissan has a 3-level dependency chain:
-   - `net_selling_gross` = `gp_net - total_direct_expenses` (Level 1)
-   - `department_profit` = `net_selling_gross - total_fixed_expense` (Level 2)
-   - `return_on_gross` = `department_profit / gp_net` (Level 3)
-
-   The loop does 2 passes and rebuilds `allValues` from `dataMap` between passes, but does not update `allValues` inline. So even with 2 passes, Return on Gross still can't find `department_profit` if it was only just calculated in the same pass.
-
-   GMC doesn't have this problem because its `department_profit` formula references only base DB metrics (no intermediate derived metric), so it resolves in 1 pass.
-
-### Fix
-
-**File: `src/pages/DealerComparison.tsx`**
-
-Replace the 2-pass loop (lines 1376-1468) with a single pass that:
-1. Iterates **all brand metrics** in config order (not just selected ones) -- the config order naturally respects dependencies (base metrics come before derived ones)
-2. Updates `allValues` immediately after each calculation (inline), so downstream metrics in the same pass can see upstream results
-3. Only creates `dataMap` entries for metrics that are in `selectedMetricNames` (to avoid displaying unselected intermediate metrics)
-
+**File: `supabase/functions/send-dealer-comparison-email/index.ts`**
 ```text
-Before (lines 1376-1468):
-  // Calculate derived metrics for each store+dept (do this in 2 passes to handle dependencies)
-  for (let pass = 0; pass < 2; pass++) {
-    storeDeptPairs.forEach(pair => {
-      ...
-      // Get all values (including previously calculated ones) for this store+dept
-      const allValues = new Map<string, number>();
-      Object.entries(dataMap).forEach(([key, data]) => { ... });
-      
-      // Calculate each selected metric that has a calculation formula
-      selectedMetricNames.forEach(metricName => {
-        ...
-        if (dataMap[key]) return; // Already exists
-        ...
-      });
-    });
+Before (line 3):
+  import XLSX from "npm:xlsx-js-style@^1.2.0";
+
+After:
+  import XLSX from "https://esm.sh/xlsx-js-style@1.2.0";
+```
+
+### Issue 2: Mazda XLS Upload Failure
+
+Without console logs from the actual upload attempt, the exact cause is unclear. The Mazda brand configuration, cell mappings, and department name normalization all appear correct. Possible causes include:
+- The `.xls` binary format parsing might fail for this specific file layout
+- Sheet names in the file may not match the expected "Mazda3", "Mazda4", "Mazda5"
+- A runtime error in the parsing or import logic that is caught but not logged with enough detail
+
+**Fix**: Add more granular error logging in the `MonthDropZone.tsx` upload handler so the next attempt will produce actionable console output. Specifically, wrap the `processBrandExcel` call and the storage upload step in separate try/catch blocks with descriptive error messages, so we can distinguish between:
+1. Storage upload failure
+2. Cell mapping fetch failure (0 mappings found)
+3. Excel parsing failure (sheet mismatch, cell read error)
+4. Data import failure (DB write error)
+
+**File: `src/components/financial/MonthDropZone.tsx`**
+
+In the `handleDrop` callback (around line 620-623), add detailed logging:
+```text
+Before:
+  if (isSupportedBrand && (fileType === "excel" || fileType === "csv")) {
+    await processBrandExcel(file, filePath, user.id, storeBrand);
   }
 
 After:
-  // Calculate derived metrics for each store+dept
-  // Use a single pass over ALL brand metrics in config order (which respects dependencies).
-  // Update allValues inline so downstream metrics (e.g., Return on Gross) can see
-  // upstream derived metrics (e.g., Department Profit) calculated earlier in the same pass.
-  storeDeptPairs.forEach(pair => {
-    const [storeId, deptId] = pair.split('|');
-    const storeBrand = storeBrands.get(storeId) || null;
-    
-    // Get all existing values for this store+dept
-    const allValues = new Map<string, number>();
-    Object.entries(dataMap).forEach(([key, data]) => {
-      if (data.storeId === storeId && data.departmentId === deptId && data.value !== null) {
-        const metricKey = nameToKey.get(data.metricName);
-        if (metricKey) allValues.set(metricKey, data.value);
-      }
-    });
-    
-    const sampleEntry = Object.values(dataMap).find(
-      d => d.storeId === storeId && d.departmentId === deptId
-    );
-    if (!sampleEntry) return;
-    
-    // Iterate ALL brand metrics in config order (ensures dependencies resolve naturally)
-    const storeBrandMetrics = getMetricsForBrand(storeBrand);
-    storeBrandMetrics.forEach((metricDef: any) => {
-      if (!metricDef.calculation) return;
-      
-      const metricKey = metricDef.key;
-      // Skip if already has a value from DB
-      if (allValues.has(metricKey)) return;
-      
-      // Calculate the value
-      let value: number | null = null;
-      const calc = metricDef.calculation;
-      
-      if ('numerator' in calc && 'denominator' in calc) {
-        const num = allValues.get(calc.numerator);
-        const denom = allValues.get(calc.denominator);
-        if (num !== undefined && denom !== undefined && denom !== 0) {
-          value = (num / denom) * 100;
-        }
-      } else if (calc.type === 'subtract') {
-        const base = allValues.get(calc.base);
-        if (base !== undefined) {
-          value = base;
-          calc.deductions.forEach((d: string) => {
-            const val = allValues.get(d);
-            if (val !== undefined) value! -= val;
-          });
-        }
-      } else if (calc.type === 'complex') {
-        const base = allValues.get(calc.base);
-        if (base !== undefined) {
-          value = base;
-          calc.deductions.forEach((d: string) => {
-            const val = allValues.get(d);
-            if (val !== undefined) value! -= val;
-          });
-          calc.additions.forEach((a: string) => {
-            const val = allValues.get(a);
-            if (val !== undefined) value! += val;
-          });
-        }
-      }
-      
-      if (value !== null) {
-        // Always update allValues so downstream metrics can use this result
-        allValues.set(metricKey, value);
-        
-        // Only add to dataMap if this metric is selected for display
-        const metricName = metricDef.name;
-        if (selectedMetricNames.includes(metricName)) {
-          const key = `${storeId}-${deptId}-${metricKey}`;
-          if (!dataMap[key]) {
-            const comparisonKey = `${deptId}-${metricKey}`;
-            const comparisonInfo = comparisonMap.get(comparisonKey);
-            
-            dataMap[key] = {
-              storeId,
-              storeName: sampleEntry.storeName,
-              departmentId: deptId,
-              departmentName: sampleEntry.departmentName,
-              metricName,
-              value,
-              target: comparisonInfo?.value || null,
-              variance: null,
-            };
-            
-            if (comparisonInfo && comparisonInfo.value !== 0) {
-              const variance = ((value - comparisonInfo.value) / Math.abs(comparisonInfo.value)) * 100;
-              const shouldReverse = comparisonMode === "targets" && metricDef.targetDirection === 'below';
-              dataMap[key].variance = shouldReverse ? -variance : variance;
-            }
-          }
-        }
-      }
-    });
-  });
+  if (isSupportedBrand && (fileType === "excel" || fileType === "csv")) {
+    try {
+      console.log(`[MonthDropZone] Starting brand Excel processing for ${storeBrand}, file: ${file.name}`);
+      await processBrandExcel(file, filePath, user.id, storeBrand);
+      console.log(`[MonthDropZone] Brand Excel processing complete for ${storeBrand}`);
+    } catch (brandError: any) {
+      console.error(`[MonthDropZone] Brand Excel processing failed for ${storeBrand}:`, brandError);
+      // Don't re-throw - the file attachment was already saved successfully
+      // Just show a warning that the auto-import failed
+      toast({
+        title: "File attached, but auto-import failed",
+        description: `The file was saved but data extraction failed: ${brandError.message}`,
+        variant: "destructive",
+      });
+    }
+  }
 ```
 
-### What This Fixes
-- Return on Gross now correctly calculates for Nissan (and any brand with deep dependency chains)
-- Intermediate metrics (Net Selling Gross, Department Profit) are calculated even when not selected, so percentage metrics that depend on them work
-- Single pass is sufficient because brand config order naturally respects dependencies
+Also in `processBrandExcel` (line 312-315), improve the "no mappings" log so it surfaces to the user:
+```text
+Before:
+  if (mappings.length === 0) {
+    console.log(`No cell mappings found for ${brand}`);
+    return;
+  }
+
+After:
+  if (mappings.length === 0) {
+    console.warn(`[processBrandExcel] No cell mappings found for brand "${brand}" (year ${year}). Skipping auto-import.`);
+    return;
+  }
+```
+
+### Technical Details
+
+- The edge function fix changes the import mechanism from `npm:` (which requires a local `node_modules` in the Deno runtime) to `esm.sh` (HTTP-based ESM import, standard for Deno edge functions)
+- The upload logging changes separate the "file storage" step from the "data extraction" step, so a parsing failure no longer causes the entire upload to show as failed -- the file is still saved, and the user sees a specific error about the parsing
+- This will produce console logs on the next Mazda upload attempt that will reveal the root cause
+
+### What This Affects
+- Edge function deployment is unblocked
+- Mazda (and all brand) uploads become more resilient -- file saves even if parsing fails
+- Console output on next upload attempt will pinpoint the exact failure
 
 ### What Stays the Same
-- Multi-month path already works (it iterates all brand metrics at lines 1088-1123)
-- Values, formatting, and display logic are unchanged
-- Other brands continue to work (GMC, Ford, etc. have shallower dependency chains that already resolved)
+- Parsing logic, cell mappings, and financial data import are unchanged
+- Other brands are unaffected
+- All existing functionality continues to work
