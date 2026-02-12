@@ -1,34 +1,24 @@
 
 
-## Deduplicate KPIs in the Mapping Dialog
+## Fix Cell Height Shifting in the Excel Preview Grid
 
 ### Problem
-Since we changed the KPI list to show all department KPIs (not filtered by owner), and each KPI is assigned once per advisor, the same KPI name like "CP ELR" appears 7 times in the list. You only need one entry per unique KPI since the mapping is position-based and applies to all advisors.
+When a cell has a KPI mapping, it displays two lines (the value + the mapping label like "-> CP Hours (+2)"). Unmapped cells in the same row only show one line. This causes cells to visually shift as the row height adjusts to accommodate the tallest cell.
+
+### Solution
+Give all data cells a consistent minimum height so they don't change size when mapping labels appear or disappear. This is a CSS-only fix in `ExcelPreviewGrid.tsx`.
 
 ### Changes
 
-**File: `src/components/admin/scorecard-mapper/ScorecardVisualMapper.tsx`**
+**File: `src/components/admin/scorecard-mapper/ExcelPreviewGrid.tsx`**
 
-Update the `userAssignedKpis` memo (around line 1282) to deduplicate by KPI name, keeping only one entry per unique KPI:
+1. Add a fixed `min-h-[44px]` to all non-advisor data cells (the `<div>` at line ~381) so every cell reserves space for two lines regardless of content.
 
-```typescript
-const userAssignedKpis = useMemo(() => {
-  if (!departmentKpis) return [];
-  // Deduplicate by name — one entry per unique KPI
-  const seen = new Map<string, typeof departmentKpis[0]>();
-  for (const kpi of departmentKpis) {
-    if (!seen.has(kpi.name)) {
-      seen.set(kpi.name, kpi);
-    }
-  }
-  return Array.from(seen.values());
-}, [departmentKpis]);
-```
+2. For the plain text rendering (unmapped cells, line ~462), wrap in a `flex flex-col min-w-0` container matching the mapped cells' structure, so all cells use the same vertical layout.
 
-This uses the first occurrence of each KPI name, preserving the id, name, and metric_type for the mapping dialog. The mapping is stored by KPI name (not id), so it correctly applies across all advisors during import regardless of which specific `id` is used in the picker.
+This ensures every data cell has the same height whether or not it has a mapping label beneath the value.
 
-### What stays the same
-- The auto-apply and bulk-apply logic still filters `departmentKpis` by `assigned_to` for user-specific operations
-- The `CellKpiMappingPopover` component needs no changes
-- The mapping save/remove logic is unchanged
+### Technical Detail
+
+The cell `<div>` around line 381 currently has `p-2 border-r text-sm relative`. We add `min-h-[44px]` to it. The unmapped cell render path (line 461-466) changes from a bare `<span>` to a `<div className="flex flex-col min-w-0">` wrapper for consistency.
 
