@@ -37,10 +37,10 @@ export const AdminOverviewTab = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, email, last_sign_in_at")
-        .not("last_sign_in_at", "is", null)
+        .select("id, full_name, email, last_active_at")
+        .not("last_active_at", "is", null)
         .eq("is_system_user", false)
-        .order("last_sign_in_at", { ascending: false })
+        .order("last_active_at", { ascending: false })
         .limit(6);
 
       if (error) throw error;
@@ -110,8 +110,8 @@ export const AdminOverviewTab = () => {
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {user.last_sign_in_at
-                      ? formatDistanceToNow(new Date(user.last_sign_in_at), { addSuffix: true })
+                    {(user as any).last_active_at
+                      ? formatDistanceToNow(new Date((user as any).last_active_at), { addSuffix: true })
                       : "Never"}
                   </span>
                 </div>

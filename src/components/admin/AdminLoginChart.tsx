@@ -58,10 +58,10 @@ export const AdminLoginChart = () => {
 
       const { data: logins, error } = await supabase
         .from("profiles")
-        .select("last_sign_in_at")
-        .not("last_sign_in_at", "is", null)
-        .gte("last_sign_in_at", start.toISOString())
-        .lte("last_sign_in_at", end.toISOString())
+        .select("last_active_at")
+        .not("last_active_at", "is", null)
+        .gte("last_active_at", start.toISOString())
+        .lte("last_active_at", end.toISOString())
         .eq("is_system_user", false);
 
       if (error) throw error;
@@ -84,8 +84,8 @@ export const AdminLoginChart = () => {
       buckets.forEach((bucket) => counts.set(bucket.toISOString(), 0));
 
       logins?.forEach((login) => {
-        if (!login.last_sign_in_at) return;
-        const loginDate = new Date(login.last_sign_in_at);
+        if (!(login as any).last_active_at) return;
+        const loginDate = new Date((login as any).last_active_at);
         let bucketKey: string | null = null;
 
         if (timeRange === "1d") {
