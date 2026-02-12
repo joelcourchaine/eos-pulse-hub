@@ -1280,9 +1280,9 @@ export const ScorecardVisualMapper = () => {
 
   // Filter department KPIs to those assigned to the manually selected KPI owner
   const userAssignedKpis = useMemo(() => {
-    if (!departmentKpis || !selectedKpiOwnerId) return [];
-    return departmentKpis.filter(kpi => kpi.assigned_to === selectedKpiOwnerId);
-  }, [departmentKpis, selectedKpiOwnerId]);
+    if (!departmentKpis) return [];
+    return departmentKpis;
+  }, [departmentKpis]);
 
   // Build a set of KPI IDs that have been mapped for the active owner
   const mappedKpiIds = useMemo(() => {
@@ -1872,7 +1872,7 @@ export const ScorecardVisualMapper = () => {
                 columnHeader={selectedCell.header}
                 rowIndex={selectedCell.rowIndex}
                 colIndex={selectedCell.colIndex}
-                advisorName={selectedKpiOwnerName || "Selected User"}
+                advisorName="Scorecard"
                 currentKpiId={currentCellMapping?.kpiId || null}
                 userKpis={userAssignedKpis || []}
                 mappedKpiIds={mappedKpiIds}

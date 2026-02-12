@@ -114,7 +114,7 @@ export const CellKpiMappingPopover = ({
           {/* Left side: KPI reference list */}
           <div className="w-48 shrink-0 border rounded-lg p-3 bg-muted/30 overflow-hidden flex flex-col">
             <div className="text-xs font-medium text-muted-foreground mb-2">
-              {advisorName}'s KPIs
+              {advisorName} KPIs
             </div>
             <div className="flex-1 overflow-y-auto space-y-1">
               {unmappedKpis.length > 0 && (
