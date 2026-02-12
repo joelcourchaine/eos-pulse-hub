@@ -668,14 +668,16 @@ export const STELLANTIS_METRICS: FinancialMetric[] = [
     key: "total_sales", 
     type: "dollar", 
     description: "Total revenue for the period", 
-    targetDirection: "above" 
+    targetDirection: "above",
+    hasSubMetrics: true 
   },
   { 
     name: "GP Net", 
     key: "gp_net", 
     type: "dollar", 
     description: "Gross profit after costs", 
-    targetDirection: "above" 
+    targetDirection: "above",
+    hasSubMetrics: true 
   },
   { 
     name: "GP %", 
@@ -683,6 +685,7 @@ export const STELLANTIS_METRICS: FinancialMetric[] = [
     type: "percentage", 
     description: "Gross profit margin", 
     targetDirection: "above",
+    hasSubMetrics: true,
     calculation: {
       numerator: "gp_net",
       denominator: "total_sales"
