@@ -1147,8 +1147,31 @@ export const ScorecardVisualMapper = () => {
     setSelectedRow(null);
   };
 
-  // Cell KPI mapping handlers
+  // Cell KPI mapping handlers - auto-resolve owning advisor
   const handleCellClick = (rowIndex: number, colIndex: number, cellValue: string | number | null, header: string) => {
+    // Find the nearest advisor row above this cell
+    const advisorRowIndices = parsedData?.advisorRowIndices || [];
+    const precedingAdvisorRows = advisorRowIndices.filter(idx => idx <= rowIndex);
+    
+    if (precedingAdvisorRows.length === 0) {
+      toast.error("Could not determine which advisor owns this row");
+      return;
+    }
+    
+    const owningAdvisorIdx = precedingAdvisorRows[precedingAdvisorRows.length - 1];
+    const ownerMapping = safeUserMappings.find(m => m.rowIndex === owningAdvisorIdx);
+    
+    if (!ownerMapping?.userId) {
+      // Advisor not mapped to a user yet - prompt to map them first
+      toast.error("Please map this advisor to a user first");
+      setSelectedRow(owningAdvisorIdx);
+      setSelectedColumn(null);
+      setUserPopoverOpen(true);
+      return;
+    }
+    
+    // Auto-set the KPI owner to the resolved advisor
+    setSelectedKpiOwnerId(ownerMapping.userId);
     setSelectedCell({ rowIndex, colIndex, value: cellValue, header });
     setSelectedColumn(null);
     setSelectedRow(null);
@@ -1738,8 +1761,8 @@ export const ScorecardVisualMapper = () => {
                   <FileSpreadsheet className="h-5 w-5" />
                   {fileName}
                 </CardTitle>
-              <CardDescription className="mt-1">
-                  Click an advisor name to select them as KPI owner, then click cells to map values
+               <CardDescription className="mt-1">
+                  Click any data cell to map it to a KPI — the advisor is auto-detected from row position
                 </CardDescription>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1841,7 +1864,7 @@ export const ScorecardVisualMapper = () => {
               />
             )}
 
-            {selectedCell && selectedKpiOwnerId && (
+            {selectedCell && (
               <CellKpiMappingPopover
                 open={cellPopoverOpen}
                 onOpenChange={setCellPopoverOpen}
@@ -1998,7 +2021,7 @@ export const ScorecardVisualMapper = () => {
                   selectedRow={selectedRow}
                   selectedCell={selectedCell ? { rowIndex: selectedCell.rowIndex, colIndex: selectedCell.colIndex } : null}
                   headerRowIndex={parsedData.headerRowIndex}
-                  canClickCells={!!selectedKpiOwnerId}
+                  canClickCells={true}
                   activeOwnerId={selectedKpiOwnerId}
                   columnTemplates={columnTemplates || []}
                   dateRowIndices={parsedData.dateRowIndices}
