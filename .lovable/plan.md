@@ -1,57 +1,42 @@
 
 
-## Fix: Clear Session Storage on First New Selection
+## Add Unapplied/Variance Sub-Metric Under GP % for Stellantis in Enterprise Reports
 
 ### Problem
-When you navigate back from the Dealer Comparison report to the Enterprise page, the previous store/brand/group selections are restored from session storage. When you then start picking new stores, the old selections remain, causing the report to show a mix of old and new selections (e.g., 6 stores instead of 3).
+Stellantis stores have "UNAPPLIED/VARIANCE LABOUR MECHNICAL" stored as a sub-metric under GP Net (`sub:gp_net:012:...`), but it does not appear under GP % in the Enterprise report's metric picker or comparison tables. This is because the Stellantis metric configuration lacks `hasSubMetrics: true` on the relevant metrics.
+
+### Root Cause
+In `src/config/financialMetrics.ts`, the `STELLANTIS_METRICS` array defines `total_sales`, `gp_net`, and `gp_percent` **without** `hasSubMetrics: true`. The Enterprise page relies on this flag to discover and list sub-metrics. Other brands (GMC, Nissan, Ford, Honda) already have this flag set on these metrics.
 
 ### Solution
-Track whether the user has made a "fresh" selection since the page loaded. On the **first** toggle action (store, brand, or group checkbox click), clear all existing selections before applying the new one. Subsequent toggles within the same session behave normally (add/remove).
 
-### Technical Details
+**File: `src/config/financialMetrics.ts`** (Stellantis section, lines 665-690)
 
-**File: `src/pages/Enterprise.tsx`**
+Add `hasSubMetrics: true` to three Stellantis metrics:
 
-1. Add a `useRef` flag to track if selections have been touched since mount:
+1. **Total Sales** (line 671) -- add `hasSubMetrics: true`
+2. **GP Net** (line 678) -- add `hasSubMetrics: true`  
+3. **GP %** (line 689) -- add `hasSubMetrics: true`
 
-```typescript
-const hasStartedNewSelection = useRef(false);
-```
+This is the same pattern used by Honda, Ford, GMC, and Nissan configs.
 
-2. Update `toggleStoreSelection`, `toggleBrandSelection`, and `toggleGroupSelection` to clear stale selections on the first click:
+### How It Works
 
-```typescript
-const toggleStoreSelection = (storeId: string) => {
-  if (!hasStartedNewSelection.current) {
-    hasStartedNewSelection.current = true;
-    // Clear all prior selections and start fresh with just this store
-    setSelectedStoreIds([storeId]);
-    setSelectedBrandIds([]);
-    setSelectedGroupIds([]);
-    setSelectedDepartmentNames([]);
-    setSelectedMetrics([]);
-    return;
-  }
-  setSelectedStoreIds(prev =>
-    prev.includes(storeId)
-      ? prev.filter(id => id !== storeId)
-      : [...prev, storeId]
-  );
-};
-```
+The Enterprise page already has the logic to handle this:
 
-Same pattern for `toggleBrandSelection` and `toggleGroupSelection` -- on first click, reset everything and start with just the clicked item.
+1. `availableFinancialMetricsForCombined` (line 696-699) checks `metric.hasSubMetrics` and for percentage metrics resolves to the numerator key (`gp_net`). This means GP % will list all `gp_net` sub-metrics (including "UNAPPLIED/VARIANCE LABOUR MECHNICAL").
 
-3. Also clear departments and metrics on first selection since those are tied to the store context and should be re-chosen for the new set of stores.
+2. `DealerComparison.tsx` (line 1480-1510) already synthesizes percentage sub-metrics by dividing the numerator sub-value by the denominator total. So the GP % value for this sub-metric will be computed as `(UNAPPLIED/VARIANCE LABOUR MECHNICAL GP Net / Total Sales) * 100`.
 
-4. When a saved filter is loaded via `loadFilter()`, set `hasStartedNewSelection.current = true` so that loading a saved filter doesn't trigger the reset behavior on the next click.
+3. The ordering is preserved from the database key (`sub:gp_net:012:...`), so it will appear in position 012 -- after the other GP Net sub-metrics.
 
 ### What This Fixes
-- First click in the filter panel after returning from a report clears all stale selections
-- No more "6 stores" showing when you only picked 3
-- Subsequent clicks add/remove normally within the new selection session
+- Stellantis stores will show all sub-metrics (including "UNAPPLIED/VARIANCE LABOUR MECHNICAL") under Total Sales, GP Net, and GP % in the Enterprise metric picker
+- The GP % sub-metric values will be correctly calculated as percentages
+- Sub-metric ordering matches the original financial statement
 
 ### What Stays the Same
-- Session storage persistence still works for page refreshes mid-selection
-- Saved filters load correctly
-- Trend reports and other views are unaffected
+- Financial Summary page already handles these via the `useSubMetrics` hook (separate mechanism)
+- Other brands are unaffected
+- No database changes needed
+- DealerComparison percentage synthesis logic is unchanged
