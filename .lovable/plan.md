@@ -1,75 +1,46 @@
 
 
-## Fix: Track Actual User Activity Instead of Relying on Stale Login Timestamps
+## Allow Direct Cell-to-KPI Mapping Without Pre-Selecting an Advisor
 
 ### Problem
-`last_sign_in_at` in both `auth.users` and `profiles` only updates when a user does a fresh password login. Users who stay logged in via token refresh (which is most users, since sessions persist) show stale dates -- sometimes days or weeks old. This makes the Admin "Recent Logins" list and "Active Users" chart inaccurate.
-
-**Example from today:**
-- Joel Courchaine: Active today (Feb 12) via token refresh, but `last_sign_in_at` shows Feb 4
-- Bryce V: Active today, but shows Feb 11
+Currently, you must click on an advisor row first to "select" them as the KPI owner before any data cells become clickable. This is unnecessary because the KPI mapping is always the same relative position from any advisor's row -- column X at offset Y always maps to the same KPI.
 
 ### Solution
-Add a `last_active_at` column to `profiles` and update it whenever the app detects an active session. This captures actual app usage, not just password logins.
+Remove the requirement to select an advisor first. Make all data cells directly clickable. When you click a cell, the system will automatically determine which advisor "owns" that row (based on proximity to the nearest advisor row above it) and calculate the relative offset. The mapping dialog will open immediately.
 
-### Steps
+### Changes
 
-**1. Database Migration**
-- Add `last_active_at` column to `profiles` table (timestamptz, default now())
-- Backfill existing rows from `last_sign_in_at` so historical data isn't lost
+**1. `ExcelPreviewGrid.tsx` -- Make data cells always clickable**
 
-```sql
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_active_at timestamptz;
-UPDATE profiles SET last_active_at = COALESCE(last_sign_in_at, created_at);
-```
+- Remove the `canClickCells` guard so data cells are clickable regardless of whether an owner is pre-selected.
+- The click handler will fire for any non-header, non-advisor, non-date cell.
+- Add hover/cursor styles to indicate clickability.
 
-**2. Update the Dashboard to track activity**
+**2. `ScorecardVisualMapper.tsx` -- Auto-resolve the owner on cell click**
 
-**File: `src/pages/Dashboard.tsx`**
+- When `handleCellClick` fires, automatically determine the owning advisor from the clicked row's position (find the nearest advisor row above it).
+- Look up that advisor's `userId` from `userMappings`.
+- If the advisor is mapped to a user, auto-set `selectedKpiOwnerId` to that user and open the KPI mapping dialog.
+- If the advisor is NOT yet mapped to a user, show a toast saying "Please map this advisor to a user first" and open the user mapping popover for that advisor row instead.
+- Update `handleCellKpiMappingSave` to use the auto-resolved owner rather than requiring it to be pre-set.
 
-Add a lightweight call when the dashboard loads (after session is confirmed) to update `last_active_at`:
+**3. `CellKpiMappingPopover.tsx` -- Show the auto-resolved advisor name**
 
-```typescript
-// After session is confirmed, update last_active_at
-await supabase
-  .from('profiles')
-  .update({ last_active_at: new Date().toISOString() })
-  .eq('id', session.user.id);
-```
+- The dialog already accepts an `advisorName` prop -- no structural changes needed here, just ensure the correct name is passed through.
 
-This is throttled to avoid excessive writes -- only fires on page load, not on every re-render.
+**4. Pass `canClickCells={true}` always (or remove the prop)**
 
-**3. Update Admin Overview to use `last_active_at`**
+- In the `ExcelPreviewGrid` usage within `ScorecardVisualMapper.tsx`, change `canClickCells={!!selectedKpiOwnerId}` to `canClickCells={true}` so cells are always interactive.
 
-**File: `src/components/admin/AdminOverviewTab.tsx`**
+### User Experience After This Change
 
-Change the "Recent Logins" query to sort by `last_active_at` instead of `last_sign_in_at`:
+1. Upload a report as usual.
+2. Click any numeric cell in the grid -- the KPI mapping dialog opens immediately.
+3. The system automatically knows which advisor owns that row and calculates the offset.
+4. If the advisor hasn't been linked to a user yet, you'll be prompted to do that first.
+5. Once mapped, the template applies to all advisors automatically (existing behavior preserved).
 
-```typescript
-// Before
-.select("id, full_name, email, last_sign_in_at")
-.not("last_sign_in_at", "is", null)
-.order("last_sign_in_at", { ascending: false })
-
-// After
-.select("id, full_name, email, last_active_at")
-.not("last_active_at", "is", null)
-.order("last_active_at", { ascending: false })
-```
-
-**4. Update Admin Login Chart to use `last_active_at`**
-
-**File: `src/components/admin/AdminLoginChart.tsx`**
-
-Change all references from `last_sign_in_at` to `last_active_at` for accurate activity tracking in the chart.
-
-### What This Fixes
-- Admin dashboard shows actual user activity, not stale password-login timestamps
-- Users who stay logged in via token refresh are correctly shown as active
-- The "Active Users" chart reflects real usage patterns
-
-### What Stays the Same
-- The existing `last_sign_in_at` column and trigger remain for backward compatibility
-- No changes to authentication flow
-- No changes to RLS policies (profiles already has update policies)
+### Files Modified
+- `src/components/admin/scorecard-mapper/ScorecardVisualMapper.tsx` -- Auto-resolve owner in `handleCellClick`, pass `canClickCells={true}`
+- `src/components/admin/scorecard-mapper/ExcelPreviewGrid.tsx` -- Minor: add hover styles for always-clickable data cells
 
