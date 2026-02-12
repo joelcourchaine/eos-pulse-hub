@@ -311,7 +311,7 @@ export const MonthDropZone = ({
       const year = parseInt(monthIdentifier.split('-')[0], 10);
       const mappings = await fetchCellMappings(brand, year);
       if (mappings.length === 0) {
-        console.log(`No cell mappings found for ${brand}`);
+        console.warn(`[processBrandExcel] No cell mappings found for brand "${brand}" (year ${year}). Skipping auto-import.`);
         return;
       }
 
@@ -619,7 +619,18 @@ export const MonthDropZone = ({
 
         // If this is a supported brand store and it's an Excel file, process it
         if (isSupportedBrand && (fileType === "excel" || fileType === "csv")) {
-          await processBrandExcel(file, filePath, user.id, storeBrand);
+          try {
+            console.log(`[MonthDropZone] Starting brand Excel processing for ${storeBrand}, file: ${file.name}`);
+            await processBrandExcel(file, filePath, user.id, storeBrand);
+            console.log(`[MonthDropZone] Brand Excel processing complete for ${storeBrand}`);
+          } catch (brandError: any) {
+            console.error(`[MonthDropZone] Brand Excel processing failed for ${storeBrand}:`, brandError);
+            toast({
+              title: "File attached, but auto-import failed",
+              description: `The file was saved but data extraction failed: ${brandError.message}`,
+              variant: "destructive",
+            });
+          }
         }
 
         toast({
