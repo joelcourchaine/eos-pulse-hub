@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy, Trash2 } from "lucide-react";
+import { Paperclip, X, FileSpreadsheet, FileText, Loader2, RefreshCw, Copy, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getUserFriendlyError } from "@/lib/errorMessages";
@@ -102,6 +102,7 @@ export const MonthDropZone = ({
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [validationStatus, setValidationStatus] = useState<"match" | "mismatch" | "imported" | null>(null);
   const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
@@ -775,7 +776,8 @@ export const MonthDropZone = ({
   };
 
   const hasCopyOptions = copySourceOptions.length > 0 && onCopyFromSource;
-  const hasContextMenuOptions = hasCopyOptions || onClearMonthData;
+  // Always show context menu since Import Statement is always available
+  const hasContextMenuOptions = true;
 
   // Separate average and month options
   const averageOptions = copySourceOptions.filter((opt) => opt.isAverage);
@@ -942,6 +944,38 @@ export const MonthDropZone = ({
       <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
 
       <ContextMenuContent className="w-56">
+        {/* Import Statement option */}
+        <ContextMenuItem onClick={() => fileInputRef.current?.click()}>
+          <Upload className="h-4 w-4 mr-2" />
+          Import Statement
+        </ContextMenuItem>
+
+        {/* Hidden file input for Import Statement */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept=".xlsx,.xls,.xlsm,.csv,.pdf"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              // Create a synthetic drop event by reusing handleDrop's logic
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(file);
+              const syntheticEvent = {
+                preventDefault: () => {},
+                stopPropagation: () => {},
+                dataTransfer,
+              } as unknown as React.DragEvent;
+              handleDrop(syntheticEvent);
+            }
+            // Reset so same file can be re-selected
+            e.target.value = "";
+          }}
+        />
+
+        {(hasCopyOptions || onClearMonthData) && <ContextMenuSeparator />}
+
         {/* Copy options */}
         {hasCopyOptions && (
           <>
