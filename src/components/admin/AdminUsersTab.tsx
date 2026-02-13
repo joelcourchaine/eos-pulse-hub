@@ -53,7 +53,7 @@ export const AdminUsersTab = () => {
     queryFn: async () => {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, full_name, email, store_group_id, last_sign_in_at, invited_at")
+        .select("id, full_name, email, store_group_id, last_sign_in_at, last_active_at, invited_at")
         .eq("is_system_user", false)
         .order("full_name");
 
@@ -77,8 +77,8 @@ export const AdminUsersTab = () => {
     },
   });
 
-  const pendingCount = users?.filter(u => u.invited_at && !u.last_sign_in_at).length || 0;
-  const activeCount = users?.filter(u => u.last_sign_in_at).length || 0;
+  const pendingCount = users?.filter(u => u.invited_at && !u.last_sign_in_at && !u.last_active_at).length || 0;
+  const activeCount = users?.filter(u => u.last_sign_in_at || u.last_active_at).length || 0;
 
   const filteredUsers = users?.filter((user) => {
     const search = searchTerm.toLowerCase();
@@ -87,8 +87,8 @@ export const AdminUsersTab = () => {
       user.email?.toLowerCase().includes(search);
     const matchesRole = !roleFilter || user.role === roleFilter;
     
-    const isPending = user.invited_at && !user.last_sign_in_at;
-    const isActive = !!user.last_sign_in_at;
+    const isPending = user.invited_at && !user.last_sign_in_at && !user.last_active_at;
+    const isActive = !!(user.last_sign_in_at || user.last_active_at);
     const matchesStatus = 
       statusFilter === "all" || 
       (statusFilter === "pending" && isPending) ||
@@ -259,8 +259,8 @@ export const AdminUsersTab = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {user.last_sign_in_at ? (
-                          formatDistanceToNow(new Date(user.last_sign_in_at), {
+                        {(user.last_active_at || user.last_sign_in_at) ? (
+                          formatDistanceToNow(new Date((user.last_active_at || user.last_sign_in_at)!), {
                             addSuffix: true,
                           })
                         ) : user.invited_at ? (

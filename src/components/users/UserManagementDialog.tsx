@@ -77,6 +77,7 @@ interface Profile {
   store_id: string | null;
   store_group_id: string | null;
   last_sign_in_at: string | null;
+  last_active_at: string | null;
   created_at: string;
   invited_at: string | null;
   user_role?: string; // Role from user_roles table
@@ -84,6 +85,7 @@ interface Profile {
 
 // Helper to check if user has actually logged in (not just created via admin API)
 const hasActuallyLoggedIn = (profile: Profile): boolean => {
+  if (profile.last_active_at) return true;
   if (!profile.last_sign_in_at) return false;
 
   const lastLogin = new Date(profile.last_sign_in_at).getTime();
@@ -768,7 +770,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {hasActuallyLoggedIn(profile)
-                          ? format(new Date(profile.last_sign_in_at!), "MMM d, yyyy")
+                          ? format(new Date((profile.last_active_at || profile.last_sign_in_at)!), "MMM d, yyyy")
                           : "Never"}
                       </TableCell>
                       <TableCell className="text-right">
