@@ -384,6 +384,8 @@ const ScorecardGrid = ({
   } | null>(null);
   const [cellIssues, setCellIssues] = useState<Set<string>>(new Set());
   const [deleteKpiId, setDeleteKpiId] = useState<string | null>(null);
+  const [clearPeriod, setClearPeriod] = useState<{ identifier: string; label: string; type: "month" | "week" } | null>(null);
+  const [clearingPeriod, setClearingPeriod] = useState(false);
   const [previousYearTargets, setPreviousYearTargets] = useState<{ [key: string]: number }>({});
   const { toast } = useToast();
   const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
@@ -2903,6 +2905,60 @@ const ScorecardGrid = ({
     onKPIsChange();
   };
 
+  const handleClearPeriodData = useCallback(async () => {
+    if (!clearPeriod) return;
+    setClearingPeriod(true);
+    try {
+      const kpiIds = kpis.map((k) => k.id);
+      if (kpiIds.length === 0) {
+        setClearPeriod(null);
+        setClearingPeriod(false);
+        return;
+      }
+
+      let deleteQuery;
+      if (clearPeriod.type === "month") {
+        deleteQuery = supabase
+          .from("scorecard_entries")
+          .delete()
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "monthly")
+          .eq("month", clearPeriod.identifier);
+      } else {
+        deleteQuery = supabase
+          .from("scorecard_entries")
+          .delete()
+          .in("kpi_id", kpiIds)
+          .eq("entry_type", "weekly")
+          .eq("week_start_date", clearPeriod.identifier);
+      }
+
+      const { error } = await deleteQuery;
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        // Remove cleared entries from local state
+        setEntries((prev) => {
+          const newEntries = { ...prev };
+          Object.keys(newEntries).forEach((key) => {
+            if (clearPeriod.type === "month" && key.includes(`-month-${clearPeriod.identifier}`)) {
+              delete newEntries[key];
+            } else if (clearPeriod.type === "week" && key.includes(`-${clearPeriod.identifier}`)) {
+              delete newEntries[key];
+            }
+          });
+          return newEntries;
+        });
+        toast({ title: "Cleared", description: `All data for ${clearPeriod.label} has been removed.` });
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to clear data", variant: "destructive" });
+    } finally {
+      setClearPeriod(null);
+      setClearingPeriod(false);
+    }
+  }, [clearPeriod, kpis, toast]);
+
   const canManageKPIs = userRole === "super_admin" || userRole === "store_gm" || userRole === "department_manager";
 
   const handleDeleteKPI = async (id: string) => {
@@ -3418,18 +3474,35 @@ const ScorecardGrid = ({
                             )}
                           >
                             {period.type === "month" ? (
-                              <ScorecardMonthDropZone
-                                monthIdentifier={period.identifier}
-                                onFileDrop={handleMonthFileDrop}
-                                onReimport={handleReimport}
-                                className="w-full h-full py-[7.2px]"
-                                importLog={importLogs[period.identifier]}
-                              >
-                                <div className="flex flex-col items-center">
-                                  <div>{period.label.split(" ")[0]}</div>
-                                  <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
-                                </div>
-                              </ScorecardMonthDropZone>
+                              <ContextMenu>
+                                <ContextMenuTrigger asChild>
+                                  <div>
+                                    <ScorecardMonthDropZone
+                                      monthIdentifier={period.identifier}
+                                      onFileDrop={handleMonthFileDrop}
+                                      onReimport={handleReimport}
+                                      className="w-full h-full py-[7.2px]"
+                                      importLog={importLogs[period.identifier]}
+                                    >
+                                      <div className="flex flex-col items-center">
+                                        <div>{period.label.split(" ")[0]}</div>
+                                        <div className="text-xs font-normal text-muted-foreground">{period.year}</div>
+                                      </div>
+                                    </ScorecardMonthDropZone>
+                                  </div>
+                                </ContextMenuTrigger>
+                                <ContextMenuContent className="bg-background z-50">
+                                  {canManageKPIs && (
+                                    <ContextMenuItem
+                                      onClick={() => setClearPeriod({ identifier: period.identifier, label: `${period.label.split(" ")[0]} ${period.year}`, type: "month" })}
+                                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Clear Month Data
+                                    </ContextMenuItem>
+                                  )}
+                                </ContextMenuContent>
+                              </ContextMenu>
                             ) : (
                               <div className="flex flex-col items-center py-[7.2px]">
                                 <div>{period.type === "year-avg" ? "Avg" : "Total"}</div>
@@ -3480,36 +3553,53 @@ const ScorecardGrid = ({
                               isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent",
                             )}
                           >
-                            <ScorecardWeekDropZone
-                              weekStartDate={weekDate}
-                              weekLabel={week.label}
-                              onFileDrop={handleWeekFileDrop}
-                              onReimport={handleWeekReimport}
-                              className="w-full h-full py-[7.2px]"
-                              importLog={weekImportLogs[weekDate]}
-                            >
-                              {isCurrentOrPast && (
-                                <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
-                                  <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                                    {statusCounts.green}
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
-                                    {statusCounts.yellow}
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
-                                    {statusCounts.red}
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
-                                    {statusCounts.gray}
-                                  </span>
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <div>
+                                  <ScorecardWeekDropZone
+                                    weekStartDate={weekDate}
+                                    weekLabel={week.label}
+                                    onFileDrop={handleWeekFileDrop}
+                                    onReimport={handleWeekReimport}
+                                    className="w-full h-full py-[7.2px]"
+                                    importLog={weekImportLogs[weekDate]}
+                                  >
+                                    {isCurrentOrPast && (
+                                      <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
+                                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                                          {statusCounts.green}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
+                                          {statusCounts.yellow}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
+                                          {statusCounts.red}
+                                        </span>
+                                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                                          {statusCounts.gray}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <div className="text-xs font-semibold">{week.label}</div>
+                                    {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
+                                    {isPreviousWeek && (
+                                      <div className="text-[10px] text-accent-foreground font-semibold">Review</div>
+                                    )}
+                                  </ScorecardWeekDropZone>
                                 </div>
-                              )}
-                              <div className="text-xs font-semibold">{week.label}</div>
-                              {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
-                              {isPreviousWeek && (
-                                <div className="text-[10px] text-accent-foreground font-semibold">Review</div>
-                              )}
-                            </ScorecardWeekDropZone>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="bg-background z-50">
+                                {canManageKPIs && (
+                                  <ContextMenuItem
+                                    onClick={() => setClearPeriod({ identifier: weekDate, label: week.label, type: "week" })}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Clear Week Data
+                                  </ContextMenuItem>
+                                )}
+                              </ContextMenuContent>
+                            </ContextMenu>
                           </TableHead>
                         );
                       })
@@ -3527,18 +3617,35 @@ const ScorecardGrid = ({
                             key={month.identifier}
                             className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/30 sticky top-0 z-10"
                           >
-                            <ScorecardMonthDropZone
-                              monthIdentifier={month.identifier}
-                              onFileDrop={handleMonthFileDrop}
-                              onReimport={handleReimport}
-                              className="w-full h-full py-[7.2px]"
-                              importLog={importLogs[month.identifier]}
-                            >
-                              <div className="flex flex-col items-center">
-                                <div>{month.label}</div>
-                                <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                              </div>
-                            </ScorecardMonthDropZone>
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <div>
+                                  <ScorecardMonthDropZone
+                                    monthIdentifier={month.identifier}
+                                    onFileDrop={handleMonthFileDrop}
+                                    onReimport={handleReimport}
+                                    className="w-full h-full py-[7.2px]"
+                                    importLog={importLogs[month.identifier]}
+                                  >
+                                    <div className="flex flex-col items-center">
+                                      <div>{month.label}</div>
+                                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                                    </div>
+                                  </ScorecardMonthDropZone>
+                                </div>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="bg-background z-50">
+                                {canManageKPIs && (
+                                  <ContextMenuItem
+                                    onClick={() => setClearPeriod({ identifier: month.identifier, label: `${month.label} ${month.year}`, type: "month" })}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Clear Month Data
+                                  </ContextMenuItem>
+                                )}
+                              </ContextMenuContent>
+                            </ContextMenu>
                           </TableHead>
                         ))}
                         {/* Previous Year Quarter Avg */}
@@ -3560,18 +3667,35 @@ const ScorecardGrid = ({
                             key={month.identifier}
                             className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/50 sticky top-0 z-10"
                           >
-                            <ScorecardMonthDropZone
-                              monthIdentifier={month.identifier}
-                              onFileDrop={handleMonthFileDrop}
-                              onReimport={handleReimport}
-                              className="w-full h-full py-[7.2px]"
-                              importLog={importLogs[month.identifier]}
-                            >
-                              <div className="flex flex-col items-center">
-                                <div>{month.label}</div>
-                                <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
-                              </div>
-                            </ScorecardMonthDropZone>
+                            <ContextMenu>
+                              <ContextMenuTrigger asChild>
+                                <div>
+                                  <ScorecardMonthDropZone
+                                    monthIdentifier={month.identifier}
+                                    onFileDrop={handleMonthFileDrop}
+                                    onReimport={handleReimport}
+                                    className="w-full h-full py-[7.2px]"
+                                    importLog={importLogs[month.identifier]}
+                                  >
+                                    <div className="flex flex-col items-center">
+                                      <div>{month.label}</div>
+                                      <div className="text-xs font-normal text-muted-foreground">{month.year}</div>
+                                    </div>
+                                  </ScorecardMonthDropZone>
+                                </div>
+                              </ContextMenuTrigger>
+                              <ContextMenuContent className="bg-background z-50">
+                                {canManageKPIs && (
+                                  <ContextMenuItem
+                                    onClick={() => setClearPeriod({ identifier: month.identifier, label: `${month.label} ${month.year}`, type: "month" })}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Clear Month Data
+                                  </ContextMenuItem>
+                                )}
+                              </ContextMenuContent>
+                            </ContextMenu>
                           </TableHead>
                         ))}
                         <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
@@ -5025,6 +5149,35 @@ const ScorecardGrid = ({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Period Confirmation Dialog */}
+      <AlertDialog open={!!clearPeriod} onOpenChange={(open) => !open && setClearPeriod(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear {clearPeriod?.type === "week" ? "Week" : "Month"} Data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all scorecard entries for <strong>{clearPeriod?.label}</strong> across every KPI in this department. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearingPeriod}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearPeriodData}
+              disabled={clearingPeriod}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {clearingPeriod ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Clearing...
+                </>
+              ) : (
+                "Clear All Data"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
