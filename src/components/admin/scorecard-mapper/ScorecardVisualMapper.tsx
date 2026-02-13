@@ -709,6 +709,9 @@ export const ScorecardVisualMapper = () => {
       // Use the RELATIVE unique constraint (import_profile_id, user_id, col_index, kpi_id)
       // This allows multiple KPIs per column (e.g., Customer Pay ROs vs Total ROs on same column)
       // row_index stores the OFFSET (rowIndex - ownerAnchorRow) for relative mappings.
+      // Resolve the column header name for this colIndex from the parsed Excel data
+      const sourceColumnHeader = parsedData?.headers?.[mapping.colIndex] || null;
+
       const { error } = await supabase
         .from("scorecard_cell_mappings")
         .upsert({
@@ -720,6 +723,7 @@ export const ScorecardVisualMapper = () => {
           col_index: mapping.colIndex,
           is_relative: true,
           created_by: user.user?.id,
+          source_column_header: sourceColumnHeader,
         }, {
           onConflict: "import_profile_id,user_id,col_index,kpi_id",
         });
@@ -775,6 +779,9 @@ export const ScorecardVisualMapper = () => {
         .eq("import_profile_id", selectedProfileId)
         .eq("kpi_name", template.kpiName);
       
+      // Resolve the column header name from parsed Excel data
+      const sourceColumnHeader = parsedData?.headers?.[template.colIndex] || null;
+
       // Then insert the new template
       const { error } = await supabase
         .from("scorecard_column_templates")
@@ -784,6 +791,7 @@ export const ScorecardVisualMapper = () => {
           kpi_name: template.kpiName,
           row_offset: template.rowOffset,
           created_by: user.user?.id,
+          source_column_header: sourceColumnHeader,
         });
       if (error) throw error;
     },
@@ -1435,6 +1443,7 @@ export const ScorecardVisualMapper = () => {
             col_index: template.col_index,
             is_relative: true,
             created_by: user.user?.id,
+            source_column_header: parsedData?.headers?.[template.col_index] || null,
           },
           { onConflict: "import_profile_id,user_id,col_index,kpi_id" }
         );

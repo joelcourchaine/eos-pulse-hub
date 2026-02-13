@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Check, AlertCircle, Loader2, UserPlus } from "lucide-react";
 import { CSRParseResult, AdvisorData } from "@/utils/parsers/parseCSRProductivityReport";
-import { createUserAlias, getStandardKpiName } from "@/utils/scorecardImportMatcher";
+import { createUserAlias, getStandardKpiName, STANDARD_COLUMN_MAPPINGS } from "@/utils/scorecardImportMatcher";
 
 /**
  * Generate candidate KPI names by stripping common prefixes.
@@ -153,7 +153,6 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeData?.group_id,
   });
 
-  // Fetch cell mappings filtered to users belonging to the current store
   // Fetch cell mappings for the import profile (universal template, not store-filtered)
   const { data: cellMappings } = useQuery({
     queryKey: ["cell-mappings-for-import", importProfile?.id],
@@ -166,7 +165,7 @@ export const ScorecardImportPreviewDialog = ({
         .eq("import_profile_id", importProfile.id);
       if (error) throw error;
       
-      const mappingsWithNames = (data || []).map(cm => ({
+      const mappingsWithNames = (data || []).map((cm: any) => ({
         ...cm,
         kpi_name: cm.kpi_definitions?.name || cm.kpi_name || 'Unknown KPI'
       }));
@@ -176,6 +175,21 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!importProfile?.id,
     staleTime: 0,
     refetchOnMount: "always",
+  });
+
+  // Fetch column templates for header-based remapping
+  const { data: columnTemplates } = useQuery({
+    queryKey: ["column-templates-for-import", importProfile?.id],
+    queryFn: async () => {
+      if (!importProfile?.id) return [];
+      const { data, error } = await supabase
+        .from("scorecard_column_templates")
+        .select("col_index, kpi_name, row_offset, source_column_header")
+        .eq("import_profile_id", importProfile.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: open && !!importProfile?.id,
   });
 
   // Fetch user aliases for pre-populating dropdowns
@@ -192,23 +206,83 @@ export const ScorecardImportPreviewDialog = ({
     enabled: open && !!storeId,
   });
 
-  // Build a universal mapping template from cell mappings
+  // Build column index remapping table from header names
+  // This adapts to column shifts in DMS exports
+  const columnIndexRemap = useMemo(() => {
+    const remap = new Map<number, number>(); // originalColIndex -> currentColIndex
+    if (!columnTemplates || columnTemplates.length === 0) return remap;
+    
+    const currentHeaders = parseResult.columnHeadersWithIndex || [];
+    
+    for (const tmpl of columnTemplates) {
+      const originalColIndex = tmpl.col_index;
+      
+      // Strategy 1: Use stored source_column_header to find current index
+      if (tmpl.source_column_header) {
+        const normalizedStored = tmpl.source_column_header.toLowerCase().trim();
+        const match = currentHeaders.find(h => h.header.toLowerCase().trim() === normalizedStored);
+        if (match) {
+          remap.set(originalColIndex, match.index);
+          console.log(`[Scorecard Import Remap] "${tmpl.kpi_name}" col ${originalColIndex} → ${match.index} (header: "${tmpl.source_column_header}")`);
+          continue;
+        }
+      }
+      
+      // Strategy 2: Reverse-lookup from STANDARD_COLUMN_MAPPINGS
+      // e.g., if kpi_name is "CP ELR", find the source column "e.l.r." and search for it in current headers
+      let foundViaReverse = false;
+      for (const [payType, columns] of Object.entries(STANDARD_COLUMN_MAPPINGS)) {
+        for (const [sourceCol, kpiName] of Object.entries(columns)) {
+          if (kpiName.toLowerCase() === tmpl.kpi_name.toLowerCase()) {
+            const match = currentHeaders.find(h => h.header.toLowerCase().trim() === sourceCol.toLowerCase());
+            if (match) {
+              remap.set(originalColIndex, match.index);
+              console.log(`[Scorecard Import Remap] "${tmpl.kpi_name}" col ${originalColIndex} → ${match.index} (reverse lookup: "${sourceCol}")`);
+              foundViaReverse = true;
+              break;
+            }
+          }
+        }
+        if (foundViaReverse) break;
+      }
+      
+      if (!foundViaReverse && !remap.has(originalColIndex)) {
+        // Strategy 3: Check if original index still valid (no shift)
+        const headerAtOriginal = currentHeaders.find(h => h.index === originalColIndex);
+        if (headerAtOriginal) {
+          remap.set(originalColIndex, originalColIndex);
+          console.log(`[Scorecard Import Remap] "${tmpl.kpi_name}" col ${originalColIndex} → ${originalColIndex} (unchanged, header: "${headerAtOriginal.header}")`);
+        } else {
+          console.warn(`[Scorecard Import Remap] "${tmpl.kpi_name}" col ${originalColIndex} → UNMAPPED (header not found)`);
+        }
+      }
+    }
+    
+    return remap;
+  }, [columnTemplates, parseResult.columnHeadersWithIndex]);
+
+  // Build a universal mapping template from cell mappings, applying column index remapping
   const universalMappingTemplate = useMemo(() => {
     if (!cellMappings || cellMappings.length === 0) return new Map<string, { kpiName: string; colIndex: number; rowOffset: number }>();
     
     const template = new Map<string, { kpiName: string; colIndex: number; rowOffset: number }>();
     for (const cm of cellMappings) {
-      const key = `${cm.col_index}:${cm.row_index ?? 0}`;
+      const originalColIndex = cm.col_index;
+      // Apply remapping: use corrected index if available, otherwise fall back to original
+      const correctedColIndex = columnIndexRemap.get(originalColIndex) ?? originalColIndex;
+      const rowOffset = cm.row_index ?? 0;
+      const key = `${correctedColIndex}:${rowOffset}`;
       if (!template.has(key)) {
         template.set(key, {
           kpiName: cm.kpi_name,
-          colIndex: cm.col_index,
-          rowOffset: cm.row_index ?? 0,
+          colIndex: correctedColIndex,
+          rowOffset,
         });
       }
     }
+    console.log(`[Scorecard Import] Universal template: ${template.size} unique mappings from ${cellMappings.length} cell mappings`);
     return template;
-  }, [cellMappings]);
+  }, [cellMappings, columnIndexRemap]);
 
   // Initialize mappings from aliases when data is ready - no fuzzy matching
   useEffect(() => {
@@ -361,6 +435,9 @@ export const ScorecardImportPreviewDialog = ({
 
       if (kpiDefinitions) {
         if (hasUniversalMappings) {
+          // Diagnostic counters
+          let diagAttempted = 0, diagMatchedKpi = 0, diagFoundPayType = 0, diagFoundValue = 0;
+
           // Process matched advisors using the universal template
           for (const mapping of advisorMappings) {
             if (!mapping.selectedUserId) continue;
@@ -368,22 +445,36 @@ export const ScorecardImportPreviewDialog = ({
             const userKpis = kpiDefinitions.filter(k => k.assigned_to === mapping.selectedUserId);
             
             for (const [, tmpl] of universalMappingTemplate) {
+              diagAttempted++;
               const { kpiName, colIndex, rowOffset } = tmpl;
               const userKpi = findKpiByFlexibleName(userKpis, kpiName);
-              if (!userKpi) continue;
+              if (!userKpi) {
+                console.warn(`[Scorecard Import] KPI "${kpiName}" not found for user ${mapping.advisor.displayName}`);
+                continue;
+              }
+              diagMatchedKpi++;
               
               const payType = (mapping.advisor as any).payTypeByRowOffset?.[rowOffset];
+              if (!payType) {
+                console.warn(`[Scorecard Import] No payType at rowOffset ${rowOffset} for "${kpiName}" (advisor: ${mapping.advisor.displayName})`);
+                continue;
+              }
+              diagFoundPayType++;
+
               let value: number | undefined;
-              if (payType) {
-                value = mapping.advisor.metricsByIndex[payType]?.[colIndex];
-              }
+              value = mapping.advisor.metricsByIndex[payType]?.[colIndex];
               
-              if (typeof value === 'number') {
-                entriesToUpsert.push(createEntry(userKpi.id, value));
+              if (typeof value !== 'number') {
+                console.warn(`[Scorecard Import] No numeric value at col ${colIndex} payType "${payType}" for "${kpiName}" (advisor: ${mapping.advisor.displayName}). Available cols:`, Object.keys(mapping.advisor.metricsByIndex[payType] || {}));
+                continue;
               }
+              diagFoundValue++;
+              entriesToUpsert.push(createEntry(userKpi.id, value));
             }
           }
           
+          console.log(`[Scorecard Import Diagnostics] Advisors: attempted=${diagAttempted}, matchedKpi=${diagMatchedKpi}, foundPayType=${diagFoundPayType}, foundValue=${diagFoundValue}`);
+
           // Process dept totals user
           if (deptTotalsUserId) {
             const userKpis = kpiDefinitions.filter(k => k.assigned_to === deptTotalsUserId);
@@ -414,6 +505,17 @@ export const ScorecardImportPreviewDialog = ({
                 entriesToUpsert.push(createEntry(userKpi.id, value));
               }
             }
+          }
+
+          // Warn if low match rate
+          const expectedMappings = universalMappingTemplate.size * advisorMappings.filter(m => m.selectedUserId).length;
+          if (expectedMappings > 0 && diagFoundValue < expectedMappings * 0.5) {
+            console.warn(`[Scorecard Import] Low match rate: ${diagFoundValue}/${expectedMappings} (${Math.round(diagFoundValue / expectedMappings * 100)}%). Report format may have changed.`);
+            toast({
+              title: "Low import match rate",
+              description: `Only ${diagFoundValue} of ${expectedMappings} expected data points found. The report column layout may have shifted.`,
+              variant: "destructive",
+            });
           }
         }
 
