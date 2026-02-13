@@ -408,14 +408,7 @@ const Dashboard = () => {
       setProfile(data);
       setProfileError(null);
 
-      // Update last_active_at to track actual app usage
-      supabase
-        .from("profiles")
-        .update({ last_active_at: new Date().toISOString() } as any)
-        .eq("id", userId)
-        .then(({ error: updateError }) => {
-          if (updateError) console.error("Error updating last_active_at:", updateError);
-        });
+      // last_active_at is now tracked globally via useTrackActivity in App.tsx
     } catch (error: any) {
       console.error("Error fetching profile:", error);
       setProfileError("An unexpected error occurred while loading your profile. Please try signing in again.");
