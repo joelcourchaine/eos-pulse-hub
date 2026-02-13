@@ -1,23 +1,34 @@
 
-## Fix: Move Activity Tracking Out of Dashboard
 
-### Problem
-The `last_active_at` update only fires when a user visits `/dashboard` (inside `fetchProfile` in `Dashboard.tsx`). If a user navigates directly to `/my-tasks`, `/enterprise`, or any other route, their activity is never recorded. This explains why Craig's date is stale -- he may be using the app but not landing on the Dashboard page each time.
+## Fix: Remove Stellantis Sub-Metric Math.abs() Normalization
 
-### Solution
-Move the `last_active_at` update into a shared hook that runs on any authenticated page load, not just the Dashboard.
+### What happened
+A blanket `Math.abs()` was added to force all Stellantis sub-metric values positive during import. However, the E-code parser (`parseStellantisExcel.ts`) already normalizes its own values at the source — so this extra step only affects cell-mapped stores like Morden, where it incorrectly flips legitimate negatives (e.g., Unapplied Time from -8774 to +8774).
 
-### Changes
+### Why it's safe to remove
+- The E-code parser already applies `Math.abs()` internally (lines 384 and 413 of `parseStellantisExcel.ts`) — no double-dipping needed
+- The database has many correctly-stored negative sub-metrics across all prior months for Stellantis stores, proving the system handles negatives fine
+- Only January 2026 imports were affected by this code
 
-**New file: `src/hooks/useTrackActivity.ts`**
-- Create a hook that listens for auth state, and on mount (when a session exists), updates `last_active_at` on the user's profile.
-- Throttle it so it only fires once per session/page-load (not on every re-render).
+### Change
 
-**File: `src/App.tsx`**
-- Call `useTrackActivity()` inside the `App` component so it runs globally on every page.
+**File: `src/utils/parseFinancialExcel.ts` (lines 674-681)**
 
-**File: `src/pages/Dashboard.tsx`**
-- Remove the `last_active_at` update from `fetchProfile` (lines 411-418) since it's now handled globally.
+Remove the Stellantis-specific `Math.abs()` check and use the value directly:
 
-### Why this works
-By placing the tracking in `App.tsx`, every authenticated page visit -- whether it's `/dashboard`, `/my-tasks`, `/enterprise`, or anything else -- will update the user's `last_active_at` timestamp. Craig (and anyone else) will show accurate activity dates regardless of which page they use.
+```
+Before:
+  const isStellantis = brand?.toLowerCase() === 'stellantis';
+  for (const subMetric of processedSubMetrics) {
+    const normalizedValue = isStellantis && subMetric.value !== null
+      ? Math.abs(subMetric.value)
+      : subMetric.value;
+
+After:
+  for (const subMetric of processedSubMetrics) {
+    const normalizedValue = subMetric.value;
+```
+
+### After deploying
+Re-import Morden's January 2026 Service statement so the Unapplied Time value is corrected from +8774 to -8774 in the database.
+
