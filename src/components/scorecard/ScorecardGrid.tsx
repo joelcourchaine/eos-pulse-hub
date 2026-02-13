@@ -2944,18 +2944,35 @@ const ScorecardGrid = ({
         toast({ title: "No data cleared", description: "No entries were found for this period, or you don't have permission to delete them.", variant: "destructive" });
       } else {
         console.log("[ClearPeriod] Deleted", deletedRows.length, "rows for", clearPeriod.label);
-        // Remove cleared entries from local state
+        // Remove cleared entries from local state (entries, localValues, precedingQuartersData)
+        const matchesKey = (key: string) => {
+          if (clearPeriod.type === "month") return key.includes(`-month-${clearPeriod.identifier}`);
+          return key.includes(`-${clearPeriod.identifier}`);
+        };
+
         setEntries((prev) => {
           const newEntries = { ...prev };
-          Object.keys(newEntries).forEach((key) => {
-            if (clearPeriod.type === "month" && key.includes(`-month-${clearPeriod.identifier}`)) {
-              delete newEntries[key];
-            } else if (clearPeriod.type === "week" && key.includes(`-${clearPeriod.identifier}`)) {
-              delete newEntries[key];
-            }
-          });
+          Object.keys(newEntries).forEach((key) => { if (matchesKey(key)) delete newEntries[key]; });
           return newEntries;
         });
+
+        setLocalValues((prev) => {
+          const newVals = { ...prev };
+          Object.keys(newVals).forEach((key) => { if (matchesKey(key)) delete newVals[key]; });
+          return newVals;
+        });
+
+        if (clearPeriod.type === "month") {
+          const [year, monthNum] = clearPeriod.identifier.split("-");
+          const mNum = parseInt(monthNum, 10);
+          const pqSuffix = `-M${mNum}-${year}`;
+          setPrecedingQuartersData((prev) => {
+            const newPq = { ...prev };
+            Object.keys(newPq).forEach((key) => { if (key.endsWith(pqSuffix)) delete newPq[key]; });
+            return newPq;
+          });
+        }
+
         toast({ title: "Cleared", description: `${deletedRows.length} entries for ${clearPeriod.label} have been removed.` });
       }
     } catch (err: any) {
