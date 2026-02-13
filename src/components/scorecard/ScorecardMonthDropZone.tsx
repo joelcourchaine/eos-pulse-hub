@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 import { Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -44,19 +44,49 @@ interface ScorecardMonthDropZoneProps {
   onReimport?: (filePath: string, fileName: string, monthIdentifier: string) => void;
 }
 
-export const ScorecardMonthDropZone = ({
+export interface ScorecardMonthDropZoneHandle {
+  triggerFileSelect: () => void;
+}
+
+export const ScorecardMonthDropZone = forwardRef<ScorecardMonthDropZoneHandle, ScorecardMonthDropZoneProps>(({
   children,
   monthIdentifier,
   onFileDrop,
   className,
   importLog,
   onReimport,
-}: ScorecardMonthDropZoneProps) => {
+}, ref) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    triggerFileSelect: () => fileInputRef.current?.click(),
+  }));
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isReimporting, setIsReimporting] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const { toast } = useToast();
+
+  const handleFileInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setIsProcessing(true);
+    try {
+      const result = await parseCSRProductivityReport(file);
+      onFileDrop(result, file.name, monthIdentifier, file);
+    } catch (error: any) {
+      toast({
+        title: "Parse Error",
+        description: error.message || "Failed to parse Excel file",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [monthIdentifier, onFileDrop, toast]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -230,6 +260,13 @@ export const ScorecardMonthDropZone = ({
 
   return (
     <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
       <div
         className={cn(
           "relative transition-all duration-200",
@@ -403,4 +440,4 @@ export const ScorecardMonthDropZone = ({
       </Dialog>
     </>
   );
-};
+});
