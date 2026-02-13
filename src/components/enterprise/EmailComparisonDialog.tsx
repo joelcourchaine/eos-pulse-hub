@@ -61,6 +61,7 @@ interface EmailComparisonDialogProps {
   isYoyMonth?: boolean;
   yoyCurrentYear?: number;
   yoyPrevYear?: number | string;
+  rowNotes?: Record<string, string>;
 }
 
 export function EmailComparisonDialog({
@@ -84,6 +85,7 @@ export function EmailComparisonDialog({
   isYoyMonth,
   yoyCurrentYear,
   yoyPrevYear,
+  rowNotes,
 }: EmailComparisonDialogProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
@@ -212,6 +214,7 @@ export function EmailComparisonDialog({
           yoyCurrentYear,
           yoyPrevYear,
           attachExcel,
+          rowNotes,
         },
       });
 
