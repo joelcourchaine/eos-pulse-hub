@@ -29,6 +29,7 @@ import {
   type ValidationResult,
   type ParsedFinancialData,
 } from "@/utils/parseFinancialExcel";
+import { retryAsync } from "@/utils/retryFetch";
 import { parseStellantisExcel } from "@/utils/parseStellantisExcel";
 
 interface Attachment {
@@ -363,7 +364,7 @@ export const MonthDropZone = ({
     // Always import data when a file is dropped - this updates/refreshes all values
     // Even if validation shows 'match', we still import to ensure sub-metrics are updated
     // and any changes in the Excel file are reflected in the database
-    const importResult = await importFinancialData(parsedData, departmentsByName, monthIdentifier, userId, storeBrand);
+    const importResult = await retryAsync(() => importFinancialData(parsedData, departmentsByName, monthIdentifier, userId, storeBrand));
 
     if (importResult.success) {
       toast({
@@ -393,27 +394,33 @@ export const MonthDropZone = ({
 
       if (!existingAttachment) {
         // Create new attachment record pointing to same file
-        await supabase.from("financial_attachments").insert({
-          department_id: dept.id,
-          month_identifier: monthIdentifier,
-          file_name: file.name,
-          file_path: filePath,
-          file_type: "excel",
-          file_size: file.size,
-          uploaded_by: userId,
-        });
-      } else {
-        // Update existing attachment to point to new file
-        await supabase
-          .from("financial_attachments")
-          .update({
+        await retryAsync(async () => {
+          const { error } = await supabase.from("financial_attachments").insert({
+            department_id: dept.id,
+            month_identifier: monthIdentifier,
             file_name: file.name,
             file_path: filePath,
             file_type: "excel",
             file_size: file.size,
             uploaded_by: userId,
-          })
-          .eq("id", existingAttachment.id);
+          });
+          if (error) throw error;
+        });
+      } else {
+        // Update existing attachment to point to new file
+        await retryAsync(async () => {
+          const { error } = await supabase
+            .from("financial_attachments")
+            .update({
+              file_name: file.name,
+              file_path: filePath,
+              file_type: "excel",
+              file_size: file.size,
+              uploaded_by: userId,
+            })
+            .eq("id", existingAttachment.id);
+          if (error) throw error;
+        });
       }
     }
 
@@ -585,10 +592,11 @@ export const MonthDropZone = ({
         const fileExt = file.name.split(".").pop();
         const filePath = `${departmentId}/${monthIdentifier}/${Date.now()}.${fileExt}`;
 
-        // Upload to storage
-        const { error: uploadError } = await supabase.storage.from("financial-attachments").upload(filePath, file);
-
-        if (uploadError) throw uploadError;
+        // Upload to storage (with retry for transient network errors)
+        await retryAsync(async () => {
+          const { error: uploadError } = await supabase.storage.from("financial-attachments").upload(filePath, file);
+          if (uploadError) throw uploadError;
+        });
 
         // Delete existing attachment if any (upsert behavior)
         if (attachment) {
@@ -599,23 +607,24 @@ export const MonthDropZone = ({
           await supabase.from("financial_attachments").delete().eq("id", attachment.id);
         }
 
-        // Save reference in database
-        const { error: dbError } = await supabase.from("financial_attachments").upsert(
-          {
-            department_id: departmentId,
-            month_identifier: monthIdentifier,
-            file_name: file.name,
-            file_path: filePath,
-            file_type: fileType,
-            file_size: file.size,
-            uploaded_by: user.id,
-          },
-          {
-            onConflict: "department_id,month_identifier",
-          },
-        );
-
-        if (dbError) throw dbError;
+        // Save reference in database (with retry for transient network errors)
+        await retryAsync(async () => {
+          const { error: dbError } = await supabase.from("financial_attachments").upsert(
+            {
+              department_id: departmentId,
+              month_identifier: monthIdentifier,
+              file_name: file.name,
+              file_path: filePath,
+              file_type: fileType,
+              file_size: file.size,
+              uploaded_by: user.id,
+            },
+            {
+              onConflict: "department_id,month_identifier",
+            },
+          );
+          if (dbError) throw dbError;
+        });
 
         // If this is a supported brand store and it's an Excel file, process it
         if (isSupportedBrand && (fileType === "excel" || fileType === "csv")) {
@@ -642,9 +651,13 @@ export const MonthDropZone = ({
       } catch (error: any) {
         console.error("Upload error:", error);
 
+        const isNetwork = (error?.message || "").toLowerCase().includes("fetch") ||
+          (error?.message || "").toLowerCase().includes("network");
         toast({
           title: "Upload failed",
-          description: getUserFriendlyError(error, "Failed to upload file"),
+          description: isNetwork
+            ? "Connection failed after multiple retries. Please check your internet and try again."
+            : getUserFriendlyError(error, "Failed to upload file"),
           variant: "destructive",
         });
       } finally {
