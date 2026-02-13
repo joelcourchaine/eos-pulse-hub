@@ -1,22 +1,27 @@
 
 
-## Fix Cell Alignment with Header Columns
+## Fix Stale "Last Login" Date for Craig (and All Users)
 
 ### Problem
-Data cells are not staying aligned with their header columns. The `min-w`/`max-w` constraints work differently when combined with `flex flex-col` — flex children can grow beyond `max-w` in a flex row, causing misalignment.
-
-### Solution
-Use a fixed width (`w-[150px]`) with `shrink-0` on both header and data cells so every column is exactly the same width and cannot flex or shrink. The advisor column keeps its wider fixed width.
+The "Last Login" column in both the Admin Users Tab and the User Management Dialog uses `last_sign_in_at`, which only updates during full password-based logins. Users who stay logged in via token refresh (like Craig) show a stale date. The `last_active_at` field on profiles is the accurate timestamp -- it updates every time a user opens their dashboard.
 
 ### Changes
 
-**File: `src/components/admin/scorecard-mapper/ExcelPreviewGrid.tsx`**
+**File: `src/components/admin/AdminUsersTab.tsx`**
 
-1. **Header cells (line 274)**: Change `min-w-[120px] max-w-[180px]` to `w-[150px] shrink-0`
+1. Add `last_active_at` to the select query (line 56)
+2. Update the "Last Login" display (line 262) to prefer `last_active_at` over `last_sign_in_at`
+3. Update the pending/active filters to also consider `last_active_at`
 
-2. **Data cells (line 385)**: Change `min-w-[120px] max-w-[180px] truncate` to `w-[150px] shrink-0 overflow-hidden`. The advisor cell branch changes from `min-w-[280px] max-w-[320px]` to `w-[300px] shrink-0 overflow-hidden`.
+**File: `src/components/users/UserManagementDialog.tsx`**
 
-3. **Move `truncate`**: Remove `truncate` from the outer cell div (it conflicts with `flex flex-col`) and ensure the inner `<span>` elements have `truncate` so text is clipped properly within the fixed-width cell.
+1. Add `last_active_at` to the Profile type and select query
+2. Update `hasActuallyLoggedIn` to check `last_active_at` as well
+3. Update the "Last Login" display to prefer `last_active_at` over `last_sign_in_at`
 
-### Why this works
-Using exact `w-[150px] shrink-0` on both header and data cells guarantees they are always the same width. The `shrink-0` prevents flex from compressing them, and `overflow-hidden` ensures content doesn't push them wider.
+### Logic
+For both files, the display logic becomes:
+- Show `last_active_at` if available (most accurate)
+- Fall back to `last_sign_in_at` if `last_active_at` is null
+- Show "Never" if neither exists (or if it matches the creation timestamp)
+
