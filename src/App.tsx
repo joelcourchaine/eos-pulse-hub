@@ -1,5 +1,6 @@
 import React from "react";
 import { useAutoRefreshOnReturn } from "@/hooks/useAutoRefreshOnReturn";
+import { useTrackActivity } from "@/hooks/useTrackActivity";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import ConsultingScheduler from "./pages/ConsultingScheduler";
@@ -48,6 +49,7 @@ const HomeRoute = () => {
 const App = () => {
   // Auto-refresh when user returns after 2+ hours of inactivity
   useAutoRefreshOnReturn();
+  useTrackActivity();
 
   return (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
