@@ -2923,20 +2923,27 @@ const ScorecardGrid = ({
           .delete()
           .in("kpi_id", kpiIds)
           .eq("entry_type", "monthly")
-          .eq("month", clearPeriod.identifier);
+          .eq("month", clearPeriod.identifier)
+          .select("id");
       } else {
         deleteQuery = supabase
           .from("scorecard_entries")
           .delete()
           .in("kpi_id", kpiIds)
           .eq("entry_type", "weekly")
-          .eq("week_start_date", clearPeriod.identifier);
+          .eq("week_start_date", clearPeriod.identifier)
+          .select("id");
       }
 
-      const { error } = await deleteQuery;
+      const { data: deletedRows, error } = await deleteQuery;
       if (error) {
+        console.error("[ClearPeriod] Delete error:", error);
         toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else if (!deletedRows || deletedRows.length === 0) {
+        console.warn("[ClearPeriod] No rows were deleted. KPI IDs:", kpiIds, "Period:", clearPeriod);
+        toast({ title: "No data cleared", description: "No entries were found for this period, or you don't have permission to delete them.", variant: "destructive" });
       } else {
+        console.log("[ClearPeriod] Deleted", deletedRows.length, "rows for", clearPeriod.label);
         // Remove cleared entries from local state
         setEntries((prev) => {
           const newEntries = { ...prev };
@@ -2949,7 +2956,7 @@ const ScorecardGrid = ({
           });
           return newEntries;
         });
-        toast({ title: "Cleared", description: `All data for ${clearPeriod.label} has been removed.` });
+        toast({ title: "Cleared", description: `${deletedRows.length} entries for ${clearPeriod.label} have been removed.` });
       }
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to clear data", variant: "destructive" });
