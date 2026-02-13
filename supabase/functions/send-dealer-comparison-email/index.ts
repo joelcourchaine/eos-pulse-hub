@@ -52,6 +52,7 @@ interface EmailRequest {
   yoyCurrentYear?: number;
   yoyPrevYear?: number | string;
   attachExcel?: boolean;
+  rowNotes?: Record<string, string>;
 }
 
 // ===================== Excel Style Constants =====================
@@ -91,6 +92,36 @@ const cellBorder = {
   left: { style: "thin", color: { rgb: "D0D0D0" } },
   right: { style: "thin", color: { rgb: "D0D0D0" } },
 };
+
+// ===================== Notes Helper =====================
+
+function computeNoteNumberMap(
+  metrics: ComparisonMetric[],
+  rowNotes: Record<string, string>,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  let num = 1;
+  metrics.forEach(m => {
+    const key = m.metricName;
+    if (rowNotes[key]?.trim()) {
+      map.set(key, num++);
+    }
+  });
+  return map;
+}
+
+function notesColumnHeaderHtml(): string {
+  return `<th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 200px;">Notes</th>`;
+}
+
+function notesCellHtml(metricKey: string, rowNotes: Record<string, string>, noteMap: Map<string, number>): string {
+  const note = rowNotes[metricKey]?.trim();
+  if (!note) return `<td style="border: 1px solid #ddd; padding: 10px 12px;"></td>`;
+  const num = noteMap.get(metricKey) || 0;
+  return `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px;">
+    <span style="display: inline-block; background: #7c3aed; color: white; border-radius: 50%; width: 20px; height: 20px; text-align: center; line-height: 20px; font-size: 11px; font-weight: bold; margin-right: 6px;">${num}</span>${note}
+  </td>`;
+}
 
 // ===================== Helper Functions =====================
 
@@ -172,15 +203,19 @@ function generateStandardExcel(
   stores: StoreInfo[],
   metrics: ComparisonMetric[],
   periodDescription: string,
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
 ): Uint8Array {
   const wb = XLSX.utils.book_new();
   const wsData: unknown[][] = [];
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(metrics, rowNotes) : new Map<string, number>();
 
   // Header row
   const headerRow = [{ v: "Metric", s: { ...headerStyle, alignment: { horizontal: "left" } } }];
   stores.forEach(store => {
     headerRow.push({ v: store.storeName, s: headerStyle } as any);
   });
+  if (hasAnyNotes) headerRow.push({ v: "Notes", s: headerStyle } as any);
   wsData.push(headerRow);
 
   // Metric rows
@@ -201,13 +236,21 @@ function generateStandardExcel(
       }
     });
 
+    if (hasAnyNotes) {
+      const note = rowNotes[metric.metricName]?.trim();
+      const num = noteMap.get(metric.metricName);
+      row.push({ v: note ? `${num}. ${note}` : "", t: "s", s: { border: cellBorder } });
+    }
+
     wsData.push(row);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
 
   // Set column widths
-  ws["!cols"] = [{ wch: 30 }, ...stores.map(() => ({ wch: 18 }))];
+  const cols = [{ wch: 30 }, ...stores.map(() => ({ wch: 18 }))];
+  if (hasAnyNotes) cols.push({ wch: 40 });
+  ws["!cols"] = cols;
 
   XLSX.utils.book_append_sheet(wb, ws, periodDescription || "Comparison");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -220,9 +263,12 @@ function generateYoyExcel(
   periodDescription: string,
   curYearLabel: string | number,
   prevYearLabel: string | number,
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
 ): Uint8Array {
   const wb = XLSX.utils.book_new();
   const wsData: unknown[][] = [];
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(metrics, rowNotes) : new Map<string, number>();
 
   // Header row 1: Metric + store names (each spanning 3 cols)
   const headerRow1: unknown[] = [{ v: "Metric", s: { ...headerStyle, alignment: { horizontal: "left" } } }];
@@ -231,6 +277,7 @@ function generateYoyExcel(
     headerRow1.push({ v: "", s: headerStyle });
     headerRow1.push({ v: "", s: headerStyle });
   });
+  if (hasAnyNotes) headerRow1.push({ v: "Notes", s: headerStyle });
   wsData.push(headerRow1);
 
   // Header row 2: sub-headers per store
@@ -240,6 +287,7 @@ function generateYoyExcel(
     headerRow2.push({ v: String(prevYearLabel), s: headerStyle });
     headerRow2.push({ v: "Diff", s: headerStyle });
   });
+  if (hasAnyNotes) headerRow2.push({ v: "", s: headerStyle });
   wsData.push(headerRow2);
 
   // Metric rows
@@ -257,7 +305,6 @@ function generateYoyExcel(
       const lyValue = sv?.target ?? null;
       const diff = (curValue !== null && lyValue !== null) ? curValue - lyValue : null;
 
-      // Current year
       if (curValue !== null) {
         const ev = isPercent ? curValue / 100 : curValue;
         row.push(makeCell(ev, { border: cellBorder }, numFmt));
@@ -265,7 +312,6 @@ function generateYoyExcel(
         row.push(makeCell(null, { border: cellBorder }));
       }
 
-      // Last year
       if (lyValue !== null) {
         const ev = isPercent ? lyValue / 100 : lyValue;
         row.push(makeCell(ev, { border: cellBorder, font: { color: { rgb: "666666" } } }, numFmt));
@@ -273,7 +319,6 @@ function generateYoyExcel(
         row.push(makeCell(null, { border: cellBorder }));
       }
 
-      // Diff with color
       if (diff !== null) {
         const ev = isPercent ? diff / 100 : diff;
         row.push(makeCell(ev, getDiffStyle(diff, lowerIsBetter), isPercent ? "+0.0%;-0.0%" : "+$#,##0;-$#,##0"));
@@ -281,6 +326,12 @@ function generateYoyExcel(
         row.push(makeCell(null, { border: cellBorder }));
       }
     });
+
+    if (hasAnyNotes) {
+      const note = rowNotes[metric.metricName]?.trim();
+      const num = noteMap.get(metric.metricName);
+      row.push({ v: note ? `${num}. ${note}` : "", t: "s", s: { border: cellBorder } });
+    }
 
     wsData.push(row);
   });
@@ -296,7 +347,9 @@ function generateYoyExcel(
   ws["!merges"] = merges;
 
   // Column widths
-  ws["!cols"] = [{ wch: 30 }, ...stores.flatMap(() => [{ wch: 16 }, { wch: 16 }, { wch: 16 }])];
+  const cols = [{ wch: 30 }, ...stores.flatMap(() => [{ wch: 16 }, { wch: 16 }, { wch: 16 }])];
+  if (hasAnyNotes) cols.push({ wch: 40 });
+  ws["!cols"] = cols;
 
   XLSX.utils.book_append_sheet(wb, ws, periodDescription || "YOY Comparison");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -306,8 +359,12 @@ function generateYoyExcel(
 function generateQuestionnaireExcel(
   questionnaireData: QuestionnaireAnswer[],
   selectedMetrics: string[],
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
+  compMetrics: ComparisonMetric[] = [],
 ): Uint8Array {
   const wb = XLSX.utils.book_new();
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(compMetrics, rowNotes) : new Map<string, number>();
 
   // Group data by store+department
   const storeMap = new Map<string, { storeName: string; departmentName: string; answers: Map<string, string | null> }>();
@@ -331,6 +388,7 @@ function generateQuestionnaireExcel(
   storesArray.forEach(store => {
     headerRow.push({ v: `${store.storeName} - ${store.departmentName}`, s: headerStyle });
   });
+  if (hasAnyNotes) headerRow.push({ v: "Notes", s: headerStyle });
   wsData.push(headerRow);
 
   // Question rows
@@ -341,11 +399,18 @@ function generateQuestionnaireExcel(
       const displayValue = answer ?? "-";
       row.push({ v: displayValue, t: "s", s: { ...getQuestionnaireStyle(answer), alignment: { horizontal: "center" } } });
     });
+    if (hasAnyNotes) {
+      const note = rowNotes[question]?.trim();
+      const num = noteMap.get(question);
+      row.push({ v: note ? `${num}. ${note}` : "", t: "s", s: { border: cellBorder } });
+    }
     wsData.push(row);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws["!cols"] = [{ wch: 45 }, ...storesArray.map(() => ({ wch: 22 }))];
+  const cols = [{ wch: 45 }, ...storesArray.map(() => ({ wch: 22 }))];
+  if (hasAnyNotes) cols.push({ wch: 40 });
+  ws["!cols"] = cols;
 
   XLSX.utils.book_append_sheet(wb, ws, "Questionnaire");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -372,7 +437,11 @@ function buildQuestionnaireHtml(
   reportTitle: string,
   brandLine: string,
   departmentLine: string,
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
+  compMetrics: ComparisonMetric[] = [],
 ): string {
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(compMetrics, rowNotes) : new Map<string, number>();
   const storeMap = new Map<string, { storeName: string; departmentName: string; answers: Map<string, string | null> }>();
   questionnaireData.forEach((item: QuestionnaireAnswer) => {
     const key = `${item.storeName}|${item.departmentName}`;
@@ -410,6 +479,7 @@ function buildQuestionnaireHtml(
     html += `<th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 150px;">
       ${store.storeName}<div style="font-size: 11px; color: #666; font-weight: normal; margin-top: 2px;">${store.departmentName}</div></th>`;
   });
+  if (hasAnyNotes) html += notesColumnHeaderHtml();
   html += `</tr></thead><tbody>`;
 
   uniqueQuestions.forEach(question => {
@@ -418,6 +488,7 @@ function buildQuestionnaireHtml(
       const answer = store.answers.get(question);
       html += `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px;">${formatAnswer(answer ?? null)}</td>`;
     });
+    if (hasAnyNotes) html += notesCellHtml(question, rowNotes, noteMap);
     html += `</tr>`;
   });
 
@@ -439,7 +510,10 @@ function buildYoyHtml(
   periodDescription: string,
   curYearLabel: string | number,
   prevYearLabel: string | number,
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
 ): string {
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(metrics, rowNotes) : new Map<string, number>();
   let html = `<!DOCTYPE html><html><head></head><body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
     <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
     <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
@@ -452,6 +526,7 @@ function buildYoyHtml(
   stores.forEach(store => {
     html += `<th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 280px;" colspan="3">${store.storeName}</th>`;
   });
+  if (hasAnyNotes) html += `<th style="border: 1px solid #ddd; padding: 10px 12px; text-align: left; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 200px;" rowspan="2">Notes</th>`;
   html += `</tr><tr>`;
   stores.forEach(() => {
     html += `<th style="border: 1px solid #ddd; padding: 6px 8px; text-align: center; font-size: 11px; background-color: #f0f0f0; font-weight: 600; min-width: 90px;">${curYearLabel}</th>
@@ -486,6 +561,7 @@ function buildYoyHtml(
         html += `<td style="border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 13px; color: #999;">-</td>`;
       }
     });
+    if (hasAnyNotes) html += notesCellHtml(metric.metricName, rowNotes, noteMap);
     html += `</tr>`;
   });
 
@@ -508,7 +584,10 @@ function buildStandardHtml(
   comparisonDescription: string,
   comparisonMode: string,
   datePeriodType: string,
+  rowNotes: Record<string, string> = {},
+  hasAnyNotes = false,
 ): string {
+  const noteMap = hasAnyNotes ? computeNoteNumberMap(metrics, rowNotes) : new Map<string, number>();
   let html = `<!DOCTYPE html><html><head></head><body style="font-family: Arial, sans-serif; margin: 20px; color: #333;">
     <h1 style="color: #1a1a1a; font-size: 24px; margin-bottom: 8px;">${reportTitle}</h1>
     <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
@@ -524,6 +603,7 @@ function buildStandardHtml(
     html += `<th style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; background-color: #f8f8f8; font-weight: 600; min-width: 180px;">
       ${store.storeName}${datePeriodType !== "month" ? `<div style="font-size: 11px; color: ${statusColor}; font-weight: normal; margin-top: 4px;">${statusText}</div>` : ''}</th>`;
   });
+  if (hasAnyNotes) html += notesColumnHeaderHtml();
 
   html += `</tr></thead><tbody>`;
 
@@ -552,6 +632,7 @@ function buildStandardHtml(
         html += `<td style="border: 1px solid #ddd; padding: 10px 12px; text-align: center; font-size: 13px; color: #999;">No data</td>`;
       }
     });
+    if (hasAnyNotes) html += notesCellHtml(metric.metricName, rowNotes, noteMap);
     html += `</tr>`;
   });
 
@@ -588,8 +669,11 @@ const handler = async (req: Request): Promise<Response> => {
       selectedMetrics, datePeriodType, selectedMonth, selectedYear,
       startMonth, endMonth, comparisonMode, filterName, brandDisplayName,
       selectedDepartmentNames, isYoyMonth, yoyCurrentYear, yoyPrevYear,
-      attachExcel,
+      attachExcel, rowNotes: rawRowNotes,
     }: EmailRequest = await req.json();
+
+    const rowNotes = rawRowNotes || {};
+    const hasAnyNotes = Object.values(rowNotes).some(v => v?.trim());
 
     console.log("Sending dealer comparison email to:", recipientEmails);
     console.log("Metric type:", metricType, "isYoyMonth:", isYoyMonth, "attachExcel:", attachExcel);
@@ -616,11 +700,11 @@ const handler = async (req: Request): Promise<Response> => {
     // Build HTML email body
     let html: string;
     if (metricType === "dept_info" && questionnaireData && questionnaireData.length > 0) {
-      html = buildQuestionnaireHtml(questionnaireData, selectedMetrics, reportTitle, brandLine, departmentLine);
+      html = buildQuestionnaireHtml(questionnaireData, selectedMetrics, reportTitle, brandLine, departmentLine, rowNotes, hasAnyNotes, metrics);
     } else if (isYoyMonth) {
-      html = buildYoyHtml(stores, metrics, reportTitle, brandLine, departmentLine, periodDescription, yoyCurrentYear ?? "", yoyPrevYear ?? "");
+      html = buildYoyHtml(stores, metrics, reportTitle, brandLine, departmentLine, periodDescription, yoyCurrentYear ?? "", yoyPrevYear ?? "", rowNotes, hasAnyNotes);
     } else {
-      html = buildStandardHtml(stores, metrics, reportTitle, brandLine, departmentLine, periodDescription, comparisonDescription, comparisonMode, datePeriodType);
+      html = buildStandardHtml(stores, metrics, reportTitle, brandLine, departmentLine, periodDescription, comparisonDescription, comparisonMode, datePeriodType, rowNotes, hasAnyNotes);
     }
 
     // Build email subject
@@ -638,11 +722,11 @@ const handler = async (req: Request): Promise<Response> => {
         let excelBuffer: Uint8Array;
 
         if (metricType === "dept_info" && questionnaireData && questionnaireData.length > 0) {
-          excelBuffer = generateQuestionnaireExcel(questionnaireData, selectedMetrics);
+          excelBuffer = generateQuestionnaireExcel(questionnaireData, selectedMetrics, rowNotes, hasAnyNotes, metrics);
         } else if (isYoyMonth) {
-          excelBuffer = generateYoyExcel(stores, metrics, periodDescription, yoyCurrentYear ?? "", yoyPrevYear ?? "");
+          excelBuffer = generateYoyExcel(stores, metrics, periodDescription, yoyCurrentYear ?? "", yoyPrevYear ?? "", rowNotes, hasAnyNotes);
         } else {
-          excelBuffer = generateStandardExcel(stores, metrics, periodDescription);
+          excelBuffer = generateStandardExcel(stores, metrics, periodDescription, rowNotes, hasAnyNotes);
         }
 
         // Build filename

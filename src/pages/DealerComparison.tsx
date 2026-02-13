@@ -32,6 +32,10 @@ export default function DealerComparison() {
   const [comparisonData, setComparisonData] = useState<ComparisonData[]>([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [rowNotes, setRowNotes] = useState<Record<string, string>>({});
+
+
+
 
   // Check if state exists, redirect if not
   useEffect(() => {
@@ -357,7 +361,19 @@ export default function DealerComparison() {
     return ordered;
   }, [metricType, selectedMetrics, financialEntries]);
 
-  // Identify which metrics are "parents" (have sub-metrics selected)
+  // Compute sequential note numbers: only rows with non-empty notes get a number
+  const noteNumberMap = useMemo(() => {
+    const mapping: Record<string, number> = {};
+    let currentNumber = 1;
+    orderedSelectedMetrics.forEach((selectionId) => {
+      if (rowNotes[selectionId]?.trim()) {
+        mapping[selectionId] = currentNumber++;
+      }
+    });
+    return mapping;
+  }, [rowNotes, orderedSelectedMetrics]);
+
+
   const parentMetricKeys = useMemo(() => {
     if (metricType !== "financial") return new Set<string>();
     return getParentMetricKeys(orderedSelectedMetrics, null);
@@ -2120,6 +2136,9 @@ export default function DealerComparison() {
                           </TableHead>
                         );
                       })}
+                      <TableHead className="text-center min-w-[200px] border-b-2" rowSpan={isThreeColumnMode ? 2 : 1}>
+                        <div className="text-sm font-semibold">Notes</div>
+                      </TableHead>
                     </TableRow>
                     {isThreeColumnMode && (
                       <TableRow>
@@ -2195,6 +2214,23 @@ export default function DealerComparison() {
                             </TableCell>
                           );
                         })}
+                        {/* Notes cell */}
+                        <TableCell className="px-2">
+                          <div className="flex items-center gap-1.5">
+                            {noteNumberMap[selectionId] && (
+                              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-[11px] font-bold text-white flex-shrink-0" style={{ backgroundColor: '#7c3aed' }}>
+                                {noteNumberMap[selectionId]}
+                              </span>
+                            )}
+                            <input
+                              type="text"
+                              value={rowNotes[selectionId] || ''}
+                              onChange={(e) => setRowNotes(prev => ({ ...prev, [selectionId]: e.target.value }))}
+                              placeholder="Add note..."
+                              className="w-full min-w-[140px] bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none text-sm py-0.5 placeholder:text-muted-foreground/40"
+                            />
+                          </div>
+                        </TableCell>
                       </TableRow>
                     )})}
                   </TableBody>
@@ -2283,6 +2319,7 @@ export default function DealerComparison() {
         isYoyMonth={isThreeColumnMode}
         yoyCurrentYear={yoyCurrentYear}
         yoyPrevYear={comparisonColumnLabel}
+        rowNotes={rowNotes}
       />
     </div>
   );
