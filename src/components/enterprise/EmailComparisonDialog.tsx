@@ -102,6 +102,9 @@ export function EmailComparisonDialog({
   const fetchRecipients = async () => {
     setLoading(true);
     try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
       // Fetch super_admins
       const { data: superAdminRoles } = await supabase
         .from("user_roles")
@@ -139,7 +142,7 @@ export function EmailComparisonDialog({
           id: p.id,
           email: p.email,
           full_name: p.full_name,
-          role: "Super Admin",
+          role: currentUser?.id === p.id ? "Super Admin (You)" : "Super Admin",
           store_name: "All Stores",
         });
       });
@@ -152,11 +155,30 @@ export function EmailComparisonDialog({
             id: p.id,
             email: p.email,
             full_name: p.full_name,
-            role: "General Manager",
+            role: currentUser?.id === p.id ? "General Manager (You)" : "General Manager",
             store_name: (p.stores as any)?.name || "Unknown Store",
           });
         }
       });
+
+      // Add current user if not already in the list
+      if (currentUser && !recipientList.find(r => r.id === currentUser.id)) {
+        const { data: currentProfile } = await supabase
+          .from("profiles")
+          .select("id, email, full_name, stores(name)")
+          .eq("id", currentUser.id)
+          .single();
+
+        if (currentProfile) {
+          recipientList.unshift({
+            id: currentProfile.id,
+            email: currentProfile.email,
+            full_name: currentProfile.full_name,
+            role: "You",
+            store_name: (currentProfile.stores as any)?.name || undefined,
+          });
+        }
+      }
 
       setRecipients(recipientList);
       // Default to no recipients selected
