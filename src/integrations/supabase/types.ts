@@ -2451,6 +2451,7 @@ export type Database = {
           kpi_id: string
           kpi_name: string
           row_index: number | null
+          source_column_header: string | null
           user_id: string
         }
         Insert: {
@@ -2463,6 +2464,7 @@ export type Database = {
           kpi_id: string
           kpi_name: string
           row_index?: number | null
+          source_column_header?: string | null
           user_id: string
         }
         Update: {
@@ -2475,6 +2477,7 @@ export type Database = {
           kpi_id?: string
           kpi_name?: string
           row_index?: number | null
+          source_column_header?: string | null
           user_id?: string
         }
         Relationships: [
@@ -2545,6 +2548,7 @@ export type Database = {
           import_profile_id: string
           kpi_name: string
           row_offset: number
+          source_column_header: string | null
         }
         Insert: {
           col_index: number
@@ -2554,6 +2558,7 @@ export type Database = {
           import_profile_id: string
           kpi_name: string
           row_offset?: number
+          source_column_header?: string | null
         }
         Update: {
           col_index?: number
@@ -2563,6 +2568,7 @@ export type Database = {
           import_profile_id?: string
           kpi_name?: string
           row_offset?: number
+          source_column_header?: string | null
         }
         Relationships: [
           {
