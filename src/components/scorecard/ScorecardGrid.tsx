@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Flag,
   Trash2,
+  Upload,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -39,7 +40,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkline } from "@/components/ui/sparkline";
 import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
 import { ScorecardPeriodDropZone } from "./ScorecardPeriodDropZone";
-import { ScorecardMonthDropZone, ScorecardImportLog } from "./ScorecardMonthDropZone";
+import { ScorecardMonthDropZone, ScorecardImportLog, ScorecardMonthDropZoneHandle } from "./ScorecardMonthDropZone";
 import { ScorecardWeekDropZone, WeekImportLog } from "./ScorecardWeekDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
@@ -366,6 +367,7 @@ const ScorecardGrid = ({
   const [importLogs, setImportLogs] = useState<{ [month: string]: ScorecardImportLog }>({});
   const [weekImportLogs, setWeekImportLogs] = useState<{ [weekDate: string]: WeekImportLog }>({});
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const monthDropZoneRefs = useRef<Record<string, ScorecardMonthDropZoneHandle | null>>({});
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
   const [pasteOwnerFilter, setPasteOwnerFilter] = useState<string>("all");
@@ -3502,6 +3504,7 @@ const ScorecardGrid = ({
                                 <ContextMenuTrigger asChild>
                                   <div>
                                     <ScorecardMonthDropZone
+                                      ref={(el) => { monthDropZoneRefs.current[period.identifier] = el; }}
                                       monthIdentifier={period.identifier}
                                       onFileDrop={handleMonthFileDrop}
                                       onReimport={handleReimport}
@@ -3516,6 +3519,12 @@ const ScorecardGrid = ({
                                   </div>
                                 </ContextMenuTrigger>
                                 <ContextMenuContent className="bg-background z-50">
+                                  <ContextMenuItem
+                                    onClick={() => monthDropZoneRefs.current[period.identifier]?.triggerFileSelect()}
+                                  >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Import Scorecard File
+                                  </ContextMenuItem>
                                   {canManageKPIs && (
                                     <ContextMenuItem
                                       onClick={() => setClearPeriod({ identifier: period.identifier, label: `${period.label.split(" ")[0]} ${period.year}`, type: "month" })}
@@ -3645,6 +3654,7 @@ const ScorecardGrid = ({
                               <ContextMenuTrigger asChild>
                                 <div>
                                   <ScorecardMonthDropZone
+                                    ref={(el) => { monthDropZoneRefs.current[month.identifier] = el; }}
                                     monthIdentifier={month.identifier}
                                     onFileDrop={handleMonthFileDrop}
                                     onReimport={handleReimport}
@@ -3659,6 +3669,12 @@ const ScorecardGrid = ({
                                 </div>
                               </ContextMenuTrigger>
                               <ContextMenuContent className="bg-background z-50">
+                                <ContextMenuItem
+                                  onClick={() => monthDropZoneRefs.current[month.identifier]?.triggerFileSelect()}
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Import Scorecard File
+                                </ContextMenuItem>
                                 {canManageKPIs && (
                                   <ContextMenuItem
                                     onClick={() => setClearPeriod({ identifier: month.identifier, label: `${month.label} ${month.year}`, type: "month" })}
@@ -3695,6 +3711,7 @@ const ScorecardGrid = ({
                               <ContextMenuTrigger asChild>
                                 <div>
                                   <ScorecardMonthDropZone
+                                    ref={(el) => { monthDropZoneRefs.current[month.identifier] = el; }}
                                     monthIdentifier={month.identifier}
                                     onFileDrop={handleMonthFileDrop}
                                     onReimport={handleReimport}
@@ -3709,6 +3726,12 @@ const ScorecardGrid = ({
                                 </div>
                               </ContextMenuTrigger>
                               <ContextMenuContent className="bg-background z-50">
+                                <ContextMenuItem
+                                  onClick={() => monthDropZoneRefs.current[month.identifier]?.triggerFileSelect()}
+                                >
+                                  <Upload className="h-4 w-4 mr-2" />
+                                  Import Scorecard File
+                                </ContextMenuItem>
                                 {canManageKPIs && (
                                   <ContextMenuItem
                                     onClick={() => setClearPeriod({ identifier: month.identifier, label: `${month.label} ${month.year}`, type: "month" })}
