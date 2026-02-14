@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Mail, Loader2, FileSpreadsheet } from "lucide-react";
+import { Mail, Loader2, FileSpreadsheet, X } from "lucide-react";
+import { z } from "zod";
 
 interface Recipient {
   id: string;
@@ -92,6 +95,26 @@ export function EmailComparisonDialog({
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [attachExcel, setAttachExcel] = useState(true);
+  const [customEmailInput, setCustomEmailInput] = useState("");
+
+  const { validEmails: validatedCustomEmails, invalidEntries } = useMemo(() => {
+    if (!customEmailInput.trim()) return { validEmails: [] as string[], invalidEntries: [] as string[] };
+    const parts = customEmailInput.split(/[,;]/).map(e => e.trim()).filter(Boolean);
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    parts.forEach(part => {
+      if (z.string().email().safeParse(part).success) {
+        if (!selectedRecipients.includes(part) && !valid.includes(part)) {
+          valid.push(part);
+        }
+      } else {
+        invalid.push(part);
+      }
+    });
+    return { validEmails: valid, invalidEntries: invalid };
+  }, [customEmailInput, selectedRecipients]);
+
+  const totalRecipientCount = selectedRecipients.length + validatedCustomEmails.length;
 
   useEffect(() => {
     if (open && storeIds.length > 0) {
@@ -208,16 +231,22 @@ export function EmailComparisonDialog({
   };
 
   const handleSend = async () => {
-    if (selectedRecipients.length === 0) {
-      toast.error("Please select at least one recipient");
+    if (totalRecipientCount === 0) {
+      toast.error("Please select at least one recipient or enter a custom email");
       return;
     }
+    if (invalidEntries.length > 0) {
+      toast.error("Please fix invalid email addresses before sending");
+      return;
+    }
+
+    const allRecipients = [...selectedRecipients, ...validatedCustomEmails];
 
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-dealer-comparison-email", {
         body: {
-          recipientEmails: selectedRecipients,
+          recipientEmails: allRecipients,
           stores,
           metrics,
           questionnaireData,
@@ -242,7 +271,7 @@ export function EmailComparisonDialog({
 
       if (error) throw error;
 
-      toast.success(`Report sent to ${selectedRecipients.length} recipient(s)`);
+      toast.success(`Report sent to ${allRecipients.length} recipient(s)`);
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error sending email:", error);
@@ -311,6 +340,29 @@ export function EmailComparisonDialog({
             </div>
           )}
 
+          <div className="pt-3 border-t space-y-2">
+            <Label className="text-sm font-medium">Add custom email addresses</Label>
+            <Input
+              placeholder="Enter email addresses (comma-separated)"
+              value={customEmailInput}
+              onChange={e => setCustomEmailInput(e.target.value)}
+            />
+            {validatedCustomEmails.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {validatedCustomEmails.map(email => (
+                  <Badge key={email} variant="secondary" className="text-xs">
+                    {email}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {invalidEntries.length > 0 && (
+              <p className="text-xs text-destructive">
+                Invalid: {invalidEntries.join(", ")}
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-between pt-3 border-t">
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
@@ -332,7 +384,7 @@ export function EmailComparisonDialog({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={sending || selectedRecipients.length === 0}
+            disabled={sending || totalRecipientCount === 0 || invalidEntries.length > 0}
           >
             {sending ? (
               <>
@@ -342,7 +394,7 @@ export function EmailComparisonDialog({
             ) : (
               <>
                 <Mail className="h-4 w-4 mr-2" />
-                Send to {selectedRecipients.length} recipient(s)
+                Send to {totalRecipientCount} recipient(s)
               </>
             )}
           </Button>
