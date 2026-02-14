@@ -1,21 +1,33 @@
 
-## Fix: Enterprise Report Sub-Metric Ordering for Ford
+
+## Add Custom Email Address Input to Email Comparison Dialog
 
 ### Problem
-Sub-metrics in Enterprise reporting (Dealer Comparison, Trend views) don't appear in the same order as they do on the financial statement. The ordering is arbitrary because the sort utility doesn't extract and sort by the order index embedded in the sub-metric keys.
+Currently, the Email Comparison Report dialog only allows selecting from a pre-populated list of system users (Super Admins and GMs). Users with enterprise reporting access need the ability to send reports to external email addresses not in the system.
 
-### Root Cause
-The `sortMetricsWithSubMetrics` utility groups sub-metrics under their parent but preserves whatever order they appear in the input array. Sub-metric IDs contain an order index from the original Excel statement (e.g., `sub:sales_expense:001:Commissions`, `sub:sales_expense:002:Delivery`), but that index is never used for sorting.
+### Solution
+Add a text input field below the recipient list where users can type in one or more custom email addresses. These addresses will be added to the recipient list alongside any checked system users.
 
-### Fix
-**File: `src/utils/sortMetricsWithSubMetrics.ts`**
+### Technical Details
 
-After collecting the `selectedSubs` array for each parent metric (line 29-31), sort them by extracting the numeric order index from the key before pushing into the result.
+**File: `src/components/enterprise/EmailComparisonDialog.tsx`**
 
-The sort logic will:
-1. Parse the sub-metric ID format `sub:{parentKey}:{orderIndex}:{name}`
-2. Extract the order index (the third segment)
-3. Sort numerically by that index
-4. Fall back to alphabetical name comparison for legacy keys without an order index
+1. Add a `customEmails` state (`string`) for the text input value
+2. Add a `validatedCustomEmails` derived array that parses and validates email addresses (comma or semicolon separated)
+3. Add an input field with placeholder text like `"Add email addresses (comma-separated)"` between the recipient list and the "Attach Excel report" toggle
+4. Show validation feedback -- display valid parsed emails as small badges/chips, highlight invalid entries
+5. Update `handleSend` to merge `selectedRecipients` with `validatedCustomEmails` before sending
+6. Update the send button count to reflect both system recipients and custom emails
 
-This single change ensures all three enterprise views (CombinedTrendView, FixedCombinedTrendView, MetricComparisonTable) display sub-metrics in statement order since they all use this shared utility.
+**UI Layout (below recipient list, above the Attach Excel toggle):**
+- A text input for typing email addresses
+- Helper text: "Separate multiple addresses with commas"
+- Parsed valid emails shown as count or inline list
+- Invalid email format warning if detected
+
+**Validation:**
+- Use a simple email regex or `zod` email validation (already installed)
+- Trim whitespace, split on commas/semicolons
+- Deduplicate against already-selected system recipient emails
+- Show inline error for invalid formats
+
