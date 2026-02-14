@@ -1,24 +1,21 @@
 
-## Add "Import Statement" to Financial Summary Right-Click Menu
+## Fix: Enterprise Report Sub-Metric Ordering for Ford
 
 ### Problem
-Windows users prefer right-clicking to select a file rather than drag-and-drop. The financial summary's `MonthDropZone` currently only supports drag-and-drop for file imports, with the right-click menu limited to "Copy from..." and "Clear Month Data" options.
+Sub-metrics in Enterprise reporting (Dealer Comparison, Trend views) don't appear in the same order as they do on the financial statement. The ordering is arbitrary because the sort utility doesn't extract and sort by the order index embedded in the sub-metric keys.
 
-### Solution
-Add an **"Import Statement"** option to the existing right-click context menu on each month header in the financial summary. Clicking it opens a native file picker for supported file types (.xlsx, .xls, .xlsm, .csv, .pdf), then processes the selected file through the same upload and parsing pipeline already used by drag-and-drop.
+### Root Cause
+The `sortMetricsWithSubMetrics` utility groups sub-metrics under their parent but preserves whatever order they appear in the input array. Sub-metric IDs contain an order index from the original Excel statement (e.g., `sub:sales_expense:001:Commissions`, `sub:sales_expense:002:Delivery`), but that index is never used for sorting.
 
-### Technical Details
+### Fix
+**File: `src/utils/sortMetricsWithSubMetrics.ts`**
 
-**File: `src/components/financial/MonthDropZone.tsx`**
+After collecting the `selectedSubs` array for each parent metric (line 29-31), sort them by extracting the numeric order index from the key before pushing into the result.
 
-1. Add a hidden `<input type="file">` element with a ref, accepting `.xlsx,.xls,.xlsm,.csv,.pdf`
-2. Add a `handleFileInputChange` handler that takes the selected file and feeds it into the same logic as `handleDrop` (file type detection, upload to storage, brand Excel processing, attachment creation)
-3. Add a new `ContextMenuItem` labeled **"Import Statement"** with an `Upload` icon at the top of the existing context menu (before the copy options)
-4. Clicking the menu item triggers `fileInputRef.current.click()` to open the native file picker
-5. Update the `hasContextMenuOptions` check to always include the import option (since importing is always available regardless of copy options)
+The sort logic will:
+1. Parse the sub-metric ID format `sub:{parentKey}:{orderIndex}:{name}`
+2. Extract the order index (the third segment)
+3. Sort numerically by that index
+4. Fall back to alphabetical name comparison for legacy keys without an order index
 
-### User Experience
-- Right-click any month column header in the Financial Summary
-- See "Import Statement" at the top of the menu (above existing Copy/Clear options)
-- Click it to open the native file picker
-- Select a file, and it flows through the same upload + auto-import pipeline as drag-and-drop
+This single change ensures all three enterprise views (CombinedTrendView, FixedCombinedTrendView, MetricComparisonTable) display sub-metrics in statement order since they all use this shared utility.
