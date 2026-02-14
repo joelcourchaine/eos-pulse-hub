@@ -30,6 +30,19 @@ export function sortMetricsWithSubMetrics(
       (id) => id.startsWith(`sub:${metricKey}:`) && !placed.has(id)
     );
 
+    // Sort sub-metrics by the embedded order index (e.g. sub:parent:001:Name)
+    selectedSubs.sort((a, b) => {
+      const partsA = a.split(":");
+      const partsB = b.split(":");
+      // Format: sub:{parentKey}:{orderIndex}:{name} (4+ parts)
+      const indexA = partsA.length >= 4 ? parseInt(partsA[2], 10) : NaN;
+      const indexB = partsB.length >= 4 ? parseInt(partsB[2], 10) : NaN;
+      if (!isNaN(indexA) && !isNaN(indexB)) return indexA - indexB;
+      if (!isNaN(indexA)) return -1;
+      if (!isNaN(indexB)) return 1;
+      return a.localeCompare(b);
+    });
+
     for (const sub of selectedSubs) {
       sorted.push(sub);
       placed.add(sub);
