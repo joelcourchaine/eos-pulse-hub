@@ -90,6 +90,10 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Sub-metric overrides: user-defined annual values
   const [subMetricOverrides, setSubMetricOverrides] = useState<{ subMetricKey: string; parentKey: string; overriddenAnnualValue: number }[]>([]);
 
+  // State-based trigger to force auto-save useEffect to run
+  // Needed because markDirty() only sets a ref which doesn't cause re-render
+  const [saveTrigger, setSaveTrigger] = useState(0);
+
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
@@ -542,6 +546,8 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       }
       driversLoadedFromDb.current = true;
       driversInitialized.current = true;
+      markDirty();
+      setSaveTrigger(c => c + 1);
     }
   }, [driverSettings, forecast]);
 
@@ -569,18 +575,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         }
       }
 
-    driversInitialized.current = true;
+      driversInitialized.current = true;
       // Mark dirty so auto-save persists initial forecast values to DB
       // This ensures performance status colors appear on the Financial Summary
       markDirty();
+      setSaveTrigger(c => c + 1);
     }
 
     // Fallback for sub-metric-only departments (e.g. Body Shop)
     // These have no parent-level entries, so priorYearData is empty,
     // but sub-metric baselines exist and the calculation engine handles them.
-    if (priorYearData && priorYearData.length === 0 && subMetricBaselines.length > 0 && !driversInitialized.current) {
+    if (priorYearData && priorYearData.length === 0 && subMetricBaselines.length > 0) {
       driversInitialized.current = true;
       markDirty();
+      setSaveTrigger(c => c + 1);
     }
   }, [priorYearData, subMetricBaselines]);
 
@@ -843,6 +851,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     fixedExpense,
     weightsSignature,
     overridesSignature,
+    saveTrigger,
   ]);
 
   // Handle cell edits - do NOT auto-lock; locking is only via explicit user action
