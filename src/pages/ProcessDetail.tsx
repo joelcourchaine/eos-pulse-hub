@@ -197,9 +197,14 @@ const ProcessDetail = () => {
     }
   };
 
-  const updateStageTitle = async (stageId: string, title: string) => {
-    await supabase.from("process_stages").update({ title }).eq("id", stageId);
+  const updateStageTitleLocal = (stageId: string, title: string) => {
     setStages((prev) => prev.map((s) => (s.id === stageId ? { ...s, title } : s)));
+  };
+
+  const saveStageTitle = async (stageId: string) => {
+    const stage = stages.find((s) => s.id === stageId);
+    if (!stage) return;
+    await supabase.from("process_stages").update({ title: stage.title }).eq("id", stageId);
   };
 
   const addStep = async (stageId: string, parentStepId?: string) => {
@@ -219,9 +224,22 @@ const ProcessDetail = () => {
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
   };
 
-  const updateStep = async (stepId: string, updates: Partial<Step>) => {
-    await supabase.from("process_steps").update(updates).eq("id", stepId);
+  // Local-only state update (no DB call) — used on every keystroke
+  const updateStepLocal = (stepId: string, updates: Partial<Step>) => {
     setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, ...updates } : s)));
+  };
+
+  // Persist to DB — called on blur
+  const saveStep = async (stepId: string) => {
+    const step = steps.find((s) => s.id === stepId);
+    if (!step) return;
+    await supabase.from("process_steps").update({
+      title: step.title,
+      instructions: step.instructions,
+      definition_of_done: step.definition_of_done,
+      owner_role: step.owner_role,
+      estimated_minutes: step.estimated_minutes,
+    }).eq("id", stepId);
   };
 
   const deleteStep = async (stepId: string) => {
@@ -292,8 +310,8 @@ const ProcessDetail = () => {
                 <Input
                   className="font-semibold"
                   value={step.title}
-                  onChange={(e) => updateStep(step.id, { title: e.target.value })}
-                  onBlur={() => {}}
+                  onChange={(e) => updateStepLocal(step.id, { title: e.target.value })}
+                  onBlur={() => saveStep(step.id)}
                 />
               ) : (
                 <h4 className="font-semibold text-foreground">{step.title}</h4>
@@ -304,7 +322,8 @@ const ProcessDetail = () => {
                 <Textarea
                   placeholder="Instructions (use each line as a bullet)..."
                   value={step.instructions || ""}
-                  onChange={(e) => updateStep(step.id, { instructions: e.target.value })}
+                  onChange={(e) => updateStepLocal(step.id, { instructions: e.target.value })}
+                  onBlur={() => saveStep(step.id)}
                   rows={3}
                 />
               ) : step.instructions ? (
@@ -322,7 +341,8 @@ const ProcessDetail = () => {
                   <Textarea
                     placeholder="What must be true before moving on..."
                     value={step.definition_of_done || ""}
-                    onChange={(e) => updateStep(step.id, { definition_of_done: e.target.value })}
+                    onChange={(e) => updateStepLocal(step.id, { definition_of_done: e.target.value })}
+                    onBlur={() => saveStep(step.id)}
                     rows={2}
                   />
                 </div>
@@ -341,7 +361,8 @@ const ProcessDetail = () => {
                       className="w-32 h-8 text-xs"
                       placeholder="Owner role"
                       value={step.owner_role || ""}
-                      onChange={(e) => updateStep(step.id, { owner_role: e.target.value })}
+                      onChange={(e) => updateStepLocal(step.id, { owner_role: e.target.value })}
+                      onBlur={() => saveStep(step.id)}
                     />
                     <Input
                       type="number"
@@ -349,10 +370,11 @@ const ProcessDetail = () => {
                       placeholder="Minutes"
                       value={step.estimated_minutes ?? ""}
                       onChange={(e) =>
-                        updateStep(step.id, {
+                        updateStepLocal(step.id, {
                           estimated_minutes: e.target.value ? parseInt(e.target.value) : null,
                         })
                       }
+                      onBlur={() => saveStep(step.id)}
                     />
                   </>
                 ) : (
@@ -492,7 +514,8 @@ const ProcessDetail = () => {
                         <input
                           className="bg-transparent border-none outline-none text-sm font-medium w-24 text-center"
                           value={stage.title}
-                          onChange={(e) => updateStageTitle(stage.id, e.target.value)}
+                          onChange={(e) => updateStageTitleLocal(stage.id, e.target.value)}
+                          onBlur={() => saveStageTitle(stage.id)}
                           onClick={(e) => e.stopPropagation()}
                         />
                         {stages.length > 1 && (
