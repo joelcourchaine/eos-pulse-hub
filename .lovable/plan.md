@@ -1,33 +1,60 @@
 
 
-## Add Custom Email Address Input to Email Comparison Dialog
+## Fix: Body Shop Forecast Not Producing Visual Cues
 
-### Problem
-Currently, the Email Comparison Report dialog only allows selecting from a pre-populated list of system users (Super Admins and GMs). Users with enterprise reporting access need the ability to send reports to external email addresses not in the system.
+### Root Cause
 
-### Solution
-Add a text input field below the recipient list where users can type in one or more custom email addresses. These addresses will be added to the recipient list alongside any checked system users.
+The Body Shop at Winnipeg Chevrolet stores financial data **exclusively as sub-metrics** (e.g., `sub:total_sales:001:CUST. PAINT LAB`) with no parent-level entries (e.g., `total_sales`). When the Forecast Drawer opens:
 
-### Technical Details
+1. It queries prior-year data filtering out `sub:` prefixed metrics (line 186 of ForecastDrawer.tsx)
+2. This returns an empty array for the Body Shop
+3. The initialization effect (line 550) checks `priorYearData.length > 0` -- which is `false`
+4. So `driversInitialized.current` is never set to `true`
+5. The auto-save effect (line 731) checks `driversInitialized.current` -- which is `false` -- and exits early
+6. No forecast entries are ever saved to the database
+7. The `useForecastTargets` hook finds 0 entries, so no visual cues appear on the Financial Summary
 
-**File: `src/components/enterprise/EmailComparisonDialog.tsx`**
+Additionally, there's a secondary path: saved `driverSettings` could set `driversInitialized = true`, but since the auto-save never ran the first time, no driver settings were ever persisted either.
 
-1. Add a `customEmails` state (`string`) for the text input value
-2. Add a `validatedCustomEmails` derived array that parses and validates email addresses (comma or semicolon separated)
-3. Add an input field with placeholder text like `"Add email addresses (comma-separated)"` between the recipient list and the "Attach Excel report" toggle
-4. Show validation feedback -- display valid parsed emails as small badges/chips, highlight invalid entries
-5. Update `handleSend` to merge `selectedRecipients` with `validatedCustomEmails` before sending
-6. Update the send button count to reflect both system recipients and custom emails
+### Fix
 
-**UI Layout (below recipient list, above the Attach Excel toggle):**
-- A text input for typing email addresses
-- Helper text: "Separate multiple addresses with commas"
-- Parsed valid emails shown as count or inline list
-- Invalid email format warning if detected
+**File: `src/components/financial/ForecastDrawer.tsx`** (lines ~548-577)
 
-**Validation:**
-- Use a simple email regex or `zod` email validation (already installed)
-- Trim whitespace, split on commas/semicolons
-- Deduplicate against already-selected system recipient emails
-- Show inline error for invalid formats
+Update the driver initialization effect to also trigger when `priorYearData` is an empty array but sub-metric baseline data exists. The sub-metric baselines are already loaded via the `useSubMetrics` hook, and the weighted baseline (`useWeightedBaseline`) already handles summing sub-metrics for weight calculations. The only missing piece is that `driversInitialized` never gets set.
+
+The fix:
+- After the existing `priorYearData.length > 0` check, add a fallback: if `priorYearData` is loaded (not undefined) but empty, AND the sub-metric baselines have data, still set `driversInitialized.current = true` and `markDirty()`.
+- This allows the auto-save to fire, which will persist the computed forecast values (from the calculation engine that already correctly handles sub-metric-only departments) into `forecast_entries`.
+
+```text
+Logic change (pseudocode):
+
+// Existing: only initializes when parent-level data exists
+if (priorYearData && priorYearData.length > 0) {
+  // ... set baseline expenses ...
+  driversInitialized.current = true;
+  markDirty();
+}
+
+// New: also handle sub-metric-only departments
+if (priorYearData && priorYearData.length === 0 && subMetricBaselines.length > 0) {
+  driversInitialized.current = true;
+  markDirty();
+}
+```
+
+### Build Error Fix
+
+**Files: `src/hooks/useTrackActivity.ts`, `src/components/admin/AdminLoginChart.tsx`, `src/components/admin/AdminStatsCards.tsx`**
+
+The `activity_log` table exists in the database but was dropped from the auto-generated types file during the last migration's type regeneration. These files already use `as any` casts. The fix is to ensure the type assertions continue working -- the simplest approach is to keep the existing `as any` pattern but cast the `from()` call itself.
+
+### Technical Summary
+
+| File | Change |
+|------|--------|
+| `src/components/financial/ForecastDrawer.tsx` | Add fallback initialization for sub-metric-only departments |
+| `src/hooks/useTrackActivity.ts` | Fix type error on `activity_log` table reference |
+| `src/components/admin/AdminLoginChart.tsx` | Fix type error on `activity_log` table reference |
+| `src/components/admin/AdminStatsCards.tsx` | Fix type error on `activity_log` table reference |
 
