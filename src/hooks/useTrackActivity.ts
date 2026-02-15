@@ -29,9 +29,9 @@ export function useTrackActivity() {
         });
 
       // Insert activity log entry for historical tracking
-      supabase
-        .from("activity_log")
-        .insert({ user_id: userId, event_type: "page_view" } as any)
+      (supabase
+        .from("activity_log" as any) as any)
+        .insert({ user_id: userId, event_type: "page_view" })
         .then(({ error }) => {
           if (error) console.error("Error inserting activity log:", error);
         });
@@ -50,13 +50,13 @@ export async function logActivity(
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user?.id) return;
 
-  const { error } = await supabase
-    .from("activity_log")
+  const { error } = await (supabase
+    .from("activity_log" as any) as any)
     .insert({
       user_id: session.user.id,
       event_type: eventType,
       metadata: metadata ?? {},
-    } as any);
+    });
 
   if (error) console.error("Error logging activity:", error);
 }

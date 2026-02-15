@@ -59,7 +59,7 @@ export const AdminLoginChart = () => {
       // Query activity_log for real historical event counts
       // Falls back to profiles.last_active_at if activity_log is empty (pre-migration data)
       const { data: activityLogs, error: activityError } = await (supabase
-        .from("activity_log") as any)
+        .from("activity_log" as any) as any)
         .select("created_at")
         .gte("created_at", start.toISOString())
         .lte("created_at", end.toISOString());
