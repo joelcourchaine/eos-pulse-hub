@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
 import { AddRoutineWithTask } from "./AddRoutineWithTask";
-import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check, BookOpen } from "lucide-react";
+import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check, BookOpen, Workflow } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -404,10 +404,17 @@ export const RoutineSidebar = ({
               </SidebarMenuItem>
             );
           })}
-          {/* My Resources - styled like header */}
-          <div className="mt-4 pt-4 border-t">
+          {/* My Processes & My Resources */}
+          <div className="mt-4 pt-4 border-t space-y-2">
             <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
+              onClick={() => navigate(`/processes?dept=${departmentId}`)}
+            >
+              <Workflow className="h-5 w-5 text-primary shrink-0" />
+              <span className="font-semibold text-sm">My Processes</span>
+            </div>
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
               onClick={() => navigate("/resources")}
             >
               <BookOpen className="h-5 w-5 text-primary shrink-0" />
