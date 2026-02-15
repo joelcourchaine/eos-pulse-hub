@@ -569,12 +569,20 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         }
       }
 
-      driversInitialized.current = true;
+    driversInitialized.current = true;
       // Mark dirty so auto-save persists initial forecast values to DB
       // This ensures performance status colors appear on the Financial Summary
       markDirty();
     }
-  }, [priorYearData]);
+
+    // Fallback for sub-metric-only departments (e.g. Body Shop)
+    // These have no parent-level entries, so priorYearData is empty,
+    // but sub-metric baselines exist and the calculation engine handles them.
+    if (priorYearData && priorYearData.length === 0 && subMetricBaselines.length > 0 && !driversInitialized.current) {
+      driversInitialized.current = true;
+      markDirty();
+    }
+  }, [priorYearData, subMetricBaselines]);
 
   // Load saved sub-metric overrides from database
   useEffect(() => {

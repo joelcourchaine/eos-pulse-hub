@@ -24,7 +24,7 @@ export const AdminStatsCards = () => {
           .select("id", { count: "exact", head: true })
           .eq("is_system_user", false),
         // Count distinct users from activity_log in last 24h
-        (supabase.from("activity_log") as any)
+        (supabase.from("activity_log" as any) as any)
           .select("user_id")
           .gte("created_at", twentyFourHoursAgo),
         // Fallback: profiles with recent last_active_at
