@@ -32,6 +32,8 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import ScorecardMapperPage from "./pages/ScorecardMapperPage";
 import Resources from "./pages/Resources";
 import AdminResources from "./pages/AdminResources";
+import Processes from "./pages/Processes";
+import ProcessDetail from "./pages/ProcessDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -81,6 +83,8 @@ const App = () => {
             <Route path="/admin/consulting" element={<ConsultingScheduler />} />
             <Route path="/admin/resources" element={<AdminResources />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/processes" element={<Processes />} />
+            <Route path="/processes/:processId" element={<ProcessDetail />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

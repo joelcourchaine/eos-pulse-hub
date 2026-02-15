@@ -1858,6 +1858,259 @@ export type Database = {
         }
         Relationships: []
       }
+      process_categories: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      process_stages: {
+        Row: {
+          created_at: string
+          display_order: number
+          id: string
+          process_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          process_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          id?: string
+          process_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_stages_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_step_attachments: {
+        Row: {
+          created_at: string
+          display_order: number
+          file_name: string
+          file_path: string
+          file_type: string
+          id: string
+          step_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          file_name: string
+          file_path: string
+          file_type: string
+          id?: string
+          step_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          file_name?: string
+          file_path?: string
+          file_type?: string
+          id?: string
+          step_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_attachments_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_steps: {
+        Row: {
+          created_at: string
+          definition_of_done: string | null
+          display_order: number
+          estimated_minutes: number | null
+          id: string
+          instructions: string | null
+          is_sub_process: boolean
+          owner_role: string | null
+          parent_step_id: string | null
+          stage_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          definition_of_done?: string | null
+          display_order?: number
+          estimated_minutes?: number | null
+          id?: string
+          instructions?: string | null
+          is_sub_process?: boolean
+          owner_role?: string | null
+          parent_step_id?: string | null
+          stage_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          definition_of_done?: string | null
+          display_order?: number
+          estimated_minutes?: number | null
+          id?: string
+          instructions?: string | null
+          is_sub_process?: boolean
+          owner_role?: string | null
+          parent_step_id?: string | null
+          stage_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_steps_parent_step_id_fkey"
+            columns: ["parent_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_steps_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "process_stages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processes: {
+        Row: {
+          category_id: string
+          created_at: string
+          created_by: string | null
+          department_id: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          owner_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          created_by?: string | null
+          department_id: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          owner_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          created_by?: string | null
+          department_id?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          owner_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "process_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_limited"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_limited"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_sensitive_data: {
         Row: {
           birthday_day: number | null
