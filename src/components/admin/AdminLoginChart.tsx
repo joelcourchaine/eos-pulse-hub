@@ -56,13 +56,28 @@ export const AdminLoginChart = () => {
     queryFn: async (): Promise<ChartDataPoint[]> => {
       const { start, end } = getDateRange(timeRange);
 
-      const { data: logins, error } = await supabase
+      // Query activity_log for real historical event counts
+      // Falls back to profiles.last_active_at if activity_log is empty (pre-migration data)
+      const { data: activityLogs, error: activityError } = await (supabase
+        .from("activity_log") as any)
+        .select("created_at")
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString());
+
+      const { data: profileFallback, error: profileError } = await supabase
         .from("profiles")
         .select("last_active_at")
         .not("last_active_at", "is", null)
         .gte("last_active_at", start.toISOString())
         .lte("last_active_at", end.toISOString())
         .eq("is_system_user", false);
+
+      // Use activity_log if available, otherwise fall back to profiles
+      const useActivityLog = !activityError && activityLogs && activityLogs.length > 0;
+      const logins = useActivityLog
+        ? activityLogs.map((l: any) => ({ last_active_at: l.created_at }))
+        : profileFallback;
+      const error = useActivityLog ? activityError : profileError;
 
       if (error) throw error;
 

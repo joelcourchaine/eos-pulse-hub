@@ -13,7 +13,8 @@ export const AdminStatsCards = () => {
 
       const [
         usersResult,
-        activeResult,
+        activityResult,
+        profileActiveResult,
         pendingInvitesResult,
         storeGroupsResult,
         storesResult,
@@ -22,11 +23,16 @@ export const AdminStatsCards = () => {
           .from("profiles")
           .select("id", { count: "exact", head: true })
           .eq("is_system_user", false),
+        // Count distinct users from activity_log in last 24h
+        (supabase.from("activity_log") as any)
+          .select("user_id")
+          .gte("created_at", twentyFourHoursAgo),
+        // Fallback: profiles with recent last_active_at
         supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
           .eq("is_system_user", false)
-          .gte("last_sign_in_at", twentyFourHoursAgo),
+          .gte("last_active_at" as any, twentyFourHoursAgo),
         supabase
           .from("profiles")
           .select("id", { count: "exact", head: true })
@@ -37,9 +43,18 @@ export const AdminStatsCards = () => {
         supabase.from("stores").select("id", { count: "exact", head: true }),
       ]);
 
+      // Use activity_log distinct user count if available, otherwise profile fallback
+      let activeToday = 0;
+      if (!activityResult.error && activityResult.data?.length > 0) {
+        const uniqueUsers = new Set(activityResult.data.map((r: any) => r.user_id));
+        activeToday = uniqueUsers.size;
+      } else {
+        activeToday = profileActiveResult.count ?? 0;
+      }
+
       return {
         totalUsers: usersResult.count ?? 0,
-        activeToday: activeResult.count ?? 0,
+        activeToday,
         pendingInvites: pendingInvitesResult.count ?? 0,
         storeGroups: storeGroupsResult.count ?? 0,
         totalStores: storesResult.count ?? 0,
