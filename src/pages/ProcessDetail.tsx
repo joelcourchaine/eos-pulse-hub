@@ -438,14 +438,14 @@ const ProcessDetail = () => {
               )}
 
               {editing && !step.is_sub_process && (
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => addStep(step.stage_id, step.id)}>
-                    <Plus className="h-3 w-3 mr-1" /> Sub-process
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive" onClick={() => deleteStep(step.id)}>
-                    <Trash2 className="h-3 w-3 mr-1" /> Remove
-                  </Button>
-                </div>
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => addStep(step.stage_id, step.id)}>
+                  <Plus className="h-3 w-3 mr-1" /> Sub-process
+                </Button>
+              )}
+              {editing && (
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive" onClick={() => deleteStep(step.id)}>
+                  <Trash2 className="h-3 w-3 mr-1" /> Remove
+                </Button>
               )}
             </div>
           </div>
@@ -508,11 +508,11 @@ const ProcessDetail = () => {
             <div className="flex items-center gap-2 mb-6">
               <TabsList className="flex-1 h-auto flex-wrap justify-start">
                 {stages.map((stage) => (
-                  <TabsTrigger key={stage.id} value={stage.id} className="relative">
+                  <TabsTrigger key={stage.id} value={stage.id} className="relative max-w-[12rem]" title={stage.title}>
                     {editing ? (
                       <div className="flex items-center gap-1">
                         <input
-                          className="bg-transparent border-none outline-none text-sm font-medium w-24 text-center"
+                          className="bg-transparent border-none outline-none text-sm font-medium w-40 text-center"
                           value={stage.title}
                           onChange={(e) => updateStageTitleLocal(stage.id, e.target.value)}
                           onBlur={() => saveStageTitle(stage.id)}
@@ -531,7 +531,7 @@ const ProcessDetail = () => {
                         )}
                       </div>
                     ) : (
-                      stage.title
+                      <span className="truncate block">{stage.title}</span>
                     )}
                   </TabsTrigger>
                 ))}
