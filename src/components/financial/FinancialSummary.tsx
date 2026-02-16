@@ -481,17 +481,19 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     // Filter out semi fixed expense metrics for Stellantis Service/Parts departments
     const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
+    const isKTRV = storeBrand?.toLowerCase().includes('ktrv') || false;
     const isServiceOrParts = departmentName ? ['service', 'parts'].some(d => departmentName.toLowerCase().includes(d)) : false;
 
     console.log('Financial metrics filtering:', {
       storeBrand,
       departmentName,
       isStellantis,
+      isKTRV,
       isServiceOrParts,
-      willFilter: isStellantis && isServiceOrParts
+      willFilter: (isStellantis || isKTRV) && isServiceOrParts
     });
 
-    const filtered = (isStellantis && isServiceOrParts)
+    const filtered = ((isStellantis || isKTRV) && isServiceOrParts)
       ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
       : metrics;
 
