@@ -3,9 +3,20 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Users, Settings, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Users, Settings, TrendingUp, Loader2, Trash2 } from "lucide-react";
 import { CreateProcessDialog } from "@/components/processes/CreateProcessDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 interface ProcessRow {
   id: string;
@@ -40,6 +51,7 @@ const Processes = () => {
   const [createOpen, setCreateOpen] = useState(false);
   const [createCategoryId, setCreateCategoryId] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ProcessRow | null>(null);
 
   useEffect(() => {
     if (!departmentId) {
@@ -88,6 +100,21 @@ const Processes = () => {
   const handleCreateProcess = (categoryId: string) => {
     setCreateCategoryId(categoryId);
     setCreateOpen(true);
+  };
+
+  const handleDeleteProcess = async () => {
+    if (!deleteTarget) return;
+    const { error } = await supabase
+      .from("processes")
+      .update({ is_active: false })
+      .eq("id", deleteTarget.id);
+    if (error) {
+      toast.error("Failed to delete process");
+    } else {
+      setProcesses((prev) => prev.filter((p) => p.id !== deleteTarget.id));
+      toast.success("Process deleted");
+    }
+    setDeleteTarget(null);
   };
 
   if (loading) {
@@ -147,7 +174,20 @@ const Processes = () => {
                               {proc.owner?.full_name && <span>{proc.owner.full_name} · </span>}
                               Updated {formatDistanceToNow(new Date(proc.updated_at), { addSuffix: true })}
                             </p>
-                          </div>
+                           </div>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(proc);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -183,6 +223,23 @@ const Processes = () => {
           }}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Process</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTarget?.title}"? This action can be undone by an administrator.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProcess} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
