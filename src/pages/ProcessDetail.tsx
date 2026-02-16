@@ -253,7 +253,8 @@ const ProcessDetail = () => {
   };
 
   const handleFileUpload = async (stepId: string, file: File) => {
-    const filePath = `${processId}/${stepId}/${Date.now()}-${file.name}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `${processId}/${stepId}/${Date.now()}-${safeName}`;
     const { error: uploadError } = await supabase.storage
       .from("process-attachments")
       .upload(filePath, file);
