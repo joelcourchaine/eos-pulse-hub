@@ -91,6 +91,10 @@ const ProcessDetail = () => {
   const [loading, setLoading] = useState(true);
   const [canEdit, setCanEdit] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [dragStepId, setDragStepId] = useState<string | null>(null);
+  const [dropTargetStepId, setDropTargetStepId] = useState<string | null>(null);
+  const [dragStageId, setDragStageId] = useState<string | null>(null);
+  const [dropTargetStageId, setDropTargetStageId] = useState<string | null>(null);
 
   useEffect(() => {
     if (processId) fetchAll();
@@ -288,17 +292,100 @@ const ProcessDetail = () => {
     return data?.signedUrl || "";
   };
 
+  // ---- Drag & Drop Helpers ----
+  const persistStageOrder = async (reordered: Stage[]) => {
+    await Promise.all(
+      reordered.map((s, i) =>
+        supabase.from("process_stages").update({ display_order: i }).eq("id", s.id)
+      )
+    );
+  };
+
+  const persistStepOrder = async (reordered: Step[]) => {
+    await Promise.all(
+      reordered.map((s, i) =>
+        supabase.from("process_steps").update({ display_order: i }).eq("id", s.id)
+      )
+    );
+  };
+
+  const handleStepDrop = (targetStep: Step) => {
+    if (!dragStepId || dragStepId === targetStep.id) return;
+    const stageSteps = steps
+      .filter((s) => s.stage_id === targetStep.stage_id && !s.is_sub_process)
+      .sort((a, b) => a.display_order - b.display_order);
+    const fromIdx = stageSteps.findIndex((s) => s.id === dragStepId);
+    const toIdx = stageSteps.findIndex((s) => s.id === targetStep.id);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const moved = stageSteps.splice(fromIdx, 1)[0];
+    stageSteps.splice(toIdx, 0, moved);
+    const updatedSteps = stageSteps.map((s, i) => ({ ...s, display_order: i }));
+    setSteps((prev) => {
+      const other = prev.filter(
+        (s) => s.stage_id !== targetStep.stage_id || s.is_sub_process
+      );
+      return [...other, ...updatedSteps];
+    });
+    persistStepOrder(updatedSteps);
+    setDragStepId(null);
+    setDropTargetStepId(null);
+  };
+
+  const handleStageDrop = (targetStageId: string) => {
+    if (!dragStageId || dragStageId === targetStageId) return;
+    const ordered = [...stages].sort((a, b) => a.display_order - b.display_order);
+    const fromIdx = ordered.findIndex((s) => s.id === dragStageId);
+    const toIdx = ordered.findIndex((s) => s.id === targetStageId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const moved = ordered.splice(fromIdx, 1)[0];
+    ordered.splice(toIdx, 0, moved);
+    const updated = ordered.map((s, i) => ({ ...s, display_order: i }));
+    setStages(updated);
+    persistStageOrder(updated);
+    setDragStageId(null);
+    setDropTargetStageId(null);
+  };
+
   // ---- Render Helpers ----
   const renderStep = (step: Step, index: number) => {
     const subSteps = steps.filter((s) => s.parent_step_id === step.id);
     const stepAttachments = attachments.filter((a) => a.step_id === step.id);
 
     return (
-      <Card key={step.id} className="relative">
+      <Card
+        key={step.id}
+        className={`relative transition-colors ${
+          dropTargetStepId === step.id && dragStepId !== step.id
+            ? "border-t-2 border-primary"
+            : ""
+        } ${dragStepId === step.id ? "opacity-50" : ""}`}
+        onDragOver={(e) => {
+          if (!editing || !dragStepId || step.is_sub_process) return;
+          e.preventDefault();
+          setDropTargetStepId(step.id);
+        }}
+        onDragLeave={() => setDropTargetStepId(null)}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (!editing || step.is_sub_process) return;
+          handleStepDrop(step);
+        }}
+      >
         <CardContent className="p-5">
           <div className="flex items-start gap-3">
             {editing && (
-              <div className="pt-1 cursor-grab text-muted-foreground">
+              <div
+                className="pt-1 cursor-grab text-muted-foreground"
+                draggable={!step.is_sub_process}
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  setDragStepId(step.id);
+                }}
+                onDragEnd={() => {
+                  setDragStepId(null);
+                  setDropTargetStepId(null);
+                }}
+              >
                 <GripVertical className="h-4 w-4" />
               </div>
             )}
@@ -510,7 +597,37 @@ const ProcessDetail = () => {
               <TabsList className="flex-1 h-auto flex-wrap justify-start items-center">
                 {stages.map((stage, idx) => (
                   <React.Fragment key={stage.id}>
-                    <TabsTrigger value={stage.id} className="relative max-w-[12rem]" title={stage.title}>
+                    <TabsTrigger
+                      value={stage.id}
+                      className={`relative max-w-[12rem] ${
+                        editing ? "cursor-grab" : ""
+                      } ${dragStageId === stage.id ? "opacity-50" : ""} ${
+                        dropTargetStageId === stage.id && dragStageId !== stage.id
+                          ? "ring-2 ring-primary"
+                          : ""
+                      }`}
+                      title={stage.title}
+                      draggable={editing}
+                      onDragStart={(e) => {
+                        if (!editing) return;
+                        setDragStageId(stage.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragStageId(null);
+                        setDropTargetStageId(null);
+                      }}
+                      onDragOver={(e) => {
+                        if (!editing || !dragStageId) return;
+                        e.preventDefault();
+                        setDropTargetStageId(stage.id);
+                      }}
+                      onDragLeave={() => setDropTargetStageId(null)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!editing) return;
+                        handleStageDrop(stage.id);
+                      }}
+                    >
                       {editing ? (
                         <div className="flex items-center gap-1">
                           <input
