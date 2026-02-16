@@ -1,47 +1,30 @@
 
 
-# Fix Sub-Process Deletion and Stage Title Overflow
+# Add Chevron Flow Arrows Between Stage Tabs
 
-## Issue 1: Sub-Process Deletion
+## Overview
 
-In `src/pages/ProcessDetail.tsx`, the delete button is only rendered for top-level steps (`!step.is_sub_process`). The "Remove" button and "Sub-process" button are wrapped in a conditional that excludes sub-processes entirely (around line 270):
+Replace the plain tab list with a stepped flow indicator where each stage tab is separated by a chevron arrow (e.g., `Stage 1 › Stage 2 › Stage 3`), visually communicating the sequential nature of the process stages.
 
-```tsx
-{editing && !step.is_sub_process && (
-  <div className="flex gap-2">
-    <Button ...> Sub-process</Button>
-    <Button ...> Remove</Button>
-  </div>
-)}
-```
+## Changes
 
-**Fix**: Show the "Remove" button for sub-processes too. Keep the "Add Sub-process" button restricted to top-level steps only (no nested sub-processes).
+### `src/pages/ProcessDetail.tsx`
+
+1. Import `ChevronRight` from lucide-react (already have `ChevronDown` imported).
+2. In the `TabsList` rendering loop (around line 510), insert a `ChevronRight` icon between each `TabsTrigger` -- rendered after every tab except the last one.
 
 ```tsx
-{editing && !step.is_sub_process && (
-  <Button ...> Sub-process</Button>
-)}
-{editing && (
-  <Button ... onClick={() => deleteStep(step.id)}> Remove</Button>
-)}
+{stages.map((stage, idx) => (
+  <React.Fragment key={stage.id}>
+    <TabsTrigger ...>
+      {/* existing content */}
+    </TabsTrigger>
+    {idx < stages.length - 1 && (
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mx-1" />
+    )}
+  </React.Fragment>
+))}
 ```
 
----
-
-## Issue 2: Stage Title Overflow
-
-Stage tabs currently have no width constraint in view mode and use a narrow fixed `w-24` input in edit mode. Long titles get cut off or break the layout.
-
-**Fix**:
-- In view mode: add `max-w-[10rem] truncate` to the tab trigger text so long titles are truncated with an ellipsis.
-- In edit mode: widen the input from `w-24` to `w-40` so users have more room to type and read the title.
-- Add a `title` attribute so hovering reveals the full stage name.
-
----
-
-## Files Changed
-
-**`src/pages/ProcessDetail.tsx`** -- two targeted edits:
-1. Separate the "Remove" button from the `!step.is_sub_process` guard so sub-processes can be deleted.
-2. Add `truncate` and `max-w` styling to stage tab triggers and widen the edit input.
+This is a small, self-contained UI change -- no database or logic changes needed.
 
