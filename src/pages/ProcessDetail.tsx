@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   Clock,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   GripVertical,
   Image as ImageIcon,
   Loader2,
@@ -506,34 +507,39 @@ const ProcessDetail = () => {
         {stages.length > 0 ? (
           <Tabs value={activeStage} onValueChange={setActiveStage}>
             <div className="flex items-center gap-2 mb-6">
-              <TabsList className="flex-1 h-auto flex-wrap justify-start">
-                {stages.map((stage) => (
-                  <TabsTrigger key={stage.id} value={stage.id} className="relative max-w-[12rem]" title={stage.title}>
-                    {editing ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          className="bg-transparent border-none outline-none text-sm font-medium w-40 text-center"
-                          value={stage.title}
-                          onChange={(e) => updateStageTitleLocal(stage.id, e.target.value)}
-                          onBlur={() => saveStageTitle(stage.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        {stages.length > 1 && (
-                          <button
-                            className="text-destructive hover:text-destructive/80"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteStage(stage.id);
-                            }}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="truncate block">{stage.title}</span>
+              <TabsList className="flex-1 h-auto flex-wrap justify-start items-center">
+                {stages.map((stage, idx) => (
+                  <React.Fragment key={stage.id}>
+                    <TabsTrigger value={stage.id} className="relative max-w-[12rem]" title={stage.title}>
+                      {editing ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            className="bg-transparent border-none outline-none text-sm font-medium w-40 text-center"
+                            value={stage.title}
+                            onChange={(e) => updateStageTitleLocal(stage.id, e.target.value)}
+                            onBlur={() => saveStageTitle(stage.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          {stages.length > 1 && (
+                            <button
+                              className="text-destructive hover:text-destructive/80"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteStage(stage.id);
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="truncate block">{stage.title}</span>
+                      )}
+                    </TabsTrigger>
+                    {idx < stages.length - 1 && (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mx-1" />
                     )}
-                  </TabsTrigger>
+                  </React.Fragment>
                 ))}
               </TabsList>
               {editing && (
