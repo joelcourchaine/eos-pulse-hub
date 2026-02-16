@@ -654,12 +654,17 @@ export const HONDA_METRICS: FinancialMetric[] = [
 ];
 
 // KTRV/Other-specific metrics (like GMC but excludes Parts Transfer and Net Operating Profit)
+// Enable sub-metrics for total_sales, gp_net, and gp_percent
 export const KTRV_METRICS: FinancialMetric[] = GMC_CHEVROLET_METRICS.filter(
   metric => metric.key !== 'parts_transfer' && metric.key !== 'net'
-);
+).map(metric => {
+  if (['total_sales', 'gp_net', 'gp_percent', 'sales_expense', 'total_fixed_expense'].includes(metric.key)) {
+    return { ...metric, hasSubMetrics: true };
+  }
+  return metric;
+});
 
 // "Other" brand uses same metrics as KTRV (no parts transfer or net operating profit)
-export const OTHER_METRICS: FinancialMetric[] = KTRV_METRICS;
 
 // Stellantis-specific metrics (similar to Ford structure - no Semi Fixed Expense)
 export const STELLANTIS_METRICS: FinancialMetric[] = [
@@ -797,7 +802,7 @@ export const getMetricsForBrand = (brand: string | null): FinancialMetric[] => {
   if (brand?.toLowerCase().includes('stellantis') || brand?.toLowerCase().includes('chrysler') || brand?.toLowerCase().includes('jeep') || brand?.toLowerCase().includes('dodge') || brand?.toLowerCase().includes('ram')) {
     return STELLANTIS_METRICS;
   }
-  if (brand?.toLowerCase().includes('ktrv') || brand?.toLowerCase() === 'other') {
+  if (brand?.toLowerCase().includes('ktrv')) {
     return KTRV_METRICS;
   }
   return GMC_CHEVROLET_METRICS;
