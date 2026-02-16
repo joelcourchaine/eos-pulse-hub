@@ -1,33 +1,43 @@
 
-# Fix "Invalid key" Error on Process Attachment Upload
+# Hide Semi Fixed Expense for KTRV Service and Parts Departments
 
-## Root Cause
+## Overview
 
-On line 256 of `src/pages/ProcessDetail.tsx`, the upload path is built using the raw `file.name`:
+The Financial Summary already hides "Semi Fixed Expense" and "Semi Fixed Expense %" for Stellantis Service/Parts departments. This change extends that same filter to also apply to the KTRV brand.
 
-```
-const filePath = `${processId}/${stepId}/${Date.now()}-${file.name}`;
-```
+## Change
 
-When a filename contains spaces (e.g., `Screenshot 2025-12-13 at 8.03.08 AM.png`), Supabase storage rejects it as an invalid key.
+### `src/components/financial/FinancialSummary.tsx` (~line 483-496)
 
-## Fix
-
-Sanitize the filename by replacing spaces (and any other problematic characters) with underscores before building the storage path.
-
-### Change in `src/pages/ProcessDetail.tsx` (line 256)
+Update the brand check to include KTRV alongside Stellantis:
 
 **Before:**
 ```typescript
-const filePath = `${processId}/${stepId}/${Date.now()}-${file.name}`;
+const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
 ```
 
 **After:**
 ```typescript
-const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-const filePath = `${processId}/${stepId}/${Date.now()}-${safeName}`;
+const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
+const isKTRV = storeBrand?.toLowerCase().includes('ktrv') || false;
 ```
 
-This replaces any character that is not alphanumeric, a dot, underscore, or hyphen with an underscore -- preventing the "Invalid key" error for filenames with spaces or special characters.
+And update the filter condition:
 
-One-line change, no other files affected.
+**Before:**
+```typescript
+const filtered = (isStellantis && isServiceOrParts)
+  ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
+  : metrics;
+```
+
+**After:**
+```typescript
+const filtered = ((isStellantis || isKTRV) && isServiceOrParts)
+  ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
+  : metrics;
+```
+
+Also update the console log to include the new flag for debugging.
+
+Single file, minimal change -- follows the exact existing pattern.
