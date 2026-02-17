@@ -12,12 +12,12 @@ VALUES
   ('KTRV', 'New Vehicles', 'sub:gp_net:006', 'Page3', 'F16', 'L16', true, 'gp_net'),
   ('KTRV', 'New Vehicles', 'sub:gp_net:007', 'Page3', 'F18', 'L18', true, 'gp_net'),
   ('KTRV', 'New Vehicles', 'sub:gp_net:008', 'Page3', 'F20', 'L20', true, 'gp_net'),
-  -- F&I GP (F29 and F34 have GP values but no sales)
-  ('KTRV', 'New Vehicles', 'sub:gp_net:009', 'Page3', 'F28', 'L28', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:010', 'Page3', 'F29', 'L29', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:011', 'Page3', 'F30', 'L30', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:012', 'Page3', 'F31', 'L31', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:013', 'Page3', 'F32', 'L32', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:014', 'Page3', 'F33', 'L33', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:015', 'Page3', 'F34', 'L34', true, 'gp_net'),
-  ('KTRV', 'New Vehicles', 'sub:gp_net:016', 'Page3', 'F35', 'L35', true, 'gp_net');
+  -- F&I GP (names in Column K, F29 and F34 have GP values but no sales)
+  ('KTRV', 'New Vehicles', 'sub:gp_net:009', 'Page3', 'F28', 'K28', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:010', 'Page3', 'F29', 'K29', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:011', 'Page3', 'F30', 'K30', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:012', 'Page3', 'F31', 'K31', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:013', 'Page3', 'F32', 'K32', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:014', 'Page3', 'F33', 'K33', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:015', 'Page3', 'F34', 'K34', true, 'gp_net'),
+  ('KTRV', 'New Vehicles', 'sub:gp_net:016', 'Page3', 'F35', 'K35', true, 'gp_net');

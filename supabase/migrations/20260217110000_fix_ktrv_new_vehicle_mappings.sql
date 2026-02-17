@@ -62,11 +62,11 @@ VALUES
   ('KTRV', 'New Vehicles', 'sub:total_sales:006', 'Page3', 'D16', 'L16', true, 'total_sales'),
   ('KTRV', 'New Vehicles', 'sub:total_sales:007', 'Page3', 'D18', 'L18', true, 'total_sales'),
   ('KTRV', 'New Vehicles', 'sub:total_sales:008', 'Page3', 'D20', 'L20', true, 'total_sales'),
-  -- F&I Sales (D29 and D34 have GP only, no sales - will show 0)
-  ('KTRV', 'New Vehicles', 'sub:total_sales:009', 'Page3', 'D28', 'L28', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:010', 'Page3', 'D29', 'L29', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:011', 'Page3', 'D30', 'L30', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:012', 'Page3', 'D31', 'L31', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:013', 'Page3', 'D32', 'L32', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:014', 'Page3', 'D33', 'L33', true, 'total_sales'),
-  ('KTRV', 'New Vehicles', 'sub:total_sales:015', 'Page3', 'D35', 'L35', true, 'total_sales');
+  -- F&I Sales (names in Column K, D29 has no sales - will show 0)
+  ('KTRV', 'New Vehicles', 'sub:total_sales:009', 'Page3', 'D28', 'K28', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:010', 'Page3', 'D29', 'K29', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:011', 'Page3', 'D30', 'K30', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:012', 'Page3', 'D31', 'K31', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:013', 'Page3', 'D32', 'K32', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:014', 'Page3', 'D33', 'K33', true, 'total_sales'),
+  ('KTRV', 'New Vehicles', 'sub:total_sales:015', 'Page3', 'D35', 'K35', true, 'total_sales');
