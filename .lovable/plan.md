@@ -1,43 +1,14 @@
 
-# Hide Semi Fixed Expense for KTRV Service and Parts Departments
+# Remove Auto-Scroll-to-Right on Financial Summary Load
 
-## Overview
+## What Changes
 
-The Financial Summary already hides "Semi Fixed Expense" and "Semi Fixed Expense %" for Stellantis Service/Parts departments. This change extends that same filter to also apply to the KTRV brand.
+Remove the `useLayoutEffect` (lines 700-730) that automatically scrolls the financial summary table to the far right when it loads in monthly trend mode. Also remove the companion `useEffect` (lines 732-737) that resets the scroll flag.
 
-## Change
+### File: `src/components/financial/FinancialSummary.tsx`
 
-### `src/components/financial/FinancialSummary.tsx` (~line 483-496)
+1. **Delete lines 700-737** -- the entire `useLayoutEffect` block that performs the scroll-to-right on load, and the `useEffect` that resets `hasInitialScrolled`.
 
-Update the brand check to include KTRV alongside Stellantis:
+2. **Clean up refs** -- remove `hasInitialScrolled` and `lastMonthlyColumnRef` if they are no longer used elsewhere (will verify during implementation).
 
-**Before:**
-```typescript
-const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
-```
-
-**After:**
-```typescript
-const isStellantis = storeBrand?.toLowerCase().includes('stellantis') || false;
-const isKTRV = storeBrand?.toLowerCase().includes('ktrv') || false;
-```
-
-And update the filter condition:
-
-**Before:**
-```typescript
-const filtered = (isStellantis && isServiceOrParts)
-  ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
-  : metrics;
-```
-
-**After:**
-```typescript
-const filtered = ((isStellantis || isKTRV) && isServiceOrParts)
-  ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
-  : metrics;
-```
-
-Also update the console log to include the new flag for debugging.
-
-Single file, minimal change -- follows the exact existing pattern.
+The table will simply load at its natural scroll position (far left), letting users scroll manually to whichever month they want to see.
