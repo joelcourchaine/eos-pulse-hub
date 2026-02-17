@@ -1,51 +1,39 @@
 
 
-# Fix Inverted Visual Cues for Total Direct Expenses in Enterprise YoY View
+# Allow Editing Process Title in Builder Mode
 
 ## Problem
 
-On the Dealer Comparison (Enterprise) page, the "Total Direct Expenses" parent metric and its sub-metrics for Nissan show inverted colors in Year-over-Year mode: green when expenses went up (bad) and red when they went down (good).
-
-## Root Cause
-
-Multiple rendering functions (`isDiffFavorable`, `getVarianceColor`, `lowerIsBetter`, `formatValue`, `formatDiffValue`) call `getMetricsForBrand(null)` to look up metric definitions. Passing `null` returns GMC/Chevrolet metrics by default. Since "Total Direct Expenses" only exists in the Nissan (and a few other) brand configurations and NOT in GMC, the lookup fails and the code defaults to "higher is better" -- which is wrong for an expense metric.
+The process title ("Customer Journey" in the screenshot) is displayed as static text and cannot be edited, even when the user is in edit mode.
 
 ## Fix
 
-### 1. Create a cross-brand metric lookup helper (in `DealerComparison.tsx`)
+### File: `src/pages/ProcessDetail.tsx`
 
-Add a helper function that searches all brand metric definitions instead of just GMC:
+**Replace the static `<h1>` title (line 571) with a conditional render:**
 
-```typescript
-const getAllBrandMetricDefs = (): FinancialMetric[] => {
-  const brands = [null, 'nissan', 'ford', 'mazda', 'honda', 'hyundai', 'genesis', 'stellantis', 'ktrv'];
-  const seen = new Set<string>();
-  const all: FinancialMetric[] = [];
-  brands.forEach(b => {
-    getMetricsForBrand(b).forEach(m => {
-      if (!seen.has(m.key)) {
-        seen.add(m.key);
-        all.push(m);
-      }
-    });
-  });
-  return all;
-};
-```
+- **In edit mode**: Show an `<Input>` field pre-filled with the current title. On blur (or Enter key), persist the change to the `processes` table and update local state.
+- **In view mode**: Keep the existing static `<h1>`.
 
-### 2. Replace `getMetricsForBrand(null)` calls in rendering functions
+Also make the description editable in the same way -- swap the `<p>` tag (line 573) for a `<Textarea>` when editing.
 
-Update the following functions to use `getAllBrandMetricDefs()` instead of `getMetricsForBrand(null)`:
+### Implementation Details
 
-- **`isDiffFavorable`** (~line 1973) -- determines green/red for YoY diff column
-- **`lowerIsBetter`** computation (~line 2290) -- passed to email/print components  
-- **`formatValue`** (~lines 1917, 1933) -- determines dollar vs percentage formatting
-- **`formatDiffValue`** (~lines 1956, 1963) -- formats the diff column values
-- **`isPercentage`** computation (~lines 2281, 2285) -- determines percentage display
+1. **Add local state** for the editable title and description values, initialized from `process.title` / `process.description`.
+2. **Render logic** at ~line 571:
+   ```
+   {editing ? (
+     <Input
+       value={editTitle}
+       onChange={...}
+       onBlur={saveTitle}
+       className="text-2xl font-bold h-auto py-1 px-2"
+     />
+   ) : (
+     <h1 className="text-2xl font-bold">{process.title}</h1>
+   )}
+   ```
+3. **Save handler** (`saveTitle`): calls `supabase.from("processes").update({ title }).eq("id", processId)` and updates local `process` state. Same pattern for description.
+4. Sync the local edit values whenever `process` or `editing` state changes.
 
-This ensures that Nissan-specific metrics like "Total Direct Expenses" (`targetDirection: "below"`) are found regardless of which brand's config they belong to, so expense metrics correctly show green when below last year and red when above.
-
-### Files Changed
-
-- `src/pages/DealerComparison.tsx` -- add helper, update ~10 call sites from `getMetricsForBrand(null)` to `getAllBrandMetricDefs()`
-
+This follows the existing decoupled state pattern used elsewhere in the builder (local instant updates, DB persistence on blur).
