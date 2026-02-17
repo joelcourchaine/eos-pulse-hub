@@ -658,7 +658,7 @@ export const HONDA_METRICS: FinancialMetric[] = [
 export const KTRV_METRICS: FinancialMetric[] = GMC_CHEVROLET_METRICS.filter(
   metric => metric.key !== 'parts_transfer' && metric.key !== 'net'
 ).map(metric => {
-  if (['total_sales', 'gp_net', 'gp_percent', 'sales_expense', 'total_fixed_expense'].includes(metric.key)) {
+  if (['total_sales', 'gp_net', 'gp_percent', 'sales_expense', 'semi_fixed_expense', 'total_fixed_expense'].includes(metric.key)) {
     return { ...metric, hasSubMetrics: true };
   }
   return metric;
