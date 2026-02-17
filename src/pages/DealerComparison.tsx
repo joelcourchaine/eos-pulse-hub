@@ -11,7 +11,22 @@ import { DataCoverageBadge } from "@/components/enterprise/DataCoverageBadge";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getMetricsForBrand } from "@/config/financialMetrics";
+import { getMetricsForBrand, type FinancialMetric } from "@/config/financialMetrics";
+
+const getAllBrandMetricDefs = (): FinancialMetric[] => {
+  const brands = [null, 'nissan', 'ford', 'mazda', 'honda', 'hyundai', 'genesis', 'stellantis', 'ktrv'];
+  const seen = new Set<string>();
+  const all: FinancialMetric[] = [];
+  brands.forEach(b => {
+    getMetricsForBrand(b).forEach(m => {
+      if (!seen.has(m.key)) {
+        seen.add(m.key);
+        all.push(m);
+      }
+    });
+  });
+  return all;
+};
 import { getParentMetricKeys } from "@/utils/getParentMetricKeys";
 import { format } from "date-fns";
 
@@ -1914,7 +1929,7 @@ export default function DealerComparison() {
     if (metricName.startsWith("sub:")) {
       const parts = metricName.split(":");
       const parentKey = parts.length >= 2 ? parts[1] : "";
-      const allDefs = getMetricsForBrand(null);
+      const allDefs = getAllBrandMetricDefs();
       const parentDef = allDefs.find((d: any) => d.key === parentKey);
 
       if (parentDef?.type === "percentage") {
@@ -1930,7 +1945,7 @@ export default function DealerComparison() {
     }
 
     // Get metric definition to check type
-    const metrics = getMetricsForBrand(null);
+    const metrics = getAllBrandMetricDefs();
     const metricDef = metrics.find((m: any) => m.name === metricName);
 
     // Check if it's a percentage metric by type or name
@@ -1953,14 +1968,14 @@ export default function DealerComparison() {
     if (metricName.startsWith("sub:")) {
       const parts = metricName.split(":");
       const parentKey = parts.length >= 2 ? parts[1] : "";
-      const allDefs = getMetricsForBrand(null);
+      const allDefs = getAllBrandMetricDefs();
       const parentDef = allDefs.find((d: any) => d.key === parentKey);
       if (parentDef?.type === "percentage") {
         return `${sign}${diff.toFixed(1)}%`;
       }
       return `${sign}${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(diff)}`;
     }
-    const metrics = getMetricsForBrand(null);
+    const metrics = getAllBrandMetricDefs();
     const metricDef = metrics.find((m: any) => m.name === metricName);
     if (metricDef?.type === "percentage" || metricName.includes("%") || metricName.toLowerCase().includes("percent")) {
       return `${sign}${diff.toFixed(1)}%`;
@@ -1970,7 +1985,7 @@ export default function DealerComparison() {
 
   // Determine if a positive diff is favorable for a metric
   const isDiffFavorable = (diff: number, selectionId: string): boolean => {
-    const allDefs = getMetricsForBrand(null);
+    const allDefs = getAllBrandMetricDefs();
     const parsed = extractSubMetricParts(selectionId);
     if (parsed) {
       const parentDef = allDefs.find((d: any) => d.key === parsed.parentKey);
@@ -2278,16 +2293,16 @@ export default function DealerComparison() {
               if (selectionId.startsWith("sub:")) {
                 const parts = selectionId.split(":");
                 const parentKey = parts.length >= 2 ? parts[1] : "";
-                const allDefs = getMetricsForBrand(null);
+                const allDefs = getAllBrandMetricDefs();
                 const parentDef = allDefs.find((d: any) => d.key === parentKey);
                 return parentDef?.type === "percentage";
               }
-              const allDefs = getMetricsForBrand(null);
+              const allDefs = getAllBrandMetricDefs();
               const metricDef = allDefs.find((d: any) => d.name === selectionId);
               return metricDef?.type === "percentage" || selectionId.includes("%");
             })(),
             lowerIsBetter: (() => {
-              const allDefs = getMetricsForBrand(null);
+              const allDefs = getAllBrandMetricDefs();
               const parsed = extractSubMetricParts(selectionId);
               if (parsed) {
                 const parentDef = allDefs.find((d: any) => d.key === parsed.parentKey);
