@@ -42,6 +42,8 @@ interface SubMetricsRowProps {
   // Quarter and year for target context
   quarter?: number;
   currentYear?: number;
+  // Parent metric's target direction (inherit for expense sub-metrics)
+  parentTargetDirection?: 'above' | 'below';
   // Target management callbacks
   getSubMetricTarget?: (subMetricName: string, quarter: number, year: number) => number | null;
   onSaveSubMetricTarget?: (subMetricName: string, orderIndex: number, quarter: number, year: number, value: number) => Promise<boolean>;
@@ -136,6 +138,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   periods,
   hasSparklineColumn = false,
   parentMetricKey,
+  parentTargetDirection,
   quarter,
   currentYear,
   getSubMetricTarget,
@@ -563,7 +566,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 // Use rock target if available, then quarterly target, then forecast fallback
                 const forecastVal = getForecastTarget ? getForecastTarget(subMetric.name, period.identifier) : null;
                 const effectiveTarget = rockTargetValue ?? quarterlyTargetValue ?? forecastVal;
-                const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+                const effectiveDirection = rockTargetValue !== null ? rockDirection : (parentTargetDirection ?? 'above');
                 const subTargetSource = rockTargetValue !== null ? 'rock' : quarterlyTargetValue !== null ? 'manual' : forecastVal !== null ? 'forecast' : null;
                 
                 const status = isCurrentYear && effectiveTarget !== null 
@@ -830,7 +833,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               
               const effectiveTarget = quarterlyTargetValue ?? qtrForecastTarget;
               const status = effectiveTarget !== null 
-                ? getVarianceStatus(quarterValue, effectiveTarget, 'above') 
+                ? getVarianceStatus(quarterValue, effectiveTarget, parentTargetDirection ?? 'above') 
                 : null;
               
               return (
@@ -990,7 +993,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             // Use rock target if available, then quarterly target, then forecast fallback
             const forecastVal2 = getForecastTarget ? getForecastTarget(subMetric.name, monthId) : null;
             const effectiveTarget = rockTargetValue ?? quarterlyTargetValue ?? forecastVal2;
-            const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';
+            const effectiveDirection = rockTargetValue !== null ? rockDirection : (parentTargetDirection ?? 'above');
             const subTargetSource2 = rockTargetValue !== null ? 'rock' : quarterlyTargetValue !== null ? 'manual' : forecastVal2 !== null ? 'forecast' : null;
             
             const status = isCurrentYear && effectiveTarget !== null 

@@ -4828,6 +4828,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               ]
                         }
                         hasSparklineColumn={isMonthlyTrendMode}
+                        parentTargetDirection={metric.targetDirection}
                         parentMetricKey={metric.key}
                         quarter={quarter}
                         currentYear={year}
