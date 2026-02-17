@@ -264,9 +264,9 @@ export function EmailTop10Dialog({
                         <div className="font-medium">
                           {recipient.full_name}{" "}
                           <span className="text-muted-foreground font-normal">
-                            &middot; {recipient.role}
+                            · {recipient.role}
                             {recipient.store_name
-                              ? ` &middot; ${recipient.store_name}`
+                              ? ` · ${recipient.store_name}`
                               : ""}
                           </span>
                         </div>
