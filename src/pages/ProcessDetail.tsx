@@ -95,6 +95,8 @@ const ProcessDetail = () => {
   const [dropTargetStepId, setDropTargetStepId] = useState<string | null>(null);
   const [dragStageId, setDragStageId] = useState<string | null>(null);
   const [dropTargetStageId, setDropTargetStageId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   useEffect(() => {
     if (processId) fetchAll();
@@ -123,7 +125,10 @@ const ProcessDetail = () => {
       return;
     }
 
-    setProcess(procRes.data as unknown as ProcessData);
+    const procData = procRes.data as unknown as ProcessData;
+    setProcess(procData);
+    setEditTitle(procData.title);
+    setEditDescription(procData.description || "");
 
     const stagesData = (stagesRes.data || []) as Stage[];
     setStages(stagesData);
@@ -568,10 +573,37 @@ const ProcessDetail = () => {
               <p className="text-xs text-muted-foreground mb-1">
                 My Processes › {process.category?.name}
               </p>
-              <h1 className="text-2xl font-bold text-foreground">{process.title}</h1>
-              {process.description && (
-                <p className="text-sm text-muted-foreground mt-1">{process.description}</p>
+              {editing ? (
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  onBlur={async () => {
+                    if (!processId || editTitle === process.title) return;
+                    await supabase.from("processes").update({ title: editTitle }).eq("id", processId);
+                    setProcess((prev) => prev ? { ...prev, title: editTitle } : prev);
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                  className="text-2xl font-bold h-auto py-1 px-2"
+                />
+              ) : (
+                <h1 className="text-2xl font-bold text-foreground">{process.title}</h1>
               )}
+              {editing ? (
+                <Textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  onBlur={async () => {
+                    if (!processId) return;
+                    await supabase.from("processes").update({ description: editDescription || null }).eq("id", processId);
+                    setProcess((prev) => prev ? { ...prev, description: editDescription || null } : prev);
+                  }}
+                  placeholder="Process description..."
+                  className="mt-1 text-sm min-h-[40px]"
+                  rows={2}
+                />
+              ) : process.description ? (
+                <p className="text-sm text-muted-foreground mt-1">{process.description}</p>
+              ) : null}
             </div>
           </div>
           <div className="flex items-center gap-2">
