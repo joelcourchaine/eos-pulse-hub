@@ -1,41 +1,51 @@
 
-# Fix Inverted Visual Cues for Expense Sub-Metrics
+
+# Fix Inverted Visual Cues for Total Direct Expenses in Enterprise YoY View
 
 ## Problem
 
-Sub-metrics under expense rows (e.g., Sales Expense, Semi Fixed Expense, Total Fixed Expense) show **green when above forecast** and **red when below forecast** -- the opposite of what they should be. These are expenses, so being below forecast is good (green) and above forecast is bad (red).
-
-The parent metrics display correctly because they use the `targetDirection` from the metric config. But the `SubMetricsRow` component has no awareness of the parent's `targetDirection` and **defaults to `'above'`** in three places when no rock target overrides it.
+On the Dealer Comparison (Enterprise) page, the "Total Direct Expenses" parent metric and its sub-metrics for Nissan show inverted colors in Year-over-Year mode: green when expenses went up (bad) and red when they went down (good).
 
 ## Root Cause
 
-In `src/components/financial/SubMetricsRow.tsx`, the default direction is hardcoded to `'above'`:
-
-- **Line 566**: `const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';`
-- **Line 833**: `getVarianceStatus(quarterValue, effectiveTarget, 'above')`
-- **Line 993**: `const effectiveDirection = rockTargetValue !== null ? rockDirection : 'above';`
+Multiple rendering functions (`isDiffFavorable`, `getVarianceColor`, `lowerIsBetter`, `formatValue`, `formatDiffValue`) call `getMetricsForBrand(null)` to look up metric definitions. Passing `null` returns GMC/Chevrolet metrics by default. Since "Total Direct Expenses" only exists in the Nissan (and a few other) brand configurations and NOT in GMC, the lookup fails and the code defaults to "higher is better" -- which is wrong for an expense metric.
 
 ## Fix
 
-### 1. Add a `parentTargetDirection` prop to `SubMetricsRow`
+### 1. Create a cross-brand metric lookup helper (in `DealerComparison.tsx`)
 
-Add to the `SubMetricsRowProps` interface:
+Add a helper function that searches all brand metric definitions instead of just GMC:
+
 ```typescript
-parentTargetDirection?: 'above' | 'below';
+const getAllBrandMetricDefs = (): FinancialMetric[] => {
+  const brands = [null, 'nissan', 'ford', 'mazda', 'honda', 'hyundai', 'genesis', 'stellantis', 'ktrv'];
+  const seen = new Set<string>();
+  const all: FinancialMetric[] = [];
+  brands.forEach(b => {
+    getMetricsForBrand(b).forEach(m => {
+      if (!seen.has(m.key)) {
+        seen.add(m.key);
+        all.push(m);
+      }
+    });
+  });
+  return all;
+};
 ```
 
-### 2. Use it as the fallback instead of `'above'`
+### 2. Replace `getMetricsForBrand(null)` calls in rendering functions
 
-Replace the three hardcoded `'above'` defaults:
-- Line 566: `rockTargetValue !== null ? rockDirection : (parentTargetDirection ?? 'above')`
-- Line 833: `getVarianceStatus(quarterValue, effectiveTarget, parentTargetDirection ?? 'above')`
-- Line 993: `rockTargetValue !== null ? rockDirection : (parentTargetDirection ?? 'above')`
+Update the following functions to use `getAllBrandMetricDefs()` instead of `getMetricsForBrand(null)`:
 
-### 3. Pass the prop from `FinancialSummary.tsx`
+- **`isDiffFavorable`** (~line 1973) -- determines green/red for YoY diff column
+- **`lowerIsBetter`** computation (~line 2290) -- passed to email/print components  
+- **`formatValue`** (~lines 1917, 1933) -- determines dollar vs percentage formatting
+- **`formatDiffValue`** (~lines 1956, 1963) -- formats the diff column values
+- **`isPercentage`** computation (~lines 2281, 2285) -- determines percentage display
 
-In the `SubMetricsRow` usage (~line 4781), add:
-```typescript
-parentTargetDirection={metric.targetDirection}
-```
+This ensures that Nissan-specific metrics like "Total Direct Expenses" (`targetDirection: "below"`) are found regardless of which brand's config they belong to, so expense metrics correctly show green when below last year and red when above.
 
-This ensures expense sub-metrics inherit the parent's `'below'` direction, showing green when under forecast and red when over.
+### Files Changed
+
+- `src/pages/DealerComparison.tsx` -- add helper, update ~10 call sites from `getMetricsForBrand(null)` to `getAllBrandMetricDefs()`
+
