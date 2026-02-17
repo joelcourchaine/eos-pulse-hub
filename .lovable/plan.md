@@ -1,32 +1,29 @@
 
 
-# Unify "View Dashboard" Button for All Period Types
+# Add "Last Updated" Date to Email Header
 
-## Problem
+## Change
 
-When "12 Month Trend" is selected, there are two buttons: "View Dashboard" (navigates to dealer comparison table) and "View Trend Report" (opens the trend chart). This is inconsistent with other period types which only have one button. The user expects "View Dashboard" to show the appropriate view based on the selected period.
+In the edge function `supabase/functions/send-top10-email/index.ts`, add the `last_item_activity` timestamp to the email header, displayed to the right of the store/department subtitle line.
 
-## Fix
+### Steps
 
-### File: `src/pages/Enterprise.tsx`
+1. **Fetch `last_item_activity`** -- Add it to the select query on line 59 (add `last_item_activity` to the fields).
 
-1. **Modify the "View Dashboard" button's `onClick` handler** (~line 1942): When `datePeriodType === 'monthly_trend'` and `metricType === 'financial'`, instead of navigating to `/dealer-comparison`, execute the trend report logic (set `trendReportParams` and `setViewMode("trend")`).
+2. **Format the date** -- Convert `last_item_activity` to a readable string like "Last Updated: Jan 15, 2025". If null, omit it.
 
-2. **Remove the separate "View Trend Report" button** (~lines 1964-2010): Since the "View Dashboard" button will handle this case, the dedicated trend button is no longer needed.
+3. **Update the header HTML** (line 136) -- Change the subtitle `<p>` from a single line to a small inline table so the store/department name sits on the left and "Last Updated: ..." sits on the right, both in the same `#94a3b8` muted color.
 
-### Logic Change (pseudo-code)
+### Result
 
-```
-onClick={() => {
-  if (datePeriodType === 'monthly_trend' && metricType === 'financial') {
-    // Open trend view inline (current "View Trend Report" logic)
-    setTrendReportParams({ storeIds, selectedMetrics, startMonth, endMonth, ... });
-    setViewMode("trend");
-  } else {
-    // Navigate to dealer comparison table (existing behavior)
-    navigate("/dealer-comparison", { state: { ... } });
-  }
-}}
+The header will look like:
+
+```text
++----------------------------------------------------------+
+| Top 10 Most Frequently Used Op Codes (CP)                |
+| Murray Chev Medicine Hat · Service Dept    Last Updated:  |
+|                                            Jan 15, 2025   |
++----------------------------------------------------------+
 ```
 
-This is a single-file change: move the trend logic into the existing button handler and delete the now-redundant second button block.
+Single file change: `supabase/functions/send-top10-email/index.ts`
