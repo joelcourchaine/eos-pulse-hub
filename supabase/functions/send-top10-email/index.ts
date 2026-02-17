@@ -56,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: list, error: listError } = await supabaseClient
       .from("top_10_lists")
       .select(`
-        id, title, description, columns,
+        id, title, description, columns, last_item_activity,
         departments(
           name,
           stores(name)
@@ -72,6 +72,13 @@ const handler = async (req: Request): Promise<Response> => {
     const deptName = dept?.name || "";
 
     const columns = (list.columns || []) as ColumnDefinition[];
+
+    // Format last updated date
+    let lastUpdatedStr = "";
+    if (list.last_item_activity) {
+      const d = new Date(list.last_item_activity);
+      lastUpdatedStr = d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    }
 
     // Fetch items
     const { data: items, error: itemsError } = await supabaseClient
@@ -133,7 +140,12 @@ const handler = async (req: Request): Promise<Response> => {
         <tr>
           <td style="background: ${headerBg}; padding: 28px 32px;">
             <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">${escapeHtml(list.title)}</h1>
-            <p style="margin: 6px 0 0 0; font-size: 14px; color: #94a3b8;">${escapeHtml(storeName)}${deptName ? ` &bull; ${escapeHtml(deptName)}` : ""}</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 6px;">
+              <tr>
+                <td style="font-size: 14px; color: #94a3b8;">${escapeHtml(storeName)}${deptName ? ` &bull; ${escapeHtml(deptName)}` : ""}</td>
+                ${lastUpdatedStr ? `<td align="right" style="font-size: 13px; color: #94a3b8;">Last Updated: ${lastUpdatedStr}</td>` : ""}
+              </tr>
+            </table>
           </td>
         </tr>
 
