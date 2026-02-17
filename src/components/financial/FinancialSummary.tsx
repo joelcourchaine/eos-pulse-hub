@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -362,8 +362,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const isQuarterTrendMode = quarter === 0;
   const isMonthlyTrendMode = quarter === -1;
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const lastMonthlyColumnRef = useRef<HTMLTableCellElement | null>(null);
-  const hasInitialScrolled = useRef(false);
+   const lastMonthlyColumnRef = useRef<HTMLTableCellElement | null>(null);
   const currentDate = new Date();
   const currentQuarter = Math.floor(currentDate.getMonth() / 3) + 1;
   const currentYear = currentDate.getFullYear();
@@ -696,45 +695,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     loadData();
   }, [departmentId, year, quarter]);
 
-  // Auto-scroll to the far right in monthly trend mode to show the current year on load (once only)
-  useLayoutEffect(() => {
-    if (!isMonthlyTrendMode || !isOpen) return;
-    if (!scrollContainerRef.current) return;
-    if (Object.keys(precedingQuartersData).length === 0) return;
-    
-    // Only scroll once on initial load, not on every data update
-    if (hasInitialScrolled.current) return;
-    hasInitialScrolled.current = true;
-
-    const container = scrollContainerRef.current;
-
-    const scrollToRight = () => {
-      // Primary: jump container to max scroll
-      container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-      // Secondary: ensure the last column is visible even if widths change
-      lastMonthlyColumnRef.current?.scrollIntoView({
-        behavior: "auto",
-        block: "nearest",
-        inline: "end",
-      });
-    };
-
-    let tries = 0;
-    const tick = () => {
-      scrollToRight();
-      tries += 1;
-      if (tries < 12) requestAnimationFrame(tick);
-    };
-
-    requestAnimationFrame(tick);
-  }, [isMonthlyTrendMode, isOpen, precedingQuartersData, monthlyTrendPeriods.length]);
-  
-  // Reset scroll flag when switching out of monthly trend mode
-  useEffect(() => {
-    if (!isMonthlyTrendMode) {
-      hasInitialScrolled.current = false;
-    }
-  }, [isMonthlyTrendMode]);
   // Real-time subscription for financial entries
   useEffect(() => {
     if (!departmentId) return;
