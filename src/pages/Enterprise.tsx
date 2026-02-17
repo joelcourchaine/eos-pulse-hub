@@ -1939,56 +1939,10 @@ export default function Enterprise() {
                         
                         // Pass full selection IDs including parent key for sub-metrics
                         // DealerComparison will handle the display name conversion and type detection
-                        navigate("/dealer-comparison", {
-                          state: {
-                            metricType,
-                            selectedMetrics, // Keep full IDs like "sub:sales_expense_percent:Comp Managers"
-                            ...dateParams,
-                            comparisonMode,
-                            selectedComparisonQuarter,
-                            departmentIds,
-                            isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
-                            selectedDepartmentNames,
-                            sortByMetric, // Keep full ID
-                            storeIds: filteredStores.map(s => s.id),
-                            brandDisplayName,
-                            filterName: loadedFilterName,
-                          }
-                        });
-                      }}
-                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                      size="lg"
-                    >
-                      View Dashboard
-                    </Button>
-                    {metricType === 'financial' && datePeriodType === 'monthly_trend' && (
-                      <Button
-                        onClick={() => {
-                          // Use the user-selected start/end months from the monthly_trend period
+                        if (datePeriodType === 'monthly_trend' && metricType === 'financial') {
+                          // Open trend view inline for 12 Month Trend
                           const start = format(startMonth, 'yyyy-MM');
                           const end = format(endMonth, 'yyyy-MM');
-                          
-                          let brandDisplayName = "All Brands";
-                          if (selectedBrandIds.length > 0) {
-                            const selectedBrandNames = brands
-                              ?.filter(b => selectedBrandIds.includes(b.id))
-                              .map(b => b.name) || [];
-                            brandDisplayName = selectedBrandNames.length === 1 
-                              ? selectedBrandNames[0] 
-                              : selectedBrandNames.join(", ");
-                          } else if (filteredStores.length > 0) {
-                            const storeBrandIds = new Set(filteredStores.map(s => s.brand_id).filter(Boolean));
-                            const storeBrandNames = brands?.filter(b => storeBrandIds.has(b.id)).map(b => b.name) || [];
-                            if (storeBrandNames.length === 1) {
-                              brandDisplayName = storeBrandNames[0];
-                            } else if (storeBrandNames.length > 1) {
-                              brandDisplayName = storeBrandNames.join(", ");
-                            }
-                          }
-                          
-                          // For reports, keep selection IDs (especially sub:*), so we can:
-                          // - avoid collisions (same sub-name under different parents)
-                          // - compute percentage-based sub-metrics correctly
                           setTrendReportParams({
                             storeIds: filteredStores.map(s => s.id),
                             selectedMetrics: selectedMetrics,
@@ -1998,16 +1952,30 @@ export default function Enterprise() {
                             filterName: loadedFilterName,
                           });
                           setViewMode("trend");
-                        }}
-                        disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
-                        size="lg"
-                        variant="outline"
-                        className="gap-2"
-                      >
-                        <TrendingUp className="h-4 w-4" />
-                        View Trend Report
-                      </Button>
-                    )}
+                        } else {
+                          navigate("/dealer-comparison", {
+                            state: {
+                              metricType,
+                              selectedMetrics,
+                              ...dateParams,
+                              comparisonMode,
+                              selectedComparisonQuarter,
+                              departmentIds,
+                              isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
+                              selectedDepartmentNames,
+                              sortByMetric,
+                              storeIds: filteredStores.map(s => s.id),
+                              brandDisplayName,
+                              filterName: loadedFilterName,
+                            }
+                          });
+                        }
+                      }}
+                      disabled={filteredStores.length === 0 || selectedMetrics.length === 0}
+                      size="lg"
+                    >
+                      View Dashboard
+                    </Button>
                     {metricType === 'monthly' && (
                       <Button
                         onClick={() => {
