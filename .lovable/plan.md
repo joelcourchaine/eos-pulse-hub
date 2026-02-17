@@ -1,39 +1,36 @@
 
+# Deploy "Customer Journey" Process to All Service Departments
 
-# Allow Editing Process Title in Builder Mode
+## What This Does
 
-## Problem
+This will:
+1. **Copy the "Customer Journey" process** (with all 10 stages and 9 steps) from Winnipeg Chevrolet's Service Department to all 29 other service departments that don't already have it.
+2. **Auto-deploy to future service departments** by adding a database trigger that fires whenever a new department is created with a "Service Department" type.
 
-The process title ("Customer Journey" in the screenshot) is displayed as static text and cannot be edited, even when the user is in edit mode.
+## Source Process Details
 
-## Fix
+- **Process**: "Customer Journey" (Winnipeg Chevrolet Service Dept)
+- **Category**: Serve the Customer
+- **Stages (10)**: Appointment Booking, Arrival & Write Up, Dispatch & Shop Control, Diagnosis & Inspection, Estimate & Authorization, Parts Procurement, Repair Execution, Quality Control, Delivery & Payment, CSI Follow Up
+- **Steps (9)**: 8 detailed steps under Appointment Booking + 1 placeholder step in Arrival & Write Up
 
-### File: `src/pages/ProcessDetail.tsx`
+## Technical Plan
 
-**Replace the static `<h1>` title (line 571) with a conditional render:**
+### Step 1: Database function for cloning a process to a target department
 
-- **In edit mode**: Show an `<Input>` field pre-filled with the current title. On blur (or Enter key), persist the change to the `processes` table and update local state.
-- **In view mode**: Keep the existing static `<h1>`.
+Create a SQL function `clone_process_to_department(source_process_id, target_department_id, cloned_by)` that:
+- Inserts a new `processes` row copying title, description, category_id from the source
+- Inserts all `process_stages` with matching titles and display_order
+- Inserts all `process_steps` under the correct new stage IDs, preserving title, instructions, definition_of_done, display_order, is_sub_process, and parent-child relationships
 
-Also make the description editable in the same way -- swap the `<p>` tag (line 573) for a `<Textarea>` when editing.
+### Step 2: Run the clone for existing 29 service departments
 
-### Implementation Details
+Execute the function once for each of the 29 service departments that don't yet have the process.
 
-1. **Add local state** for the editable title and description values, initialized from `process.title` / `process.description`.
-2. **Render logic** at ~line 571:
-   ```
-   {editing ? (
-     <Input
-       value={editTitle}
-       onChange={...}
-       onBlur={saveTitle}
-       className="text-2xl font-bold h-auto py-1 px-2"
-     />
-   ) : (
-     <h1 className="text-2xl font-bold">{process.title}</h1>
-   )}
-   ```
-3. **Save handler** (`saveTitle`): calls `supabase.from("processes").update({ title }).eq("id", processId)` and updates local `process` state. Same pattern for description.
-4. Sync the local edit values whenever `process` or `editing` state changes.
+### Step 3: Auto-deploy trigger for new service departments
 
-This follows the existing decoupled state pattern used elsewhere in the builder (local instant updates, DB persistence on blur).
+Create a database trigger on the `departments` table that fires after insert. When a new department with `department_type_id` matching "Service Department" is created, the trigger will automatically call the clone function using the Winnipeg Chevrolet process as the source template.
+
+### Step 4: No code changes needed
+
+This is entirely a database-level operation -- no frontend changes required.
