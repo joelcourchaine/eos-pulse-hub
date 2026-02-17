@@ -3923,6 +3923,14 @@ export type Database = {
         Args: { file_path: string }
         Returns: boolean
       }
+      clone_process_to_department: {
+        Args: {
+          cloned_by?: string
+          source_process_id: string
+          target_department_id: string
+        }
+        Returns: string
+      }
       create_auth_token: {
         Args: {
           _created_by?: string
