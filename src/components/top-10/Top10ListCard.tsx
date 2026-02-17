@@ -39,6 +39,7 @@ import { Top10ItemRow } from "./Top10ItemRow";
 import { Top10ListManagementDialog } from "./Top10ListManagementDialog";
 import { CopyListToGroupDialog } from "./CopyListToGroupDialog";
 import { ImportTop10Dialog } from "./ImportTop10Dialog";
+import { EmailTop10Dialog } from "./EmailTop10Dialog";
 import { ResizableTableHeader } from "./ResizableTableHeader";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -447,6 +448,11 @@ export function Top10ListCard({
                       currentDepartmentId={departmentId}
                     />
                   )}
+                  <EmailTop10Dialog
+                    listId={list.id}
+                    listTitle={list.title}
+                    departmentId={departmentId}
+                  />
                   <Button
                     variant="ghost"
                     size="icon"
