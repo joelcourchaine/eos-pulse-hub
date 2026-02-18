@@ -144,17 +144,28 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       });
     };
 
-    sync();
+    // Small delay to ensure DOM layout is complete after loading state change
+    const raf = requestAnimationFrame(() => {
+      sync();
+      console.log("[StickyScroll] init metrics:", {
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        width: el.getBoundingClientRect().width,
+        open,
+        loading,
+      });
+    });
 
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     el.addEventListener("scroll", sync, { passive: true });
 
     return () => {
+      cancelAnimationFrame(raf);
       ro.disconnect();
       el.removeEventListener("scroll", sync);
     };
-  }, [open, loading]);
+  }, [open, loading, profiles.length]);
 
 
   // Check current user's role and group
