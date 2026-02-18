@@ -1,29 +1,35 @@
 
 
-# Add "Last Updated" Date to Email Header
+# Fix User Deletion: Foreign Key Constraints Blocking Delete
 
-## Change
+## Problem
 
-In the edge function `supabase/functions/send-top10-email/index.ts`, add the `last_item_activity` timestamp to the email header, displayed to the right of the store/department subtitle line.
+When a Super Admin tries to delete a user, the backend function fails with "Database error deleting user". This happens because 9 columns across 7 tables have foreign keys to `auth.users` with `ON DELETE NO ACTION`, which blocks the delete.
 
-### Steps
+## Solution
 
-1. **Fetch `last_item_activity`** -- Add it to the select query on line 59 (add `last_item_activity` to the fields).
+Run a database migration to change all these audit/tracking columns from `NO ACTION` to `SET NULL`. This means when a user is deleted:
+- The record (forecast, announcement, etc.) is preserved
+- The `created_by` / `assigned_by` / etc. column is set to NULL
+- The delete succeeds cleanly
 
-2. **Format the date** -- Convert `last_item_activity` to a readable string like "Last Updated: Jan 15, 2025". If null, omit it.
+No code changes needed -- only a database migration.
 
-3. **Update the header HTML** (line 136) -- Change the subtitle `<p>` from a single line to a small inline table so the store/department name sits on the left and "Last Updated: ..." sits on the right, both in the same `#94a3b8` muted color.
+## Columns to Fix
 
-### Result
+| Table | Column |
+|---|---|
+| user_roles | assigned_by |
+| user_department_access | granted_by |
+| department_forecasts | created_by |
+| financial_copy_metadata | copied_by |
+| forecast_submetric_notes | created_by |
+| forecast_submetric_notes | resolved_by |
+| announcements | created_by |
+| top_10_list_templates | created_by |
+| scorecard_column_templates | created_by |
 
-The header will look like:
+## Technical Details
 
-```text
-+----------------------------------------------------------+
-| Top 10 Most Frequently Used Op Codes (CP)                |
-| Murray Chev Medicine Hat · Service Dept    Last Updated:  |
-|                                            Jan 15, 2025   |
-+----------------------------------------------------------+
-```
+The migration will drop each existing foreign key constraint and re-create it with `ON DELETE SET NULL`. Each column is already nullable (they are audit fields), so no schema change is needed beyond the constraint update. This is a safe, non-destructive change.
 
-Single file change: `supabase/functions/send-top10-email/index.ts`
