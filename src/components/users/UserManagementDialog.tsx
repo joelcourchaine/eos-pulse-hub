@@ -568,7 +568,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="overflow-x-auto relative">
+            <div className="overflow-x-scroll relative">
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
