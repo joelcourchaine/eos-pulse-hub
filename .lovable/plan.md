@@ -1,35 +1,23 @@
 
 
-# Fix User Deletion: Foreign Key Constraints Blocking Delete
+# Add Always-Visible Horizontal Scrollbar to User Management Table
 
 ## Problem
-
-When a Super Admin tries to delete a user, the backend function fails with "Database error deleting user". This happens because 9 columns across 7 tables have foreign keys to `auth.users` with `ON DELETE NO ACTION`, which blocks the delete.
+The User Management dialog has a very wide table with many columns. While `overflow-x-auto` is set on the table wrapper, the native horizontal scrollbar sits at the very bottom of the table content, making it hard to reach -- especially with many users listed.
 
 ## Solution
+Wrap the table's scrollable container in a way that ensures the horizontal scrollbar is always pinned/visible at the bottom of the viewport (or dialog), not buried beneath hundreds of rows.
 
-Run a database migration to change all these audit/tracking columns from `NO ACTION` to `SET NULL`. This means when a user is deleted:
-- The record (forecast, announcement, etc.) is preserved
-- The `created_by` / `assigned_by` / etc. column is set to NULL
-- The delete succeeds cleanly
+## Implementation
 
-No code changes needed -- only a database migration.
+**File: `src/components/users/UserManagementDialog.tsx`**
 
-## Columns to Fix
+1. Change the table wrapper (line 571) from a plain `div` with `overflow-x-auto` to a structure that keeps a horizontal scrollbar visible at all times.
+2. Use a `ScrollArea` with a horizontal `ScrollBar` from the existing Radix scroll-area component (`@/components/ui/scroll-area`), which renders a visible scrollbar track. Alternatively, use CSS `overflow-x: scroll` (instead of `auto`) to force the scrollbar to always render.
+3. The simplest and most consistent approach: change `overflow-x-auto` to `overflow-x-scroll` on the table wrapper div, which forces the scrollbar to always be visible. Combined with the existing global CSS that styles `::-webkit-scrollbar` to always show, this will ensure the scrollbar is always present.
 
-| Table | Column |
-|---|---|
-| user_roles | assigned_by |
-| user_department_access | granted_by |
-| department_forecasts | created_by |
-| financial_copy_metadata | copied_by |
-| forecast_submetric_notes | created_by |
-| forecast_submetric_notes | resolved_by |
-| announcements | created_by |
-| top_10_list_templates | created_by |
-| scorecard_column_templates | created_by |
+### Technical Detail
+- On line 571, change `overflow-x-auto` to `overflow-x-scroll` so the scrollbar is always rendered (not just when hovering or scrolling).
+- This works with the existing global scrollbar styles in `index.css` (lines 120-132) that already make scrollbars always visible with custom styling.
 
-## Technical Details
-
-The migration will drop each existing foreign key constraint and re-create it with `ON DELETE SET NULL`. Each column is already nullable (they are audit fields), so no schema change is needed beyond the constraint update. This is a safe, non-destructive change.
-
+Single-line change in one file.
