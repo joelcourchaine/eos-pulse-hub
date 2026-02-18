@@ -94,10 +94,11 @@ interface OrgNodeProps {
   node: TreeNode;
   showNames: boolean;
   headcountOnly: boolean;
+  nodeScale: number;
   onSelect: (member: TeamMember) => void;
 }
 
-const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => {
+const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNodeProps) => {
   const colors = POSITION_COLORS[node.member.position] || POSITION_COLORS.porter;
   const directReports = getDirectReportCount(node);
   const spanWarning = getSpanWarning(directReports);
@@ -106,8 +107,14 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
   if (headcountOnly) {
     return (
       <div
-        className="flex flex-col items-center justify-center rounded-lg px-3 py-2 text-xs font-medium cursor-pointer transition-transform hover:scale-105"
-        style={{ backgroundColor: colors.bg, color: colors.text, minWidth: 60 }}
+        className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-transform hover:scale-105"
+        style={{
+          backgroundColor: colors.bg,
+          color: colors.text,
+          minWidth: Math.round(60 * nodeScale),
+          padding: `${Math.round(8 * nodeScale)}px ${Math.round(12 * nodeScale)}px`,
+          fontSize: `${Math.max(9, Math.round(12 * nodeScale))}px`,
+        }}
         onClick={() => onSelect(node.member)}
       >
         <span>{POSITION_LABELS[node.member.position] || node.member.position}</span>
@@ -117,23 +124,30 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
 
   return (
     <div
-      className="flex flex-col items-center justify-center rounded-lg px-4 py-3 text-xs font-medium cursor-pointer transition-all hover:scale-105 hover:shadow-md"
+      className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-all hover:scale-105 hover:shadow-md"
       style={{
         backgroundColor: colors.bg,
         color: colors.text,
         borderWidth: isVacant ? 2 : spanWarning.color !== "transparent" ? 3 : 1,
         borderStyle: isVacant ? "dashed" : "solid",
         borderColor: isVacant ? colors.border : spanWarning.color !== "transparent" ? spanWarning.color : colors.border,
-        minWidth: 120,
+        minWidth: Math.round(120 * nodeScale),
+        padding: `${Math.round(12 * nodeScale)}px ${Math.round(16 * nodeScale)}px`,
         boxShadow: spanWarning.color !== "transparent" ? `0 0 8px ${spanWarning.color}` : undefined,
       }}
       onClick={() => onSelect(node.member)}
     >
-      {showNames && <span className="font-semibold text-sm truncate max-w-[140px]">{node.member.name}</span>}
-      <span className="opacity-80 text-[10px] mt-0.5">{POSITION_LABELS[node.member.position] || node.member.position}</span>
-      {isVacant && <span className="opacity-70 text-[9px] italic mt-0.5">Vacant</span>}
+      {showNames && (
+        <span className="font-semibold truncate" style={{ fontSize: `${Math.max(10, Math.round(14 * nodeScale))}px`, maxWidth: Math.round(140 * nodeScale) }}>
+          {node.member.name}
+        </span>
+      )}
+      <span className="opacity-80 mt-0.5" style={{ fontSize: `${Math.max(8, Math.round(10 * nodeScale))}px` }}>
+        {POSITION_LABELS[node.member.position] || node.member.position}
+      </span>
+      {isVacant && <span className="opacity-70 italic mt-0.5" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px` }}>Vacant</span>}
       {spanWarning.message && (
-        <span className="text-[9px] mt-1 text-center leading-tight" style={{ color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : colors.text }}>
+        <span className="mt-1 text-center leading-tight" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px`, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : colors.text }}>
           ⚠ {directReports} reports
         </span>
       )}
@@ -157,6 +171,13 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
 
   const tree = useMemo(() => buildTree(members), [members]);
   const levels = useMemo(() => getLevels(tree), [tree]);
+
+  const nodeScale = useMemo(() => {
+    const maxLevelSize = Math.max(...levels.map((l) => l.length), 1);
+    const BASE_NODE_WIDTH = 132;
+    const AVAILABLE_WIDTH = 1200;
+    return Math.max(0.45, Math.min(1, AVAILABLE_WIDTH / (maxLevelSize * BASE_NODE_WIDTH)));
+  }, [levels]);
 
   // Span of control warnings
   const warnings = useMemo(() => {
@@ -267,8 +288,8 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       </div>
 
       {/* Chart container */}
-      <div ref={containerRef} className="overflow-auto border rounded-lg bg-background" style={{ maxHeight: "60vh" }}>
-        <div ref={chartRef} className="relative p-8 min-w-fit" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+      <div ref={containerRef} className="overflow-auto border rounded-lg bg-background">
+        <div ref={chartRef} className="relative p-8" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
           {/* SVG lines */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
             {lines.map((l, i) => (
@@ -301,11 +322,16 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                       return (
                         <div
                           key={pos}
-                          className="flex flex-col items-center justify-center rounded-lg px-4 py-2 text-xs font-medium"
-                          style={{ backgroundColor: colors.bg, color: colors.text, minWidth: 80 }}
+                          className="flex flex-col items-center justify-center rounded-lg font-medium"
+                          style={{
+                            backgroundColor: colors.bg,
+                            color: colors.text,
+                            minWidth: Math.round(80 * nodeScale),
+                            padding: `${Math.round(8 * nodeScale)}px ${Math.round(16 * nodeScale)}px`,
+                          }}
                         >
-                          <span className="font-bold text-lg">{nodes.length}</span>
-                          <span className="opacity-80 text-[10px]">{POSITION_LABELS[pos] || pos}</span>
+                          <span className="font-bold" style={{ fontSize: `${Math.max(12, Math.round(18 * nodeScale))}px` }}>{nodes.length}</span>
+                          <span className="opacity-80" style={{ fontSize: `${Math.max(8, Math.round(10 * nodeScale))}px` }}>{POSITION_LABELS[pos] || pos}</span>
                         </div>
                       );
                     })}
@@ -321,6 +347,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                         node={node}
                         showNames={showNames}
                         headcountOnly={headcountOnly}
+                        nodeScale={nodeScale}
                         onSelect={onSelectMember}
                       />
                     </div>
