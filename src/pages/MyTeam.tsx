@@ -11,6 +11,7 @@ import { TeamMemberDetailPanel } from "@/components/team/TeamMemberDetailPanel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AdminNavDropdown } from "@/components/navigation/AdminNavDropdown";
 import { useUserRole } from "@/hooks/use-user-role";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import goLogo from "@/assets/go-logo.png";
 
 const MyTeam = () => {
@@ -22,9 +23,14 @@ const MyTeam = () => {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [sidebarDeptId, setSidebarDeptId] = useState<string>("");
+  const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>("");
 
   const { isSuperAdmin, isStoreGM, isDepartmentManager, isFixedOpsManager, loading: rolesLoading } = useUserRole(user?.id);
   const canManage = isSuperAdmin || isStoreGM || isDepartmentManager || isFixedOpsManager;
+
+  // The effective store: profile's store or super_admin's selected store
+  const effectiveStoreId = profile?.store_id || selectedStoreId;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -40,23 +46,35 @@ const MyTeam = () => {
     setLoading(false);
   };
 
+  // Fetch stores list for super_admins without a store_id
   useEffect(() => {
-    if (profile?.store_id) {
+    if (isSuperAdmin && !profile?.store_id) {
+      supabase.from("stores").select("id, name").order("name").then(({ data }) => {
+        if (data) {
+          setStores(data);
+          if (data.length > 0 && !selectedStoreId) setSelectedStoreId(data[0].id);
+        }
+      });
+    }
+  }, [isSuperAdmin, profile?.store_id]);
+
+  useEffect(() => {
+    if (effectiveStoreId) {
       fetchMembers();
       supabase
         .from("departments")
         .select("id")
-        .eq("store_id", profile.store_id)
+        .eq("store_id", effectiveStoreId)
         .limit(1)
         .then(({ data }) => {
           if (data?.[0]) setSidebarDeptId(data[0].id);
         });
     }
-  }, [profile?.store_id]);
+  }, [effectiveStoreId]);
 
   // Realtime subscription
   useEffect(() => {
-    if (!profile?.store_id) return;
+    if (!effectiveStoreId) return;
     const channel = supabase
       .channel("team-members-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, () => {
@@ -64,14 +82,14 @@ const MyTeam = () => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile?.store_id]);
+  }, [effectiveStoreId]);
 
   const fetchMembers = async () => {
-    if (!profile?.store_id) return;
+    if (!effectiveStoreId) return;
     const { data, error } = await supabase
       .from("team_members")
       .select("*")
-      .eq("store_id", profile.store_id)
+      .eq("store_id", effectiveStoreId)
       .order("created_at");
     if (!error && data) setMembers(data as TeamMember[]);
   };
@@ -109,8 +127,20 @@ const MyTeam = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {canManage && profile?.store_id && (
-                  <AddTeamMemberDialog storeId={profile.store_id} existingMembers={members} onAdded={fetchMembers} />
+                {isSuperAdmin && !profile?.store_id && stores.length > 0 && (
+                  <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+                    <SelectTrigger className="w-[200px] h-8 text-sm">
+                      <SelectValue placeholder="Select store" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stores.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {canManage && effectiveStoreId && (
+                  <AddTeamMemberDialog storeId={effectiveStoreId} existingMembers={members} onAdded={fetchMembers} />
                 )}
                 <AdminNavDropdown />
                 <ThemeToggle />
