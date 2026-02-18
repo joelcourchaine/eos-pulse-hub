@@ -23,7 +23,7 @@ const MyTeam = () => {
   const [detailOpen, setDetailOpen] = useState(false);
   const [sidebarDeptId, setSidebarDeptId] = useState<string>("");
 
-  const { isSuperAdmin, isStoreGM, isDepartmentManager, isFixedOpsManager } = useUserRole(user?.id);
+  const { isSuperAdmin, isStoreGM, isDepartmentManager, isFixedOpsManager, loading: rolesLoading } = useUserRole(user?.id);
   const canManage = isSuperAdmin || isStoreGM || isDepartmentManager || isFixedOpsManager;
 
   useEffect(() => {
@@ -86,7 +86,7 @@ const MyTeam = () => {
     navigate("/auth");
   };
 
-  if (loading) {
+  if (loading || rolesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
