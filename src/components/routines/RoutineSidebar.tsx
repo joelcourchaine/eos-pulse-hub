@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
 import { AddRoutineWithTask } from "./AddRoutineWithTask";
-import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check, BookOpen, Workflow } from "lucide-react";
+import { Loader2, CheckSquare, AlertTriangle, Calendar, CalendarDays, CalendarRange, CalendarClock, CalendarCheck, Check, BookOpen, Workflow, Users } from "lucide-react";
 import {
   startOfDay,
   startOfWeek,
@@ -419,6 +419,13 @@ export const RoutineSidebar = ({
             >
               <BookOpen className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Resources</span>
+            </div>
+            <div 
+              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
+              onClick={() => navigate("/my-team")}
+            >
+              <Users className="h-5 w-5 text-primary shrink-0" />
+              <span className="font-semibold text-sm">My Team</span>
             </div>
           </div>
         </SidebarMenu>
