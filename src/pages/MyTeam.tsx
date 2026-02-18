@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { RoutineSidebar } from "@/components/routines";
 import { Button } from "@/components/ui/button";
 import { Users, LogOut, Loader2 } from "lucide-react";
 import { ReverseOrgChart, type TeamMember } from "@/components/team/ReverseOrgChart";
@@ -22,7 +21,7 @@ const MyTeam = () => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [sidebarDeptId, setSidebarDeptId] = useState<string>("");
+  
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>("");
 
@@ -61,14 +60,6 @@ const MyTeam = () => {
   useEffect(() => {
     if (effectiveStoreId) {
       fetchMembers();
-      supabase
-        .from("departments")
-        .select("id")
-        .eq("store_id", effectiveStoreId)
-        .limit(1)
-        .then(({ data }) => {
-          if (data?.[0]) setSidebarDeptId(data[0].id);
-        });
     }
   }, [effectiveStoreId]);
 
@@ -166,9 +157,6 @@ const MyTeam = () => {
           />
         </SidebarInset>
 
-        {sidebarDeptId && user && (
-          <RoutineSidebar departmentId={sidebarDeptId} userId={user.id} />
-        )}
       </div>
     </SidebarProvider>
   );
