@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { StickyHScrollbar } from "@/components/scorecard/StickyHScrollbar";
 import {
   Dialog,
   DialogContent,
@@ -117,6 +118,44 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
   const [isStoreGM, setIsStoreGM] = useState(false);
   const [currentUserGroupId, setCurrentUserGroupId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Sticky horizontal scrollbar state
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const [scrollMetrics, setScrollMetrics] = useState({
+    left: 0,
+    width: 0,
+    scrollWidth: 0,
+    clientWidth: 0,
+    scrollLeft: 0,
+  });
+
+  useEffect(() => {
+    const el = tableWrapperRef.current;
+    if (!el || !open) return;
+
+    const sync = () => {
+      const rect = el.getBoundingClientRect();
+      setScrollMetrics({
+        left: rect.left,
+        width: rect.width,
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        scrollLeft: el.scrollLeft,
+      });
+    };
+
+    sync();
+
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    el.addEventListener("scroll", sync, { passive: true });
+
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", sync);
+    };
+  }, [open, loading]);
+
 
   // Check current user's role and group
   useEffect(() => {
@@ -568,7 +607,7 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="overflow-x-scroll relative">
+            <div ref={tableWrapperRef} className="overflow-x-scroll relative">
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
@@ -838,6 +877,19 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
               </Table>
             </div>
           )}
+          <StickyHScrollbar
+            left={scrollMetrics.left}
+            width={scrollMetrics.width}
+            scrollWidth={scrollMetrics.scrollWidth}
+            clientWidth={scrollMetrics.clientWidth}
+            scrollLeft={scrollMetrics.scrollLeft}
+            onSetScrollLeft={(v) => {
+              if (tableWrapperRef.current) tableWrapperRef.current.scrollLeft = v;
+            }}
+            position="bottom"
+            offsetPx={0}
+            show={open && !loading}
+          />
         </DialogContent>
       </Dialog>
 
