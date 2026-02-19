@@ -19,6 +19,8 @@ const POSITION_OPTIONS = [
   { value: "porter", label: "Porter" },
   { value: "warranty_admin", label: "Warranty Admin" },
   { value: "detailer", label: "Detailer" },
+  { value: "administrative", label: "Administrative" },
+  { value: "cashier", label: "Cashier" },
 ];
 
 interface AddTeamMemberDialogProps {

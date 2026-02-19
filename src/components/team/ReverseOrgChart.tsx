@@ -30,6 +30,8 @@ const POSITION_COLORS: Record<string, { bg: string; text: string; border: string
   porter: { bg: "hsl(220 9% 64%)", text: "hsl(0 0% 100%)", border: "hsl(220 9% 74%)" },
   warranty_admin: { bg: "hsl(271 81% 56%)", text: "hsl(0 0% 100%)", border: "hsl(271 81% 66%)" },
   detailer: { bg: "hsl(48 96% 53%)", text: "hsl(215 25% 15%)", border: "hsl(48 96% 43%)" },
+  administrative: { bg: "hsl(215 14% 50%)", text: "hsl(0 0% 100%)", border: "hsl(215 14% 60%)" },
+  cashier: { bg: "hsl(340 65% 55%)", text: "hsl(0 0% 100%)", border: "hsl(340 65% 65%)" },
 };
 
 const POSITION_LABELS: Record<string, string> = {
@@ -41,6 +43,8 @@ const POSITION_LABELS: Record<string, string> = {
   porter: "Porter",
   warranty_admin: "Warranty Admin",
   detailer: "Detailer",
+  administrative: "Administrative",
+  cashier: "Cashier",
 };
 
 function buildTree(members: TeamMember[]): TreeNode[] {
