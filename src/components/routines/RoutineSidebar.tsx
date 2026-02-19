@@ -8,6 +8,7 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarTrigger,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -405,29 +406,25 @@ export const RoutineSidebar = ({
             );
           })}
           {/* My Processes & My Resources */}
-          <div className="mt-4 pt-4 border-t space-y-2">
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
-              onClick={() => navigate(`/processes?dept=${departmentId}`)}
-            >
+          <SidebarSeparator className="my-2" />
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)}>
               <Workflow className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Processes</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
-              onClick={() => navigate("/resources")}
-            >
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")}>
               <BookOpen className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Resources</span>
-            </div>
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:bg-accent rounded-md transition-colors whitespace-nowrap p-1"
-              onClick={() => navigate("/my-team")}
-            >
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")}>
               <Users className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Team</span>
-            </div>
-          </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
 
         {/* Routine Checklists - Only visible when expanded */}
