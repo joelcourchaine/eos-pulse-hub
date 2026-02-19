@@ -10,6 +10,7 @@ export interface TeamMember {
   store_id: string;
   name: string;
   position: string;
+  position_secondary: string | null;
   reports_to: string | null;
   status: string;
   created_at: string;
@@ -105,18 +106,24 @@ interface OrgNodeProps {
 }
 
 const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNodeProps) => {
-  const colors = POSITION_COLORS[node.member.position] || POSITION_COLORS.porter;
+  const primaryColors = POSITION_COLORS[node.member.position] || POSITION_COLORS.porter;
+  const secondaryColors = node.member.position_secondary ? (POSITION_COLORS[node.member.position_secondary] || null) : null;
   const directReports = getDirectReportCount(node);
   const spanWarning = getSpanWarning(directReports);
   const isVacant = node.member.status === "vacant";
+  const isDual = !!secondaryColors;
+
+  const bgStyle = isDual
+    ? `linear-gradient(135deg, ${primaryColors.bg} 50%, ${secondaryColors.bg} 50%)`
+    : primaryColors.bg;
 
   if (headcountOnly) {
     return (
       <div
         className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-transform hover:scale-105"
         style={{
-          backgroundColor: colors.bg,
-          color: colors.text,
+          background: bgStyle,
+          color: primaryColors.text,
           minWidth: Math.round(60 * nodeScale),
           padding: `${Math.round(8 * nodeScale)}px ${Math.round(12 * nodeScale)}px`,
           fontSize: `${Math.max(9, Math.round(12 * nodeScale))}px`,
@@ -124,6 +131,11 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
         onClick={() => onSelect(node.member)}
       >
         <span>{POSITION_LABELS[node.member.position] || node.member.position}</span>
+        {isDual && (
+          <span className="opacity-80" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px` }}>
+            / {POSITION_LABELS[node.member.position_secondary!] || node.member.position_secondary}
+          </span>
+        )}
       </div>
     );
   }
@@ -132,11 +144,11 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
     <div
       className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-all hover:scale-105 hover:shadow-md"
       style={{
-        backgroundColor: colors.bg,
-        color: colors.text,
+        background: bgStyle,
+        color: primaryColors.text,
         borderWidth: isVacant ? 2 : spanWarning.color !== "transparent" ? 3 : 1,
         borderStyle: isVacant ? "dashed" : "solid",
-        borderColor: isVacant ? colors.border : spanWarning.color !== "transparent" ? spanWarning.color : colors.border,
+        borderColor: isVacant ? primaryColors.border : spanWarning.color !== "transparent" ? spanWarning.color : primaryColors.border,
         minWidth: Math.round(120 * nodeScale),
         padding: `${Math.round(12 * nodeScale)}px ${Math.round(16 * nodeScale)}px`,
         boxShadow: spanWarning.color !== "transparent" ? `0 0 8px ${spanWarning.color}` : undefined,
@@ -150,10 +162,11 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
       )}
       <span className="opacity-80 mt-0.5" style={{ fontSize: `${Math.max(8, Math.round(10 * nodeScale))}px` }}>
         {POSITION_LABELS[node.member.position] || node.member.position}
+        {isDual && ` / ${POSITION_LABELS[node.member.position_secondary!] || node.member.position_secondary}`}
       </span>
       {isVacant && <span className="opacity-70 italic mt-0.5" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px` }}>Vacant</span>}
       {spanWarning.message && (
-        <span className="mt-1 text-center leading-tight" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px`, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : colors.text }}>
+        <span className="mt-1 text-center leading-tight" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px`, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : primaryColors.text }}>
           ⚠ {directReports} reports
         </span>
       )}

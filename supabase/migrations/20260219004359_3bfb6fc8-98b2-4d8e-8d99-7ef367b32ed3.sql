@@ -1,0 +1,1 @@
+ALTER TABLE public.team_members ADD COLUMN position_secondary text DEFAULT NULL;

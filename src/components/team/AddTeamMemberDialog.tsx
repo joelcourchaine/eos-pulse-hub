@@ -35,6 +35,7 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
+  const [positionSecondary, setPositionSecondary] = useState("none");
   const [reportsTo, setReportsTo] = useState<string>("none");
   const [isVacant, setIsVacant] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -53,6 +54,7 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
         created_by: user?.id,
         name: name.trim(),
         position,
+        position_secondary: positionSecondary === "none" ? null : positionSecondary,
         reports_to: reportsTo === "none" ? null : reportsTo,
         status: isVacant ? "vacant" : "active",
       });
@@ -62,6 +64,7 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
       toast({ title: "Team member added" });
       setName("");
       setPosition("");
+      setPositionSecondary("none");
       setReportsTo("none");
       setIsVacant(false);
       setOpen(false);
@@ -91,11 +94,24 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
           </div>
 
           <div className="space-y-2">
-            <Label>Position</Label>
+            <Label>Primary Position</Label>
             <Select value={position} onValueChange={setPosition}>
               <SelectTrigger><SelectValue placeholder="Select position" /></SelectTrigger>
               <SelectContent>
                 {POSITION_OPTIONS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Secondary Position <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <Select value={positionSecondary} onValueChange={setPositionSecondary}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— None —</SelectItem>
+                {POSITION_OPTIONS.filter((p) => p.value !== position).map((p) => (
                   <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                 ))}
               </SelectContent>
