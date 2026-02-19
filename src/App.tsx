@@ -35,6 +35,7 @@ import AdminResources from "./pages/AdminResources";
 import Processes from "./pages/Processes";
 import ProcessDetail from "./pages/ProcessDetail";
 import MyTeam from "./pages/MyTeam";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -87,6 +88,7 @@ const App = () => {
             <Route path="/processes" element={<Processes />} />
             <Route path="/processes/:processId" element={<ProcessDetail />} />
             <Route path="/my-team" element={<MyTeam />} />
+            <Route path="/pricing" element={<Pricing />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
