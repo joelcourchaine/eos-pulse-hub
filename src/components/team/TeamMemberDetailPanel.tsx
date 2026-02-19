@@ -36,6 +36,7 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
+  const [positionSecondary, setPositionSecondary] = useState("none");
   const [reportsTo, setReportsTo] = useState("none");
   const [isVacant, setIsVacant] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,6 +45,7 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
     if (member) {
       setName(member.name);
       setPosition(member.position);
+      setPositionSecondary(member.position_secondary || "none");
       setReportsTo(member.reports_to || "none");
       setIsVacant(member.status === "vacant");
     }
@@ -60,6 +62,7 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
       const { error } = await supabase.from("team_members").update({
         name: name.trim(),
         position,
+        position_secondary: positionSecondary === "none" ? null : positionSecondary,
         reports_to: reportsTo === "none" ? null : reportsTo,
         status: isVacant ? "vacant" : "active",
       }).eq("id", member.id);
@@ -101,11 +104,24 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
           </div>
 
           <div className="space-y-2">
-            <Label>Position</Label>
+            <Label>Primary Position</Label>
             <Select value={position} onValueChange={setPosition}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {POSITION_OPTIONS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Secondary Position <span className="text-muted-foreground text-xs">(optional)</span></Label>
+            <Select value={positionSecondary} onValueChange={setPositionSecondary}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— None —</SelectItem>
+                {POSITION_OPTIONS.filter((p) => p.value !== position).map((p) => (
                   <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                 ))}
               </SelectContent>

@@ -3455,6 +3455,7 @@ export type Database = {
           id: string
           name: string
           position: string
+          position_secondary: string | null
           reports_to: string | null
           status: string
           store_id: string
@@ -3466,6 +3467,7 @@ export type Database = {
           id?: string
           name: string
           position: string
+          position_secondary?: string | null
           reports_to?: string | null
           status?: string
           store_id: string
@@ -3477,6 +3479,7 @@ export type Database = {
           id?: string
           name?: string
           position?: string
+          position_secondary?: string | null
           reports_to?: string | null
           status?: string
           store_id?: string
