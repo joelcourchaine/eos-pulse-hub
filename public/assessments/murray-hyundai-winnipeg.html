@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Murray Hyundai Winnipeg — Service Assessment</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1a2744;
+    --blue: #2c4a8c;
+    --accent: #c8a84b;
+    --light-blue: #e8eef8;
+    --red: #c0392b;
+    --green: #1e7e4b;
+    --orange: #d35400;
+    --text: #2a2a2a;
+    --muted: #666;
+    --border: #dde4f0;
+    --bg: #fafbfd;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lato', Georgia, sans-serif;
+    font-weight: 300;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 13.5px;
+    letter-spacing: 0.01em;
+  }
+
+  /* Cover */
+  .cover {
+    background: var(--navy);
+    color: white;
+    padding: 60px 60px 50px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: rgba(200,168,75,0.08);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: 40px;
+    width: 250px; height: 250px;
+    border-radius: 50%;
+    background: rgba(44,74,140,0.4);
+  }
+  .cover-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 20px;
+    position: relative; z-index: 1;
+  }
+  .cover h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 46px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 12px;
+    position: relative; z-index: 1;
+    letter-spacing: 0.02em;
+  }
+  .cover-sub {
+    font-size: 22px;
+    color: rgba(255,255,255,0.7);
+    font-weight: 300;
+    margin-bottom: 8px;
+    position: relative; z-index: 1;
+  }
+  .cover-division {
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 600;
+    position: relative; z-index: 1;
+  }
+  .cover-meta {
+    margin-top: 48px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    display: flex;
+    gap: 48px;
+    position: relative; z-index: 1;
+  }
+  .cover-meta-item label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .cover-meta-item span {
+    font-size: 15px;
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* Layout */
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 40px 60px;
+  }
+
+  /* Sections */
+  .section {
+    margin-top: 44px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Section headings */
+  .section-label {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  h2.section-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    letter-spacing: 0.02em;
+  }
+
+  h3.sub-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--blue);
+    margin: 24px 0 8px;
+    letter-spacing: 0.02em;
+  }
+
+  h4.topic {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--navy);
+    margin: 24px 0 6px;
+  }
+
+  p {
+    margin-bottom: 14px;
+    font-size: 15.5px;
+  }
+
+  /* Executive summary callout */
+  .exec-summary {
+    background: var(--light-blue);
+    border-left: 4px solid var(--blue);
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 16px;
+  }
+  .exec-summary p { margin-bottom: 8px; font-size: 13.5px; }
+  .exec-summary p:last-child { margin-bottom: 0; }
+
+  /* Interview table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 12.5px;
+  }
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  tbody td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* Working / Not Working cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    border-top: 3px solid var(--blue);
+  }
+  .card.positive { border-top-color: var(--green); }
+  .card h4 { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+  .card p { font-size: 12.5px; margin: 0; color: var(--muted); }
+
+  /* Issue blocks */
+  .issue-theme {
+    margin-top: 24px;
+  }
+  .theme-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .theme-number {
+    width: 28px; height: 28px;
+    background: var(--navy);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .theme-header h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px;
+    color: var(--navy);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .issue-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 13px 16px;
+    margin-bottom: 10px;
+  }
+  .issue-item h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .issue-item p {
+    font-size: 13px;
+    color: #444;
+    margin: 0;
+  }
+
+  /* Steps */
+  .steps-list {
+    counter-reset: steps;
+    list-style: none;
+    margin-top: 8px;
+  }
+  .steps-list li {
+    counter-increment: steps;
+    display: flex;
+    gap: 14px;
+    margin-bottom: 10px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 13px 16px;
+    align-items: flex-start;
+  }
+  .steps-list li::before {
+    content: counter(steps);
+    min-width: 26px; height: 26px;
+    background: var(--accent);
+    color: var(--navy);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 12px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .step-content strong {
+    display: block;
+    font-size: 13px;
+    color: var(--navy);
+    margin-bottom: 3px;
+  }
+  .step-content span {
+    font-size: 13px;
+    color: #444;
+  }
+
+  /* Medium-term recs */
+  .rec-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 13px 16px;
+    margin-bottom: 10px;
+  }
+  .rec-item h4 { font-size: 13px; font-weight: 600; color: var(--navy); margin-bottom: 4px; }
+  .rec-item p { font-size: 13px; color: #444; margin: 0; }
+
+  /* Priority table */
+  .priority-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .critical { background: #fde8e8; color: var(--red); }
+  .high { background: #fff3e0; color: var(--orange); }
+  .medium { background: #e8f5e9; color: var(--green); }
+
+  /* Closing */
+  .closing {
+    background: var(--navy);
+    color: white;
+    padding: 36px 48px;
+    margin-top: 44px;
+    border-radius: 12px;
+  }
+  .closing h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 26px;
+    color: var(--accent);
+    margin-bottom: 16px;
+    letter-spacing: 0.02em;
+  }
+  .closing p {
+    color: rgba(255,255,255,0.82);
+    font-size: 13.5px;
+    margin-bottom: 12px;
+  }
+  .closing .sign-off {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    font-style: italic;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+  }
+
+  /* Org Chart */
+  .org-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-left: 4px solid #e07a5f;
+    color: #7a4f00;
+    padding: 10px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 20px 0 16px;
+  }
+  .org-chart-wrap {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 16px 20px;
+    margin-top: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .org-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    color: #444;
+  }
+  .leg-item { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+
+  .org-direct-reports {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 8px;
+  }
+  .org-report-card {
+    padding: 7px 11px;
+    border-radius: 7px;
+    color: white;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 80px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    line-height: 1.3;
+  }
+  .org-report-card .report-title {
+    font-weight: 400;
+    font-size: 10px;
+    opacity: 0.88;
+  }
+  .org-lines {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .org-manager-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+    position: relative;
+    z-index: 2;
+  }
+  .org-manager-box {
+    background: var(--navy);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-align: center;
+    border: 2px solid var(--accent);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  }
+  .org-manager-name { font-weight: 700; font-size: 14px; }
+  .org-manager-title { font-size: 11px; opacity: 0.75; margin: 2px 0; }
+  .org-manager-count { font-size: 11px; color: #ffc107; font-weight: 600; }
+
+  /* Reversed Org Chart */
+  .reversed-org {
+    margin: 28px auto;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+  .ro-tier {
+    width: 100%;
+    padding: 16px 24px;
+    border-radius: 8px;
+    text-align: center;
+  }
+  .ro-customers { background: var(--navy); color: white; }
+  .ro-advisors { background: var(--blue); color: white; width: 88%; }
+  .ro-support { background: #4a7cbf; color: white; width: 76%; }
+  .ro-management { background: var(--light-blue); color: var(--navy); width: 64%; border: 2px solid var(--blue); }
+  .ro-label { font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+  .ro-desc { font-size: 12px; opacity: 0.85; }
+  .ro-arrow { font-size: 22px; color: var(--accent); font-weight: 700; line-height: 1.2; }
+
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    /* Remove animations */
+    .section { animation: none; }
+
+    /* Tighten spacing */
+    .container { padding: 0 40px 40px; }
+    .section { margin-top: 20px; }
+    .steps-list li { margin-bottom: 8px; }
+    .issue-item, .rec-item, .card { margin-bottom: 8px; }
+    p { margin-bottom: 8px; }
+
+    /* Cover: just its natural height, no forced full page */
+    .cover {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    /* Never break inside these elements */
+    .issue-item,
+    .card,
+    .rec-item,
+    .steps-list li,
+    .exec-summary,
+    .org-warning,
+    .reversed-org,
+    thead,
+    .theme-header {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    /* Keep headings attached to what follows */
+    h2.section-title,
+    h3.sub-title,
+    h4.topic,
+    .theme-header,
+    .section-label {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    /* Don't orphan table rows */
+    tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    /* Closing stays together */
+    .closing {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-label">Confidential Operational Assessment</div>
+  <h1>Murray Hyundai<br>Winnipeg</h1>
+  <div class="cover-sub">Service &amp; Parts Department Assessment</div>
+  <div class="cover-division">Hyundai &amp; Genesis Divisions</div>
+  <div class="cover-meta">
+    <div class="cover-meta-item"><label>Prepared For</label><span>Richard, General Manager</span></div>
+    <div class="cover-meta-item"><label>Date</label><span>February 2026</span></div>
+    <div class="cover-meta-item"><label>Interviews Conducted</label><span>16 Team Members</span></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="section">
+    <span class="section-label">Overview</span>
+    <h2 class="section-title">Executive Summary</h2>
+    <div class="exec-summary" style="background:#fff8e1; border-left-color:#c8a84b;">
+      <p><strong>A note on this document:</strong> This assessment is intended as a constructive tool for leadership planning — not as a fact-checking exercise or a mechanism to make any individual feel uncomfortable. The observations shared here reflect patterns heard across multiple conversations and are meant to help the team and the organization grow. Names are referenced only where context is necessary for clarity.</p>
+    </div>
+    <div class="exec-summary">
+      <p>This assessment was conducted through one-on-one interviews with 16 team members across the Hyundai and Genesis service, parts, and sales departments at Murray Hyundai Winnipeg. The goal was to identify operational gaps, people and culture challenges, and process breakdowns — and to provide Richard with a clear, actionable roadmap for improvement.</p>
+      <p>The overarching finding is that the service department is operating without the structural support it needs to perform at a high level. Jeff carries an unsustainable direct-report load of over 20 people. There is no middle management layer, no consistent meeting cadence, and no performance visibility for frontline staff. These structural gaps are compounding into CSI issues, staff disengagement, and customer experience failures — particularly on the Genesis side.</p>
+      <p>The good news: the problems are fixable. This report outlines what is working, what is not, and a prioritized set of immediate and medium-term next steps.</p>
+    </div>
+  </div>
+
+  <!-- WHO WAS INTERVIEWED -->
+  <div class="section">
+    <span class="section-label">Methodology</span>
+    <h2 class="section-title">Who Was Interviewed</h2>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Role</th><th>Division</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Jeff</td><td>Service Manager</td><td>Hyundai / Genesis</td></tr>
+        <tr><td>Jocelyn</td><td>Sales Manager</td><td>Genesis</td></tr>
+        <tr><td>Josh</td><td>Service Advisor</td><td>Genesis</td></tr>
+        <tr><td>Phil</td><td>Technician — Internal Vehicles</td><td>Hyundai</td></tr>
+        <tr><td>Zach</td><td>Service Advisor</td><td>Hyundai</td></tr>
+        <tr><td>J.P.</td><td>Junior Service Advisor</td><td>Hyundai</td></tr>
+        <tr><td>Shyloh</td><td>Receptionist</td><td>Hyundai</td></tr>
+        <tr><td>Faran</td><td>Salesperson</td><td>Genesis</td></tr>
+        <tr><td>Alphie</td><td>Technician</td><td>Hyundai</td></tr>
+        <tr><td>T.J.</td><td>Technician</td><td>Hyundai</td></tr>
+        <tr><td>Denzen</td><td>Dispatcher / Warranty</td><td>Hyundai</td></tr>
+        <tr><td>Katie</td><td>Cashier / Admin</td><td>Hyundai</td></tr>
+        <tr><td>Tracy</td><td>Parts Manager</td><td>Hyundai</td></tr>
+        <tr><td>Brad</td><td>Internal Advisor</td><td>Hyundai</td></tr>
+        <tr><td>Graham</td><td>Sales Manager</td><td>Hyundai</td></tr>
+        <tr><td>Debbie</td><td>Service Advisor</td><td>Hyundai</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- WHAT'S WORKING -->
+  <div class="section">
+    <span class="section-label">Strengths</span>
+    <h2 class="section-title">What Is Working</h2>
+    <p>Despite the challenges outlined in this report, there are genuine strengths within the team that should be recognized and built upon.</p>
+    <div class="card-grid">
+      <div class="card positive">
+        <h4>Receptive Leadership</h4>
+        <p>Jeff was open and engaged during the interview process. His awareness of operational friction is a positive foundation for change.</p>
+      </div>
+      <div class="card positive">
+        <h4>Strong Dispatcher Capability</h4>
+        <p>Denzen has a firm grasp of dispatching and has proactively identified improvements, including cross-training warranty across Murray stores.</p>
+      </div>
+      <div class="card positive">
+        <h4>Experienced Advisors on the Floor</h4>
+        <p>Debbie brings maturity and a desire to improve. Her willingness to take on a leadership role should be explored seriously. Zach is clearly invested in process improvement.</p>
+      </div>
+      <div class="card positive">
+        <h4>Parts Department Awareness</h4>
+        <p>Tracy is already thinking proactively about succession and has independently flagged in-house appointment coordination as a need.</p>
+      </div>
+      <div class="card positive">
+        <h4>Cross-Functional Desire for Improvement</h4>
+        <p>Jocelyn, Graham, and Faran are all aligned in wanting to see service quality improve — a strong starting point for cultural change.</p>
+      </div>
+      <div class="card positive">
+        <h4>Denzen's Institutional Knowledge</h4>
+        <p>Denzen understands promised times, workflow capacity, and appointment logic better than anyone. That knowledge needs to be formalized and leveraged.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHAT'S NOT WORKING -->
+  <div class="section">
+    <span class="section-label">Gaps &amp; Challenges</span>
+    <h2 class="section-title">What Is Not Working</h2>
+    <p>The following issues represent the most significant operational and cultural breakdowns identified in the assessment, organized by theme.</p>
+
+    <div class="issue-theme">
+      <div class="theme-header">
+        <div class="theme-number">1</div>
+        <h3>Structural &amp; Organizational</h3>
+      </div>
+      <div class="issue-item">
+        <h4>Jeff Has Too Many Direct Reports</h4>
+        <p>Jeff currently has over 20 direct reports. Industry best practice is a maximum of 8–10. With that many people reporting to one manager, consistent one-on-ones, performance management, accountability, and team culture are simply not possible. This is likely the root cause of many downstream issues in this assessment.</p>
+
+        <!-- ORG CHART -->
+        <div class="org-warning">⚠ Jeff Eusebio has over 20 direct reports — span of control exceeds recommended leadership capacity.</div>
+        <div class="org-chart-wrap">
+          <div class="org-legend">
+            <span class="leg-item"><span class="dot" style="background:#4a5568"></span>Service Manager</span>
+            <span class="leg-item"><span class="dot" style="background:#2d6a4f"></span>Foreman</span>
+            <span class="leg-item"><span class="dot" style="background:#48cae4"></span>Dispatcher</span>
+            <span class="leg-item"><span class="dot" style="background:#52b788"></span>Advisor</span>
+            <span class="leg-item"><span class="dot" style="background:#95d5b2"></span>Jr. Advisor</span>
+            <span class="leg-item"><span class="dot" style="background:#b5838d"></span>Internal Advisor</span>
+            <span class="leg-item"><span class="dot" style="background:#e07a5f"></span>Technician</span>
+            <span class="leg-item"><span class="dot" style="background:#adb5bd"></span>Porter</span>
+            <span class="leg-item"><span class="dot" style="background:#9b5de5"></span>Warranty Admin</span>
+            <span class="leg-item"><span class="dot" style="background:#f4d35e"></span>Detailer</span>
+            <span class="leg-item"><span class="dot" style="background:#6c757d"></span>Administrative</span>
+            <span class="leg-item"><span class="dot" style="background:#e63946"></span>Cashier</span>
+          </div>
+
+          <div class="org-direct-reports" id="orgReports"></div>
+
+          <svg class="org-lines" id="orgLines"></svg>
+
+          <div class="org-manager-row">
+            <div class="org-manager-box">
+              <div class="org-manager-name">Jeff Eusebio</div>
+              <div class="org-manager-title">Service Manager</div>
+              <div class="org-manager-count">⚠ 20+ direct reports</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="issue-item">
+        <h4>No Middle Management Layer</h4>
+        <p>There is no service team lead, no lane captain, and no supervisory layer between Jeff and the frontline team. Issues escalate slowly or not at all, and advisors and technicians feel unsupported.</p>
+      </div>
+      <div class="issue-item">
+        <h4>No Clear Reporting Structure for Receptionist</h4>
+        <p>Shyloh feels comfortable going to Richard but has no other direct report pathway. She is caught handling misdirected calls and customer complaints with no formal support structure.</p>
+      </div>
+    </div>
+
+    <div class="issue-theme">
+      <div class="theme-header">
+        <div class="theme-number">2</div>
+        <h3>Appointment Coordination &amp; Dealer Mine</h3>
+      </div>
+      <div class="issue-item">
+        <h4>Near-Universal Frustration with Dealer Mine</h4>
+        <p>Every single team member who interacts with the appointment booking process — Shyloh, Zach, J.P., Denzen, Debbie, Katie, Tracey, Graham, and Faran — expressed serious frustration with Dealer Mine. Customers regularly call back after being transferred. Booking parameters do not appear to be properly configured. This has become the #1 CSI risk in the department and a daily friction point for staff morale.</p>
+      </div>
+      <div class="issue-item">
+        <h4>No In-House Appointment Coordination</h4>
+        <p>The absence of an on-site appointment coordinator is creating a vacuum that the entire team is trying to fill. Advisors, the dispatcher, the receptionist, and cashier staff are all absorbing the fallout. Promised times and workflow capacity are not being managed proactively.</p>
+      </div>
+    </div>
+
+    <div class="issue-theme">
+      <div class="theme-header">
+        <div class="theme-number">3</div>
+        <h3>Genesis Service Department</h3>
+      </div>
+      <div class="issue-item">
+        <h4>Josh Is Not the Right Fit</h4>
+        <p>This was the most consistent finding across all Genesis-related interviews. Jocelyn, Faran, and Graham independently raised concerns about Josh's motivation, customer service attitude, and organizational habits. His own comment during the interview — that customers can be annoying — is a significant red flag for a customer-facing role in a premium brand environment. His workspace and the Genesis drive-thru are disorganized and visually unappealing, which does not align with the Genesis brand standard.</p>
+        <p>A recommended path forward is to bring Jocelyn into a more active oversight role for the Genesis service experience. She has the client relationships, the brand investment, and the motivation to help elevate the standard. Working collaboratively with Josh — or, if necessary, reshaping the role — should be led with Jocelyn's involvement.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Genesis Brand Experience Is Not Being Upheld</h4>
+        <p>The Genesis service drive is currently storing tires along the walls, the area is not clean, and the service experience does not reflect the premium positioning of the Genesis brand. Jocelyn is highly motivated to correct this and has the relational investment in Genesis clients to help lead this change.</p>
+      </div>
+    </div>
+
+    <div class="issue-theme">
+      <div class="theme-header">
+        <div class="theme-number">4</div>
+        <h3>Team Culture &amp; Communication</h3>
+      </div>
+      <div class="issue-item">
+        <h4>No Regular Meetings</h4>
+        <p>Technicians, advisors, and support staff all independently confirmed that regular meetings do not happen. Alphie, Phil, T.J., Josh, and Zach all mentioned this. Zach noted that his only one-on-one with Jeff in two years was one he initiated himself. When survey meetings do happen, they are one-sided rather than collaborative.</p>
+      </div>
+      <div class="issue-item">
+        <h4>No Performance Visibility</h4>
+        <p>T.J. does not know how he is tracking against his hours goal. Debbie does not have access to her weekly performance data. Without visibility, advisors and technicians cannot self-correct, and accountability conversations have no foundation.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Accountability Gaps</h4>
+        <p>Multiple team members — including Katie, Debbie, and Faran — noted that Jeff does not hold people accountable. The perceived family affiliation between Jeff and Phil further erodes the sense of fairness. Technicians are described as running the show rather than following process.</p>
+      </div>
+      <div class="issue-item">
+        <h4>No Exit Interviews</h4>
+        <p>The recent loss of two technicians has not been formally reviewed. Without exit interviews, the dealership cannot identify systemic reasons for attrition or address them. Debbie and others believe Jeff's management style may be a contributing factor.</p>
+      </div>
+    </div>
+
+    <div class="issue-theme">
+      <div class="theme-header">
+        <div class="theme-number">5</div>
+        <h3>Process &amp; Technology Gaps</h3>
+      </div>
+      <div class="issue-item">
+        <h4>PBS Features Are Underutilized</h4>
+        <p>Alphie confirmed he does not use the Added Work Request feature in PBS, which is critical for tracking upsells. J.P. noted that the Waiter Status feature is not used consistently. These gaps mean the DMS is not providing the visibility the business needs.</p>
+      </div>
+      <div class="issue-item">
+        <h4>No Reliable Customer Texting Tool</h4>
+        <p>Zach and Debbie both flagged the need for a better texting solution. The inability to text customers automatically creates friction and delays. Automated check-in reminders and status updates are not in place. Kimoby is recommended.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Denzen Is Carrying Two Significant Responsibilities</h4>
+        <p>Denzen is simultaneously handling dispatching and full-time warranty administration. Both Denzen and Debbie flagged this as a potential sustainability concern. It is worth monitoring closely and evaluating whether the workload becomes unmanageable as volume grows — particularly once an in-house appointment coordinator is in place and dispatch demands increase.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Special Order Parts Rebooking Not Happening</h4>
+        <p>Denzen and Tracy both noted that advisors are not rebooking appointments when special order parts arrive. This creates lag, customer frustration, and lost revenue.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Technician Training Gap</h4>
+        <p>T.J. is working on electric vehicles without formal EV training. This is both a quality risk and a liability concern as the EV mix in service lanes continues to grow.</p>
+      </div>
+      <div class="issue-item">
+        <h4>Brad's Role Is Unclear</h4>
+        <p>Brad had internal reconditioning work taken from him by Jeff without explanation. His current role is unclear and he is underutilized. This is a morale risk and a missed resource opportunity.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMMEDIATE NEXT STEPS -->
+  <div class="section">
+    <span class="section-label">30 Days</span>
+    <h2 class="section-title">Immediate Next Steps</h2>
+    <p>The following actions should be initiated within the next 30 days. These are high-impact moves that will signal change to the team and stabilize the most critical operational gaps.</p>
+    <ol class="steps-list">
+      <li>
+        <div class="step-content">
+          <strong>Restructure Jeff's Direct Reports</strong>
+          <span>Reduce Jeff's direct reports to no more than 10. Identify a team lead or senior advisor — Debbie is a strong candidate — to absorb a portion of frontline supervision. This single action will unlock nearly every other improvement in this report.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Transition Away from Dealer Mine</strong>
+          <span>Identify whether an in-house BDC is best housed at Murray Hyundai Winnipeg independently or shared across Murray Hyundai stores to distribute cost. Jeff should own this transition, working with Denzen to design the promised-time and booking parameter framework for the new coordinator.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Performance Conversation with Josh</strong>
+          <span>Have an honest, documented performance conversation with Josh. Set clear expectations for the Genesis service experience — workspace cleanliness, customer communication standards, email response time. Define a performance improvement timeline with measurable outcomes.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Implement Kimoby</strong>
+          <span>Engage Kimoby or an equivalent texting tool immediately. Automated customer communication — check-in reminders, status updates, appointment confirmations — will have a direct, measurable impact on CSI scores and reduce inbound call volume to Shyloh.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Launch a Meeting Cadence</strong>
+          <span>Implement a minimum bi-weekly all-hands service meeting and a weekly technician huddle. Fifteen to twenty minutes is enough to create rhythm, share performance data, recognize wins, and surface issues before they escalate. Many resources to support Jeff in building this habit — including an exit interview template — are available at no charge through the scorecard app at <a href="http://www.murraygrowth.ca" target="_blank">www.murraygrowth.ca</a>.</span>
+        </div>
+      </li>
+
+      <li>
+        <div class="step-content">
+          <strong>Begin Exit Interviews</strong>
+          <span>Commit to conducting an exit interview for every departure going forward. A ready-to-use exit interview template is available at no charge at <a href="http://www.murraygrowth.ca" target="_blank">www.murraygrowth.ca</a>. The two recently lost technicians are a signal that needs to be understood, not ignored.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Clean the Genesis Service Drive</strong>
+          <span>Remove the tires from the walls, organize the space, and establish a cleanliness standard with a weekly walk-through. This is a visible, fast win for Jocelyn and her clients.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Share Weekly Performance Data</strong>
+          <span>Pull a simple performance report and share it individually with advisors and technicians. Create a habit of transparency before building formal scorecards.</span>
+        </div>
+      </li>
+      <li>
+        <div class="step-content">
+          <strong>Activate PBS Features</strong>
+          <span>Turn on the Added Work Request feature for all technicians and set an expectation that Waiter Status is used consistently. A 30-minute training session is all it takes.</span>
+        </div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- MEDIUM-TERM RECOMMENDATIONS -->
+  <div class="section">
+    <span class="section-label">60–90 Days</span>
+    <h2 class="section-title">Medium-Term Recommendations</h2>
+    <p>The following recommendations require more planning but should be initiated within 60–90 days.</p>
+
+    <div class="rec-item">
+      <h4>Evaluate Denzen's Dual Role</h4>
+      <p>Denzen is currently handling both dispatching and full-time warranty administration. While he is managing for now, this is worth a formal evaluation — especially once an in-house appointment coordinator is added and dispatch complexity increases. Consider whether cross-training a team member on warranty, or sharing warranty support across Murray stores, makes sense at that point.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Involve Jocelyn in Genesis Service Oversight</h4>
+      <p>Jocelyn has the motivation, the client relationships, and the brand investment to help elevate the Genesis service experience. Consider a defined role or formal accountability for the Genesis service touchpoint, even informally at first.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Evaluate Josh's Long-Term Fit</h4>
+      <p>If Josh does not respond to the performance conversation with measurable improvement within 30–45 days, the dealership should make a staffing change. The Genesis client base is high-value — both financially and reputationally.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Hire an Appointment Coordinator / BDC Agent</h4>
+      <p>Whether shared across Murray Hyundai stores or dedicated to Winnipeg, this role should be filled. Denzen has volunteered to train this person on promised times and booking parameters. The ROI will far outweigh the cost.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Reassess Brad's Role</h4>
+      <p>Have a conversation with Brad to understand his skills, motivation, and career interests. There may be an opportunity to integrate him into the service lane to reduce advisor workload, particularly if the right fit is confirmed.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Explore a Service Concierge Role</h4>
+      <p>A service concierge who manages customer experience in the lane, handles vehicle walkarounds, and potentially assists with in-lane vehicle purchases could improve CSI scores and generate additional revenue. This role could also help maintain cleanliness and brand experience in the Genesis drive-thru.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Formalize Special Order Parts Rebooking</h4>
+      <p>Work with Denzen, Tracy, and the advisors to create a consistent workflow for rebooking when special order parts arrive. Kimoby automations can support this process with timely reminders.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Mandate EV Training for T.J.</h4>
+      <p>Enroll T.J. in Hyundai's formal EV training program. Technicians performing EV work without certification creates quality and liability exposure. As the EV mix grows, this becomes increasingly critical.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Broaden the Hiring Interview Panel</h4>
+      <p>Jeff should not be the sole interviewer for new hires. Including a senior advisor like Debbie will improve hire quality and reduce the risk of affinity bias influencing decisions.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Add a Direct Parts Department Phone Line</h4>
+      <p>Give Tracey's parts department a direct line so customers and internal team members can reach parts without routing through Shyloh. This reduces her call volume and improves response times.</p>
+    </div>
+    <div class="rec-item">
+      <h4>Review Diagnostic Labour Pricing</h4>
+      <p>Alphie raised the point that the store may be undercharging for diagnosis time. Review against market rates and Hyundai's recommended labour times. Properly pricing diagnostics improves technician efficiency scores and overall department profitability.</p>
+    </div>
+  </div>
+
+  <!-- PRIORITY TABLE -->
+  <div class="section">
+    <span class="section-label">Action Plan</span>
+    <h2 class="section-title">Priority Summary</h2>
+    <table>
+      <thead>
+        <tr><th>Priority</th><th>Action Item</th><th>Owner</th><th>Timeline</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="priority-badge critical">Critical</span></td><td>Restructure org — reduce Jeff's direct reports</td><td>Richard / Jeff</td><td>30 days</td></tr>
+        <tr><td><span class="priority-badge critical">Critical</span></td><td>Performance conversation with Josh</td><td>Jeff / Richard</td><td>2 weeks</td></tr>
+        <tr><td><span class="priority-badge critical">Critical</span></td><td>Transition away from Dealer Mine / hire in-house coordinator</td><td>Jeff</td><td>30–60 days</td></tr>
+        <tr><td><span class="priority-badge critical">Critical</span></td><td>Implement Kimoby texting platform</td><td>Jeff</td><td>30 days</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Clean Genesis drive-thru and set standards</td><td>Josh / Jocelyn</td><td>1 week</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Launch minimum bi-weekly service meetings and tech huddles</td><td>Jeff</td><td>2 weeks</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Share weekly performance data with team</td><td>Jeff</td><td>2 weeks</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Begin exit interview practice</td><td>Richard</td><td>Immediately</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Activate PBS Added Work Request &amp; Waiter Status</td><td>Jeff</td><td>30 days</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Adjust employee labour rate from $74.99 to $129.99</td><td>Richard</td><td>30 days</td></tr>
+        <tr><td><span class="priority-badge high">High</span></td><td>Establish regular GM executive meetings (bi-weekly or monthly)</td><td>Richard</td><td>30 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Involve Jocelyn in Genesis service oversight</td><td>Richard / Jocelyn</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Evaluate Denzen's dual role — dispatching and warranty</td><td>Jeff / Richard</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Assess Brad's role and potential lane integration</td><td>Jeff / Richard</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Formalize special order parts rebooking workflow</td><td>Denzen / Tracy</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Enroll T.J. in formal EV training</td><td>Jeff</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Add direct phone line for parts department</td><td>Richard</td><td>60 days</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Broaden hiring interview panel</td><td>Jeff / Richard</td><td>Next hire</td></tr>
+        <tr><td><span class="priority-badge medium">Medium</span></td><td>Diagnostic labour rate review</td><td>Tracy / Jeff</td><td>90 days</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LEADERSHIP PHILOSOPHY -->
+  <div class="section">
+    <span class="section-label">Leadership Development</span>
+    <h2 class="section-title">Viewing the Team as Customers</h2>
+    <p>One of the most impactful shifts Jeff can make as a leader is a change in perspective — moving from viewing his team as worker bees to viewing them as his most important customers. When a service manager invests in the experience of their team the same way the team invests in the experience of clients, the results follow naturally.</p>
+    <p>This is best illustrated through the concept of the <strong>reversed org chart</strong>. In a traditional org chart, management sits at the top and frontline staff at the bottom. In a customer-centric service operation, the chart is flipped:</p>
+
+    <div class="reversed-org">
+      <div class="ro-tier ro-customers">
+        <div class="ro-label">Customers</div>
+        <div class="ro-desc">Most important — everything flows up to serve them</div>
+      </div>
+      <div class="ro-arrow">↑</div>
+      <div class="ro-tier ro-advisors">
+        <div class="ro-label">Technicians &amp; Advisors</div>
+        <div class="ro-desc">Frontline — closest to the customer, need the most support</div>
+      </div>
+      <div class="ro-arrow">↑</div>
+      <div class="ro-tier ro-support">
+        <div class="ro-label">Dispatcher, Parts, Admin</div>
+        <div class="ro-desc">Support layer — enabling the frontline to do their best work</div>
+      </div>
+      <div class="ro-arrow">↑</div>
+      <div class="ro-tier ro-management">
+        <div class="ro-label">Service Manager &amp; Leadership</div>
+        <div class="ro-desc">Foundation — here to serve the team, remove obstacles, and create conditions for success</div>
+      </div>
+    </div>
+
+    <p style="margin-top:20px;">This reframe changes how Jeff approaches one-on-ones, meetings, accountability conversations, and daily interactions. Resources to support this shift — including leadership tools and templates — are available at no charge at <a href="http://www.murraygrowth.ca" target="_blank">www.murraygrowth.ca</a>.</p>
+  </div>
+
+  <!-- FINANCIAL HEALTH -->
+  <div class="section">
+    <span class="section-label">Financial Overview</span>
+    <h2 class="section-title">Financial Health</h2>
+    <div class="exec-summary" style="background:#e8f5e9; border-left-color:#1e7e4b;">
+      <p><strong>Overall, the financial position of the department is solid.</strong> A review of the financial statements reflects a healthy foundation to build from. The operational improvements recommended in this report are not a response to financial distress — they are an opportunity to take a strong base and make it exceptional.</p>
+    </div>
+    <h4 class="topic">Employee Rate Adjustment</h4>
+    <p>One quick financial opportunity worth actioning is the internal employee labour rate. The current rate of <strong>$74.99</strong> is significantly below market and does not reflect the true cost of the service being provided. A revised rate of <strong>$129.99</strong> is recommended.</p>
+    <p>This adjustment ensures internal work is priced in a way that accurately reflects technician time and shop capacity. Underpriced internal work can quietly distort department profitability metrics and undervalue the technician's contribution. Bringing the rate closer to market also creates a more meaningful internal benchmark for efficiency tracking.</p>
+  </div>
+
+  <!-- GM EXECUTIVE MEETINGS -->
+  <div class="section">
+    <span class="section-label">Leadership Alignment</span>
+    <h2 class="section-title">GM Executive Meetings</h2>
+    <p>One structural recommendation that cuts across every department in this assessment is the establishment of regular GM-led executive meetings. A consistent forum that brings department heads — service, parts, sales, and finance — together to collaborate, share performance data, and solve problems collectively would address many of the silos surfaced in this assessment.</p>
+    <p>Several of the issues identified here — from Dealer Mine frustrations to Genesis service standards to special order parts rebooking — exist in part because there is no regular cross-functional table where they can be raised and resolved. A bi-weekly or monthly executive meeting chaired by Richard would create that table.</p>
+    <p>These meetings don't need to be long. A focused 45–60 minute agenda with clear action items and ownership will create accountability at the leadership level and model the same meeting culture being recommended for the service team.</p>
+  </div>
+
+  <div style="margin-top: 64px;">
+  <div class="closing">
+  <!-- CLOSING -->
+    <h2>Closing Thoughts</h2>
+    <p>Murray Hyundai Winnipeg has a capable, experienced team that is currently being held back by structural and process gaps rather than a lack of talent or effort. The frustration heard across these interviews is not cynicism — it is the frustration of people who want to do better work and don't have the conditions to do it.</p>
+    <p>The path forward is clear. Reduce Jeff's span of control, bring appointment coordination in-house, address the Genesis service situation directly, and give the team the tools, communication, and visibility they need to perform. These changes do not require large capital investment — they require leadership clarity and consistent follow-through.</p>
+    <p>The team is ready. They just need the structure to support them.</p>
+    <p style="margin-top: 24px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); font-style: italic; font-size: 15px;">Richard — these recommendations are based on two days of observation and conversation with your team. They are a starting point, not a verdict. No two-day snapshot can fully capture the complexity of an operation like yours, and I want to be clear that none of these suggestions should be taken as absolute truth. They are ideas worth exploring, pressure-testing, and shaping into something that genuinely fits the DNA of Murray Hyundai Winnipeg. Take what resonates, challenge what doesn't, and always let your own data and instincts lead the way. What matters most is that any change you make feels right for your people and your culture — not because it worked somewhere else. I'm also here for the long haul. As part of our engagement, I'm available to support you and your team for the next year — to revisit these recommendations as you learn more, help implement what makes sense, and adjust course as the picture becomes clearer. You're not alone in this.</p>
+    <div class="sign-off">Assessment completed — February 2026</div>
+  </div>
+  </div>
+
+</div>
+<script>
+const reports = [
+  { name: "Katie Ayres", title: "Administrative / Cashier", color: "#e63946" },
+  { name: "Debbie Sc.", title: "Advisor", color: "#52b788" },
+  { name: "Josh Doria", title: "Advisor", color: "#52b788" },
+  { name: "JP Ignacio", title: "Advisor", color: "#52b788" },
+  { name: "Zach Felts", title: "Advisor", color: "#52b788" },
+  { name: "Adrian Gre.", title: "Detailer", color: "#f4d35e", textColor: "#333" },
+  { name: "Ethan Hen.", title: "Detailer", color: "#f4d35e", textColor: "#333" },
+  { name: "Jose Bayani", title: "Detailer", color: "#f4d35e", textColor: "#333" },
+  { name: "Denzen Ve.", title: "Dispatcher / Warranty", color: "#48cae4", textColor: "#333" },
+  { name: "Brad Livin.", title: "Internal Advisor", color: "#b5838d" },
+  { name: "Zhengpu He", title: "Porter", color: "#adb5bd", textColor: "#333" },
+  { name: "Ariel Tubato", title: "Technician", color: "#e07a5f" },
+  { name: "Byoung Ryu", title: "Technician", color: "#e07a5f" },
+  { name: "Gabriel Da.", title: "Technician", color: "#e07a5f" },
+  { name: "Josh Woo.", title: "Technician", color: "#e07a5f" },
+  { name: "Kester Sa.", title: "Technician", color: "#e07a5f" },
+  { name: "Melchor Q.", title: "Technician", color: "#e07a5f" },
+  { name: "Paul Amoyo", title: "Technician", color: "#e07a5f" },
+  { name: "Phil Eusebio", title: "Technician", color: "#e07a5f" },
+  { name: "Roger Betita", title: "Technician (Vacant)", color: "#e07a5f" },
+  { name: "TJ Sarao", title: "Technician", color: "#e07a5f" },
+  { name: "Zawn Dem.", title: "Technician", color: "#e07a5f" },
+];
+
+const container = document.getElementById('orgReports');
+reports.forEach(r => {
+  const card = document.createElement('div');
+  card.className = 'org-report-card';
+  card.style.background = r.color;
+  if (r.textColor) card.style.color = r.textColor;
+  card.innerHTML = `${r.name}<div class="report-title">${r.title}</div>`;
+  container.appendChild(card);
+});
+
+// Draw SVG lines after layout
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const wrap = document.querySelector('.org-chart-wrap');
+    const svg = document.getElementById('orgLines');
+    const mgr = document.querySelector('.org-manager-box');
+    const cards = document.querySelectorAll('.org-report-card');
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const mgrRect = mgr.getBoundingClientRect();
+
+    const mx = mgrRect.left - wrapRect.left + mgrRect.width / 2;
+    const my = mgrRect.top - wrapRect.top;
+
+    let pathData = '';
+    cards.forEach(card => {
+      const r = card.getBoundingClientRect();
+      const cx = r.left - wrapRect.left + r.width / 2;
+      const cy = r.top - wrapRect.top + r.height;
+      pathData += `M${cx},${cy} C${cx},${(cy + my) / 2} ${mx},${(cy + my) / 2} ${mx},${my} `;
+    });
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathData);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#c0392b');
+    path.setAttribute('stroke-width', '1.2');
+    path.setAttribute('stroke-opacity', '0.35');
+    svg.appendChild(path);
+  }, 200);
+});
+</script>
+</body>
+</html>

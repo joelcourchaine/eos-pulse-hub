@@ -36,6 +36,7 @@ import Processes from "./pages/Processes";
 import ProcessDetail from "./pages/ProcessDetail";
 import MyTeam from "./pages/MyTeam";
 import Pricing from "./pages/Pricing";
+import MurrayAssessment from "./pages/MurrayAssessment";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -89,6 +90,7 @@ const App = () => {
             <Route path="/processes/:processId" element={<ProcessDetail />} />
             <Route path="/my-team" element={<MyTeam />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/assessment/murray-hyundai" element={<MurrayAssessment />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
