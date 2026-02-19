@@ -96,6 +96,16 @@ function getLevels(roots: TreeNode[]): TreeNode[][] {
   }
 
   traverse(roots, 0);
+
+  // Group same-role members together within each level
+  levels.forEach(level => {
+    level.sort((a, b) => {
+      const posCmp = a.member.position.localeCompare(b.member.position);
+      if (posCmp !== 0) return posCmp;
+      return a.member.name.localeCompare(b.member.name);
+    });
+  });
+
   return levels.reverse(); // reverse so root is at bottom
 }
 
