@@ -16,6 +16,7 @@ const POSITION_OPTIONS = [
   { value: "dispatcher", label: "Dispatcher" },
   { value: "advisor", label: "Advisor" },
   { value: "junior_advisor", label: "Junior Advisor" },
+  { value: "internal_advisor", label: "Internal Advisor" },
   { value: "technician", label: "Technician" },
   { value: "porter", label: "Porter" },
   { value: "warranty_admin", label: "Warranty Admin" },
