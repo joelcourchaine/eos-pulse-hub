@@ -341,6 +341,14 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     }
   },
   {
+    name: "Total Variable Expenses",
+    key: "total_variable_expenses",
+    type: "dollar",
+    description: "Total variable expenses",
+    targetDirection: "below",
+    hasSubMetrics: true
+  },
+  {
     name: "Total Direct Expenses",
     key: "total_direct_expenses",
     type: "dollar",
@@ -585,16 +593,16 @@ export const HONDA_METRICS: FinancialMetric[] = [
   },
   { 
     name: "Total Direct Expenses", 
-    key: "total_direct_expenses", 
-    type: "dollar", 
-    description: "Total direct expenses", 
-    targetDirection: "below" 
+    key: "total_direct_expenses",
+    type: "dollar",
+    description: "Total direct expenses",
+    targetDirection: "below"
   },
-  { 
-    name: "Semi Fixed Expense", 
-    key: "semi_fixed_expense", 
-    type: "dollar", 
-    description: "Total Direct Expenses less Sales Expense", 
+  {
+    name: "Semi Fixed Expense",
+    key: "semi_fixed_expense",
+    type: "dollar",
+    description: "Total Direct Expenses less Sales Expense",
     targetDirection: "below",
     calculation: {
       type: "subtract",
