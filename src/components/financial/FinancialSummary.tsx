@@ -2401,7 +2401,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (actualValue !== null && actualValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
       const variance = metric.type === "percentage" 
         ? actualValue - targetValue 
-        : ((actualValue - targetValue) / targetValue) * 100;
+        : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
       
       const targetDirection = metric.targetDirection || "above";
       const adjustedVariance = targetDirection === "below" ? -variance : variance;
@@ -3784,7 +3784,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     if (calculatedValue !== null && calculatedValue !== undefined && targetValue !== null) {
                                       const variance = metric.type === "percentage" 
                                         ? calculatedValue - targetValue 
-                                        : ((calculatedValue - targetValue) / targetValue) * 100;
+                                        : ((calculatedValue - targetValue) / Math.abs(targetValue)) * 100;
                                       
                                       if (targetDirection === "above") {
                                         status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
@@ -3840,7 +3840,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   if (mValue !== null && mValue !== undefined && targetValue !== null) {
                                     const variance = metric.type === "percentage" 
                                       ? mValue - targetValue 
-                                      : ((mValue - targetValue) / targetValue) * 100;
+                                      : ((mValue - targetValue) / Math.abs(targetValue)) * 100;
                                     
                                     if (targetDirection === "above") {
                                       status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
@@ -4115,7 +4115,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             if (qValue !== null && qValue !== undefined && targetValue !== null && targetValue !== undefined && targetValue !== 0) {
                               const variance = metric.type === "percentage" 
                                 ? qValue - targetValue 
-                                : ((qValue - targetValue) / targetValue) * 100;
+                                : ((qValue - targetValue) / Math.abs(targetValue)) * 100;
                               
                               if (qtrTargetDirection === "above") {
                                 status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
@@ -4167,7 +4167,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 
                                 const variance = metric.type === "percentage" 
                                   ? qValue - target 
-                                  : ((qValue - target) / target) * 100;
+                                  : ((qValue - target) / Math.abs(target)) * 100;
                                 
                                 if (targetDirection === "above") {
                                   status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
@@ -4305,7 +4305,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             
                             const variance = metric.type === "percentage" 
                               ? value - target 
-                              : ((value - target) / target) * 100;
+                              : ((value - target) / Math.abs(target)) * 100;
                             
                             if (targetDir === "above") {
                               status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
@@ -4545,7 +4545,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           if (value !== null && value !== undefined && effectiveTarget) {
                             const variance = metric.type === "percentage" 
                               ? value - effectiveTarget 
-                              : ((value - effectiveTarget) / effectiveTarget) * 100;
+                              : ((value - effectiveTarget) / Math.abs(effectiveTarget)) * 100;
                             
                             if (effectiveDir === "above") {
                               // Higher is better
