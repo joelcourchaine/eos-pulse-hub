@@ -408,19 +408,19 @@ export const RoutineSidebar = ({
           {/* My Processes & My Resources */}
           <SidebarSeparator className="my-2" />
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)}>
+            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
               <Workflow className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Processes</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")}>
+            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
               <BookOpen className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Resources</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")}>
+            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
               <Users className="h-5 w-5 text-primary shrink-0" />
               <span className="font-semibold text-sm">My Team</span>
             </SidebarMenuButton>
