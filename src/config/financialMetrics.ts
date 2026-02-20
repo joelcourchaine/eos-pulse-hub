@@ -391,18 +391,25 @@ export const NISSAN_METRICS: FinancialMetric[] = [
       deductions: ["total_direct_expenses"]
     }
   },
-  { 
-    name: "Total Fixed Expense", 
-    key: "total_fixed_expense", 
-    type: "dollar", 
-    description: "Total fixed expenses", 
-    targetDirection: "below" 
+  {
+    name: "Total Fixed Expense",
+    key: "total_fixed_expense",
+    type: "dollar",
+    description: "Total fixed expenses",
+    targetDirection: "below"
   },
-  { 
-    name: "Department Profit", 
-    key: "department_profit", 
-    type: "dollar", 
-    description: "Net Selling Gross less Total Fixed Expense", 
+  {
+    name: "Total Direct & Indirect Expenses",
+    key: "total_direct_indirect_expenses",
+    type: "dollar",
+    description: "Total of all direct and indirect expenses",
+    targetDirection: "below"
+  },
+  {
+    name: "Department Profit",
+    key: "department_profit",
+    type: "dollar",
+    description: "Net Selling Gross less Total Fixed Expense",
     targetDirection: "above",
     calculation: {
       type: "subtract",
