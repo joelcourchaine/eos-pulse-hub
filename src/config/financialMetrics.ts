@@ -293,56 +293,60 @@ export const FORD_METRICS: FinancialMetric[] = [
 
 // Nissan-specific metrics
 export const NISSAN_METRICS: FinancialMetric[] = [
-  { 
-    name: "Total Sales", 
-    key: "total_sales", 
-    type: "dollar", 
-    description: "Total revenue for the period", 
+  {
+    name: "Total Sales",
+    key: "total_sales",
+    type: "dollar",
+    description: "Total revenue for the period",
     targetDirection: "above",
-    hasSubMetrics: true  // This metric has expandable sub-line items
+    hasSubMetrics: true
   },
-  { 
-    name: "GP Net", 
-    key: "gp_net", 
-    type: "dollar", 
-    description: "Gross profit after costs", 
-    targetDirection: "above" 
-  },
-  { 
-    name: "GP %", 
-    key: "gp_percent", 
-    type: "percentage", 
-    description: "Gross profit margin", 
+  {
+    name: "GP Net",
+    key: "gp_net",
+    type: "dollar",
+    description: "Gross profit after costs",
     targetDirection: "above",
+    hasSubMetrics: true
+  },
+  {
+    name: "GP %",
+    key: "gp_percent",
+    type: "percentage",
+    description: "Gross profit margin",
+    targetDirection: "above",
+    hasSubMetrics: true,
     calculation: {
       numerator: "gp_net",
       denominator: "total_sales"
     }
   },
-  { 
-    name: "Sales Expense", 
-    key: "sales_expense", 
-    type: "dollar", 
-    description: "Total sales expenses", 
-    targetDirection: "below" 
+  {
+    name: "Sales Expense",
+    key: "sales_expense",
+    type: "dollar",
+    description: "Total sales expenses",
+    targetDirection: "below",
+    hasSubMetrics: true
   },
-  { 
-    name: "Sales Expense %", 
-    key: "sales_expense_percent", 
-    type: "percentage", 
-    description: "Sales expenses as % of GP Net", 
+  {
+    name: "Sales Expense %",
+    key: "sales_expense_percent",
+    type: "percentage",
+    description: "Sales expenses as % of GP Net",
     targetDirection: "below",
     calculation: {
       numerator: "sales_expense",
       denominator: "gp_net"
     }
   },
-  { 
-    name: "Total Direct Expenses", 
-    key: "total_direct_expenses", 
-    type: "dollar", 
-    description: "Total direct expenses", 
-    targetDirection: "below" 
+  {
+    name: "Total Direct Expenses",
+    key: "total_direct_expenses",
+    type: "dollar",
+    description: "Total direct expenses",
+    targetDirection: "below",
+    hasSubMetrics: true
   },
   { 
     name: "Semi Fixed Expense", 
