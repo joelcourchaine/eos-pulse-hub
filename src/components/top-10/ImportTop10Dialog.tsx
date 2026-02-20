@@ -315,7 +315,7 @@ export function ImportTop10Dialog({ listId, columns, onImportComplete }: ImportT
           <Upload className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import Top 10 List Data</DialogTitle>
           <DialogDescription>
