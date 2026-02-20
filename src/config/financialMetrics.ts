@@ -402,13 +402,8 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     name: "Department Profit",
     key: "department_profit",
     type: "dollar",
-    description: "Net Selling Gross less Total Fixed Expense",
-    targetDirection: "above",
-    calculation: {
-      type: "subtract",
-      base: "net_selling_gross",
-      deductions: ["total_fixed_expense"]
-    }
+    description: "Department profit or loss",
+    targetDirection: "above"
   },
   { 
     name: "Return on Gross", 
