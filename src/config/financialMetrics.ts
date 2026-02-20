@@ -399,13 +399,6 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     targetDirection: "below"
   },
   {
-    name: "Total Direct & Indirect Expenses",
-    key: "total_direct_indirect_expenses",
-    type: "dollar",
-    description: "Total of all direct and indirect expenses",
-    targetDirection: "below"
-  },
-  {
     name: "Department Profit",
     key: "department_profit",
     type: "dollar",
