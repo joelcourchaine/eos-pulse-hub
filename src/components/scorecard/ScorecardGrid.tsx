@@ -3061,7 +3061,7 @@ const ScorecardGrid = ({
       if (kpi.metric_type === "percentage") {
         variance = actualValue - targetValue;
       } else if (targetValue !== 0) {
-        variance = ((actualValue - targetValue) / targetValue) * 100;
+        variance = ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
       } else {
         variance = kpi.target_direction === "below" ? (actualValue > 0 ? -100 : 0) : actualValue > 0 ? 100 : -100;
       }
@@ -4119,7 +4119,7 @@ const ScorecardGrid = ({
                                     if (kpi.metric_type === "percentage") {
                                       variance = mValue - targetValue;
                                     } else {
-                                      variance = ((mValue - targetValue) / targetValue) * 100;
+                                      variance = ((mValue - targetValue) / Math.abs(targetValue)) * 100;
                                     }
 
                                     const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
@@ -4309,7 +4309,7 @@ const ScorecardGrid = ({
                                   if (kpi.metric_type === "percentage") {
                                     variance = qValue - targetValue;
                                   } else {
-                                    variance = ((qValue - targetValue) / targetValue) * 100;
+                                    variance = ((qValue - targetValue) / Math.abs(targetValue)) * 100;
                                   }
 
                                   const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;

@@ -672,7 +672,7 @@ const handler = async (req: Request): Promise<Response> => {
               const direction = kpi.target_direction;
               const variance = kpi.metric_type === "percentage"
                 ? quarterValue - targetValue
-                : ((quarterValue - targetValue) / targetValue) * 100;
+                : ((quarterValue - targetValue) / Math.abs(targetValue)) * 100;
               
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
@@ -729,7 +729,7 @@ const handler = async (req: Request): Promise<Response> => {
               // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
               const variance = kpi.metric_type === "percentage"
                 ? actualValue - targetValue
-                : ((actualValue - targetValue) / targetValue) * 100;
+                : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
               
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
@@ -1053,7 +1053,7 @@ const handler = async (req: Request): Promise<Response> => {
               
               const variance = metric.type === "percentage"
                 ? value - targetValue
-                : ((value - targetValue) / targetValue) * 100;
+                : ((value - targetValue) / Math.abs(targetValue)) * 100;
               
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
@@ -1120,7 +1120,7 @@ const handler = async (req: Request): Promise<Response> => {
               // Match UI variance calculation: percentage types use direct subtraction, dollar types use percentage change
               const variance = metric.type === "percentage"
                 ? value - targetValue
-                : ((value - targetValue) / targetValue) * 100;
+                : ((value - targetValue) / Math.abs(targetValue)) * 100;
               
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
