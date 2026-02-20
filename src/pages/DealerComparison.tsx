@@ -735,6 +735,24 @@ export default function DealerComparison() {
           deptMetrics.set(entry.metric_name, currentValue + (entry.value ? Number(entry.value) : 0));
         });
         
+        // Backfill missing parent totals from sub-metrics (mirrors current-year logic)
+        prevYearByDept.forEach((metrics, deptId) => {
+          const parentSums = new Map<string, number>();
+          metrics.forEach((value, metricName) => {
+            if (!metricName.startsWith('sub:')) return;
+            const parts = metricName.split(':');
+            const parentKey = parts[1];
+            const parentDef = getMetricDef(parentKey, null);
+            if (parentDef?.type === 'percentage') return;
+            parentSums.set(parentKey, (parentSums.get(parentKey) || 0) + value);
+          });
+          parentSums.forEach((sum, parentKey) => {
+            if (!metrics.has(parentKey)) {
+              metrics.set(parentKey, sum);
+            }
+          });
+        });
+        
         // Now calculate derived metrics for previous year data and store in comparison map
         prevYearByDept.forEach((metrics, deptId) => {
           // First, store raw values
@@ -841,6 +859,22 @@ export default function DealerComparison() {
             const monthKey = `${deptId}-${metricName}`;
             const monthCount = deptMetricMonths.get(monthKey)?.size || 1;
             avgMetrics.set(metricName, sum / monthCount);
+          });
+          
+          // Backfill missing parent totals from sub-metric averages
+          const parentSums = new Map<string, number>();
+          avgMetrics.forEach((value, metricName) => {
+            if (!metricName.startsWith('sub:')) return;
+            const parts = metricName.split(':');
+            const parentKey = parts[1];
+            const parentDef = getMetricDef(parentKey, null);
+            if (parentDef?.type === 'percentage') return;
+            parentSums.set(parentKey, (parentSums.get(parentKey) || 0) + value);
+          });
+          parentSums.forEach((sum, parentKey) => {
+            if (!avgMetrics.has(parentKey)) {
+              avgMetrics.set(parentKey, sum);
+            }
           });
           
           // Store averaged raw values
