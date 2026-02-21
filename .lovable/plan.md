@@ -1,23 +1,33 @@
 
 
-# Replace Murray Hyundai Assessment and Update Password
+# Fix: Sub-Metric Percentages Missing in YoY Comparison (Previous Year Column)
 
-## Changes
+## Problem
+When viewing the Enterprise Year-over-Year comparison for percentage-based sub-metrics (e.g., Sales Expense % sub-items like SALARIES-SUPERVISION, TAXES-PAYROLL, etc.), the "LY" (Last Year) column shows "N/A" and the Diff column shows "-", even though current year values display correctly.
 
-Two updates needed:
+## Root Cause
+The percentage sub-metric synthesis logic only processes **current year** data. Previous year data stored in `comparisonMap` contains raw dollar-based sub-metrics (e.g., `sub:sales_expense:001:SALARIES-SUPERVISION`) but these are never converted into their percentage equivalents (e.g., `sub:sales_expense_percent:SALARIES-SUPERVISION`). When the synthesized current-year entry looks up its comparison value, it finds nothing.
 
-### 1. Replace the HTML file
-Copy the uploaded `Murray_Hyundai_Assessment_v3_4.html` to `public/assessments/murray-hyundai-winnipeg.html`, overwriting the existing version.
+## Solution
+After synthesizing the current-year percentage sub-metrics, perform the same percentage calculation on the previous year comparison data:
 
-### 2. Change the password
-In `src/pages/MurrayAssessment.tsx`, update line 8:
-- **From:** `const ACCESS_PASSWORD = "murray_growth_2026";`
-- **To:** `const ACCESS_PASSWORD = "juno";`
+1. For each synthesized percentage sub-metric selection, look up the corresponding dollar-based numerator sub-metric and denominator from the previous year data in `comparisonMap` (or `prevYearByDept` / `prevYearAvgData` aggregations)
+2. Calculate the percentage value: `(numerator_sub_dollar / denominator_total) * 100`
+3. Store the result in `comparisonMap` using the selection ID key so it gets picked up as the `target` value
+4. Recalculate variance between current and previous year percentage values
 
-## After publishing
-Once you click **Publish > Update**, the new assessment will be live at:
-- `https://eos-pulse-hub.lovable.app/assessment/murray-hyundai`
-- Or `murraygrowth.ca/assessment/murray-hyundai`
+## Technical Details
 
-Password to view: **juno**
+**File:** `src/pages/DealerComparison.tsx`
+
+**Change location:** After the current-year percentage sub-metric synthesis block (around line 1698), add a matching synthesis pass for the comparison data.
+
+The new code will:
+- Iterate over `percentSubSelections` (already computed) for each department
+- For each selection, find the matching raw numerator sub-metric in `comparisonMap` (trying all possible order-index variants like `sub:sales_expense:000:NAME`, `sub:sales_expense:001:NAME`, etc.)
+- Find the denominator value (either a matching sub-denominator or the parent denominator total) from `comparisonMap`
+- Calculate the percentage and store it under the selection ID key in `comparisonMap`
+- Update the synthesized `dataMap` entries with the new `target` value and compute `variance`
+
+This approach mirrors the exact same synthesis logic used for current-year data, ensuring parity between the two columns. All three comparison modes (YoY, Previous Year Average, Previous Year Quarter) will benefit since they all populate `comparisonMap` the same way.
 
