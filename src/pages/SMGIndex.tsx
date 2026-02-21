@@ -144,7 +144,7 @@ const SMGIndex = () => {
             </div>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6">GO Scorecard Platform</h1>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-6"><span className="font-black">GO</span> Scorecard Platform</h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
             Transform your dealership performance with data-driven accountability. Track KPIs, manage quarterly rocks,
             and run effective GO meetings—all in one place.

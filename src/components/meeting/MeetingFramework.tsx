@@ -330,7 +330,7 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-2xl">GO Meeting Framework</CardTitle>
+            <CardTitle className="text-2xl"><span className="font-black">GO</span> Meeting Framework</CardTitle>
             <CardDescription>
               Structured 60-minute weekly meeting agenda
             </CardDescription>
