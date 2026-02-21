@@ -1,33 +1,64 @@
 
 
-# Scorecard Condensed Visual Fix
+# Unified Data Loading for Instant View Switching
 
 ## Problem
-The previous changes only partially applied the condensed styling. There are 45 remaining instances of `min-w-[125px]` in the file, and the owner header row week cells still use the old wide sizing. The table doesn't match the tight, spreadsheet-like density of the GO Scorecard reference.
+Switching between Weekly, Monthly, and Quarterly tabs triggers a full data reload (clearing all state and re-fetching from the database). This causes a visible loading spinner and delay every time you toggle views, even though the underlying data for the same quarter is already available.
 
-## Changes (single file: `src/components/scorecard/ScorecardGrid.tsx`)
+## Root Cause
+The main `useEffect` (line 490) includes `viewMode` in its dependency array. When you click Weekly or Monthly, it:
+1. Clears ALL entries, profiles, targets, and user data
+2. Sets loading = true (shows spinner)
+3. Re-fetches everything from the database
+4. Re-renders the entire table
 
-### 1. Fix owner header row week cell width
-Line 3945: Change `min-w-[125px]` to `min-w-[90px]` in the owner header's weekly cells so they align with the data columns.
+## Solution: Load Both Weekly + Monthly Data Together
 
-### 2. Bulk-update all remaining `min-w-[125px]` to `min-w-[90px]`
-There are ~45 instances across monthly trend headers, quarter trend headers, monthly data cells, and previous-year month columns. All should be changed to `min-w-[90px]` and their corresponding `max-w-[125px]` to `max-w-[90px]` to create uniform, compact columns throughout all view modes.
+Instead of loading only the active view's data, load **both** weekly and monthly entries for the current quarter in a single pass. Switching views then becomes a pure rendering change with zero network requests.
 
-### 3. Reduce row height and padding further
-- Owner header rows: reduce `py-1` to `py-0.5`
-- KPI name cells: tighten vertical padding
-- Remove the status count badges from week headers (the 4 colored pills with counts) — these add visual noise and vertical height that the reference image doesn't have
-- Reduce the header drop zone padding from `py-1` to `py-0.5`
+### Changes to `src/components/scorecard/ScorecardGrid.tsx`
 
-### 4. Tighter KPI name column
-Reduce from `w-[200px]` to `w-[170px]` to match the reference more closely and reclaim horizontal space for week columns.
+### 1. Separate state for weekly and monthly entries
+Add a second entries state so both datasets coexist:
+- `weeklyEntries` - stores weekly scorecard entries keyed by `{kpiId}-{weekDate}`
+- `monthlyEntries` - stores monthly scorecard entries keyed by `{kpiId}-month-{monthId}`
+- The existing `entries` state becomes a computed view that points to the active set based on `viewMode`
 
-### 5. Clean header styling
-- Remove the colored status count badges from each week header (lines 3683-3697) — these don't exist in the reference and add ~15px of vertical height per header
-- Make the "WK N" + date range more compact
+### 2. Load both datasets in `loadScorecardData`
+Modify `loadScorecardData` to always fetch **both** weekly and monthly data for the current quarter (when not in trend mode). This means:
+- Fetch weekly entries (`entry_type = 'weekly'`) for the 13 weeks of the quarter
+- Fetch monthly entries (`entry_type = 'monthly'`) for the 3 months + 3 previous year months
+- Fetch previous year targets (needed for monthly view)
+- Store results in `weeklyEntries` and `monthlyEntries` separately
 
-## Technical Notes
-- All changes are in `src/components/scorecard/ScorecardGrid.tsx`
-- No database or dependency changes needed
-- Dark mode variants will be preserved
-- Monthly and trend views will also benefit from the width reduction
+### 3. Remove `viewMode` from the useEffect dependency array
+The consolidated useEffect at line 490 will depend on `[departmentId, kpis, year, quarter]` only -- NOT `viewMode`. Changing `viewMode` will no longer trigger any data fetch.
+
+### 4. Derive active entries from viewMode
+Replace direct references to `entries` with a computed variable:
+```
+const activeEntries = isMonthlyTrendMode ? entries
+  : isQuarterTrendMode ? entries
+  : viewMode === "weekly" ? weeklyEntries
+  : monthlyEntries;
+```
+All rendering code will use `activeEntries` instead of `entries`.
+
+### 5. Keep trend modes unchanged
+Quarter Trend (quarter=0) and Monthly Trend (quarter=-1) still use their own dedicated loading paths since they load fundamentally different data ranges. Those paths remain as-is.
+
+### 6. No loading state on view toggle
+Since `viewMode` no longer triggers the useEffect, there will be no loading spinner when switching between Weekly and Monthly. The table columns and data simply swap instantly.
+
+## Technical Details
+
+- **Data size**: Loading both weekly (13 weeks x N KPIs) and monthly (6 months x N KPIs) is minimal extra data -- typically under 500 rows total
+- **State shape**: Two separate Maps avoid key collisions between weekly keys (`kpiId-2026-01-05`) and monthly keys (`kpiId-month-2026-01`)
+- **Saving entries**: The save/upsert functions already check `viewMode` to determine `entry_type` and conflict column, so those remain correct
+- **Paste row**: Already checks viewMode for the correct entry_type
+- **Quarter pills (Q1-Q4)**: Still trigger a `quarter` change which reloads data -- that's correct since different quarters have different data
+- **Summary strip**: Will use `weeklyEntries` directly for week-based stats regardless of active viewMode
+
+## Files Changed
+- `src/components/scorecard/ScorecardGrid.tsx` (single file, data layer + dependency array changes only)
+
