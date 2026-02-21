@@ -3297,14 +3297,6 @@ const ScorecardGrid = ({
               Quarterly
             </Button>
             <Button
-              variant={isQuarterTrendMode ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-3 text-xs font-semibold"
-              onClick={() => onQuarterChange(0)}
-            >
-              Q Trend
-            </Button>
-            <Button
               variant={isMonthlyTrendMode ? "default" : "ghost"}
               size="sm"
               className="h-7 px-3 text-xs font-semibold"
