@@ -1696,6 +1696,63 @@ export default function DealerComparison() {
           }
           keysToRemove.forEach((k) => delete dataMap[k]);
         }
+
+        // --- Synthesize percentage sub-metrics for the COMPARISON (LY / Avg) data ---
+        // The comparisonMap contains raw dollar sub-metrics (e.g. deptId-sub:sales_expense:001:NAME)
+        // but never the synthesized percentage equivalents (e.g. deptId-sub:sales_expense_percent:NAME).
+        // We replicate the same numerator/denominator calculation on comparison data.
+        if (comparisonMode !== "targets") {
+          storeDeptPairs.forEach((pair) => {
+            const [storeId, deptId] = pair.split("|");
+
+            percentSubSelections.forEach((sel) => {
+              // Find the raw numerator sub-metric in comparisonMap
+              let compNumerator: number | null = null;
+              for (const [cmKey, cmVal] of comparisonMap) {
+                if (!cmKey.startsWith(`${deptId}-sub:${sel.numeratorKey}:`)) continue;
+                const rawMetric = cmKey.substring(deptId.length + 1);
+                const parts = rawMetric.split(":");
+                const importedSubName = parts.length >= 4 ? parts.slice(3).join(":") : "";
+                if (importedSubName === sel.subName) {
+                  compNumerator = cmVal.value;
+                  break;
+                }
+              }
+              if (compNumerator === null) return;
+
+              // Find denominator: try matching sub-metric denominator first, then parent total
+              let compDenom = 0;
+              for (const [cmKey, cmVal] of comparisonMap) {
+                if (!cmKey.startsWith(`${deptId}-sub:${sel.denominatorKey}:`)) continue;
+                const rawMetric = cmKey.substring(deptId.length + 1);
+                const parts = rawMetric.split(":");
+                const importedSubName = parts.length >= 4 ? parts.slice(3).join(":") : "";
+                if (importedSubName === sel.subName) {
+                  compDenom = cmVal.value;
+                  break;
+                }
+              }
+              if (compDenom === 0) {
+                const parentKey = `${deptId}-${sel.denominatorKey}`;
+                compDenom = comparisonMap.get(parentKey)?.value || 0;
+              }
+              if (compDenom === 0) return;
+
+              const compPercentValue = (compNumerator / compDenom) * 100;
+
+              // Store in comparisonMap so downstream lookups also work
+              comparisonMap.set(`${deptId}-${sel.selectionId}`, { value: compPercentValue });
+
+              // Update the already-synthesized dataMap entry with the comparison value
+              const dataKey = `${storeId}-${deptId}-${sel.selectionId}`;
+              const entry = dataMap[dataKey];
+              if (entry) {
+                entry.target = compPercentValue;
+                entry.variance = entry.value !== null ? entry.value - compPercentValue : null;
+              }
+            });
+          });
+        }
       }
 
       // Build complete list of all store+dept combinations from initial department IDs
