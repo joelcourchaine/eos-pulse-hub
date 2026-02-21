@@ -3416,6 +3416,87 @@ const ScorecardGrid = ({
         </div>
       </div>
 
+      {/* Phase 4: Quarter Tab Pills - only in weekly view */}
+      {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (
+        <div className="flex items-center gap-1 mb-2">
+          {[1, 2, 3, 4].map((q) => {
+            const qYearStart = YEAR_STARTS[year] || new Date(year, 0, 1);
+            const qStart = new Date(qYearStart);
+            qStart.setDate(qYearStart.getDate() + (q - 1) * 13 * 7);
+            const qEnd = new Date(qStart);
+            qEnd.setDate(qStart.getDate() + 13 * 7 - 1);
+            const qStartLabel = `${qStart.getMonth() + 1}/${qStart.getDate()}`;
+            const qEndLabel = `${qEnd.getMonth() + 1}/${qEnd.getDate()}`;
+            return (
+              <button
+                key={q}
+                onClick={() => onQuarterChange(q)}
+                className={cn(
+                  "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  quarter === q
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/60"
+                )}
+              >
+                <div>Q{q}</div>
+                <div className="text-[10px] opacity-70">{qStartLabel}–{qEndLabel}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Phase 3: Quarter Summary Stats Bar */}
+      {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (() => {
+        const today = new Date();
+        const currentWeekInfo = getQuarterInfo(today);
+        const currentWeekNum = (currentWeekInfo.year === year && currentWeekInfo.quarter === quarter) ? currentWeekInfo.weekInQuarter : null;
+        const qYearStart = YEAR_STARTS[year] || new Date(year, 0, 1);
+        const qStart = new Date(qYearStart);
+        qStart.setDate(qYearStart.getDate() + (quarter - 1) * 13 * 7);
+        const qEnd = new Date(qStart);
+        qEnd.setDate(qStart.getDate() + 13 * 7 - 1);
+        const qStartLabel = `${qStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+        const qEndLabel = `${qEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+
+        // Count weeks with data and total green/yellow/red
+        let weeksWithData = 0;
+        let totalGreen = 0, totalYellow = 0, totalRed = 0;
+        weeks.forEach((week) => {
+          const weekDate = week.start.toISOString().split("T")[0];
+          let hasData = false;
+          filteredKpis.forEach((kpi) => {
+            const entry = entries[`${kpi.id}-${weekDate}`];
+            if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+              hasData = true;
+              if (entry.status === "green") totalGreen++;
+              else if (entry.status === "yellow") totalYellow++;
+              else if (entry.status === "red") totalRed++;
+            }
+          });
+          if (hasData) weeksWithData++;
+        });
+
+        return (
+          <div className="flex items-center gap-4 mb-2 px-3 py-2 rounded-lg bg-muted/30 border text-xs">
+            <div className="font-bold text-sm">Q{quarter} {year}</div>
+            <div className="text-muted-foreground">{qStartLabel} – {qEndLabel} · 13 weeks</div>
+            {currentWeekNum && (
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                <span className="font-medium">Week {currentWeekNum}</span>
+              </div>
+            )}
+            <div className="text-muted-foreground">{weeksWithData}/13 weeks entered</div>
+            <div className="flex items-center gap-1.5 ml-auto">
+              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100 font-semibold">{totalGreen}</span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 font-semibold">{totalYellow}</span>
+              <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100 font-semibold">{totalRed}</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {kpis.length === 0 ? (
         <div className="border rounded-lg p-8 text-center">
           <p className="text-muted-foreground mb-4">No KPIs defined for this department yet.</p>
@@ -3557,7 +3638,8 @@ const ScorecardGrid = ({
                         </TableHead>
                       ))
                     ) : viewMode === "weekly" ? (
-                      weeks.map((week) => {
+                      <>
+                      {weeks.map((week) => {
                         const weekDate = week.start.toISOString().split("T")[0];
                         const isCurrentWeek = weekDate === currentWeekDate;
                         const isPreviousWeek = weekDate === previousWeekDate;
@@ -3637,7 +3719,15 @@ const ScorecardGrid = ({
                             </ContextMenu>
                           </TableHead>
                         );
-                      })
+                      })}
+                      {/* Phase 5: Q TOTAL header */}
+                      <TableHead className="text-center min-w-[80px] max-w-[80px] text-xs py-1 bg-muted/70 border-l-2 border-border font-bold sticky top-0 z-10">
+                        <div className="flex flex-col items-center">
+                          <div className="text-xs font-bold">Q{quarter}</div>
+                          <div className="text-[10px] text-muted-foreground">TOTAL</div>
+                        </div>
+                      </TableHead>
+                    </>
                     ) : (
                       <>
                         {/* Previous Year Quarter Target */}
@@ -4351,7 +4441,8 @@ const ScorecardGrid = ({
                                 );
                               })
                             ) : viewMode === "weekly" ? (
-                              weeks.map((week) => {
+                              <>
+                              {weeks.map((week) => {
                                 const weekDate = week.start.toISOString().split("T")[0];
                                 const key = `${kpi.id}-${weekDate}`;
                                 const entry = entries[key];
@@ -4524,7 +4615,59 @@ const ScorecardGrid = ({
                                     </ContextMenuContent>
                                   </ContextMenu>
                                 );
-                              })
+                               })}
+                               {/* Phase 5: Q TOTAL data cell */}
+                              {(() => {
+                                const weekValues = weeks.map((week) => {
+                                  const weekDate = week.start.toISOString().split("T")[0];
+                                  const entry = entries[`${kpi.id}-${weekDate}`];
+                                  return entry?.actual_value ?? null;
+                                }).filter((v): v is number => v !== null);
+                                
+                                let qTotal: number | null = null;
+                                if (weekValues.length > 0) {
+                                  if (kpi.aggregation_type === "average") {
+                                    qTotal = weekValues.reduce((a, b) => a + b, 0) / weekValues.length;
+                                  } else {
+                                    qTotal = weekValues.reduce((a, b) => a + b, 0);
+                                  }
+                                }
+
+                                // Calculate status for q total vs target * 13 (for sum) or target (for avg)
+                                const targetValue = kpiTargets[kpi.id] || kpi.target_value;
+                                let qStatus: "success" | "warning" | "destructive" | null = null;
+                                if (qTotal !== null && targetValue) {
+                                  const qTarget = kpi.aggregation_type === "average" ? targetValue : targetValue;
+                                  let variance: number;
+                                  if (kpi.metric_type === "percentage") {
+                                    variance = qTotal - qTarget;
+                                  } else {
+                                    variance = ((qTotal - qTarget) / Math.abs(qTarget)) * 100;
+                                  }
+                                  const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+                                  if (adjustedVariance >= 0) qStatus = "success";
+                                  else if (adjustedVariance >= -10) qStatus = "warning";
+                                  else qStatus = "destructive";
+                                }
+
+                                return (
+                                  <TableCell className={cn(
+                                    "px-0.5 py-0 text-center min-w-[80px] max-w-[80px] border-l-2 border-border bg-muted/30 font-semibold text-xs",
+                                    qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                    qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                    qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40",
+                                  )}>
+                                    <span className={cn(
+                                      qStatus === "success" && "text-emerald-800 dark:text-emerald-200",
+                                      qStatus === "warning" && "text-amber-800 dark:text-amber-200",
+                                      qStatus === "destructive" && "text-red-800 dark:text-red-200",
+                                    )}>
+                                      {qTotal !== null ? formatTarget(qTotal, kpi.metric_type, kpi.name) : "-"}
+                                    </span>
+                                  </TableCell>
+                                );
+                              })()}
+                              </>
                             ) : (
                               <>
                                 {/* Previous Year Quarter Target */}
