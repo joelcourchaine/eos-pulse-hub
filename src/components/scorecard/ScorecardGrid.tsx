@@ -3639,19 +3639,6 @@ const ScorecardGrid = ({
         </div>
       )}
 
-      {/* Trend mode pills */}
-      {(isQuarterTrendMode || isMonthlyTrendMode) && kpis.length > 0 && (
-        <div className="flex items-center gap-1.5">
-          <PeriodNavigation year={year} quarter={quarter} onYearChange={onYearChange} onQuarterChange={onQuarterChange} minYear={2024} maxYear={new Date().getFullYear() + 1} />
-          <div className="flex items-center border rounded-md p-0.5 bg-muted/30 gap-0.5 ml-2">
-            <Button variant={isQuarterTrendMode ? "default" : "ghost"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => onQuarterChange(0)}>Q Trend</Button>
-            <Button variant={isMonthlyTrendMode ? "default" : "ghost"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => onQuarterChange(-1)}>M Trend</Button>
-          </div>
-          {[1, 2, 3, 4].map((q) => (
-            <Button key={q} variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onQuarterChange(q)}>Q{q}</Button>
-          ))}
-        </div>
-      )}
 
       {/* Dark navy summary strip */}
       {!isQuarterTrendMode && !isMonthlyTrendMode && !isYearlyView && kpis.length > 0 && summaryStats && (

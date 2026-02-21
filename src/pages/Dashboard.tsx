@@ -108,7 +108,7 @@ const Dashboard = () => {
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
   const [isStoreSwitching, setIsStoreSwitching] = useState(false); // Track when store is actively switching
-  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
+  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("weekly");
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
@@ -1529,19 +1529,6 @@ const Dashboard = () => {
                   </Card>
                 )}
 
-                {/* Period Navigation - show between Scorecard and Financial Summary */}
-                {!isStoreSwitching &&
-                  selectedDepartment &&
-                  (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
-                    <PeriodNavigation
-                      year={selectedYear}
-                      quarter={selectedQuarter}
-                      onYearChange={setSelectedYear}
-                      onQuarterChange={setSelectedQuarter}
-                      minYear={2024}
-                      maxYear={new Date().getFullYear() + 1}
-                    />
-                  )}
 
                 {/* Financial Summary Section - show for view-all or scorecard tab */}
                 {!isStoreSwitching &&
