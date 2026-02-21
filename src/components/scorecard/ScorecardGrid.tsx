@@ -377,7 +377,7 @@ const ScorecardGrid = ({
   const [yearlyAverages, setYearlyAverages] = useState<{
     [key: string]: { prevYear: number | null; currentYear: number | null };
   }>({});
-  const [viewMode, setViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
+  const [viewMode, setViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("weekly");
   const [quarterlyViewData, setQuarterlyViewData] = useState<{ [key: string]: number }>({});
   const [quarterlyViewTargets, setQuarterlyViewTargets] = useState<{ [key: string]: number }>({});
   const [yearlyViewEntries, setYearlyViewEntries] = useState<{ [key: string]: ScorecardEntry }>({});
