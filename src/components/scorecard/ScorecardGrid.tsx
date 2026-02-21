@@ -333,6 +333,8 @@ const ScorecardGrid = ({
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const [localValues, setLocalValues] = useState<{ [key: string]: string }>({});
   const [kpiTargets, setKpiTargets] = useState<{ [key: string]: number }>({});
+  const [weeklyKpiTargets, setWeeklyKpiTargets] = useState<{ [key: string]: number }>({});
+  const [monthlyKpiTargets, setMonthlyKpiTargets] = useState<{ [key: string]: number }>({});
   const [trendTargets, setTrendTargets] = useState<{ [key: string]: number }>({}); // For monthly trend: ${kpiId}-Q${quarter}-${year}
   const [precedingQuartersData, setPrecedingQuartersData] = useState<{ [key: string]: number }>({});
   const [yearlyAverages, setYearlyAverages] = useState<{
@@ -485,8 +487,18 @@ const ScorecardGrid = ({
     getCurrentUser();
   }, []);
 
-  // Consolidated effect: Clear ALL state synchronously when view/quarter/department changes
-  // This prevents flashing by ensuring all state is cleared in the same render cycle
+  // Swap active kpiTargets instantly when viewMode changes (no data reload needed)
+  useEffect(() => {
+    if (!isQuarterTrendMode && !isMonthlyTrendMode) {
+      const activeTargets = viewMode === "weekly" ? weeklyKpiTargets : monthlyKpiTargets;
+      if (Object.keys(activeTargets).length > 0) {
+        setKpiTargets(activeTargets);
+      }
+    }
+  }, [viewMode, weeklyKpiTargets, monthlyKpiTargets, isQuarterTrendMode, isMonthlyTrendMode]);
+
+  // Consolidated effect: Clear ALL state synchronously when quarter/department changes
+  // viewMode is NOT a dependency - switching views is instant with no data reload
   useEffect(() => {
     // Set loading immediately to prevent rendering stale data
     setLoading(true);
@@ -495,6 +507,8 @@ const ScorecardGrid = ({
     setEntries({});
     setLocalValues({});
     setKpiTargets({});
+    setWeeklyKpiTargets({});
+    setMonthlyKpiTargets({});
     setProfiles({});
     setStoreUsers([]);
     setPrecedingQuartersData({});
@@ -509,24 +523,18 @@ const ScorecardGrid = ({
       loadImportLogs();
 
       // Load targets first and pass them directly to scorecard data to avoid stale state
-      const freshTargets = await loadKPITargets();
-      await loadScorecardData(freshTargets);
+      const { weeklyTargets, monthlyTargets } = await loadKPITargets();
+      await loadScorecardData(weeklyTargets, monthlyTargets);
 
-      // Trend modes need additional aggregated data for sparklines + year summaries
-      // Regular monthly view also needs preceding quarters data for Q Avg columns
-      if (isMonthlyTrendMode || isQuarterTrendMode) {
-        await loadPrecedingQuartersData();
-        if (isMonthlyTrendMode) {
-          await calculateYearlyAverages();
-        }
-      } else if (viewMode === "monthly") {
-        // Regular monthly view needs Q Avg data for the current and previous year
-        await loadPrecedingQuartersData();
+      // Always load preceding quarters data (needed for monthly Q Avg columns and trend modes)
+      await loadPrecedingQuartersData();
+      if (isMonthlyTrendMode) {
+        await calculateYearlyAverages();
       }
     };
 
     loadData();
-  }, [departmentId, kpis, year, quarter, viewMode]);
+  }, [departmentId, kpis, year, quarter]);
 
   // Track when scroll container is available
   const [scrollContainerReady, setScrollContainerReady] = useState(false);
@@ -664,8 +672,8 @@ const ScorecardGrid = ({
           console.log("Realtime scorecard update received:", payload);
 
           // Reload data to get the latest
-          const freshTargets = await loadKPITargets();
-          await loadScorecardData(freshTargets);
+          const { weeklyTargets, monthlyTargets } = await loadKPITargets();
+          await loadScorecardData(weeklyTargets, monthlyTargets);
 
           // Show toast notification for updates from other users
           if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
@@ -955,14 +963,13 @@ const ScorecardGrid = ({
     setDynamicPresetKpis(data || []);
   };
 
-  const loadKPITargets = async () => {
-    if (!kpis.length) return {};
+  const loadKPITargets = async (): Promise<{ weeklyTargets: { [key: string]: number }, monthlyTargets: { [key: string]: number } }> => {
+    if (!kpis.length) return { weeklyTargets: {}, monthlyTargets: {} };
 
     const kpiIds = kpis.map((k) => k.id);
 
     // For Monthly Trend mode, load targets for all quarters in the trend period
     if (isMonthlyTrendMode) {
-      // Get unique quarter/year combinations from monthly trend periods
       const quarterYears = new Set<string>();
       monthlyTrendPeriods
         .filter((p) => p.type === "month")
@@ -979,7 +986,7 @@ const ScorecardGrid = ({
 
       if (error) {
         console.error("Error loading KPI targets for trend:", error);
-        return {};
+        return { weeklyTargets: {}, monthlyTargets: {} };
       }
 
       const trendTargetsMap: { [key: string]: number } = {};
@@ -989,20 +996,20 @@ const ScorecardGrid = ({
       });
 
       setTrendTargets(trendTargetsMap);
-      return {};
+      return { weeklyTargets: {}, monthlyTargets: {} };
     }
 
-    // For Quarter Trend mode, load targets for all quarters in the trend period
+    // For Quarter Trend mode
     if (isQuarterTrendMode) {
       const { data, error } = await supabase
         .from("kpi_targets")
         .select("*")
         .in("kpi_id", kpiIds)
-        .eq("entry_type", "monthly"); // Quarter targets use monthly entry_type
+        .eq("entry_type", "monthly");
 
       if (error) {
         console.error("Error loading KPI targets for quarter trend:", error);
-        return {};
+        return { weeklyTargets: {}, monthlyTargets: {} };
       }
 
       const trendTargetsMap: { [key: string]: number } = {};
@@ -1012,36 +1019,35 @@ const ScorecardGrid = ({
       });
 
       setTrendTargets(trendTargetsMap);
-      return {};
+      return { weeklyTargets: {}, monthlyTargets: {} };
     }
 
-    const { data, error } = await supabase
-      .from("kpi_targets")
-      .select("*")
-      .in("kpi_id", kpiIds)
-      .eq("quarter", quarter || 1)
-      .eq("year", year)
-      .eq("entry_type", viewMode);
+    // Non-trend mode: load BOTH weekly and monthly targets for instant view switching
+    const [weeklyResult, monthlyResult] = await Promise.all([
+      supabase.from("kpi_targets").select("*").in("kpi_id", kpiIds)
+        .eq("quarter", quarter || 1).eq("year", year).eq("entry_type", "weekly"),
+      supabase.from("kpi_targets").select("*").in("kpi_id", kpiIds)
+        .eq("quarter", quarter || 1).eq("year", year).eq("entry_type", "monthly"),
+    ]);
 
-    if (error) {
-      console.error("Error loading KPI targets:", error);
-      return {};
-    }
+    if (weeklyResult.error) console.error("Error loading weekly KPI targets:", weeklyResult.error);
+    if (monthlyResult.error) console.error("Error loading monthly KPI targets:", monthlyResult.error);
 
-    const targetsMap: { [key: string]: number } = {};
-    data?.forEach((target) => {
-      targetsMap[target.kpi_id] = target.target_value || 0;
-    });
+    const wTargets: { [key: string]: number } = {};
+    weeklyResult.data?.forEach((target) => { wTargets[target.kpi_id] = target.target_value || 0; });
+    kpis.forEach((kpi) => { if (!wTargets[kpi.id]) wTargets[kpi.id] = kpi.target_value; });
 
-    // For KPIs without quarterly targets, fall back to default target_value
-    kpis.forEach((kpi) => {
-      if (!targetsMap[kpi.id]) {
-        targetsMap[kpi.id] = kpi.target_value;
-      }
-    });
+    const mTargets: { [key: string]: number } = {};
+    monthlyResult.data?.forEach((target) => { mTargets[target.kpi_id] = target.target_value || 0; });
+    kpis.forEach((kpi) => { if (!mTargets[kpi.id]) mTargets[kpi.id] = kpi.target_value; });
 
-    setKpiTargets(targetsMap);
-    return targetsMap; // Return the targets for immediate use
+    setWeeklyKpiTargets(wTargets);
+    setMonthlyKpiTargets(mTargets);
+    // Set active targets based on current viewMode
+    const activeTargets = viewMode === "weekly" ? wTargets : mTargets;
+    setKpiTargets(activeTargets);
+
+    return { weeklyTargets: wTargets, monthlyTargets: mTargets };
   };
 
   const loadScorecardData = async (freshTargets?: { [key: string]: number }) => {
