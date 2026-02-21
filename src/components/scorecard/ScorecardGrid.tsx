@@ -3515,7 +3515,7 @@ const ScorecardGrid = ({
               <Table>
                 <TableHeader>
                   <TableRow ref={headerRowRef} className="bg-muted/50">
-                    <TableHead className="sticky left-0 bg-muted z-20 w-[200px] min-w-[200px] max-w-[200px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
+                    <TableHead className="sticky left-0 bg-muted z-20 w-[170px] min-w-[170px] max-w-[170px] font-bold py-[7.2px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.1)]">
                       KPI
                     </TableHead>
                     {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
@@ -3525,7 +3525,7 @@ const ScorecardGrid = ({
                           className="text-center font-bold min-w-[100px] py-[7.2px] bg-primary border-x-2 border-primary/30 sticky top-0 z-20 text-primary-foreground"
                           style={{
                             position: "sticky",
-                            left: 200,
+                             left: 170,
                             zIndex: 19,
                             boxShadow: "2px 0 4px rgba(0,0,0,0.1)",
                           }}
@@ -3574,7 +3574,7 @@ const ScorecardGrid = ({
                           <TableHead
                             key={period.identifier}
                             className={cn(
-                              "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10 p-0",
+                              "text-center min-w-[90px] max-w-[90px] font-bold py-[7.2px] sticky top-0 z-10 p-0",
                               period.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
                               period.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
                               period.type === "month" && "bg-muted/50",
@@ -3632,7 +3632,7 @@ const ScorecardGrid = ({
                       quarterTrendPeriods.map((qtr) => (
                         <TableHead
                           key={qtr.label}
-                          className="text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
+                          className="text-center min-w-[90px] max-w-[90px] font-bold py-[7.2px] bg-muted/50 sticky top-0 z-10"
                         >
                           {qtr.label}
                         </TableHead>
@@ -3672,30 +3672,14 @@ const ScorecardGrid = ({
                             <ContextMenu>
                               <ContextMenuTrigger asChild>
                                 <div>
-                                  <ScorecardWeekDropZone
+                                   <ScorecardWeekDropZone
                                     weekStartDate={weekDate}
                                     weekLabel={week.label}
                                     onFileDrop={handleWeekFileDrop}
                                     onReimport={handleWeekReimport}
-                                    className="w-full h-full py-1"
+                                    className="w-full h-full py-0.5"
                                     importLog={weekImportLogs[weekDate]}
                                   >
-                                    {isCurrentOrPast && (
-                                      <div className="flex gap-0.5 items-center justify-center mb-0.5 text-[9px] font-semibold">
-                                        <span className="px-1 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100">
-                                          {statusCounts.green}
-                                        </span>
-                                        <span className="px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
-                                          {statusCounts.yellow}
-                                        </span>
-                                        <span className="px-1 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
-                                          {statusCounts.red}
-                                        </span>
-                                        <span className="px-1 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
-                                          {statusCounts.gray}
-                                        </span>
-                                      </div>
-                                    )}
                                     <div className="text-xs font-bold">WK {weekIndex}</div>
                                     <div className="text-[10px] text-muted-foreground">{week.label}</div>
                                     {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
@@ -3740,7 +3724,7 @@ const ScorecardGrid = ({
                         {previousYearMonths.map((month) => (
                           <TableHead
                             key={month.identifier}
-                            className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/30 sticky top-0 z-10"
+                            className="text-center min-w-[90px] max-w-[90px] font-bold py-0 bg-muted/30 sticky top-0 z-10"
                           >
                             <ContextMenu>
                               <ContextMenuTrigger asChild>
@@ -3797,7 +3781,7 @@ const ScorecardGrid = ({
                         {months.map((month) => (
                           <TableHead
                             key={month.identifier}
-                            className="text-center min-w-[125px] max-w-[125px] font-bold py-0 bg-muted/50 sticky top-0 z-10"
+                            className="text-center min-w-[90px] max-w-[90px] font-bold py-0 bg-muted/50 sticky top-0 z-10"
                           >
                             <ContextMenu>
                               <ContextMenuTrigger asChild>
@@ -3913,7 +3897,7 @@ const ScorecardGrid = ({
                               onDragEnd={handleOwnerDragEnd}
                               onDrop={(e) => handleOwnerDrop(e, kpi.assigned_to || "unassigned")}
                             >
-                              <TableCell className="sticky left-0 z-10 bg-muted py-1 w-[200px] min-w-[200px] max-w-[200px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                              <TableCell className="sticky left-0 z-10 bg-muted py-0.5 w-[170px] min-w-[170px] max-w-[170px] border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
                                 <div className="flex items-center gap-2">
                                   {canManageKPIs && <GripVertical className="h-4 w-4 text-muted-foreground" />}
                                   <Avatar className="h-6 w-6">
@@ -3934,7 +3918,7 @@ const ScorecardGrid = ({
                                     className="bg-primary py-1 min-w-[100px] border-x-2 border-primary/30"
                                     style={{
                                       position: "sticky",
-                                      left: 200,
+                                       left: 170,
                                       zIndex: 9,
                                       boxShadow: "2px 0 4px rgba(0,0,0,0.1)",
                                     }}
@@ -3942,7 +3926,7 @@ const ScorecardGrid = ({
                                   {weeks.map((week) => (
                                     <TableCell
                                       key={`owner-curr-week-${week.label}`}
-                                      className="bg-muted/50 py-1 min-w-[125px]"
+                                      className="bg-muted/50 py-0.5 min-w-[90px]"
                                     />
                                   ))}
                                 </>
@@ -3965,7 +3949,7 @@ const ScorecardGrid = ({
                           <TableRow className="hover:bg-muted/30">
                             <ContextMenu>
                               <ContextMenuTrigger asChild>
-                                <TableCell className="sticky left-0 bg-background z-10 w-[200px] min-w-[200px] max-w-[200px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] cursor-context-menu">
+                                <TableCell className="sticky left-0 bg-background z-10 w-[170px] min-w-[170px] max-w-[170px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] cursor-context-menu text-xs">
                                   {kpi.name}
                                 </TableCell>
                               </ContextMenuTrigger>
@@ -3988,7 +3972,7 @@ const ScorecardGrid = ({
                                   className="text-center py-0.5 min-w-[100px] bg-primary border-x-2 border-primary/30 font-medium text-primary-foreground"
                                   style={{
                                     position: "sticky",
-                                    left: 200,
+                                    left: 170,
                                     zIndex: 9,
                                     boxShadow: "2px 0 4px rgba(0,0,0,0.1)",
                                   }}
@@ -4172,7 +4156,7 @@ const ScorecardGrid = ({
                                       <TableCell
                                         key={month.identifier}
                                         className={cn(
-                                          "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium",
+                                          "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] font-medium",
                                           month.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
                                           month.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
                                         )}
@@ -4230,10 +4214,10 @@ const ScorecardGrid = ({
                                       <ContextMenuTrigger asChild>
                                         <TableCell
                                           className={cn(
-                                            "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
-                                            trendStatus === "success" && "bg-success/10",
-                                            trendStatus === "warning" && "bg-warning/10",
-                                            trendStatus === "destructive" && "bg-destructive/10",
+                             "px-1 py-0.5 relative min-w-[90px] max-w-[90px]",
+                            trendStatus === "success" && "bg-success/10",
+                            trendStatus === "warning" && "bg-warning/10",
+                            trendStatus === "destructive" && "bg-destructive/10",
                                             !trendStatus && "text-muted-foreground",
                                           )}
                                         >
@@ -4689,7 +4673,7 @@ const ScorecardGrid = ({
                                     <TableCell
                                       key={month.identifier}
                                       className={cn(
-                                        "px-1 py-0.5 relative min-w-[125px] max-w-[125px] text-center bg-muted/20",
+                                        "px-1 py-0.5 relative min-w-[90px] max-w-[90px] text-center bg-muted/20",
                                         status === "success" && "bg-success/10",
                                         status === "warning" && "bg-warning/10",
                                         status === "destructive" && "bg-destructive/10",
@@ -4856,10 +4840,10 @@ const ScorecardGrid = ({
                                       <ContextMenuTrigger asChild>
                                         <TableCell
                                           className={cn(
-                                            "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
-                                            status === "success" && "bg-success/10",
-                                            status === "warning" && "bg-warning/10",
-                                            status === "destructive" && "bg-destructive/10",
+                             "px-1 py-0.5 relative min-w-[90px] max-w-[90px]",
+                            status === "success" && "bg-success/10",
+                            status === "warning" && "bg-warning/10",
+                            status === "destructive" && "bg-destructive/10",
                                           )}
                                         >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
