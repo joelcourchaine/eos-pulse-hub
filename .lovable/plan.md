@@ -1,64 +1,63 @@
 
 
-# Unified Data Loading for Instant View Switching
+# Unified Quarterly View with 5-Quarter Rolling Window
 
-## Problem
-Switching between Weekly, Monthly, and Quarterly tabs triggers a full data reload (clearing all state and re-fetching from the database). This causes a visible loading spinner and delay every time you toggle views, even though the underlying data for the same quarter is already available.
+## What You'll Get
+When you click "Quarterly", the scorecard will instantly show 5 quarter columns -- the 4 previous quarters on the left and the selected quarter on the far right. Switching between Weekly, Monthly, and Quarterly will be instant with no loading spinner, because all the data is pre-loaded.
 
-## Root Cause
-The main `useEffect` (line 490) includes `viewMode` in its dependency array. When you click Weekly or Monthly, it:
-1. Clears ALL entries, profiles, targets, and user data
-2. Sets loading = true (shows spinner)
-3. Re-fetches everything from the database
-4. Re-renders the entire table
+## How It Works
 
-## Solution: Load Both Weekly + Monthly Data Together
+The quarterly view displays averaged monthly data per quarter. Since monthly entries are already being pre-loaded for the current quarter, we extend this to also pre-load monthly data for the 4 preceding quarters. When you click "Quarterly", we simply compute averages from the already-loaded monthly data -- no new database calls.
 
-Instead of loading only the active view's data, load **both** weekly and monthly entries for the current quarter in a single pass. Switching views then becomes a pure rendering change with zero network requests.
+## Technical Changes
 
-### Changes to `src/components/scorecard/ScorecardGrid.tsx`
+### File: `src/components/scorecard/ScorecardGrid.tsx`
 
-### 1. Separate state for weekly and monthly entries
-Add a second entries state so both datasets coexist:
-- `weeklyEntries` - stores weekly scorecard entries keyed by `{kpiId}-{weekDate}`
-- `monthlyEntries` - stores monthly scorecard entries keyed by `{kpiId}-month-{monthId}`
-- The existing `entries` state becomes a computed view that points to the active set based on `viewMode`
+### 1. Add "quarterly" as a third viewMode
+Extend the viewMode state from `"weekly" | "monthly"` to `"weekly" | "monthly" | "quarterly"`. The Quarterly button will call `setViewMode("quarterly")` instead of `onQuarterChange(0)`, so it stays on the same quarter and triggers no data reload.
 
-### 2. Load both datasets in `loadScorecardData`
-Modify `loadScorecardData` to always fetch **both** weekly and monthly data for the current quarter (when not in trend mode). This means:
-- Fetch weekly entries (`entry_type = 'weekly'`) for the 13 weeks of the quarter
-- Fetch monthly entries (`entry_type = 'monthly'`) for the 3 months + 3 previous year months
-- Fetch previous year targets (needed for monthly view)
-- Store results in `weeklyEntries` and `monthlyEntries` separately
+### 2. Pre-load monthly data for 5 quarters
+In `loadScorecardData`, when loading monthly entries, extend the month range to cover not just the current quarter's 3 months but also the 4 preceding quarters' months (15 months total). This data is used to compute quarterly averages on the client side.
 
-### 3. Remove `viewMode` from the useEffect dependency array
-The consolidated useEffect at line 490 will depend on `[departmentId, kpis, year, quarter]` only -- NOT `viewMode`. Changing `viewMode` will no longer trigger any data fetch.
+Similarly in `loadKPITargets`, fetch monthly targets for all 5 quarters so quarterly target averages can be computed.
 
-### 4. Derive active entries from viewMode
-Replace direct references to `entries` with a computed variable:
-```
-const activeEntries = isMonthlyTrendMode ? entries
-  : isQuarterTrendMode ? entries
-  : viewMode === "weekly" ? weeklyEntries
-  : monthlyEntries;
-```
-All rendering code will use `activeEntries` instead of `entries`.
+### 3. Compute quarterly averages client-side
+Add a `useMemo` that derives `quarterlyEntries` from the pre-loaded monthly entries:
+- For each KPI and each of the 5 quarters, average the monthly values for that quarter's 3 months
+- Store as `{ [kpiId]-Q[q]-[year]: ScorecardEntry }` keyed entries
+- These are recomputed instantly when monthlyEntries changes
 
-### 5. Keep trend modes unchanged
-Quarter Trend (quarter=0) and Monthly Trend (quarter=-1) still use their own dedicated loading paths since they load fundamentally different data ranges. Those paths remain as-is.
+### 4. Derive active entries/periods from viewMode
+Update the `allPeriods` computation:
+- `viewMode === "weekly"` -> 13 week columns
+- `viewMode === "monthly"` -> 3 month columns (+ previous year months)
+- `viewMode === "quarterly"` -> 5 quarter columns (4 preceding + selected)
 
-### 6. No loading state on view toggle
-Since `viewMode` no longer triggers the useEffect, there will be no loading spinner when switching between Weekly and Monthly. The table columns and data simply swap instantly.
+The selected quarter appears on the far right. The 4 preceding quarters appear to its left, wrapping across year boundaries (e.g., Q2 2026 selected shows Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026).
 
-## Technical Details
+### 5. Update the Quarterly button behavior
+Change the Quarterly pill from `onClick={() => onQuarterChange(0)}` to `onClick={() => setViewMode("quarterly")}`. If currently in trend mode (quarter=0 or -1), first call `onQuarterChange(1)` to exit trend mode, then set viewMode.
 
-- **Data size**: Loading both weekly (13 weeks x N KPIs) and monthly (6 months x N KPIs) is minimal extra data -- typically under 500 rows total
-- **State shape**: Two separate Maps avoid key collisions between weekly keys (`kpiId-2026-01-05`) and monthly keys (`kpiId-month-2026-01`)
-- **Saving entries**: The save/upsert functions already check `viewMode` to determine `entry_type` and conflict column, so those remain correct
-- **Paste row**: Already checks viewMode for the correct entry_type
-- **Quarter pills (Q1-Q4)**: Still trigger a `quarter` change which reloads data -- that's correct since different quarters have different data
-- **Summary strip**: Will use `weeklyEntries` directly for week-based stats regardless of active viewMode
+### 6. Keep Q1-Q4 pills and summary strip visible in quarterly mode
+The Q1-Q4 pill row and dark navy summary strip will remain visible when in quarterly mode (they currently hide when `isQuarterTrendMode`). Clicking a different quarter pill changes which 5-quarter window is shown.
 
-## Files Changed
-- `src/components/scorecard/ScorecardGrid.tsx` (single file, data layer + dependency array changes only)
+### 7. Keep Q Trend and M Trend accessible
+Move the existing trend mode access (Q Trend, M Trend) into the trend pills row that appears when `isQuarterTrendMode || isMonthlyTrendMode`. Users can still reach these via the trend pills row buttons.
 
+### 8. Summary strip adjustments for quarterly mode
+When `viewMode === "quarterly"`, the summary strip shows:
+- "Quarters Shown" instead of "Weeks Entered" (showing 5 quarters)
+- Progress and status tallies computed from quarterly averages
+
+### 9. Table column rendering for quarterly mode
+Add a rendering branch for `viewMode === "quarterly"` in the table header and body:
+- Column headers show "Q1 2025", "Q2 2025", etc.
+- Cell values show the computed quarterly averages
+- Target column shows the averaged monthly target for the selected quarter
+- Status colors computed against quarterly targets
+
+## Result
+- Switching between Weekly, Monthly, and Quarterly is instant (zero network requests)
+- Quarterly shows a 5-quarter rolling window with the selected quarter on the far right
+- All three views share the same Q1-Q4 pills, summary strip, and action buttons
+- Q Trend and M Trend remain accessible for multi-period trend analysis
