@@ -3145,23 +3145,29 @@ const ScorecardGrid = ({
       {/* Single unified top bar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-lg font-black tracking-tight">GO <span className="font-normal">Scorecard</span></span>
-
-          {/* Weekly / Quarterly toggle */}
+          {/* Weekly / Monthly / Quarterly toggle */}
           <div className="flex items-center border rounded-md p-0.5 bg-muted/30">
             <Button
-              variant={viewMode === "weekly" ? "default" : "ghost"}
+              variant={viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode ? "default" : "ghost"}
               size="sm"
               className="h-7 px-3 text-xs font-semibold"
-              onClick={() => { setViewMode("weekly"); onViewModeChange?.("weekly"); }}
+              onClick={() => { if (isQuarterTrendMode || isMonthlyTrendMode) { onQuarterChange(1); } setViewMode("weekly"); onViewModeChange?.("weekly"); }}
             >
               Weekly
             </Button>
             <Button
-              variant={viewMode === "monthly" ? "default" : "ghost"}
+              variant={viewMode === "monthly" && !isQuarterTrendMode && !isMonthlyTrendMode ? "default" : "ghost"}
               size="sm"
               className="h-7 px-3 text-xs font-semibold"
-              onClick={() => { setViewMode("monthly"); onViewModeChange?.("monthly"); }}
+              onClick={() => { if (isQuarterTrendMode || isMonthlyTrendMode) { onQuarterChange(1); } setViewMode("monthly"); onViewModeChange?.("monthly"); }}
+            >
+              Monthly
+            </Button>
+            <Button
+              variant={isQuarterTrendMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs font-semibold"
+              onClick={() => onQuarterChange(0)}
             >
               Quarterly
             </Button>
