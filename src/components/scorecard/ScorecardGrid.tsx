@@ -3,6 +3,7 @@ import React from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PeriodNavigation } from "@/components/dashboard/PeriodNavigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -3130,67 +3131,67 @@ const ScorecardGrid = ({
               }
             }}
           >
-            <div className="flex items-center gap-2">
-              <Select value={year.toString()} onValueChange={(v) => onYearChange(parseInt(v))}>
-                <SelectTrigger className="w-[100px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value={(new Date().getFullYear() - 1).toString()}>
-                    {new Date().getFullYear() - 1}
-                  </SelectItem>
-                  <SelectItem value={new Date().getFullYear().toString()}>{new Date().getFullYear()}</SelectItem>
-                  <SelectItem value={(new Date().getFullYear() + 1).toString()}>
-                    {new Date().getFullYear() + 1}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={quarter.toString()} onValueChange={(v) => onQuarterChange(parseInt(v))}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Q1</SelectItem>
-                  <SelectItem value="2">Q2</SelectItem>
-                  <SelectItem value="3">Q3</SelectItem>
-                  <SelectItem value="4">Q4</SelectItem>
-                  <SelectItem value="0">Quarter Trend</SelectItem>
-                  <SelectItem value="-1">Monthly Trend</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <PeriodNavigation
+                year={year}
+                quarter={quarter}
+                onYearChange={onYearChange}
+                onQuarterChange={onQuarterChange}
+                minYear={2024}
+                maxYear={new Date().getFullYear() + 1}
+              />
           </ScorecardPeriodDropZone>
 
-          {/* View Mode Toggle - Prominent - Hide in Quarter Trend and Monthly Trend */}
-          {!isQuarterTrendMode && !isMonthlyTrendMode && (
-            <div className="flex items-center border rounded-lg p-1 bg-muted/30">
+          {/* Unified view mode pills */}
+          <div className="flex items-center border rounded-lg p-0.5 bg-muted/30 gap-0.5">
+            {[1, 2, 3, 4].map((q) => (
               <Button
-                variant={viewMode === "weekly" ? "default" : "ghost"}
+                key={q}
+                variant={quarter === q && viewMode === "weekly" ? "default" : "ghost"}
                 size="sm"
+                className="h-7 px-2.5 text-xs"
                 onClick={() => {
+                  onQuarterChange(q);
                   setViewMode("weekly");
                   onViewModeChange?.("weekly");
                 }}
-                className="gap-2"
               >
-                <CalendarDays className="h-4 w-4" />
-                Weekly
+                Q{q}
               </Button>
+            ))}
+            <div className="w-px h-5 bg-border mx-0.5" />
+            {[1, 2, 3, 4].map((q) => (
               <Button
-                variant={viewMode === "monthly" ? "default" : "ghost"}
+                key={`m${q}`}
+                variant={quarter === q && viewMode === "monthly" ? "default" : "ghost"}
                 size="sm"
+                className="h-7 px-2 text-xs"
                 onClick={() => {
+                  onQuarterChange(q);
                   setViewMode("monthly");
                   onViewModeChange?.("monthly");
                 }}
-                className="gap-2"
               >
-                <Calendar className="h-4 w-4" />
-                Monthly
+                M{q}
               </Button>
-            </div>
-          )}
+            ))}
+            <div className="w-px h-5 bg-border mx-0.5" />
+            <Button
+              variant={isQuarterTrendMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onQuarterChange(0)}
+            >
+              Q Trend
+            </Button>
+            <Button
+              variant={isMonthlyTrendMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => onQuarterChange(-1)}
+            >
+              M Trend
+            </Button>
+          </div>
 
           {/* Filters */}
           <div className="flex items-center gap-2">
