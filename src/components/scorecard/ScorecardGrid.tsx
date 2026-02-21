@@ -3096,161 +3096,150 @@ const ScorecardGrid = ({
     );
   }
 
+  // Compute quarter date ranges for pills and summary
+  const getQuarterRange = (q: number) => {
+    const qYearStart = YEAR_STARTS[year] || new Date(year, 0, 1);
+    const qStart = new Date(qYearStart);
+    qStart.setDate(qYearStart.getDate() + (q - 1) * 13 * 7);
+    const qEnd = new Date(qStart);
+    qEnd.setDate(qStart.getDate() + 13 * 7 - 1);
+    return { start: qStart, end: qEnd };
+  };
+
+  const activeQuarterRange = (quarter >= 1 && quarter <= 4) ? getQuarterRange(quarter) : null;
+
+  // Summary stats computation
+  const summaryStats = (() => {
+    if (!activeQuarterRange || kpis.length === 0) return null;
+    const today = new Date();
+    const currentWeekInfo = getQuarterInfo(today);
+    const currentWeekNum = (currentWeekInfo.year === year && currentWeekInfo.quarter === quarter) ? currentWeekInfo.weekInQuarter : null;
+
+    let weeksWithData = 0;
+    let totalGreen = 0, totalYellow = 0, totalRed = 0, totalEntries = 0;
+    weeks.forEach((week) => {
+      const weekDate = week.start.toISOString().split("T")[0];
+      let hasData = false;
+      filteredKpis.forEach((kpi) => {
+        const entry = entries[`${kpi.id}-${weekDate}`];
+        if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+          hasData = true;
+          totalEntries++;
+          if (entry.status === "green") totalGreen++;
+          else if (entry.status === "yellow") totalYellow++;
+          else if (entry.status === "red") totalRed++;
+        }
+      });
+      if (hasData) weeksWithData++;
+    });
+
+    const progressPct = totalEntries > 0 ? Math.round((totalGreen / totalEntries) * 100) : 0;
+    const qStartLabel = activeQuarterRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const qEndLabel = activeQuarterRange.end.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+    return { currentWeekNum, weeksWithData, totalGreen, totalYellow, totalRed, totalEntries, progressPct, qStartLabel, qEndLabel };
+  })();
+
   return (
-    <div className="space-y-4">
-      {/* Quarter Controls - Always visible */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-4 flex-wrap">
+    <div className="space-y-2">
+      {/* Single unified top bar */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-lg font-black tracking-tight">GO <span className="font-normal">Scorecard</span></span>
+
+          {/* Weekly / Quarterly toggle */}
+          <div className="flex items-center border rounded-md p-0.5 bg-muted/30">
+            <Button
+              variant={viewMode === "weekly" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs font-semibold"
+              onClick={() => { setViewMode("weekly"); onViewModeChange?.("weekly"); }}
+            >
+              Weekly
+            </Button>
+            <Button
+              variant={viewMode === "monthly" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs font-semibold"
+              onClick={() => { setViewMode("monthly"); onViewModeChange?.("monthly"); }}
+            >
+              Quarterly
+            </Button>
+          </div>
+
+          {/* Year dropdown */}
           <ScorecardPeriodDropZone
             disabled={!departmentStoreId}
             onFileDrop={async (file) => {
               try {
                 const result = await parseCSRProductivityReport(file);
-                // Calculate appropriate month based on current period
                 const now = new Date();
                 const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
                 const monthStr = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
                 result.month = monthStr;
-
                 setDroppedParseResult(result);
                 setDroppedFileName(file.name);
                 setDroppedFile(file);
                 setImportMonth(monthStr);
                 setImportPreviewOpen(true);
-
-                toast({
-                  title: "File parsed successfully",
-                  description: `Found ${result.advisors.length} advisors`,
-                });
+                toast({ title: "File parsed successfully", description: `Found ${result.advisors.length} advisors` });
               } catch (error: any) {
-                toast({
-                  title: "Parse error",
-                  description: error.message || "Failed to parse file",
-                  variant: "destructive",
-                });
+                toast({ title: "Parse error", description: error.message || "Failed to parse file", variant: "destructive" });
               }
             }}
           >
-            <PeriodNavigation
-                year={year}
-                quarter={quarter}
-                onYearChange={onYearChange}
-                onQuarterChange={onQuarterChange}
-                minYear={2024}
-                maxYear={new Date().getFullYear() + 1}
-              />
+            <Select value={String(year)} onValueChange={(v) => onYearChange(Number(v))}>
+              <SelectTrigger className="h-8 w-[90px] text-xs font-semibold bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                {Array.from({ length: (new Date().getFullYear() + 2) - 2024 }, (_, i) => 2024 + i).map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </ScorecardPeriodDropZone>
 
-          {/* Unified view mode pills */}
-          <div className="flex items-center border rounded-lg p-0.5 bg-muted/30 gap-0.5">
-            {[1, 2, 3, 4].map((q) => (
-              <Button
-                key={q}
-                variant={quarter === q && viewMode === "weekly" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2.5 text-xs"
-                onClick={() => {
-                  onQuarterChange(q);
-                  setViewMode("weekly");
-                  onViewModeChange?.("weekly");
-                }}
-              >
-                Q{q}
-              </Button>
-            ))}
-            <div className="w-px h-5 bg-border mx-0.5" />
-            {[1, 2, 3, 4].map((q) => (
-              <Button
-                key={`m${q}`}
-                variant={quarter === q && viewMode === "monthly" ? "default" : "ghost"}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => {
-                  onQuarterChange(q);
-                  setViewMode("monthly");
-                  onViewModeChange?.("monthly");
-                }}
-              >
-                M{q}
-              </Button>
-            ))}
-            <div className="w-px h-5 bg-border mx-0.5" />
-            <Button
-              variant={isQuarterTrendMode ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => onQuarterChange(0)}
-            >
-              Q Trend
-            </Button>
-            <Button
-              variant={isMonthlyTrendMode ? "default" : "ghost"}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => onQuarterChange(-1)}
-            >
-              M Trend
-            </Button>
-          </div>
+          {/* KPI filter */}
+          <Select value={selectedKpiFilter} onValueChange={setSelectedKpiFilter}>
+            <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
+              <SelectValue placeholder="All KPIs" />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All KPIs</SelectItem>
+              {uniqueKpiNames.map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            <Select value={selectedKpiFilter} onValueChange={setSelectedKpiFilter}>
-              <SelectTrigger className="w-[180px] bg-background">
-                <SelectValue placeholder="Filter by KPI" />
-              </SelectTrigger>
-              <SelectContent className="bg-background z-50">
-                <SelectItem value="all">All KPIs</SelectItem>
-                {uniqueKpiNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
-              <SelectTrigger className="w-[180px] bg-background">
-                <SelectValue placeholder="Filter by Role" />
-              </SelectTrigger>
-              <SelectContent className="bg-background z-50">
-                <SelectItem value="all">All Roles</SelectItem>
-                {uniqueRoles.map((role) => (
-                  <SelectItem key={role} value={role as string}>
-                    {role === "department_manager"
-                      ? "Department Manager"
-                      : role === "service_advisor"
-                        ? "Service Advisor"
-                        : role === "sales_advisor"
-                          ? "Sales Advisor"
-                          : role === "parts_advisor"
-                            ? "Parts Advisor"
-                            : role === "technician"
-                              ? "Technician"
-                              : role === "store_gm"
-                                ? "Store GM"
-                                : role === "super_admin"
-                                  ? "Super Admin"
-                                  : role}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Role filter */}
+          <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+            <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
+              <SelectValue placeholder="All Advisors" />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All Advisors</SelectItem>
+              {uniqueRoles.map((role) => (
+                <SelectItem key={role} value={role as string}>
+                  {role === "department_manager" ? "Department Manager" : role === "service_advisor" ? "Service Advisor" : role === "sales_advisor" ? "Sales Advisor" : role === "parts_advisor" ? "Parts Advisor" : role === "technician" ? "Technician" : role === "store_gm" ? "Store GM" : role === "super_admin" ? "Super Admin" : role}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
+        {/* Right side actions */}
         <div className="flex items-center gap-2">
           {canManageKPIs && (
             <>
               <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[180px] h-8 text-xs">
                   <SelectValue placeholder="Select user to add KPI" />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
                   {storeUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.full_name}
-                    </SelectItem>
+                    <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -3258,8 +3247,8 @@ const ScorecardGrid = ({
               {selectedUserId && (
                 <Popover open={showAddKPI} onOpenChange={setShowAddKPI}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <Plus className="h-4 w-4" />
+                    <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                      <Plus className="h-3.5 w-3.5" />
                       Add KPI
                     </Button>
                   </PopoverTrigger>
@@ -3271,48 +3260,29 @@ const ScorecardGrid = ({
                           for {storeUsers.find((u) => u.id === selectedUserId)?.full_name}
                         </p>
                       </div>
-
                       <div className="space-y-3">
                         <div className="space-y-2">
                           <Label htmlFor="kpi-preset">Select KPI</Label>
                           <Select value={selectedPreset} onValueChange={handlePresetSelect}>
-                            <SelectTrigger id="kpi-preset">
-                              <SelectValue placeholder="Choose preset or custom" />
-                            </SelectTrigger>
+                            <SelectTrigger id="kpi-preset"><SelectValue placeholder="Choose preset or custom" /></SelectTrigger>
                             <SelectContent className="bg-background z-50">
                               <SelectItem value="custom">Custom KPI</SelectItem>
                               {dynamicPresetKpis.map((preset) => (
-                                <SelectItem key={preset.id} value={preset.name}>
-                                  {preset.name}
-                                </SelectItem>
+                                <SelectItem key={preset.id} value={preset.name}>{preset.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-
                         {selectedPreset && (
                           <>
                             <div className="space-y-2">
                               <Label htmlFor="kpi-name">KPI Name</Label>
-                              <Input
-                                id="kpi-name"
-                                placeholder="Enter KPI name"
-                                value={newKPIName}
-                                onChange={(e) => setNewKPIName(e.target.value)}
-                                disabled={selectedPreset !== "custom"}
-                              />
+                              <Input id="kpi-name" placeholder="Enter KPI name" value={newKPIName} onChange={(e) => setNewKPIName(e.target.value)} disabled={selectedPreset !== "custom"} />
                             </div>
-
                             <div className="space-y-2">
                               <Label htmlFor="kpi-type">Metric Type</Label>
-                              <Select
-                                value={newKPIType}
-                                onValueChange={(v: "dollar" | "percentage" | "unit") => setNewKPIType(v)}
-                                disabled={selectedPreset !== "custom"}
-                              >
-                                <SelectTrigger id="kpi-type">
-                                  <SelectValue />
-                                </SelectTrigger>
+                              <Select value={newKPIType} onValueChange={(v: "dollar" | "percentage" | "unit") => setNewKPIType(v)} disabled={selectedPreset !== "custom"}>
+                                <SelectTrigger id="kpi-type"><SelectValue /></SelectTrigger>
                                 <SelectContent className="bg-background z-50">
                                   <SelectItem value="dollar">Dollar ($)</SelectItem>
                                   <SelectItem value="percentage">Percentage (%)</SelectItem>
@@ -3320,17 +3290,10 @@ const ScorecardGrid = ({
                                 </SelectContent>
                               </Select>
                             </div>
-
                             <div className="space-y-2">
                               <Label htmlFor="kpi-direction">Target Direction</Label>
-                              <Select
-                                value={newKPIDirection}
-                                onValueChange={(v: "above" | "below") => setNewKPIDirection(v)}
-                                disabled={selectedPreset !== "custom"}
-                              >
-                                <SelectTrigger id="kpi-direction">
-                                  <SelectValue />
-                                </SelectTrigger>
+                              <Select value={newKPIDirection} onValueChange={(v: "above" | "below") => setNewKPIDirection(v)} disabled={selectedPreset !== "custom"}>
+                                <SelectTrigger id="kpi-direction"><SelectValue /></SelectTrigger>
                                 <SelectContent className="bg-background z-50">
                                   <SelectItem value="above">Above Target</SelectItem>
                                   <SelectItem value="below">Below Target</SelectItem>
@@ -3340,14 +3303,9 @@ const ScorecardGrid = ({
                           </>
                         )}
                       </div>
-
                       <div className="flex gap-2 justify-end">
-                        <Button variant="outline" size="sm" onClick={() => setShowAddKPI(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleAddKPI}>
-                          Add KPI
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setShowAddKPI(false)}>Cancel</Button>
+                        <Button size="sm" onClick={handleAddKPI}>Add KPI</Button>
                       </div>
                     </div>
                   </PopoverContent>
@@ -3366,48 +3324,26 @@ const ScorecardGrid = ({
                 viewMode={viewMode}
                 onTargetsChange={async () => {
                   await recalculateAllEntryStatuses();
-                  // Fetch fresh targets to pass to loadScorecardData
                   const { data: freshTargetsData } = await supabase
                     .from("kpi_targets")
                     .select("*")
-                    .in(
-                      "kpi_id",
-                      kpis.map((k) => k.id),
-                    )
+                    .in("kpi_id", kpis.map((k) => k.id))
                     .eq("quarter", quarter)
                     .eq("year", year)
                     .eq("entry_type", viewMode);
-
                   const freshTargetsMap: { [key: string]: number } = {};
-                  freshTargetsData?.forEach((target) => {
-                    freshTargetsMap[target.kpi_id] = target.target_value || 0;
-                  });
-
+                  freshTargetsData?.forEach((target) => { freshTargetsMap[target.kpi_id] = target.target_value || 0; });
                   await loadScorecardData(freshTargetsMap);
                 }}
               />
               {canManageKPIs && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPasteDialogOpen(true);
-                    }}
-                    className="gap-2"
-                  >
-                    <ClipboardPaste className="h-4 w-4" />
+                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={(e) => { e.stopPropagation(); setPasteDialogOpen(true); }}>
+                    <ClipboardPaste className="h-3.5 w-3.5" />
                     Paste Row
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleBulkRecalculateAll}
-                    disabled={saving["bulk-recalc"]}
-                    className="gap-2"
-                  >
-                    <RefreshCw className={cn("h-4 w-4", saving["bulk-recalc"] && "animate-spin")} />
+                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={handleBulkRecalculateAll} disabled={saving["bulk-recalc"]}>
+                    <RefreshCw className={cn("h-3.5 w-3.5", saving["bulk-recalc"] && "animate-spin")} />
                     {saving["bulk-recalc"] ? "Recalculating..." : "Recalculate All"}
                   </Button>
                 </>
@@ -3417,86 +3353,111 @@ const ScorecardGrid = ({
         </div>
       </div>
 
-      {/* Phase 4: Quarter Tab Pills - only in weekly view */}
-      {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (
-        <div className="flex items-center gap-1 mb-2">
+      {/* Quarter pills - full width with date ranges */}
+      {!isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (
+        <div className="grid grid-cols-4 gap-1.5">
           {[1, 2, 3, 4].map((q) => {
-            const qYearStart = YEAR_STARTS[year] || new Date(year, 0, 1);
-            const qStart = new Date(qYearStart);
-            qStart.setDate(qYearStart.getDate() + (q - 1) * 13 * 7);
-            const qEnd = new Date(qStart);
-            qEnd.setDate(qStart.getDate() + 13 * 7 - 1);
-            const qStartLabel = `${qStart.getMonth() + 1}/${qStart.getDate()}`;
-            const qEndLabel = `${qEnd.getMonth() + 1}/${qEnd.getDate()}`;
+            const range = getQuarterRange(q);
+            const startLabel = `${range.start.getMonth() + 1}/${range.start.getDate()}`;
+            const endLabel = `${range.end.getMonth() + 1}/${range.end.getDate()}`;
+            const isActive = quarter === q;
             return (
               <button
                 key={q}
                 onClick={() => onQuarterChange(q)}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
-                  quarter === q
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted/30 text-muted-foreground border-border hover:bg-muted/60"
+                  "py-2 rounded-md text-center transition-colors border",
+                  isActive
+                    ? "bg-[hsl(222,47%,16%)] text-white border-[hsl(222,47%,16%)] dark:bg-primary dark:text-primary-foreground dark:border-primary"
+                    : "bg-background text-foreground border-border hover:bg-muted/60"
                 )}
               >
-                <div>Q{q}</div>
-                <div className="text-[10px] opacity-70">{qStartLabel}–{qEndLabel}</div>
+                <div className="text-sm font-bold">Q{q} {year}</div>
+                <div className={cn("text-[10px]", isActive ? "text-white/70" : "text-muted-foreground")}>{startLabel} – {endLabel}</div>
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Phase 3: Quarter Summary Stats Bar */}
-      {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (() => {
-        const today = new Date();
-        const currentWeekInfo = getQuarterInfo(today);
-        const currentWeekNum = (currentWeekInfo.year === year && currentWeekInfo.quarter === quarter) ? currentWeekInfo.weekInQuarter : null;
-        const qYearStart = YEAR_STARTS[year] || new Date(year, 0, 1);
-        const qStart = new Date(qYearStart);
-        qStart.setDate(qYearStart.getDate() + (quarter - 1) * 13 * 7);
-        const qEnd = new Date(qStart);
-        qEnd.setDate(qStart.getDate() + 13 * 7 - 1);
-        const qStartLabel = `${qStart.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-        const qEndLabel = `${qEnd.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-
-        // Count weeks with data and total green/yellow/red
-        let weeksWithData = 0;
-        let totalGreen = 0, totalYellow = 0, totalRed = 0;
-        weeks.forEach((week) => {
-          const weekDate = week.start.toISOString().split("T")[0];
-          let hasData = false;
-          filteredKpis.forEach((kpi) => {
-            const entry = entries[`${kpi.id}-${weekDate}`];
-            if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
-              hasData = true;
-              if (entry.status === "green") totalGreen++;
-              else if (entry.status === "yellow") totalYellow++;
-              else if (entry.status === "red") totalRed++;
-            }
-          });
-          if (hasData) weeksWithData++;
-        });
-
-        return (
-          <div className="flex items-center gap-4 mb-2 px-3 py-2 rounded-lg bg-muted/30 border text-xs">
-            <div className="font-bold text-sm">Q{quarter} {year}</div>
-            <div className="text-muted-foreground">{qStartLabel} – {qEndLabel} · 13 weeks</div>
-            {currentWeekNum && (
-              <div className="flex items-center gap-1">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                <span className="font-medium">Week {currentWeekNum}</span>
-              </div>
-            )}
-            <div className="text-muted-foreground">{weeksWithData}/13 weeks entered</div>
-            <div className="flex items-center gap-1.5 ml-auto">
-              <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100 font-semibold">{totalGreen}</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 font-semibold">{totalYellow}</span>
-              <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100 font-semibold">{totalRed}</span>
-            </div>
+      {/* Trend mode pills */}
+      {(isQuarterTrendMode || isMonthlyTrendMode) && kpis.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <PeriodNavigation year={year} quarter={quarter} onYearChange={onYearChange} onQuarterChange={onQuarterChange} minYear={2024} maxYear={new Date().getFullYear() + 1} />
+          <div className="flex items-center border rounded-md p-0.5 bg-muted/30 gap-0.5 ml-2">
+            <Button variant={isQuarterTrendMode ? "default" : "ghost"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => onQuarterChange(0)}>Q Trend</Button>
+            <Button variant={isMonthlyTrendMode ? "default" : "ghost"} size="sm" className="h-7 px-2.5 text-xs" onClick={() => onQuarterChange(-1)}>M Trend</Button>
           </div>
-        );
-      })()}
+          {[1, 2, 3, 4].map((q) => (
+            <Button key={q} variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onQuarterChange(q)}>Q{q}</Button>
+          ))}
+        </div>
+      )}
+
+      {/* Dark navy summary strip */}
+      {!isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && summaryStats && (
+        <div className="flex items-stretch rounded-lg bg-[hsl(222,47%,16%)] text-white dark:bg-primary/90 overflow-hidden">
+          {/* Quarter */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Quarter</div>
+            <div className="text-base font-bold">Q{quarter} {year}</div>
+            <div className="text-[10px] text-white/60">13 weeks · Mon–Sun</div>
+          </div>
+          <div className="w-px bg-white/10" />
+          {/* Weekly Target - placeholder */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Weekly Target</div>
+            <div className="text-base font-bold">—</div>
+            <div className="text-[10px] text-white/60">All advisors combined</div>
+          </div>
+          <div className="w-px bg-white/10" />
+          {/* Actual to date */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Weeks Entered</div>
+            <div className="text-base font-bold">{summaryStats.weeksWithData}/13</div>
+            <div className="text-[10px] text-white/60">{summaryStats.weeksWithData * filteredKpis.length} data points</div>
+          </div>
+          <div className="w-px bg-white/10" />
+          {/* Progress */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Progress vs Target</div>
+            <div className={cn("text-base font-bold", summaryStats.progressPct >= 70 ? "text-emerald-400" : summaryStats.progressPct >= 40 ? "text-amber-400" : "text-red-400")}>
+              {summaryStats.progressPct}%
+            </div>
+            <div className="text-[10px] text-white/60">Q{quarter} to date</div>
+          </div>
+          <div className="w-px bg-white/10" />
+          {/* Current Week */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Current Week</div>
+            <div className="text-base font-bold">{summaryStats.currentWeekNum ? `Wk ${summaryStats.currentWeekNum}` : "—"}</div>
+            <div className="text-[10px] text-white/60">{summaryStats.currentWeekNum ? `${summaryStats.qStartLabel} – ${summaryStats.qEndLabel}` : ""}</div>
+          </div>
+          <div className="w-px bg-white/10" />
+          {/* Status tally */}
+          <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Status</div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-emerald-400 font-bold text-sm">{summaryStats.totalGreen}</span>
+              <span className="text-amber-400 font-bold text-sm">{summaryStats.totalYellow}</span>
+              <span className="text-red-400 font-bold text-sm">{summaryStats.totalRed}</span>
+            </div>
+            <div className="text-[10px] text-white/60">{summaryStats.totalEntries} total entries</div>
+          </div>
+        </div>
+      )}
+
+      {/* Status legend */}
+      {!isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> At/above target</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-amber-500" /> Within 10%</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" /> Below target</span>
+          </div>
+          <span>Q{quarter} {year} · {summaryStats?.qStartLabel} – {summaryStats?.qEndLabel} · 13 weeks</span>
+        </div>
+      )}
 
       {kpis.length === 0 ? (
         <div className="border rounded-lg p-8 text-center">
