@@ -3577,11 +3577,12 @@ const ScorecardGrid = ({
                           });
                         }
 
+                        const weekIndex = weeks.indexOf(week) + 1;
                         return (
                           <TableHead
                             key={week.label}
                             className={cn(
-                              "text-center min-w-[125px] max-w-[125px] text-xs py-0",
+                              "text-center min-w-[90px] max-w-[90px] text-xs py-0",
                               isCurrentWeek && "bg-primary/20 font-bold border-l-2 border-r-2 border-primary",
                               isPreviousWeek && "bg-accent/30 font-bold border-l-2 border-r-2 border-accent",
                             )}
@@ -3594,26 +3595,27 @@ const ScorecardGrid = ({
                                     weekLabel={week.label}
                                     onFileDrop={handleWeekFileDrop}
                                     onReimport={handleWeekReimport}
-                                    className="w-full h-full py-[7.2px]"
+                                    className="w-full h-full py-1"
                                     importLog={weekImportLogs[weekDate]}
                                   >
                                     {isCurrentOrPast && (
-                                      <div className="flex flex-col gap-0.5 items-center mb-1 text-[10px] font-semibold">
-                                        <span className="px-1.5 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                                      <div className="flex gap-0.5 items-center justify-center mb-0.5 text-[9px] font-semibold">
+                                        <span className="px-1 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100">
                                           {statusCounts.green}
                                         </span>
-                                        <span className="px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
+                                        <span className="px-1 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">
                                           {statusCounts.yellow}
                                         </span>
-                                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
+                                        <span className="px-1 rounded bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">
                                           {statusCounts.red}
                                         </span>
-                                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
+                                        <span className="px-1 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
                                           {statusCounts.gray}
                                         </span>
                                       </div>
                                     )}
-                                    <div className="text-xs font-semibold">{week.label}</div>
+                                    <div className="text-xs font-bold">WK {weekIndex}</div>
+                                    <div className="text-[10px] text-muted-foreground">{week.label}</div>
                                     {isCurrentWeek && <div className="text-[10px] text-primary font-semibold">Current</div>}
                                     {isPreviousWeek && (
                                       <div className="text-[10px] text-accent-foreground font-semibold">Review</div>
@@ -4327,18 +4329,18 @@ const ScorecardGrid = ({
                                   <TableCell
                                     key={qtr.label}
                                     className={cn(
-                                      "px-1 py-0.5 text-center min-w-[125px] max-w-[125px]",
-                                      trendStatus === "success" && "bg-success/10",
-                                      trendStatus === "warning" && "bg-warning/10",
-                                      trendStatus === "destructive" && "bg-destructive/10",
+                                      "px-0.5 py-0 text-center min-w-[90px] max-w-[90px]",
+                                      trendStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                      trendStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                      trendStatus === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                       !trendStatus && "text-muted-foreground",
                                     )}
                                   >
                                     <span
                                       className={cn(
-                                        trendStatus === "success" && "text-success font-medium",
-                                        trendStatus === "warning" && "text-warning font-medium",
-                                        trendStatus === "destructive" && "text-destructive font-medium",
+                                        trendStatus === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                        trendStatus === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                        trendStatus === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                       )}
                                     >
                                       {qValue !== null && qValue !== undefined
@@ -4366,25 +4368,25 @@ const ScorecardGrid = ({
                                     <ContextMenuTrigger asChild>
                                       <TableCell
                                         className={cn(
-                                          "px-1 py-0.5 relative min-w-[125px] max-w-[125px]",
-                                          status === "success" && "bg-success/10",
-                                          status === "warning" && "bg-warning/10",
-                                          status === "destructive" && "bg-destructive/10",
+                                          "px-0.5 py-0 relative min-w-[90px] max-w-[90px]",
+                                          status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                          status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                          status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                           isCurrentWeek && "border-l-2 border-r-2 border-primary bg-primary/5",
                                         )}
                                       >
-                                        <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                        <div className="relative flex items-center justify-center gap-0 h-7 w-full">
                                           {(isCalculatedKPI(kpi.name) || focusedInput !== key) &&
                                           entry?.actual_value !== null &&
                                           entry?.actual_value !== undefined ? (
                                             // Display formatted value when data exists (always for calculated, when not focused for others)
                                             <div
                                               data-display-value
-                                              className={cn(
-                                                "h-full w-full flex items-center justify-center cursor-text",
-                                                status === "success" && "text-success font-medium",
-                                                status === "warning" && "text-warning font-medium",
-                                                status === "destructive" && "text-destructive font-medium",
+                                            className={cn(
+                                                "h-full w-full flex items-center justify-center cursor-text text-xs",
+                                                status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                                 isCalculatedKPI(kpi.name) && "cursor-default",
                                               )}
                                               onClick={(e) => {
@@ -4484,10 +4486,10 @@ const ScorecardGrid = ({
                                               (w) => w.start.toISOString().split("T")[0] === weekDate,
                                             )}
                                             className={cn(
-                                              "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                                              status === "success" && "text-success font-medium",
-                                              status === "warning" && "text-warning font-medium",
-                                              status === "destructive" && "text-destructive font-medium",
+                                              "h-full w-full text-center text-xs border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
+                                              status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                              status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                              status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                               isCalculatedKPI(kpi.name) && "hidden",
                                             )}
                                             placeholder="-"
