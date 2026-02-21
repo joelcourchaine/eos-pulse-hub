@@ -100,7 +100,7 @@ interface ScorecardGridProps {
   quarter: number;
   onYearChange: (year: number) => void;
   onQuarterChange: (quarter: number) => void;
-  onViewModeChange?: (mode: "weekly" | "monthly") => void;
+  onViewModeChange?: (mode: "weekly" | "monthly" | "quarterly") => void;
 }
 
 // Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
@@ -249,6 +249,43 @@ const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count
   return quarters.reverse();
 };
 
+// Generate 5-quarter rolling window: 4 preceding + selected quarter on far right
+const getQuarterlyViewPeriods = (selectedQuarter: number, selectedYear: number) => {
+  const periods: { quarter: number; year: number; label: string; type: "quarter" }[] = [];
+  let q = selectedQuarter;
+  let y = selectedYear;
+
+  // Go back 4 quarters from selected
+  const preceding: typeof periods = [];
+  let pq = q;
+  let py = y;
+  for (let i = 0; i < 4; i++) {
+    pq--;
+    if (pq < 1) { pq = 4; py--; }
+    preceding.unshift({ quarter: pq, year: py, label: `Q${pq} ${py}`, type: "quarter" });
+  }
+
+  // 4 preceding + selected
+  periods.push(...preceding);
+  periods.push({ quarter: q, year: y, label: `Q${q} ${y}`, type: "quarter" });
+
+  return periods;
+};
+
+// Get all month identifiers for a set of quarter periods (for data fetching)
+const getMonthIdentifiersForQuarters = (quarterPeriods: { quarter: number; year: number }[]) => {
+  const months: string[] = [];
+  quarterPeriods.forEach((qtr) => {
+    const startMonth = (qtr.quarter - 1) * 3 + 1;
+    months.push(
+      `${qtr.year}-${String(startMonth).padStart(2, "0")}`,
+      `${qtr.year}-${String(startMonth + 1).padStart(2, "0")}`,
+      `${qtr.year}-${String(startMonth + 2).padStart(2, "0")}`,
+    );
+  });
+  return months;
+};
+
 const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => {
   const quarters = [];
   const startYear = currentYear - 1;
@@ -340,7 +377,9 @@ const ScorecardGrid = ({
   const [yearlyAverages, setYearlyAverages] = useState<{
     [key: string]: { prevYear: number | null; currentYear: number | null };
   }>({});
-  const [viewMode, setViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [viewMode, setViewMode] = useState<"weekly" | "monthly" | "quarterly">("monthly");
+  const [quarterlyViewData, setQuarterlyViewData] = useState<{ [key: string]: number }>({});
+  const [quarterlyViewTargets, setQuarterlyViewTargets] = useState<{ [key: string]: number }>({});
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
@@ -414,14 +453,20 @@ const ScorecardGrid = ({
     ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year)
     : [];
   const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(year) : [];
+  const quarterlyViewPeriods = viewMode === "quarterly" ? getQuarterlyViewPeriods(quarter || 1, year) : [];
+
+  // For database queries, map quarterly → monthly since quarterly data is derived from monthly entries
+  const dbEntryType: "weekly" | "monthly" = viewMode === "quarterly" ? "monthly" : viewMode;
 
   const allPeriods = isQuarterTrendMode
     ? quarterTrendPeriods
     : isMonthlyTrendMode
       ? monthlyTrendPeriods
-      : viewMode === "weekly"
-        ? weeks
-        : months;
+      : viewMode === "quarterly"
+        ? quarterlyViewPeriods
+        : viewMode === "weekly"
+          ? weeks
+          : months;
 
   // Filtered periods for paste dialog - excludes year averages and totals
   const pastePeriods = allPeriods.filter(
@@ -491,7 +536,7 @@ const ScorecardGrid = ({
   useEffect(() => {
     if (!isQuarterTrendMode && !isMonthlyTrendMode) {
       const activeTargets = viewMode === "weekly" ? weeklyKpiTargets : monthlyKpiTargets;
-      if (Object.keys(activeTargets).length > 0) {
+      if (viewMode !== "quarterly" && Object.keys(activeTargets).length > 0) {
         setKpiTargets(activeTargets);
       }
     }
@@ -513,6 +558,8 @@ const ScorecardGrid = ({
     setStoreUsers([]);
     setPrecedingQuartersData({});
     setYearlyAverages({});
+    setQuarterlyViewData({});
+    setQuarterlyViewTargets({});
 
     // Load data in correct sequence - targets must be loaded before scorecard data
     const loadData = async () => {
@@ -528,6 +575,8 @@ const ScorecardGrid = ({
 
       // Always load preceding quarters data (needed for monthly Q Avg columns and trend modes)
       await loadPrecedingQuartersData();
+      // Load quarterly view data (5 quarters of monthly averages)
+      await loadQuarterlyViewData();
       if (isMonthlyTrendMode) {
         await calculateYearlyAverages();
       }
@@ -1492,6 +1541,72 @@ const ScorecardGrid = ({
     setPrecedingQuartersData(quarterAverages);
   };
 
+  // Load data for the 5-quarter rolling window (quarterly view mode)
+  const loadQuarterlyViewData = async () => {
+    if (!departmentId || kpis.length === 0) return;
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+
+    const activeQuarter = quarter || 1;
+    const qvPeriods = getQuarterlyViewPeriods(activeQuarter, year);
+    const monthIds = getMonthIdentifiersForQuarters(qvPeriods);
+    const kpiIds = kpis.map((k) => k.id);
+
+    // Fetch monthly entries for all 5 quarters
+    const { data, error } = await supabase
+      .from("scorecard_entries")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .eq("entry_type", "monthly")
+      .in("month", monthIds);
+
+    if (error) {
+      console.error("Error loading quarterly view data:", error);
+      return;
+    }
+
+    // Calculate average for each KPI in each quarter
+    const qvData: { [key: string]: number } = {};
+    qvPeriods.forEach((qtr) => {
+      const startMonth = (qtr.quarter - 1) * 3 + 1;
+      const quarterMonths = [
+        `${qtr.year}-${String(startMonth).padStart(2, "0")}`,
+        `${qtr.year}-${String(startMonth + 1).padStart(2, "0")}`,
+        `${qtr.year}-${String(startMonth + 2).padStart(2, "0")}`,
+      ];
+
+      kpis.forEach((kpi) => {
+        const kpiEntries = data?.filter((e) => e.kpi_id === kpi.id && quarterMonths.includes(e.month || "")) || [];
+        const values = kpiEntries.map((e) => e.actual_value).filter((v): v is number => v !== null && v !== undefined);
+
+        if (values.length > 0) {
+          const result = kpi.aggregation_type === "average"
+            ? values.reduce((sum, v) => sum + v, 0) / values.length
+            : values.reduce((sum, v) => sum + v, 0) / values.length; // Always average for quarterly view (monthly averages)
+          qvData[`${kpi.id}-Q${qtr.quarter}-${qtr.year}`] = result;
+        }
+      });
+    });
+    setQuarterlyViewData(qvData);
+
+    // Fetch targets for all 5 quarters
+    const { data: targetData, error: targetError } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .eq("entry_type", "monthly");
+
+    if (targetError) {
+      console.error("Error loading quarterly view targets:", targetError);
+      return;
+    }
+
+    const qvTargets: { [key: string]: number } = {};
+    targetData?.forEach((target) => {
+      qvTargets[`${target.kpi_id}-Q${target.quarter}-${target.year}`] = target.target_value || 0;
+    });
+    setQuarterlyViewTargets(qvTargets);
+  };
+
   const calculateYearlyAverages = async () => {
     if (!departmentId || kpis.length === 0) return;
 
@@ -2001,7 +2116,7 @@ const ScorecardGrid = ({
         kpi_id: kpiId,
         quarter: quarter,
         year: year,
-        entry_type: viewMode,
+        entry_type: dbEntryType,
         target_value: newValue,
       },
       {
@@ -2031,7 +2146,7 @@ const ScorecardGrid = ({
       )
       .eq("quarter", quarter)
       .eq("year", year)
-      .eq("entry_type", viewMode);
+      .eq("entry_type", dbEntryType);
 
     const freshTargetsMap: { [key: string]: number } = {};
     freshTargetsData?.forEach((target) => {
@@ -2063,7 +2178,7 @@ const ScorecardGrid = ({
         kpi_id: kpiId,
         quarter: q,
         year: year,
-        entry_type: viewMode,
+        entry_type: dbEntryType,
         target_value: currentTarget,
       }));
 
@@ -2091,7 +2206,7 @@ const ScorecardGrid = ({
       )
       .eq("quarter", quarter)
       .eq("year", year)
-      .eq("entry_type", viewMode);
+      .eq("entry_type", dbEntryType);
 
     const freshTargetsMap: { [key: string]: number } = {};
     freshTargetsData?.forEach((target) => {
@@ -2238,7 +2353,7 @@ const ScorecardGrid = ({
       .from("scorecard_entries")
       .select("*")
       .eq("kpi_id", kpiId)
-      .eq("entry_type", viewMode);
+      .eq("entry_type", dbEntryType);
 
     if (fetchError || !existingEntries) {
       console.error("Error fetching entries for recalculation:", fetchError);
@@ -2311,7 +2426,7 @@ const ScorecardGrid = ({
       )
       .eq("quarter", quarter)
       .eq("year", year)
-      .eq("entry_type", viewMode);
+      .eq("entry_type", dbEntryType);
 
     if (targetsError) {
       console.error("Error loading targets for recalculation:", targetsError);
@@ -2657,9 +2772,9 @@ const ScorecardGrid = ({
         const { error } = await supabase.from("scorecard_entries").upsert(
           {
             kpi_id: pasteKpi,
-            [isMonthlyTrendMode || isQuarterTrendMode || viewMode === "monthly" ? "month" : "week_start_date"]:
+            [isMonthlyTrendMode || isQuarterTrendMode || viewMode === "monthly" || viewMode === "quarterly" ? "month" : "week_start_date"]:
               entry.period,
-            entry_type: isMonthlyTrendMode || isQuarterTrendMode ? "monthly" : viewMode,
+            entry_type: isMonthlyTrendMode || isQuarterTrendMode ? "monthly" : dbEntryType,
             actual_value: entry.value,
             variance: variance,
             status: status,
@@ -3170,12 +3285,32 @@ const ScorecardGrid = ({
               Monthly
             </Button>
             <Button
+              variant={viewMode === "quarterly" && !isQuarterTrendMode && !isMonthlyTrendMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs font-semibold"
+              onClick={() => {
+                if (isQuarterTrendMode || isMonthlyTrendMode) { onQuarterChange(1); }
+                setViewMode("quarterly");
+                onViewModeChange?.("quarterly");
+              }}
+            >
+              Quarterly
+            </Button>
+            <Button
               variant={isQuarterTrendMode ? "default" : "ghost"}
               size="sm"
               className="h-7 px-3 text-xs font-semibold"
               onClick={() => onQuarterChange(0)}
             >
-              Quarterly
+              Q Trend
+            </Button>
+            <Button
+              variant={isMonthlyTrendMode ? "default" : "ghost"}
+              size="sm"
+              className="h-7 px-3 text-xs font-semibold"
+              onClick={() => onQuarterChange(-1)}
+            >
+              M Trend
             </Button>
           </div>
 
@@ -3333,7 +3468,7 @@ const ScorecardGrid = ({
                 kpis={kpis}
                 currentYear={year}
                 currentQuarter={quarter}
-                viewMode={viewMode}
+                viewMode={viewMode === "quarterly" ? "monthly" : viewMode}
                 onTargetsChange={async () => {
                   await recalculateAllEntryStatuses();
                   const { data: freshTargetsData } = await supabase
@@ -3342,7 +3477,7 @@ const ScorecardGrid = ({
                     .in("kpi_id", kpis.map((k) => k.id))
                     .eq("quarter", quarter)
                     .eq("year", year)
-                    .eq("entry_type", viewMode);
+                    .eq("entry_type", dbEntryType);
                   const freshTargetsMap: { [key: string]: number } = {};
                   freshTargetsData?.forEach((target) => { freshTargetsMap[target.kpi_id] = target.target_value || 0; });
                   await loadScorecardData(freshTargetsMap);
@@ -3611,6 +3746,21 @@ const ScorecardGrid = ({
                           {qtr.label}
                         </TableHead>
                       ))
+                    ) : viewMode === "quarterly" ? (
+                      quarterlyViewPeriods.map((qtr, idx) => {
+                        const isSelected = idx === quarterlyViewPeriods.length - 1;
+                        return (
+                          <TableHead
+                            key={qtr.label}
+                            className={cn(
+                              "text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] sticky top-0 z-10",
+                              isSelected ? "bg-primary/10 border-x-2 border-primary/30" : "bg-muted/50",
+                            )}
+                          >
+                            {qtr.label}
+                          </TableHead>
+                        );
+                      })
                     ) : viewMode === "weekly" ? (
                       <>
                       {weeks.map((week) => {
@@ -4389,6 +4539,65 @@ const ScorecardGrid = ({
                                         trendStatus === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
                                         trendStatus === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
                                         trendStatus === "destructive" && "text-red-800 dark:text-red-200 font-medium",
+                                      )}
+                                    >
+                                      {qValue !== null && qValue !== undefined
+                                        ? formatQuarterAverage(qValue, kpi.metric_type, kpi.name)
+                                        : "-"}
+                                    </span>
+                                  </TableCell>
+                                );
+                              })
+                            ) : viewMode === "quarterly" ? (
+                              quarterlyViewPeriods.map((qtr, qIdx) => {
+                                const qKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
+                                const qValue = quarterlyViewData[qKey];
+                                const isSelected = qIdx === quarterlyViewPeriods.length - 1;
+
+                                // Get quarter-specific target
+                                const targetKey = `${kpi.id}-Q${qtr.quarter}-${qtr.year}`;
+                                const rawTarget = quarterlyViewTargets[targetKey] ?? kpi.target_value;
+                                const targetValue =
+                                  rawTarget !== null && rawTarget !== undefined && rawTarget !== 0 ? rawTarget : null;
+
+                                let qStatus: "success" | "warning" | "destructive" | null = null;
+
+                                if (qValue !== null && qValue !== undefined && targetValue !== null) {
+                                  let variance: number;
+                                  if (kpi.metric_type === "percentage") {
+                                    variance = qValue - targetValue;
+                                  } else {
+                                    variance = ((qValue - targetValue) / Math.abs(targetValue)) * 100;
+                                  }
+
+                                  const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
+
+                                  if (adjustedVariance >= 0) {
+                                    qStatus = "success";
+                                  } else if (adjustedVariance >= -10) {
+                                    qStatus = "warning";
+                                  } else {
+                                    qStatus = "destructive";
+                                  }
+                                }
+
+                                return (
+                                  <TableCell
+                                    key={qtr.label}
+                                    className={cn(
+                                      "px-0.5 py-0 text-center min-w-[100px] max-w-[100px]",
+                                      isSelected && "border-x-2 border-primary/30",
+                                      qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                      qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                      qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40",
+                                      !qStatus && "text-muted-foreground",
+                                    )}
+                                  >
+                                    <span
+                                      className={cn(
+                                        qStatus === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                        qStatus === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                        qStatus === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                       )}
                                     >
                                       {qValue !== null && qValue !== undefined
