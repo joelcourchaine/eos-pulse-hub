@@ -1094,7 +1094,7 @@ const Dashboard = () => {
                     <div className="flex items-center gap-3 justify-center md:justify-start flex-shrink-0">
                       <img src={goLogo} alt="GO Logo" className="h-10 w-10 rounded-lg" />
                       <div className="min-w-0">
-                        <h1 className="text-xl font-bold text-foreground whitespace-nowrap">GO Scorecard</h1>
+                        <h1 className="text-xl font-bold text-foreground whitespace-nowrap"><span className="font-black">GO</span> Scorecard</h1>
                         <p className="text-xs text-muted-foreground whitespace-nowrap">Growth Operating System</p>
                       </div>
                     </div>
@@ -1488,7 +1488,7 @@ const Dashboard = () => {
                     <CardHeader>
                       <div className="flex items-center justify-between">
                         <div>
-                          <CardTitle className="text-2xl">GO Scorecard</CardTitle>
+                          <CardTitle className="text-2xl"><span className="font-black">GO</span> Scorecard</CardTitle>
                           <CardDescription>Track your department's key performance indicators</CardDescription>
                         </div>
                         <div className="flex gap-2">

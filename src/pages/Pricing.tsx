@@ -39,7 +39,7 @@ const Pricing = () => {
             onClick={() => navigate("/")}
           />
           <h1 className="text-4xl font-bold text-foreground mb-3">
-            GO Scorecard Platform
+            <span className="font-black">GO</span> Scorecard Platform
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Transform your dealership performance with data-driven

@@ -131,7 +131,7 @@ const Index = () => {
         {/* Header */}
         <div className="text-center mb-16">
           <img src={goLogo} alt="GO Logo" className="h-20 w-20 mx-auto mb-6 rounded-2xl shadow-lg" />
-          <h1 className="text-5xl font-bold text-foreground mb-4">GO Scorecard Platform</h1>
+          <h1 className="text-5xl font-bold text-foreground mb-4"><span className="font-black">GO</span> Scorecard Platform</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Transform your dealership performance with data-driven accountability. Track KPIs, manage quarterly rocks,
             and run effective GO meetings—all in one place.
