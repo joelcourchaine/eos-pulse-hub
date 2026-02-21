@@ -34,7 +34,7 @@ const MurrayAssessment = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ACCESS_PASSWORD) {
+    if (password.toLowerCase() === ACCESS_PASSWORD) {
       sessionStorage.setItem(SESSION_KEY, "true");
       setAuthenticated(true);
       setError(false);
