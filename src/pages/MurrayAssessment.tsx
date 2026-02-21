@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock } from "lucide-react";
 
-const ACCESS_PASSWORD = "murray_growth_2026";
+const ACCESS_PASSWORD = "juno";
 const SESSION_KEY = "murray_assessment_auth";
 
 const MurrayAssessment = () => {
