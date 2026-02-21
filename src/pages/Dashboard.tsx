@@ -108,7 +108,7 @@ const Dashboard = () => {
   const [selectedStore, setSelectedStore] = useState<string>(""); // Don't load from localStorage until validated
   const [storesLoaded, setStoresLoaded] = useState(false);
   const [isStoreSwitching, setIsStoreSwitching] = useState(false); // Track when store is actively switching
-  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly">("monthly");
+  const [scorecardViewMode, setScorecardViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);

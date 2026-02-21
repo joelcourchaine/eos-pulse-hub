@@ -100,7 +100,7 @@ interface ScorecardGridProps {
   quarter: number;
   onYearChange: (year: number) => void;
   onQuarterChange: (quarter: number) => void;
-  onViewModeChange?: (mode: "weekly" | "monthly" | "quarterly") => void;
+  onViewModeChange?: (mode: "weekly" | "monthly" | "quarterly" | "yearly") => void;
 }
 
 // Custom year starts: 2025 starts on Dec 30, 2024 (Monday)
@@ -377,9 +377,12 @@ const ScorecardGrid = ({
   const [yearlyAverages, setYearlyAverages] = useState<{
     [key: string]: { prevYear: number | null; currentYear: number | null };
   }>({});
-  const [viewMode, setViewMode] = useState<"weekly" | "monthly" | "quarterly">("monthly");
+  const [viewMode, setViewMode] = useState<"weekly" | "monthly" | "quarterly" | "yearly">("monthly");
   const [quarterlyViewData, setQuarterlyViewData] = useState<{ [key: string]: number }>({});
   const [quarterlyViewTargets, setQuarterlyViewTargets] = useState<{ [key: string]: number }>({});
+  const [yearlyViewEntries, setYearlyViewEntries] = useState<{ [key: string]: ScorecardEntry }>({});
+  const [yearlyViewPrecedingData, setYearlyViewPrecedingData] = useState<{ [key: string]: number }>({});
+  const [yearlyViewTrendTargets, setYearlyViewTrendTargets] = useState<{ [key: string]: number }>({});
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
@@ -452,21 +455,27 @@ const ScorecardGrid = ({
   const quarterTrendPeriods = isQuarterTrendMode
     ? getQuarterTrendPeriods(currentQuarterInfo.quarter, currentQuarterInfo.year)
     : [];
-  const monthlyTrendPeriods = isMonthlyTrendMode ? getMonthlyTrendPeriods(year) : [];
+  const yearlyPeriods = getMonthlyTrendPeriods(year);
+  const monthlyTrendPeriods = isMonthlyTrendMode ? yearlyPeriods : [];
   const quarterlyViewPeriods = viewMode === "quarterly" ? getQuarterlyViewPeriods(quarter || 1, year) : [];
+  const isYearlyView = viewMode === "yearly";
+  // Alias that resolves to the right periods for yearly/M Trend rendering
+  const activeYearlyPeriods = isYearlyView ? yearlyPeriods : monthlyTrendPeriods;
 
-  // For database queries, map quarterly → monthly since quarterly data is derived from monthly entries
-  const dbEntryType: "weekly" | "monthly" = viewMode === "quarterly" ? "monthly" : viewMode;
+  // For database queries, map quarterly/yearly → monthly since data is derived from monthly entries
+  const dbEntryType: "weekly" | "monthly" = viewMode === "weekly" ? "weekly" : "monthly";
 
   const allPeriods = isQuarterTrendMode
     ? quarterTrendPeriods
     : isMonthlyTrendMode
       ? monthlyTrendPeriods
-      : viewMode === "quarterly"
-        ? quarterlyViewPeriods
-        : viewMode === "weekly"
-          ? weeks
-          : months;
+      : isYearlyView
+        ? yearlyPeriods
+        : viewMode === "quarterly"
+          ? quarterlyViewPeriods
+          : viewMode === "weekly"
+            ? weeks
+            : months;
 
   // Filtered periods for paste dialog - excludes year averages and totals
   const pastePeriods = allPeriods.filter(
@@ -536,7 +545,7 @@ const ScorecardGrid = ({
   useEffect(() => {
     if (!isQuarterTrendMode && !isMonthlyTrendMode) {
       const activeTargets = viewMode === "weekly" ? weeklyKpiTargets : monthlyKpiTargets;
-      if (viewMode !== "quarterly" && Object.keys(activeTargets).length > 0) {
+      if (viewMode !== "quarterly" && viewMode !== "yearly" && Object.keys(activeTargets).length > 0) {
         setKpiTargets(activeTargets);
       }
     }
@@ -560,6 +569,9 @@ const ScorecardGrid = ({
     setYearlyAverages({});
     setQuarterlyViewData({});
     setQuarterlyViewTargets({});
+    setYearlyViewEntries({});
+    setYearlyViewPrecedingData({});
+    setYearlyViewTrendTargets({});
 
     // Load data in correct sequence - targets must be loaded before scorecard data
     const loadData = async () => {
@@ -577,6 +589,8 @@ const ScorecardGrid = ({
       await loadPrecedingQuartersData();
       // Load quarterly view data (5 quarters of monthly averages)
       await loadQuarterlyViewData();
+      // Load yearly view data (12 months for instant yearly switching)
+      await loadYearlyViewData();
       if (isMonthlyTrendMode) {
         await calculateYearlyAverages();
       }
@@ -745,7 +759,7 @@ const ScorecardGrid = ({
 
   // Auto-scroll to the far right on initial load in weekly/monthly mode so the current quarter is in view
   useLayoutEffect(() => {
-    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+    if (isQuarterTrendMode || isMonthlyTrendMode || isYearlyView) return;
     if (!scrollContainerRef.current) return;
     if (loading) return;
 
@@ -754,14 +768,14 @@ const ScorecardGrid = ({
     requestAnimationFrame(() => {
       container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
     });
-  }, [viewMode, isQuarterTrendMode, isMonthlyTrendMode, loading]);
+  }, [viewMode, isQuarterTrendMode, isMonthlyTrendMode, isYearlyView, loading]);
 
-  // Auto-scroll to the far right in monthly trend mode to show the current year on load
+  // Auto-scroll to the far right in yearly view to show the current year on load
   useLayoutEffect(() => {
-    if (!isMonthlyTrendMode) return;
+    if (!isYearlyView) return;
     if (!scrollContainerRef.current) return;
     if (loading) return;
-    if (Object.keys(precedingQuartersData).length === 0) return;
+    if (Object.keys(yearlyViewPrecedingData).length === 0) return;
 
     const container = scrollContainerRef.current;
 
@@ -777,7 +791,7 @@ const ScorecardGrid = ({
     };
 
     requestAnimationFrame(tick);
-  }, [isMonthlyTrendMode, loading, precedingQuartersData, monthlyTrendPeriods.length, departmentId]);
+  }, [isYearlyView, loading, yearlyViewPrecedingData, yearlyPeriods.length, departmentId]);
 
   // Update local values when entries change
   useEffect(() => {
@@ -1607,6 +1621,96 @@ const ScorecardGrid = ({
     setQuarterlyViewTargets(qvTargets);
   };
 
+  // Pre-load yearly view data (12 months) for instant switching to yearly mode
+  const loadYearlyViewData = async () => {
+    if (!departmentId || kpis.length === 0) return;
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+
+    const kpiIds = kpis.map((k) => k.id);
+    const yPeriods = getMonthlyTrendPeriods(year);
+    const monthIdentifiers = yPeriods.filter((p) => p.type === "month").map((p) => p.identifier);
+
+    // Fetch all 12 months of monthly entries (paginated)
+    const allData: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const { data: page, error } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "monthly")
+        .in("month", monthIdentifiers)
+        .range(offset, offset + pageSize - 1);
+
+      if (error) { console.error("Error loading yearly view data:", error); break; }
+      if (!page || page.length === 0) break;
+      allData.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    // Build entries map
+    const newEntries: { [key: string]: ScorecardEntry } = {};
+    allData.forEach((entry) => {
+      const key = `${entry.kpi_id}-month-${entry.month}`;
+      // Compute status
+      const kpi = kpis.find((k) => k.id === entry.kpi_id);
+      if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+        const target = kpi.target_value;
+        let variance: number;
+        if (kpi.metric_type === "percentage") {
+          variance = entry.actual_value - target;
+        } else if (target !== 0) {
+          variance = ((entry.actual_value - target) / target) * 100;
+        } else {
+          variance = kpi.target_direction === "below" ? (entry.actual_value > 0 ? 100 : 0) : (entry.actual_value > 0 ? 100 : -100);
+        }
+        let status: string;
+        if (kpi.target_direction === "above") {
+          status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+        } else {
+          status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+        }
+        entry.status = status;
+        entry.variance = variance;
+      }
+      newEntries[key] = entry;
+    });
+
+    // Build preceding data map (for sparkline)
+    const precedingData: { [key: string]: number } = {};
+    yPeriods.filter((p) => p.type === "month").forEach((month) => {
+      kpis.forEach((kpi) => {
+        const entryKey = `${kpi.id}-month-${month.identifier}`;
+        const entry = newEntries[entryKey];
+        if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+          const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
+          precedingData[mKey] = entry.actual_value;
+        }
+      });
+    });
+
+    setYearlyViewEntries(newEntries);
+    setYearlyViewPrecedingData(precedingData);
+
+    // Fetch targets for all quarters of the year
+    const { data: targetData, error: targetError } = await supabase
+      .from("kpi_targets")
+      .select("*")
+      .in("kpi_id", kpiIds)
+      .eq("entry_type", "monthly");
+
+    if (!targetError) {
+      const targets: { [key: string]: number } = {};
+      targetData?.forEach((t) => {
+        targets[`${t.kpi_id}-Q${t.quarter}-${t.year}`] = t.target_value || 0;
+      });
+      setYearlyViewTrendTargets(targets);
+    }
+  };
+
   const calculateYearlyAverages = async () => {
     if (!departmentId || kpis.length === 0) return;
 
@@ -1852,6 +1956,12 @@ const ScorecardGrid = ({
           delete newEntries[key];
           return newEntries;
         });
+        // Also update yearly view entries
+        setYearlyViewEntries((prev) => {
+          const newEntries = { ...prev };
+          delete newEntries[key];
+          return newEntries;
+        });
         // Keep an explicit empty local value so the UI doesn't fall back to cached/preceding data
         setLocalValues((prev) => ({
           ...prev,
@@ -1865,6 +1975,11 @@ const ScorecardGrid = ({
           if (year && Number.isFinite(monthNumber)) {
             const mKey = `${kpiId}-M${monthNumber}-${year}`;
             setPrecedingQuartersData((prev) => {
+              const next = { ...prev };
+              delete next[mKey];
+              return next;
+            });
+            setYearlyViewPrecedingData((prev) => {
               const next = { ...prev };
               delete next[mKey];
               return next;
@@ -1941,6 +2056,11 @@ const ScorecardGrid = ({
         };
         return latestEntries;
       });
+      // Also update yearly view entries for instant yearly view
+      setYearlyViewEntries((prev) => ({
+        ...prev,
+        [key]: data as ScorecardEntry,
+      }));
 
       // Clear localValues after successful save
       setLocalValues((prev) => {
@@ -3297,12 +3417,12 @@ const ScorecardGrid = ({
               Quarterly
             </Button>
             <Button
-              variant={isMonthlyTrendMode ? "default" : "ghost"}
+              variant={isYearlyView && !isQuarterTrendMode && !isMonthlyTrendMode ? "default" : "ghost"}
               size="sm"
               className="h-7 px-3 text-xs font-semibold"
-              onClick={() => onQuarterChange(-1)}
+              onClick={() => { if (isQuarterTrendMode || isMonthlyTrendMode) { onQuarterChange(1); } setViewMode("yearly"); onViewModeChange?.("yearly"); }}
             >
-              M Trend
+              Yearly
             </Button>
           </div>
 
@@ -3493,7 +3613,7 @@ const ScorecardGrid = ({
       </div>
 
       {/* Quarter pills - full width with date ranges */}
-      {!isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && (
+      {!isQuarterTrendMode && !isMonthlyTrendMode && !isYearlyView && kpis.length > 0 && (
         <div className="grid grid-cols-4 gap-1.5">
           {[1, 2, 3, 4].map((q) => {
             const range = getQuarterRange(q);
@@ -3534,7 +3654,7 @@ const ScorecardGrid = ({
       )}
 
       {/* Dark navy summary strip */}
-      {!isQuarterTrendMode && !isMonthlyTrendMode && kpis.length > 0 && summaryStats && (
+      {!isQuarterTrendMode && !isMonthlyTrendMode && !isYearlyView && kpis.length > 0 && summaryStats && (
         <div className="flex items-stretch rounded-lg bg-[hsl(222,47%,16%)] text-white dark:bg-primary/90 overflow-hidden">
           {/* Quarter */}
           <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
@@ -3638,7 +3758,7 @@ const ScorecardGrid = ({
                         </TableHead>
                       </>
                     )}
-                    {isMonthlyTrendMode ? (
+                    {(isMonthlyTrendMode || isYearlyView) ? (
                       <>
                         <TableHead className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-muted sticky top-0 left-[170px] z-20 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
                           Trend
@@ -3647,7 +3767,7 @@ const ScorecardGrid = ({
                         {(() => {
                           const latestQuarter = Array.from(
                             new Set(
-                              monthlyTrendPeriods
+                              activeYearlyPeriods
                                 .filter((m) => m.type === "month")
                                 .map((m) => `Q${Math.floor(m.month / 3) + 1}-${m.year}`),
                             ),
@@ -3671,7 +3791,7 @@ const ScorecardGrid = ({
                             </TableHead>
                           );
                         })()}
-                        {monthlyTrendPeriods.map((period) => (
+                        {activeYearlyPeriods.map((period) => (
                           <TableHead
                             key={period.identifier}
                             className={cn(
@@ -4048,14 +4168,18 @@ const ScorecardGrid = ({
                                 </>
                               )}
                               {/* For non-weekly views, use colspan as before */}
-                              {(isMonthlyTrendMode || isQuarterTrendMode || viewMode !== "weekly") && (
+                              {(isMonthlyTrendMode || isYearlyView || isQuarterTrendMode || viewMode !== "weekly") && (
                                 <TableCell
                                   colSpan={
-                                    isMonthlyTrendMode
-                                      ? 2 + monthlyTrendPeriods.length
-                                      : isQuarterTrendMode
-                                        ? quarterTrendPeriods.length
-                                        : 1 + previousYearMonths.length + 1 + 1 + months.length + 1
+                                    isYearlyView
+                                      ? 2 + yearlyPeriods.length
+                                      : isMonthlyTrendMode
+                                        ? 2 + monthlyTrendPeriods.length
+                                        : isQuarterTrendMode
+                                          ? quarterTrendPeriods.length
+                                          : viewMode === "quarterly"
+                                            ? quarterlyViewPeriods.length
+                                            : 1 + previousYearMonths.length + 1 + 1 + months.length + 1
                                   }
                                   className="bg-muted/50 py-1"
                                 />
@@ -4127,15 +4251,15 @@ const ScorecardGrid = ({
                                 </TableCell>
                               </>
                             )}
-                            {isMonthlyTrendMode ? (
+                            {(isMonthlyTrendMode || isYearlyView) ? (
                               <>
                                 <TableCell className="px-1 py-0.5 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
                                   <Sparkline
-                                    data={monthlyTrendPeriods
+                                    data={activeYearlyPeriods
                                       .filter((p) => p.type === "month" && p.year === year)
                                       .map((month) => {
                                         const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
-                                        return precedingQuartersData[mKey];
+                                        return isYearlyView ? yearlyViewPrecedingData[mKey] : precedingQuartersData[mKey];
                                       })}
                                   />
                                 </TableCell>
@@ -4143,7 +4267,7 @@ const ScorecardGrid = ({
                                 {(() => {
                                   const latestQuarter = Array.from(
                                     new Set(
-                                      monthlyTrendPeriods
+                                      activeYearlyPeriods
                                         .filter((m) => m.type === "month")
                                         .map((m) => `Q${Math.floor(m.month / 3) + 1}-${m.year}`),
                                     ),
@@ -4158,7 +4282,7 @@ const ScorecardGrid = ({
                                   const targetQuarter = parseInt(q);
                                   const targetYear = parseInt(y);
                                   const targetKey = `${kpi.id}-Q${q}-${y}`;
-                                  const targetValue = trendTargets[targetKey] ?? kpi.target_value;
+                                  const targetValue = (isYearlyView ? yearlyViewTrendTargets[targetKey] : trendTargets[targetKey]) ?? kpi.target_value;
                                   const isEditing = editingTrendTarget === targetKey;
 
                                   return (
@@ -4233,7 +4357,7 @@ const ScorecardGrid = ({
                                     </TableCell>
                                   );
                                 })()}
-                                {monthlyTrendPeriods.map((month, periodIndex) => {
+                                {activeYearlyPeriods.map((month, periodIndex) => {
                                   // Skip year summary columns - they remain read-only
                                   if (month.type !== "month") {
                                     const summaryYear = month.summaryYear!;
@@ -4246,8 +4370,8 @@ const ScorecardGrid = ({
                                       // Also check entries with the format kpi_id-month-YYYY-MM
                                       const monthIdentifier = `${summaryYear}-${String(m + 1).padStart(2, "0")}`;
                                       const entryKey = `${kpi.id}-month-${monthIdentifier}`;
-                                      const entryVal = entries[entryKey]?.actual_value;
-                                      const precedingVal = precedingQuartersData[mKey];
+                                      const entryVal = (isYearlyView ? yearlyViewEntries[entryKey] : entries[entryKey])?.actual_value;
+                                      const precedingVal = isYearlyView ? yearlyViewPrecedingData[mKey] : precedingQuartersData[mKey];
                                       // Prefer entry value, fall back to precedingQuartersData
                                       const val = entryVal ?? precedingVal;
                                       if (val !== null && val !== undefined) {
@@ -4287,10 +4411,10 @@ const ScorecardGrid = ({
                                   // Editable month cells
                                   const monthIdentifier = `${month.year}-${String(month.month + 1).padStart(2, "0")}`;
                                   const key = `${kpi.id}-month-${monthIdentifier}`;
-                                  const entry = entries[key];
+                                  const entry = isYearlyView ? yearlyViewEntries[key] : entries[key];
                                   const mValue =
                                     entry?.actual_value ??
-                                    precedingQuartersData[`${kpi.id}-M${month.month + 1}-${month.year}`];
+                                    (isYearlyView ? yearlyViewPrecedingData : precedingQuartersData)[`${kpi.id}-M${month.month + 1}-${month.year}`];
                                   const displayValue =
                                     localValues[key] !== undefined
                                       ? localValues[key]
@@ -4300,7 +4424,7 @@ const ScorecardGrid = ({
                                   const monthQuarter = Math.floor(month.month / 3) + 1;
                                   const targetKey = `${kpi.id}-Q${monthQuarter}-${month.year}`;
                                   // Use quarter-specific target, fall back to default kpi target
-                                  const rawTarget = trendTargets[targetKey] ?? kpi.target_value;
+                                  const rawTarget = (isYearlyView ? yearlyViewTrendTargets[targetKey] : trendTargets[targetKey]) ?? kpi.target_value;
                                   const targetValue =
                                     rawTarget !== null && rawTarget !== undefined && rawTarget !== 0 ? rawTarget : null;
 
