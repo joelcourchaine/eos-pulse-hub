@@ -344,7 +344,7 @@ export const RoutineSidebar = ({
     <Sidebar 
       side="right" 
       collapsible="icon" 
-      className="!top-0 !h-svh !z-[51] border-l border-white/10"
+      className="border-l border-white/10"
       style={{
         "--sidebar-width": "28rem",
         "--sidebar-width-icon": "10rem",
@@ -367,7 +367,7 @@ export const RoutineSidebar = ({
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="pt-[5.5rem]">
+      <SidebarContent>
         {/* Cadence Menu - Show all when collapsed, only active when expanded */}
         <SidebarMenu className="p-2">
           {CADENCE_ORDER.map((cadence) => {
