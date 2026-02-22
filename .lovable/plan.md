@@ -1,39 +1,22 @@
 
+# Make the Right Rail the Right Edge of the Page
 
-# Restyle Right Rail to Match Dark Navy Design System
+## Problem
+The top navigation bar spans the full width and overlaps the right rail because it has a higher z-index (z-50 vs z-5). The user wants the nav bar to stop at the left edge of the rail, so the rail owns the entire right column from top to bottom.
 
-## Overview
-Transform the right sidebar from its current white/light theme to the dark navy design used in the top bar and summary strip, creating visual cohesion across the entire page.
+## Approach
+Constrain the header so it does not extend under the right rail. The sidebar width is `28rem` when expanded and roughly `10rem` when collapsed (icon mode). The header lives inside `SidebarInset`, which already accounts for the sidebar width automatically -- so this should mostly be handled already.
 
-## Changes (single file: `src/components/routines/RoutineSidebar.tsx`)
+The real issue is that the sidebar starts at `top: 5.5rem` leaving a gap at the top where the nav bar background shows through. To make the rail "own" the right edge:
 
-### 1. Dark navy background on the Sidebar container
-Override the sidebar's CSS variables inline to use the primary dark navy for its background and white/light for text. This avoids modifying the shared sidebar component or global CSS. The `border-l` class will be replaced with a subtle dark divider using a semi-transparent white border.
+1. **Move the sidebar back to `top: 0` and `h-svh`** so it spans the full viewport height, including the area behind the nav bar.
+2. **Raise the sidebar z-index above the nav bar** -- set it to `z-[51]` (nav is z-50) so nothing overlaps it.
+3. **Add top padding to the sidebar content** equal to the nav bar height (~5.5rem) so the "My Routines" header and cadence items start visually below the nav bar, even though the dark background extends all the way up.
 
-### 2. Restyle the header ("My Routines")
-- Make the label uppercase, smaller, with letter-spacing (tracking-widest) and muted opacity -- matching the summary strip label style.
-- Icon color changes to white/light instead of `text-primary`.
-- Remove the hard `border-b` and replace with a subtle semi-transparent divider.
+This way the dark navy background fills the entire right column from the very top of the viewport to the bottom, and the nav bar naturally ends at the rail's left edge visually.
 
-### 3. Style active cadence menu item as a filled pill
-- The active `SidebarMenuButton` gets a solid white background with dark navy text (matching the active pill style on the scorecard toggle bar).
-- Non-active items get white/light text with a subtle hover state.
-- Override the default sidebar accent colors inline.
+## File Changes
 
-### 4. Restyle section labels ("My Processes", "My Resources", "My Team")
-- Change from `font-semibold text-sm` to uppercase, smaller (`text-[10px]`), with `tracking-widest` and reduced opacity -- consistent with the summary strip labels.
-- The separator line between cadence items and nav links becomes a semi-transparent white line.
-
-### 5. Consistent icon styling
-- Remove `text-primary` from nav link icons (Workflow, BookOpen, Users) so they inherit the white/light foreground color.
-- Keep icon sizes consistent at `h-4 w-4` to match cadence icons.
-
-### 6. Expanded content area (checklists)
-- The scrollable checklist area gets a slightly lighter dark background so the cards/items remain readable.
-- Period label and muted text use light colors with reduced opacity.
-
-## Technical Approach
-All changes are CSS class overrides on the existing components -- no structural or behavioral changes. The sidebar component's CSS variable system (`--sidebar-background`, `--sidebar-foreground`, etc.) will be overridden at the Sidebar level via inline style, which cascades to all child components automatically.
-
-## Files Changed
-- `src/components/routines/RoutineSidebar.tsx` -- class and style overrides only
+### `src/components/routines/RoutineSidebar.tsx`
+- Change `className` on `<Sidebar>`: replace `!top-[5.5rem] !h-[calc(100svh-5.5rem)] !z-[5]` with `!top-0 !h-svh !z-[51]`
+- Add `pt-[5.5rem]` (top padding) to the `<SidebarContent>` wrapper so content starts below the nav bar height, while the dark background extends behind/above the nav area
