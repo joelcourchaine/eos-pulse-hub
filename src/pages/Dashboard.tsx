@@ -1507,7 +1507,7 @@ const Dashboard = () => {
                     <CardContent>
                       {selectedDepartment ? (
                         <ScorecardGrid
-                          key={`scorecard-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
+                          key={`scorecard-${selectedDepartment}`}
                           departmentId={selectedDepartment}
                           kpis={kpis}
                           onKPIsChange={fetchKPIs}
