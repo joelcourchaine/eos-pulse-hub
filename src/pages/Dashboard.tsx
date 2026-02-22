@@ -1378,7 +1378,7 @@ const Dashboard = () => {
 
       {/* Two-column layout: main content + right rail */}
       <SidebarProvider defaultOpen={false}>
-        <div className="flex w-full" style={{ minHeight: 'calc(100svh - 4.5rem)' }}>
+        <div className="flex w-full" style={{ minHeight: 'calc(100svh - 5.5rem)' }}>
           <SidebarInset className="flex-1 min-w-0">
             <div className="bg-muted/30 min-h-full">
               {/* Main Content */}
