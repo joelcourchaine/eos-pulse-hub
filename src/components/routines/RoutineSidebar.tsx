@@ -344,7 +344,7 @@ export const RoutineSidebar = ({
     <Sidebar 
       side="right" 
       collapsible="icon" 
-      className="!top-24 !h-[calc(100svh-6rem)] border-l border-white/10"
+      className="!top-0 !h-svh border-l border-white/10"
       style={{
         "--sidebar-width": "28rem",
         "--sidebar-width-icon": "10rem",
