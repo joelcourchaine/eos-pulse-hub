@@ -3173,6 +3173,20 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 <CardDescription>
                   Monthly financial performance metrics for Q{quarter} {year}
                 </CardDescription>
+                <div className="flex items-center gap-4 mt-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                    <span className="text-xs text-muted-foreground">At/above target</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+                    <span className="text-xs text-muted-foreground">Within 10%</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                    <span className="text-xs text-muted-foreground">Below target</span>
+                  </div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {(userRole === 'super_admin' || userRole === 'store_gm') && (
