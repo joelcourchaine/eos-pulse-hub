@@ -1082,12 +1082,8 @@ const Dashboard = () => {
         </div>
       )}
 
-      <SidebarProvider defaultOpen={false}>
-        <div className="min-h-screen flex w-full">
-          <SidebarInset className="flex-1 min-w-0">
-            <div className="min-h-screen bg-muted/30">
-              {/* Header */}
-              <header className="bg-card border-b border-border sticky top-0 z-50">
+      {/* Full-width Header - spans entire page width above sidebar */}
+      <header className="bg-card border-b border-border sticky top-0 z-50">
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     {/* Logo and Title - centered on mobile */}
@@ -1378,8 +1374,13 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </div>
-              </header>
+      </header>
 
+      {/* Two-column layout: main content + right rail */}
+      <SidebarProvider defaultOpen={false}>
+        <div className="flex w-full" style={{ minHeight: 'calc(100svh - 4.5rem)' }}>
+          <SidebarInset className="flex-1 min-w-0">
+            <div className="bg-muted/30 min-h-full">
               {/* Main Content */}
               <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
                 {/* Quick Stats */}
