@@ -344,16 +344,26 @@ export const RoutineSidebar = ({
     <Sidebar 
       side="right" 
       collapsible="icon" 
-      className="border-l !top-24 !h-[calc(100svh-6rem)]"
-      style={{ "--sidebar-width": "28rem", "--sidebar-width-icon": "10rem" } as React.CSSProperties}
+      className="!top-24 !h-[calc(100svh-6rem)] border-l border-white/10"
+      style={{
+        "--sidebar-width": "28rem",
+        "--sidebar-width-icon": "10rem",
+        "--sidebar-background": "217 91% 20%",
+        "--sidebar-foreground": "0 0% 100%",
+        "--sidebar-accent": "217 91% 28%",
+        "--sidebar-accent-foreground": "0 0% 100%",
+        "--sidebar-border": "0 0% 100% / 0.1",
+        "--sidebar-primary": "0 0% 100%",
+        "--sidebar-primary-foreground": "217 91% 20%",
+      } as React.CSSProperties}
     >
-      <SidebarHeader className="border-b">
+      <SidebarHeader className="border-b border-white/10">
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2">
-            <CheckSquare className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-sm">My Routines</span>
+            <CheckSquare className="h-4 w-4 text-white/70" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-white/70">My Routines</span>
           </div>
-          <SidebarTrigger className="h-7 w-7 shrink-0 group-data-[collapsible=icon]:hidden" />
+          <SidebarTrigger className="h-7 w-7 shrink-0 text-white/70 hover:text-white group-data-[collapsible=icon]:hidden" />
         </div>
       </SidebarHeader>
 
@@ -375,7 +385,7 @@ export const RoutineSidebar = ({
                   isActive={isActive}
                   onClick={() => handleCadenceClick(cadence)}
                   tooltip={`${CADENCE_LABELS[cadence]}: ${totals.completed}/${totals.total}`}
-                  className="justify-between group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full"
+                  className={`justify-between group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full rounded-md ${isActive ? "!bg-white !text-[hsl(217,91%,20%)] font-semibold" : "text-white/80 hover:!bg-white/10 hover:!text-white"}`}
                 >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />
@@ -406,33 +416,33 @@ export const RoutineSidebar = ({
             );
           })}
           {/* My Processes & My Resources */}
-          <SidebarSeparator className="my-2" />
+          <SidebarSeparator className="my-2 !bg-white/10" />
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <Workflow className="h-5 w-5 text-primary shrink-0" />
-              <span className="font-semibold text-sm">My Processes</span>
+            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+              <Workflow className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest">My Processes</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <BookOpen className="h-5 w-5 text-primary shrink-0" />
-              <span className="font-semibold text-sm">My Resources</span>
+            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+              <BookOpen className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest">My Resources</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <Users className="h-5 w-5 text-primary shrink-0" />
-              <span className="font-semibold text-sm">My Team</span>
+            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest">My Team</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
 
         {/* Routine Checklists - Only visible when expanded */}
         {!isCollapsed && (
-          <ScrollArea className="h-full">
+          <ScrollArea className="h-full bg-[hsl(217,91%,24%)]">
             <div className="p-3 space-y-4">
               {/* Period Label & Due Date */}
-              <div className="text-sm text-muted-foreground text-center flex flex-col items-center gap-1">
+              <div className="text-sm text-white/60 text-center flex flex-col items-center gap-1">
                 <span>{getPeriodLabel(activeCadence)}</span>
                 {sharedDueText && (
                   <span className={hasOverdue ? "text-destructive font-medium flex items-center gap-1" : ""}>
