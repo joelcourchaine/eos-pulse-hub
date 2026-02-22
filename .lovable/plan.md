@@ -1,20 +1,50 @@
 
 
-# Unify Right Rail Color to Match Scorecard Dark Navy
+# Unify Dark Theme Blues for Consistency
 
-## What's Changing
-The right rail sidebar currently uses a different shade of dark navy (`hsl(217, 91%, 20%)`) than the scorecard's quarter tabs and summary strip (`hsl(222, 47%, 16%)`). This update will make the right rail match the scorecard's darker, more muted navy color for visual consistency.
+## Problem
+The dark theme uses at least four different blue hue families, creating a visually inconsistent experience:
+
+| Element | HSL Hue | Current Value |
+|---------|---------|---------------|
+| Background, card, muted, border | 215 | `215 28% 10%`, `215 25% 12%`, `215 25% 20%` |
+| Primary, ring | 217 | `217 91% 60%` |
+| Sidebar (left nav) | 240 | `240 5.9% 10%`, `240 3.7% 15.9%` |
+| Right rail (inline overrides) | 222 | `222 47% 16%` |
+
+The sidebar hue (240) is noticeably purple-grey compared to the blue-grey backgrounds (215), and the scorecard elements use yet another hue (222). This creates a patchwork of blues that looks inconsistent.
+
+## Solution
+Standardize all dark theme surface colors around **hue 222** (the scorecard/right-rail navy), which sits comfortably between the existing values and reads as a clean, modern dark blue.
 
 ## File Changes
 
-### `src/components/routines/RoutineSidebar.tsx`
+### `src/index.css` -- Dark theme CSS variables
 
-Update the CSS custom properties on the `<Sidebar>` component and the ScrollArea background to use the scorecard's navy color:
+Shift all dark theme surface and sidebar variables to hue 222, keeping the same lightness/saturation relationships:
 
-- **Line 351**: Change `--sidebar-background` from `217 91% 20%` to `222 47% 16%`
-- **Line 353**: Change `--sidebar-accent` from `217 91% 28%` to `222 47% 24%` (proportionally adjusted for hover/active states)
-- **Line 357**: Change `--sidebar-primary-foreground` from `217 91% 20%` to `222 47% 16%` (used for inverted text on active buttons)
-- **Line 442**: Change `bg-[hsl(217,91%,24%)]` to `bg-[hsl(222,47%,16%)]` on the ScrollArea so the checklist area matches
+- `--background`: `215 28% 10%` changes to `222 28% 10%`
+- `--card`: `215 25% 12%` changes to `222 25% 12%`
+- `--popover`: `215 25% 12%` changes to `222 25% 12%`
+- `--secondary`: `215 25% 20%` changes to `222 25% 20%`
+- `--muted`: `215 25% 20%` changes to `222 25% 20%`
+- `--muted-foreground`: `215 20% 65%` changes to `222 20% 65%`
+- `--border`: `215 25% 20%` changes to `222 25% 20%`
+- `--input`: `215 25% 20%` changes to `222 25% 20%`
+- `--sidebar-background`: `240 5.9% 10%` changes to `222 28% 10%` (matches background)
+- `--sidebar-accent`: `240 3.7% 15.9%` changes to `222 25% 16%`
+- `--sidebar-border`: `240 3.7% 15.9%` changes to `222 25% 16%`
+- `--sidebar-foreground`: `240 4.8% 95.9%` changes to `210 40% 98%` (matches foreground)
+- `--sidebar-accent-foreground`: `240 4.8% 95.9%` changes to `210 40% 98%`
 
-These four changes ensure every part of the right rail uses the same dark navy as the scorecard header.
+The primary (`217 91% 60%`) and ring stay close enough at hue 217 (these are accent/highlight colors, not surfaces, so a slight hue difference is fine and adds depth).
+
+### `src/components/scorecard/ScorecardGrid.tsx` -- Scorecard dark overrides
+
+The quarter tabs and summary strip currently use `dark:bg-primary` (bright blue at 60% lightness) for active states in dark mode, which is too vivid compared to the dark surfaces. Update to use a more harmonious blue:
+
+- Active quarter tab: change `dark:bg-primary dark:border-primary` to `dark:bg-[hsl(222,47%,24%)] dark:border-[hsl(222,47%,24%)]` -- a lighter version of the navy that stands out without being neon
+- Summary strip: change `dark:bg-primary/90` to `dark:bg-[hsl(222,47%,20%)]` -- a slightly elevated navy for the stats bar
+
+This ensures the scorecard's dark-mode prominent elements use the same hue 222 family as everything else.
 
