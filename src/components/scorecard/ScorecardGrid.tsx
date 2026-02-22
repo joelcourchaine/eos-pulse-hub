@@ -3627,7 +3627,7 @@ const ScorecardGrid = ({
                 className={cn(
                   "py-2 rounded-md text-center transition-colors border",
                   isActive
-                    ? "bg-[hsl(222,47%,16%)] text-white border-[hsl(222,47%,16%)] dark:bg-primary dark:text-primary-foreground dark:border-primary"
+                    ? "bg-[hsl(222,47%,16%)] text-white border-[hsl(222,47%,16%)] dark:bg-[hsl(222,47%,24%)] dark:text-primary-foreground dark:border-[hsl(222,47%,24%)]"
                     : "bg-background text-foreground border-border hover:bg-muted/60"
                 )}
               >
@@ -3642,7 +3642,7 @@ const ScorecardGrid = ({
 
       {/* Dark navy summary strip */}
       {!isQuarterTrendMode && !isMonthlyTrendMode && !isYearlyView && kpis.length > 0 && summaryStats && (
-        <div className="flex items-stretch rounded-lg bg-[hsl(222,47%,16%)] text-white dark:bg-primary/90 overflow-hidden">
+        <div className="flex items-stretch rounded-lg bg-[hsl(222,47%,16%)] text-white dark:bg-[hsl(222,47%,20%)] overflow-hidden">
           {/* Quarter */}
           <div className="flex-1 px-4 py-2.5 flex flex-col justify-center">
             <div className="text-[10px] uppercase tracking-wider text-white/50 font-medium">Quarter</div>
