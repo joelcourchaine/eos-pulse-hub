@@ -348,13 +348,13 @@ export const RoutineSidebar = ({
       style={{
         "--sidebar-width": "28rem",
         "--sidebar-width-icon": "10rem",
-        "--sidebar-background": "217 91% 20%",
+        "--sidebar-background": "222 47% 16%",
         "--sidebar-foreground": "0 0% 100%",
-        "--sidebar-accent": "217 91% 28%",
+        "--sidebar-accent": "222 47% 24%",
         "--sidebar-accent-foreground": "0 0% 100%",
         "--sidebar-border": "0 0% 100% / 0.1",
         "--sidebar-primary": "0 0% 100%",
-        "--sidebar-primary-foreground": "217 91% 20%",
+        "--sidebar-primary-foreground": "222 47% 16%",
       } as React.CSSProperties}
     >
       <SidebarHeader className="border-b border-white/10">
@@ -439,7 +439,7 @@ export const RoutineSidebar = ({
 
         {/* Routine Checklists - Only visible when expanded */}
         {!isCollapsed && (
-          <ScrollArea className="h-full bg-[hsl(217,91%,24%)]">
+          <ScrollArea className="h-full bg-[hsl(222,47%,16%)]">
             <div className="p-3 space-y-4">
               {/* Period Label & Due Date */}
               <div className="text-sm text-white/60 text-center flex flex-col items-center gap-1">
