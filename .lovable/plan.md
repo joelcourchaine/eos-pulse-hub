@@ -1,23 +1,26 @@
 
 
-# Default to Weekly & Remove Legacy Trend Navigation
+# Fix: Preserve View Mode When Switching Quarters
 
-## Changes
+## Root Cause
+On line 1510 of `Dashboard.tsx`, the `ScorecardGrid` has a React `key` that includes the quarter:
+```
+key={`scorecard-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
+```
+When you click a different quarter (Q1, Q2, etc.), the key changes, which **completely remounts** the ScorecardGrid component. This resets its internal `viewMode` state back to `"weekly"` (the default).
 
-### 1. Default viewMode to "weekly"
-In `Dashboard.tsx` (line 111), change the initial state from `"monthly"` to `"weekly"` so the scorecard loads in weekly view by default.
+## Fix
+Two changes are needed:
 
-### 2. Remove the trend pills row from ScorecardGrid
-The row shown in your screenshot (with year arrows, Q Trend, M Trend, Q1-Q4 buttons) at lines 3642-3654 in `ScorecardGrid.tsx` will be removed entirely. This row only appears when `isQuarterTrendMode` or `isMonthlyTrendMode` is active -- both are now redundant since "Quarterly" and "Yearly" viewModes replace them.
+### 1. Remove quarter and year from the ScorecardGrid key (Dashboard.tsx, line 1510)
+Change the key to only include the department:
+```
+key={`scorecard-${selectedDepartment}`}
+```
+The ScorecardGrid already handles quarter/year changes internally via its `useEffect` on `[departmentId, kpis, year, quarter]` (line 600), so remounting is unnecessary -- it just causes the viewMode reset.
 
-### 3. Remove the PeriodNavigation between Scorecard and Financial Summary
-In `Dashboard.tsx` (lines 1532-1544), there is a `PeriodNavigation` component rendered between the scorecard card and the financial summary. This will be removed since the year selector and quarter pills are already in the scorecard's own top bar.
-
-### 4. Clean up dead trend mode code
-Since Q Trend (`quarter=0`) and M Trend (`quarter=-1`) are no longer reachable from any UI button:
-- The `isQuarterTrendMode` and `isMonthlyTrendMode` guards scattered throughout the file become dead code. We will leave them in place for now as safety nets (they cost nothing at runtime) but can be cleaned up in a future pass.
+### 2. Keep "weekly" as the initial default (no change needed)
+The initial `useState("weekly")` in both Dashboard.tsx and ScorecardGrid.tsx stays as-is, so the first load defaults to weekly. Since the component no longer remounts on quarter change, the user's selected view mode will persist.
 
 ## Files Changed
-- `src/pages/Dashboard.tsx` -- default viewMode to "weekly", remove PeriodNavigation
-- `src/components/scorecard/ScorecardGrid.tsx` -- remove trend pills row
-
+- `src/pages/Dashboard.tsx` -- remove `selectedYear` and `selectedQuarter` from the ScorecardGrid `key` prop
