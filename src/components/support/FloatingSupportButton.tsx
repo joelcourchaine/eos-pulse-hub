@@ -56,19 +56,19 @@ export const FloatingSupportButton = () => {
             onClick={() => handleOpenTicket("bug_report")}
             variant="secondary"
             size="sm"
-            className="shadow-lg flex items-center gap-2 whitespace-nowrap bg-white/90 text-slate-800 hover:bg-white"
+            className="shadow-lg flex items-center gap-2 whitespace-nowrap bg-white/90 text-slate-800 hover:bg-white text-xs px-2"
           >
-            <Bug className="h-4 w-4" />
-            Report Issue
+            <Bug className="h-3.5 w-3.5" />
+            Issue
           </Button>
           <Button
             onClick={() => handleOpenTicket("feature_request")}
             variant="secondary"
             size="sm"
-            className="shadow-lg flex items-center gap-2 whitespace-nowrap bg-white/90 text-slate-800 hover:bg-white"
+            className="shadow-lg flex items-center gap-2 whitespace-nowrap bg-white/90 text-slate-800 hover:bg-white text-xs px-2"
           >
-            <Lightbulb className="h-4 w-4" />
-            Request Feature
+            <Lightbulb className="h-3.5 w-3.5" />
+            Feature
           </Button>
         </div>
 
