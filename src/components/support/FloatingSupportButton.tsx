@@ -77,14 +77,14 @@ export const FloatingSupportButton = () => {
           onClick={() => setIsExpanded(!isExpanded)}
           size="icon"
           className={cn(
-            "h-14 w-14 rounded-full shadow-xl transition-all duration-200 pointer-events-auto",
-            isExpanded && "bg-muted text-muted-foreground hover:bg-muted/80"
+            "h-14 w-14 rounded-full shadow-xl transition-all duration-200 pointer-events-auto bg-white text-slate-800 hover:bg-white/90",
+            isExpanded && "bg-slate-200 text-slate-600 hover:bg-slate-300"
           )}
         >
           {isExpanded ? (
-            <X className="h-6 w-6" />
+            <X className="h-7 w-7" />
           ) : (
-            <MessageCircleQuestion className="h-6 w-6" />
+            <MessageCircleQuestion className="h-7 w-7" />
           )}
         </Button>
       </div>
