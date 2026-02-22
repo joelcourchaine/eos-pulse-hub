@@ -281,7 +281,7 @@ export const ScorecardMonthDropZone = forwardRef<ScorecardMonthDropZoneHandle, S
         
         {/* Import log indicator - positioned at top-left like Financial Summary's attachment */}
         {importLog && !isProcessing && (
-          <div className="absolute -top-1 -left-1 z-20">
+          <div className="absolute -top-1 -right-1 z-20">
             <TooltipProvider>
               <Tooltip delayDuration={100}>
                 <TooltipTrigger asChild>
