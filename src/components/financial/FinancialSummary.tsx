@@ -449,11 +449,13 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const quarterYearKey = `Q${monthQuarter}-${monthYear}`;
     const trendTarget = trendTargets[metricKey]?.[quarterYearKey];
     if (trendTarget && trendTarget.value !== 0) {
-      return { value: trendTarget.value, direction: trendTarget.direction, source: 'manual' };
+      const monthlyValue = metricDef.type === 'percentage' ? trendTarget.value : trendTarget.value / 3;
+      return { value: monthlyValue, direction: trendTarget.direction, source: 'manual' };
     }
     // Also check standard quarter targets for the current quarter view
     if (!isQuarterTrendMode && !isMonthlyTrendMode && targets[metricKey] && targets[metricKey] !== 0) {
-      return { value: targets[metricKey], direction: targetDirections[metricKey] || metricDef.targetDirection, source: 'manual' };
+      const monthlyValue = metricDef.type === 'percentage' ? targets[metricKey] : targets[metricKey] / 3;
+      return { value: monthlyValue, direction: targetDirections[metricKey] || metricDef.targetDirection, source: 'manual' };
     }
 
     // 2. Fallback to forecast
