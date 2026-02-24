@@ -1,32 +1,66 @@
 
 
-# Match Target Column Blue to Right Rail Navy
+# Fix CSR Report Import Not Pulling KPI Data for Murray Merritt
 
-## Problem
-The target column in the scorecard grid uses `bg-primary` which resolves to `hsl(217, 91%, 20%)` -- a brighter, more saturated blue. The right side rail uses `hsl(222, 47%, 16%)` -- a darker, desaturated navy. The user wants these to be the same color.
+## Problem Analysis
+
+After investigating the database, I found two distinct issues causing KPI data not to be imported for Daniel Park at Murray Merritt:
+
+### Issue 1: Unmatched Advisor "DANIEL"
+
+The recent CSR reports contain an advisor named "DANIEL" (and "Cole") who have no user aliases configured. The import logs confirm:
+- Feb 24 import: only **4 metrics imported** (down from 11 in January), with unmatched users ["DANIEL", "Cole"]
+- The system cannot map "DANIEL" to Daniel Park's profile because there is no alias, and the initialization code only uses alias-based matching (no fuzzy matching)
+
+The "All Repair Orders" row IS correctly mapped to Daniel Park, which is why 4 department-total metrics still import. But the per-advisor "DANIEL" row data is completely lost.
+
+### Issue 2: One-Directional KPI Name Matching
+
+The `getKpiNameCandidates` function in `ScorecardImportPreviewDialog.tsx` only strips prefixes like "Total " and "Total CP " -- it never adds them. This means:
+
+- Template KPI "CP ELR" generates candidates: `["cp elr"]`
+- But Daniel's KPI is named "Total CP ELR" -- no match
+- Template KPI "CP Hours Per RO" generates `["cp hours per ro"]`
+- But Daniel's KPI is "Total CP Hours Per RO" -- no match
+
+While duplicate template entries exist for some KPIs (both "CP ELR" and "Total CP ELR" are configured), this is fragile and doesn't cover all cases.
 
 ## Solution
-Introduce a CSS custom variable `--scorecard-navy` set to the same HSL value used by the right rail (`222 47% 16%`), then replace all target-column `bg-primary` references in `ScorecardGrid.tsx` with this navy color. This keeps the app-wide `--primary` untouched for buttons and other UI elements.
 
-## File Changes
+### 1. Fix Build Error (logrocket type issue)
 
-### 1. `src/index.css`
-Add a new custom property under `:root` and `.dark`:
-- `:root` -- `--scorecard-navy: 222 47% 16%;`
-- `.dark` -- `--scorecard-navy: 222 47% 20%;` (slightly lighter for dark mode, matching the rail's dark-mode value)
+The `skipLibCheck: true` is already set in tsconfig. This appears to be a transient build issue. If it persists, we'll add a type declaration override.
 
-### 2. `src/components/scorecard/ScorecardGrid.tsx`
-Replace all target-column styling that uses `bg-primary` with `bg-[hsl(var(--scorecard-navy))]`, and corresponding border/text classes:
+### 2. Make KPI Name Matching Bidirectional
 
-Affected locations (approximately 10-12 instances):
-- **Weekly view target header** (~line 3733): `bg-primary` to `bg-[hsl(var(--scorecard-navy))]`
-- **Quarterly trend target header** (~line 3772): same swap
-- **Yearly view year-avg/year-total headers** (~lines 3786-3787): `bg-primary/10` to `bg-[hsl(var(--scorecard-navy))]/10`, borders similarly
-- **Monthly trend selected header** (~line 3856): same pattern
-- **Current week highlight** (~line 3891): keep `bg-primary` here since this is a week highlight, not a target column
-- **Quarter target/avg headers** (~lines 3998, 4047): `bg-primary/10` to navy equivalent
-- **Weekly view target data cells** (~lines 4141, 4199, 4278): `bg-primary` to navy
-- **Border colors**: `border-primary/30` to `border-[hsl(var(--scorecard-navy))]/30`
-- **Text colors**: `text-primary-foreground` stays as-is (white text works on both blues)
+In `ScorecardImportPreviewDialog.tsx`, update `getKpiNameCandidates` to also ADD "Total " and "Total CP " prefixes, not just strip them:
 
-Non-target uses of `bg-primary` (drag-over highlights, current-week highlights, buttons) will remain unchanged.
+```text
+Current: "CP ELR" -> ["cp elr"]
+Fixed:   "CP ELR" -> ["cp elr", "total cp elr"]
+
+Current: "CP Hours" -> ["cp hours"]  
+Fixed:   "CP Hours" -> ["cp hours", "total cp hours"]
+```
+
+This makes the matching robust regardless of whether the template or the user's KPI uses the "Total" prefix.
+
+### 3. Improve Advisor Name Pre-Matching
+
+Update the advisor initialization `useEffect` in `ScorecardImportPreviewDialog.tsx` to also attempt partial/fuzzy matching against store users when alias matching fails. This would catch cases like "DANIEL" matching "Daniel Park" via first-name matching. The existing `fuzzyNameMatch` utility supports this but it's not used during initialization.
+
+Specifically:
+- After alias lookup fails, check if the advisor's display name is a case-insensitive match for any store user's first name (when only one user matches)
+- Use a conservative threshold to avoid false matches
+- Mark these as non-alias matches so new aliases still get created on import
+
+### Files to Modify
+
+1. **`src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
+   - Enhance `getKpiNameCandidates` to add "Total " and "Total CP " prefixes in addition to stripping them
+   - Add first-name / partial matching fallback in the advisor initialization useEffect when alias matching fails
+
+### What Won't Be Fixed in Code
+
+The user will still need to manually assign "DANIEL" to Daniel Park in the import preview dropdown the first time. After that, the alias will be saved automatically. The code improvement means the system will pre-suggest Daniel Park as a match (via first-name matching) rather than leaving the row blank.
+
