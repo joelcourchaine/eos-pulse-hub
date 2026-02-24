@@ -99,6 +99,8 @@ interface SubMetricsRowProps {
   // Unit data callbacks (e.g., number of vehicles sold)
   getSubMetricUnitValue?: (subMetricName: string, monthId: string) => number | null;
   hasUnitData?: boolean;
+  // How to display units: 'row' = separate row below, 'inline' = stacked inside value cell
+  unitDisplayMode?: 'row' | 'inline';
 }
 
 // Helper to calculate average from values
@@ -166,6 +168,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   subMetricSourceKey,
   getSubMetricUnitValue,
   hasUnitData = false,
+  unitDisplayMode = 'row',
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -617,6 +620,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                           {value !== null ? formatValue(value) : "-"}
                         </span>
                       </SubMetricLYTooltip>
+                      {unitDisplayMode === 'inline' && hasUnitData && getSubMetricUnitValue && (() => {
+                        const unitVal = getSubMetricUnitValue(subMetric.name, period.identifier);
+                        if (unitVal === null) return null;
+                        return (
+                          <div className="text-[8px] leading-tight text-muted-foreground/60 italic mt-0.5">
+                            {Math.round(unitVal)} units
+                          </div>
+                        );
+                      })()}
                     )}
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
@@ -741,8 +753,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               );
             })}
           </TableRow>
-          {/* Unit count row - shown indented under each vehicle sub-metric */}
-          {hasUnitData && getSubMetricUnitValue && (() => {
+          {/* Unit count row - shown indented under each vehicle sub-metric (only in 'row' mode) */}
+          {unitDisplayMode === 'row' && hasUnitData && getSubMetricUnitValue && (() => {
             // Check if any period has unit data for this sub-metric
             const hasAnyUnit = periods.some(p => {
               if (p.type === 'month') {
