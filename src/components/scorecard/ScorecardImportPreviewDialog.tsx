@@ -26,8 +26,12 @@ const getKpiNameCandidates = (name: string): string[] => {
   const n = name.toLowerCase().trim();
   const candidates = new Set<string>();
   candidates.add(n);
+  // Strip prefixes
   if (n.startsWith("total cp ")) candidates.add(n.replace(/^total cp /, "cp "));
   if (n.startsWith("total ")) candidates.add(n.replace(/^total /, ""));
+  // Add prefixes (bidirectional matching)
+  if (!n.startsWith("total ")) candidates.add("total " + n);
+  if (!n.startsWith("total cp ") && n.startsWith("cp ")) candidates.add("total " + n);
   // Also handle apostrophe variants: RO's vs ROs
   for (const c of [...candidates]) {
     candidates.add(c.replace(/'/g, ""));
@@ -284,7 +288,7 @@ export const ScorecardImportPreviewDialog = ({
     return template;
   }, [cellMappings, columnIndexRemap]);
 
-  // Initialize mappings from aliases when data is ready - no fuzzy matching
+  // Initialize mappings from aliases when data is ready, with first-name fallback
   useEffect(() => {
     if (!open) return;
     
@@ -304,17 +308,35 @@ export const ScorecardImportPreviewDialog = ({
       aliasMap.set(alias.alias_name.toLowerCase().trim(), alias.user_id);
     }
 
-    // Map each advisor row, pre-filling from aliases only
+    // Map each advisor row, pre-filling from aliases first, then trying first-name match
     const mappings: AdvisorMapping[] = parseResult.advisors.map(advisor => {
       // Check both displayName and rawName against aliases
       const byDisplay = aliasMap.get(advisor.displayName.toLowerCase().trim());
       const byRaw = aliasMap.get(advisor.rawName.toLowerCase().trim());
-      const matchedUserId = byDisplay || byRaw || null;
+      let matchedUserId = byDisplay || byRaw || null;
+      let prefilledFromAlias = !!matchedUserId;
+
+      // Fallback: if no alias match and we have store users, try first-name matching
+      if (!matchedUserId && storeUsers && storeUsers.length > 0) {
+        const advisorNameLower = advisor.displayName.toLowerCase().trim();
+        if (advisorNameLower.length >= 2) {
+          const firstNameMatches = storeUsers.filter(u => {
+            const firstName = u.full_name?.split(/\s+/)[0]?.toLowerCase();
+            return firstName === advisorNameLower;
+          });
+          // Only use if exactly one user matches (avoid ambiguity)
+          if (firstNameMatches.length === 1) {
+            matchedUserId = firstNameMatches[0].id;
+            prefilledFromAlias = false; // Mark as non-alias so alias gets created on import
+            console.log(`[Scorecard Import] First-name match: "${advisor.displayName}" → "${firstNameMatches[0].full_name}"`);
+          }
+        }
+      }
 
       return {
         advisor,
         selectedUserId: matchedUserId,
-        prefilledFromAlias: !!matchedUserId,
+        prefilledFromAlias,
       };
     });
 
@@ -339,7 +361,7 @@ export const ScorecardImportPreviewDialog = ({
     setDeptTotalsPrefilledFromAlias(!!deptTotalsMatch);
     
     setIsInitializing(false);
-  }, [open, parseResult.advisors, userAliases]);
+  }, [open, parseResult.advisors, userAliases, storeUsers]);
 
   const handleUserSelect = (advisorIndex: number, userId: string) => {
     setAdvisorMappings(prev => {
