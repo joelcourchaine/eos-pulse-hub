@@ -86,25 +86,28 @@ function getSpanWarning(count: number): { color: string; message: string | null 
 function getLevels(roots: TreeNode[]): TreeNode[][] {
   const levels: TreeNode[][] = [];
 
-  function traverse(nodes: TreeNode[], depth: number) {
-    if (nodes.length === 0) return;
-    if (!levels[depth]) levels[depth] = [];
-    nodes.forEach((node) => {
-      levels[depth].push(node);
-      traverse(node.children, depth + 1);
-    });
-  }
-
-  traverse(roots, 0);
-
-  // Group same-role members together within each level
-  levels.forEach(level => {
-    level.sort((a, b) => {
+  // Sort each node's children by position then name before traversal
+  function sortChildren(node: TreeNode) {
+    node.children.sort((a, b) => {
       const posCmp = a.member.position.localeCompare(b.member.position);
       if (posCmp !== 0) return posCmp;
       return a.member.name.localeCompare(b.member.name);
     });
-  });
+    node.children.forEach(sortChildren);
+  }
+
+  roots.forEach(sortChildren);
+
+  // BFS preserves parent ordering so children cluster above their manager
+  let currentLevel = roots;
+  while (currentLevel.length > 0) {
+    levels.push(currentLevel);
+    const nextLevel: TreeNode[] = [];
+    currentLevel.forEach((node) => {
+      nextLevel.push(...node.children);
+    });
+    currentLevel = nextLevel;
+  }
 
   return levels.reverse(); // reverse so root is at bottom
 }
