@@ -83,33 +83,67 @@ function getSpanWarning(count: number): { color: string; message: string | null 
 }
 
 // Flatten tree to levels (bottom-up: root is at the bottom)
-function getLevels(roots: TreeNode[]): TreeNode[][] {
-  const levels: TreeNode[][] = [];
+// Calculate subtree width for each node (number of leaf descendants, min 1)
+function calcSubtreeWidth(node: TreeNode): number {
+  // Sort children by position then name for consistent ordering
+  node.children.sort((a, b) => {
+    const posCmp = a.member.position.localeCompare(b.member.position);
+    if (posCmp !== 0) return posCmp;
+    return a.member.name.localeCompare(b.member.name);
+  });
+  if (node.children.length === 0) return 1;
+  let total = 0;
+  node.children.forEach((c) => { total += calcSubtreeWidth(c); });
+  return total;
+}
 
-  // Sort each node's children by position then name before traversal
-  function sortChildren(node: TreeNode) {
-    node.children.sort((a, b) => {
-      const posCmp = a.member.position.localeCompare(b.member.position);
-      if (posCmp !== 0) return posCmp;
-      return a.member.name.localeCompare(b.member.name);
-    });
-    node.children.forEach(sortChildren);
-  }
+interface PositionedNode {
+  node: TreeNode;
+  x: number; // center x position in "slot" units
+}
 
-  roots.forEach(sortChildren);
+// Calculate x positions for each node based on subtree widths
+function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth: number } {
+  roots.forEach((r) => calcSubtreeWidth(r));
 
-  // BFS preserves parent ordering so children cluster above their manager
-  let currentLevel = roots;
+  const levels: PositionedNode[][] = [];
+  let totalWidth = 0;
+
+  // Calculate total width from roots
+  roots.forEach((r) => { totalWidth += calcSubtreeWidth(r); });
+
+  // Assign x positions via BFS
+  // Roots are placed sequentially
+  let currentLevel: { node: TreeNode; leftEdge: number }[] = [];
+  let offset = 0;
+  roots.forEach((r) => {
+    const w = calcSubtreeWidth(r);
+    currentLevel.push({ node: r, leftEdge: offset });
+    offset += w;
+  });
+
   while (currentLevel.length > 0) {
-    levels.push(currentLevel);
-    const nextLevel: TreeNode[] = [];
-    currentLevel.forEach((node) => {
-      nextLevel.push(...node.children);
+    const positioned: PositionedNode[] = [];
+    const nextLevel: { node: TreeNode; leftEdge: number }[] = [];
+
+    currentLevel.forEach(({ node, leftEdge }) => {
+      const w = calcSubtreeWidth(node);
+      positioned.push({ node, x: leftEdge + w / 2 });
+
+      // Lay out children within this node's allocated space
+      let childOffset = leftEdge;
+      node.children.forEach((child) => {
+        const cw = calcSubtreeWidth(child);
+        nextLevel.push({ node: child, leftEdge: childOffset });
+        childOffset += cw;
+      });
     });
+
+    levels.push(positioned);
     currentLevel = nextLevel;
   }
 
-  return levels.reverse(); // reverse so root is at bottom
+  return { levels: levels.reverse(), totalWidth };
 }
 
 interface OrgNodeProps {
@@ -204,14 +238,16 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   const [lines, setLines] = useState<{ x1: number; y1: number; x2: number; y2: number }[]>([]);
 
   const tree = useMemo(() => buildTree(members), [members]);
-  const levels = useMemo(() => getLevels(tree), [tree]);
+  const layout = useMemo(() => layoutTree(tree), [tree]);
+
+  const NODE_SLOT_WIDTH = 140; // px per slot unit
 
   const nodeScale = useMemo(() => {
-    const maxLevelSize = Math.max(...levels.map((l) => l.length), 1);
+    const maxLevelSize = Math.max(...layout.levels.map((l) => l.length), 1);
     const BASE_NODE_WIDTH = 132;
     const AVAILABLE_WIDTH = 1200;
     return Math.max(0.45, Math.min(1, AVAILABLE_WIDTH / (maxLevelSize * BASE_NODE_WIDTH)));
-  }, [levels]);
+  }, [layout.levels]);
 
   // Span of control warnings
   const warnings = useMemo(() => {
@@ -339,14 +375,14 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
 
           {/* Levels rendered top (leaves) to bottom (root) */}
           <div className="flex flex-col items-center gap-10 relative" style={{ zIndex: 1 }}>
-            {levels.map((level, li) => {
+            {layout.levels.map((level, li) => {
               if (headcountOnly) {
                 // Group by position type at this level
-                const grouped: Record<string, TreeNode[]> = {};
-                level.forEach((n) => {
-                  const pos = n.member.position;
+                const grouped: Record<string, PositionedNode[]> = {};
+                level.forEach((pn) => {
+                  const pos = pn.node.member.position;
                   if (!grouped[pos]) grouped[pos] = [];
-                  grouped[pos].push(n);
+                  grouped[pos].push(pn);
                 });
 
                 return (
@@ -373,12 +409,22 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                 );
               }
 
+              const totalWidthPx = layout.totalWidth * NODE_SLOT_WIDTH * nodeScale;
               return (
-                <div key={li} className="flex flex-wrap justify-center gap-3">
-                  {level.map((node) => (
-                    <div key={node.member.id} ref={(el) => setNodeRef(node.member.id, el)}>
+                <div key={li} className="relative" style={{ width: totalWidthPx, height: Math.round(60 * nodeScale) }}>
+                  {level.map((pn) => (
+                    <div
+                      key={pn.node.member.id}
+                      ref={(el) => setNodeRef(pn.node.member.id, el)}
+                      className="absolute"
+                      style={{
+                        left: pn.x * NODE_SLOT_WIDTH * nodeScale,
+                        top: 0,
+                        transform: "translateX(-50%)",
+                      }}
+                    >
                       <OrgNode
-                        node={node}
+                        node={pn.node}
                         showNames={showNames}
                         headcountOnly={headcountOnly}
                         nodeScale={nodeScale}
