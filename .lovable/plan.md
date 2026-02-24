@@ -1,65 +1,46 @@
 
 
-# Fix Financial Summary Color Indicators Using Wrong Target Scale
+# Fix Org Chart Layout: Align Children Above Their Parent
 
 ## Problem
 
-The green/yellow/red performance indicators in the Financial Summary are comparing **monthly actual values** against **quarterly target totals** without dividing by 3. This makes all the colors wrong:
-
-- "Below" metrics (expenses) appear falsely green because monthly actuals are naturally less than a 3-month total
-- "Above" metrics (revenue/profit) appear falsely red because monthly actuals can't reach a 3-month total
-
-For example, at Murray Merritt Service (January 2026):
-- Sales Expense actual: $56,208/month vs quarterly target $135,198 -- shows green (below target) when it should be red ($56,208 > $45,066 monthly target)
-- Total Sales actual: $128,287/month vs quarterly target $328,986 -- shows red (below target) when it should be green ($128,287 > $101,449 monthly target)
-
-## Root Cause
-
-The `getTargetForMonth` function (line 442-466 of FinancialSummary.tsx) returns the raw quarterly target value from `financial_targets` without adjusting for monthly comparison. The forecast fallback correctly stores per-month values, but it is never reached because the quarterly manual target takes priority.
+Currently, each level in the reverse org chart sorts nodes alphabetically by position, then by name. This breaks the visual parent-child relationship -- for example, Denver Bugera's detailers are clustered on the far left while he sits in the middle of his level, making the reporting lines cross awkwardly.
 
 ## Solution
 
-Modify `getTargetForMonth` to divide quarterly dollar targets by 3 when resolving a target for a specific month. Percentage metrics should NOT be divided since percentages are rates, not cumulative totals.
+Replace the position-based sorting with a **parent-preserving layout order**. Nodes at each level will be ordered so that siblings (children of the same parent) are grouped together, and those groups appear in the same left-to-right order as their parents in the level below.
+
+This is how standard org charts work -- children fan out directly above (or below) their manager.
+
+## How It Will Look
+
+- Denver Bugera's 3 detailers will cluster directly above him
+- Garret Moffat's technicians will cluster directly above him
+- Lines will run mostly vertically with minimal crossing
 
 ## Technical Details
 
-### File: `src/components/financial/FinancialSummary.tsx`
+### File: `src/components/team/ReverseOrgChart.tsx`
 
-Update the `getTargetForMonth` function at lines 448-466. When a manual quarterly target is found (either from `trendTargets` or `targets`), divide the value by 3 for non-percentage metrics before returning:
+**Change the `getLevels` function** (lines 86-109):
 
-```text
-Before (line 451-452):
-  if (trendTarget && trendTarget.value !== 0) {
-    return { value: trendTarget.value, ... };
-  }
-
-After:
-  if (trendTarget && trendTarget.value !== 0) {
-    const monthlyValue = metricDef.type === 'percentage' 
-      ? trendTarget.value 
-      : trendTarget.value / 3;
-    return { value: monthlyValue, ... };
-  }
-```
-
-Same adjustment for the standard targets path (line 455-456):
+Instead of flattening the tree by depth and then sorting by position, use a breadth-first traversal that preserves sibling order. Each parent's children are kept together in sequence, and within a parent's children, sort by position then name (for consistency).
 
 ```text
-Before:
-  return { value: targets[metricKey], ... };
+Current approach:
+  1. Traverse tree, collect nodes by depth
+  2. Sort each level by position alphabetically (breaks parent alignment)
+  3. Reverse levels
 
-After:
-  const monthlyValue = metricDef.type === 'percentage'
-    ? targets[metricKey]
-    : targets[metricKey] / 3;
-  return { value: monthlyValue, ... };
+New approach:
+  1. Traverse tree breadth-first, so each level's nodes appear
+     in the order dictated by their parent's position in the previous level
+  2. Within each parent's children, sort by position then name
+  3. Reverse levels (same as before)
 ```
 
-### Build Error Fix
-
-Additionally, fix the existing logrocket type error by adding a type declaration file `src/logrocket.d.ts` to suppress the third-party type issue.
+The key change is removing the global `level.sort()` on lines 101-106 and instead ensuring the traversal itself produces the correct order by sorting each node's children before traversing them.
 
 ### Files Changed
-- `src/components/financial/FinancialSummary.tsx` -- Divide quarterly targets by 3 for monthly comparison
-- `src/logrocket.d.ts` -- New file to fix logrocket type error
+- `src/components/team/ReverseOrgChart.tsx` -- Replace global level sort with parent-preserving child ordering
 
