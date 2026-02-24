@@ -3730,7 +3730,7 @@ const ScorecardGrid = ({
                       <>
                         {/* Current quarter target column - sticky horizontally */}
                         <TableHead
-                          className="text-center font-bold min-w-[80px] py-[7.2px] bg-primary border-x-2 border-primary/30 sticky top-0 z-20 text-primary-foreground"
+                          className="text-center font-bold min-w-[80px] py-[7.2px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-20 text-primary-foreground"
                           style={{
                             position: "sticky",
                              left: 170,
@@ -3769,7 +3769,7 @@ const ScorecardGrid = ({
                           return (
                             <TableHead
                               key={`target-${latestQuarter}`}
-                              className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-primary text-primary-foreground border-x border-primary/30 sticky top-0 left-[250px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                              className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 left-[250px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                             >
                               <div className="flex flex-col items-center">
                                 <div className="text-xs">Q{q} Target</div>
@@ -3783,8 +3783,8 @@ const ScorecardGrid = ({
                             key={period.identifier}
                             className={cn(
                               "text-center min-w-[90px] max-w-[90px] font-bold py-[7.2px] sticky top-0 z-10 p-0",
-                              period.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
-                              period.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
+                              period.type === "year-avg" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                              period.type === "year-total" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                               period.type === "month" && "bg-muted/50",
                             )}
                           >
@@ -3853,7 +3853,7 @@ const ScorecardGrid = ({
                             key={qtr.label}
                             className={cn(
                               "text-center min-w-[100px] max-w-[100px] font-bold py-[7.2px] sticky top-0 z-10",
-                              isSelected ? "bg-primary/10 border-x-2 border-primary/30" : "bg-muted/50",
+                              isSelected ? "bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]" : "bg-muted/50",
                             )}
                           >
                             {qtr.label}
@@ -3995,7 +3995,7 @@ const ScorecardGrid = ({
                           </div>
                         </TableHead>
                         {/* Current Quarter Target */}
-                        <TableHead className="text-center font-bold min-w-[80px] max-w-[80px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[80px] max-w-[80px] py-[7.2px] bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Target</div>
                             <div className="text-xs font-normal text-muted-foreground">{year}</div>
@@ -4044,7 +4044,7 @@ const ScorecardGrid = ({
                             </ContextMenu>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[80px] max-w-[80px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[80px] max-w-[80px] py-[7.2px] bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Avg</div>
                             <div className="text-xs font-normal text-muted-foreground">{year}</div>
@@ -4138,7 +4138,7 @@ const ScorecardGrid = ({
                               {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
                                 <>
                                   <TableCell
-                                    className="bg-primary py-1 min-w-[80px] border-x-2 border-primary/30"
+                                    className="bg-[hsl(var(--scorecard-navy))] py-1 min-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]"
                                     style={{
                                       position: "sticky",
                                        left: 170,
@@ -4196,7 +4196,7 @@ const ScorecardGrid = ({
                               <>
                                 {/* Current quarter target cell - sticky horizontally */}
                                 <TableCell
-                                  className="text-center py-0.5 min-w-[80px] bg-primary border-x-2 border-primary/30 font-medium text-primary-foreground"
+                                  className="text-center py-0.5 min-w-[80px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] font-medium text-primary-foreground"
                                   style={{
                                     position: "sticky",
                                     left: 170,
@@ -4222,7 +4222,7 @@ const ScorecardGrid = ({
                                         size="sm"
                                         variant="ghost"
                                         onClick={() => handleTargetSave(kpi.id)}
-                                        className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20"
+                                        className="h-7 px-2 text-primary-foreground hover:bg-white/20"
                                       >
                                         ✓
                                       </Button>
@@ -4275,7 +4275,7 @@ const ScorecardGrid = ({
                                   return (
                                     <TableCell
                                       key={`target-${latestQuarter}`}
-                                      className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-primary text-primary-foreground border-x border-primary/30 sticky left-[250px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                                      className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                                     >
                                       {canEditTargets() && isEditing ? (
                                         <div className="flex items-center justify-center gap-1">
@@ -4296,7 +4296,7 @@ const ScorecardGrid = ({
                                             size="sm"
                                             variant="ghost"
                                             onClick={() => handleTrendTargetSave(kpi.id, targetQuarter, targetYear)}
-                                            className="h-7 px-1 text-primary-foreground hover:bg-primary/80"
+                                            className="h-7 px-1 text-primary-foreground hover:bg-white/20"
                                           >
                                             ✓
                                           </Button>
@@ -4384,8 +4384,8 @@ const ScorecardGrid = ({
                                         key={month.identifier}
                                         className={cn(
                                           "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] font-medium",
-                                          month.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
-                                          month.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
+                                          month.type === "year-avg" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                          month.type === "year-total" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                                         )}
                                       >
                                         {displayValue !== null && displayValue !== undefined
@@ -4689,7 +4689,7 @@ const ScorecardGrid = ({
                                     key={qtr.label}
                                     className={cn(
                                       "px-0.5 py-0 text-center min-w-[100px] max-w-[100px]",
-                                      isSelected && "border-x-2 border-primary/30",
+                                      isSelected && "border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                                       qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
                                       qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40",
                                       qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40",
@@ -5048,7 +5048,7 @@ const ScorecardGrid = ({
                                 </TableCell>
 
                                 {/* Q{quarter} Target */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-background border-x-2 border-primary/30 font-medium">
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-background border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] font-medium">
                                   {canEditTargets() && editingTarget === kpi.id ? (
                                     <div className="flex items-center justify-center gap-1">
                                       <Input
@@ -5287,7 +5287,7 @@ const ScorecardGrid = ({
                                   );
                                 })}
                                 {/* Current Year Quarter Average */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-primary/10 border-x-2 border-primary/30">
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
                                   {(() => {
                                     const qKey = `${kpi.id}-Q${quarter}-${year}`;
                                     const qValue = precedingQuartersData[qKey];

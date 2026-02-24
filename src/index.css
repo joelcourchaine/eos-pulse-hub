@@ -38,6 +38,8 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
     
+    --scorecard-navy: 222 47% 16%;
+    
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     
@@ -95,6 +97,8 @@ All colors MUST be HSL.
     --border: 222 25% 20%;
     --input: 222 25% 20%;
     --ring: 217 91% 60%;
+    
+    --scorecard-navy: 222 47% 20%;
     
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
