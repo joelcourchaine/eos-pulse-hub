@@ -96,6 +96,9 @@ interface SubMetricsRowProps {
   metricType?: string;
   // The actual DB parent key for sub-metrics (e.g., 'gp_net' when parentMetricKey is 'gp_percent')
   subMetricSourceKey?: string;
+  // Unit data callbacks (e.g., number of vehicles sold)
+  getSubMetricUnitValue?: (subMetricName: string, monthId: string) => number | null;
+  hasUnitData?: boolean;
 }
 
 // Helper to calculate average from values
@@ -161,6 +164,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   formatTargetForTooltip,
   metricType,
   subMetricSourceKey,
+  getSubMetricUnitValue,
+  hasUnitData = false,
 }) => {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -441,8 +446,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
             : null;
           
           return (
-          <TableRow 
-            key={`sub-${subMetric.name}-${idx}`}
+          <React.Fragment key={`sub-${subMetric.name}-${idx}`}>
+          <TableRow
             className={cn(
               "bg-muted/20 hover:bg-muted/30",
               subMetricHasRock && "bg-amber-50/50 dark:bg-amber-950/20"
@@ -736,6 +741,70 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
               );
             })}
           </TableRow>
+          {/* Unit count row - shown indented under each vehicle sub-metric */}
+          {hasUnitData && getSubMetricUnitValue && (() => {
+            // Check if any period has unit data for this sub-metric
+            const hasAnyUnit = periods.some(p => {
+              if (p.type === 'month') {
+                return getSubMetricUnitValue(subMetric.name, p.identifier) !== null;
+              }
+              return false;
+            });
+            if (!hasAnyUnit) return null;
+            return (
+              <TableRow className="bg-muted/10 hover:bg-muted/20">
+                <TableCell className="sticky left-0 z-30 py-0.5 pl-10 w-[200px] min-w-[200px] max-w-[200px] border-r bg-background shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                  <p className="text-[9px] leading-tight text-muted-foreground/70 italic">Units</p>
+                </TableCell>
+                {hasSparklineColumn && (
+                  <TableCell className="px-1 py-0.5 min-w-[100px] max-w-[100px]" />
+                )}
+                {periods.map((period) => {
+                  if (period.type === 'month') {
+                    const unitVal = getSubMetricUnitValue(subMetric.name, period.identifier);
+                    return (
+                      <TableCell
+                        key={`unit-${subMetric.name}-${period.identifier}`}
+                        className="text-center py-0.5 text-[9px] text-muted-foreground/70 italic min-w-[125px] max-w-[125px]"
+                      >
+                        {unitVal !== null ? Math.round(unitVal) : "-"}
+                      </TableCell>
+                    );
+                  }
+                  if (period.type === 'year-avg' || period.type === 'year-total' || period.type === 'quarter-avg' || period.type === 'quarter-target') {
+                    // For summary columns, show total units across months in this period
+                    if (period.type === 'year-total' || period.type === 'quarter-avg') {
+                      const monthPeriods = periods.filter(p => p.type === 'month');
+                      let total = 0;
+                      let hasValue = false;
+                      for (const mp of monthPeriods) {
+                        const v = getSubMetricUnitValue(subMetric.name, mp.identifier);
+                        if (v !== null) { total += v; hasValue = true; }
+                      }
+                      return (
+                        <TableCell
+                          key={`unit-${subMetric.name}-${period.type}`}
+                          className="text-center py-0.5 text-[9px] text-muted-foreground/70 italic min-w-[125px] max-w-[125px]"
+                        >
+                          {hasValue ? Math.round(total) : "-"}
+                        </TableCell>
+                      );
+                    }
+                    return (
+                      <TableCell
+                        key={`unit-${subMetric.name}-${period.type}`}
+                        className="text-center py-0.5 text-[9px] text-muted-foreground/70 italic min-w-[125px] max-w-[125px]"
+                      >
+                        -
+                      </TableCell>
+                    );
+                  }
+                  return null;
+                })}
+              </TableRow>
+            );
+          })()}
+          </React.Fragment>
           );
         })}
       </>

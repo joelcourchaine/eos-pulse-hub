@@ -399,9 +399,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   }, [months, previousYearMonths, isMonthlyTrendMode, monthlyTrendPeriods, isQuarterTrendMode, quarterTrendPeriods]);
   
   // Fetch sub-metrics for the department
-  const { 
-    getSubMetricNames, 
-    getSubMetricValue, 
+  const {
+    getSubMetricNames,
+    getSubMetricValue,
+    getSubMetricUnitValue,
+    hasUnitData,
     hasSubMetrics: checkHasSubMetrics,
     subMetrics: allSubMetrics,
     refetch: refetchSubMetrics,
@@ -4983,6 +4985,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         formatTargetForTooltip={formatTarget}
                         metricType={metric.type}
                         subMetricSourceKey={subMetricSourceKey}
+                        getSubMetricUnitValue={(subMetricName, monthId) =>
+                          getSubMetricUnitValue(subMetricSourceKey, subMetricName, monthId)
+                        }
+                        hasUnitData={hasUnitData(subMetricSourceKey)}
                       />
                       </React.Fragment>
                     );

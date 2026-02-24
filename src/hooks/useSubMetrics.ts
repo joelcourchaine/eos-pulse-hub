@@ -9,12 +9,21 @@ export interface SubMetricEntry {
   orderIndex: number; // Preserves Excel statement order
 }
 
+export interface UnitEntry {
+  name: string;
+  parentMetricKey: string;
+  monthIdentifier: string;
+  value: number | null;
+  orderIndex: number;
+}
+
 /**
  * Hook to fetch and manage sub-metrics for a department
  * Sub-metrics are stored with naming convention: sub:{parent_key}:{name}
  */
 export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) => {
   const [subMetrics, setSubMetrics] = useState<SubMetricEntry[]>([]);
+  const [unitEntries, setUnitEntries] = useState<UnitEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const isMountedRef = useRef(true);
 
@@ -43,7 +52,7 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
           .select('metric_name, month, value')
           .eq('department_id', departmentId)
           .in('month', monthList)
-          .like('metric_name', 'sub:%')
+          .or('metric_name.like.sub:%,metric_name.like.units:%')
           // Use deterministic ordering so pagination doesn't miss/duplicate rows
           .order('month', { ascending: true })
           .order('metric_name', { ascending: true })
@@ -64,8 +73,10 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
       if (!isMountedRef.current) return;
 
       const parsed: SubMetricEntry[] = [];
+      const parsedUnits: UnitEntry[] = [];
       allRows.forEach((entry) => {
-        // Format: sub:{parent_key}:{order_index}:{name}
+        const isUnit = entry.metric_name.startsWith('units:');
+        // Format: sub:{parent_key}:{order_index}:{name} or units:{parent_key}:{order_index}:{name}
         // Legacy format (no order): sub:{parent_key}:{name}
         const parts = entry.metric_name.split(':');
         if (parts.length >= 4) {
@@ -73,24 +84,34 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
           const parentKey = parts[1];
           const orderIndex = parseInt(parts[2], 10) || 0;
           const name = parts.slice(3).join(':');
-          parsed.push({
+          const item = {
             name,
             parentMetricKey: parentKey,
             monthIdentifier: entry.month,
             value: entry.value,
             orderIndex,
-          });
+          };
+          if (isUnit) {
+            parsedUnits.push(item);
+          } else {
+            parsed.push(item);
+          }
         } else if (parts.length >= 3) {
           // Legacy format without order index
           const parentKey = parts[1];
           const name = parts.slice(2).join(':');
-          parsed.push({
+          const item = {
             name,
             parentMetricKey: parentKey,
             monthIdentifier: entry.month,
             value: entry.value,
             orderIndex: 999, // Put legacy entries at the end
-          });
+          };
+          if (isUnit) {
+            parsedUnits.push(item);
+          } else {
+            parsed.push(item);
+          }
         }
       });
 
@@ -103,6 +124,7 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
       });
 
       setSubMetrics(parsed);
+      setUnitEntries(parsedUnits);
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
@@ -150,38 +172,47 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
           const rowOld = payload.old as any;
 
           if (payload.eventType === 'DELETE') {
-            if (!rowOld?.metric_name?.startsWith('sub:')) return;
+            const metricName = rowOld?.metric_name;
+            if (!metricName) return;
+            const isUnit = metricName.startsWith('units:');
+            const isSub = metricName.startsWith('sub:');
+            if (!isUnit && !isSub) return;
             // Only process deletes for months we're currently watching
-            // This prevents stale events from other import operations affecting our view
             if (!watchedMonthsRef.current.has(rowOld.month)) return;
-            
-            const parts = rowOld.metric_name.split(':');
+
+            const parts = metricName.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
             const name = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
-            setSubMetrics((prev) =>
+            const setter = isUnit ? setUnitEntries : setSubMetrics;
+            setter((prev) =>
               prev.filter(
                 (sm) => !(sm.parentMetricKey === parentKey && sm.name === name && sm.monthIdentifier === rowOld.month)
               )
             );
           } else {
-            if (!rowNew?.metric_name?.startsWith('sub:')) return;
+            const metricName = rowNew?.metric_name;
+            if (!metricName) return;
+            const isUnit = metricName.startsWith('units:');
+            const isSub = metricName.startsWith('sub:');
+            if (!isUnit && !isSub) return;
             // Only process inserts/updates for months we're currently watching
             if (!watchedMonthsRef.current.has(rowNew.month)) return;
-            
-            const parts = rowNew.metric_name.split(':');
+
+            const parts = metricName.split(':');
             if (parts.length < 3) return;
             const parentKey = parts[1];
             const orderIndex = parts.length >= 4 ? (parseInt(parts[2], 10) || 0) : 999;
             const name = parts.length >= 4 ? parts.slice(3).join(':') : parts.slice(2).join(':');
-            const entry: SubMetricEntry = {
+            const entry = {
               parentMetricKey: parentKey,
               name,
               monthIdentifier: rowNew.month,
               value: rowNew.value ?? null,
               orderIndex,
             };
-            setSubMetrics((prev) => {
+            const setter = isUnit ? setUnitEntries : setSubMetrics;
+            setter((prev) => {
               const idx = prev.findIndex(
                 (sm) => sm.parentMetricKey === parentKey && sm.name === name && sm.monthIdentifier === rowNew.month
               );
@@ -390,11 +421,31 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
     [departmentId, subMetrics, saveSubMetricValue]
   );
 
+  const getSubMetricUnitValue = useCallback(
+    (parentMetricKey: string, subMetricName: string, monthId: string): number | null => {
+      const entry = unitEntries.find(
+        (u) =>
+          u.parentMetricKey === parentMetricKey && u.name === subMetricName && u.monthIdentifier === monthId
+      );
+      return entry?.value ?? null;
+    },
+    [unitEntries]
+  );
+
+  const hasUnitData = useCallback(
+    (parentMetricKey: string): boolean => {
+      return unitEntries.some((u) => u.parentMetricKey === parentMetricKey);
+    },
+    [unitEntries]
+  );
+
   return {
     subMetrics,
     loading,
     getSubMetricNames,
     getSubMetricValue,
+    getSubMetricUnitValue,
+    hasUnitData,
     hasSubMetrics,
     getSubMetricSum,
     getCalculatedSubMetricValue,

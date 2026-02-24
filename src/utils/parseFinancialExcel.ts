@@ -13,6 +13,8 @@ export interface CellMapping {
   parent_metric_key?: string | null;
   is_sub_metric?: boolean;
   effective_year?: number | null;
+  // Unit count cell (e.g., number of vehicles sold)
+  unit_cell_reference?: string | null;
 }
 
 export interface ParsedDepartmentData {
@@ -27,6 +29,7 @@ export interface SubMetricData {
   name: string;
   value: number | null;
   orderIndex: number; // Preserves Excel row order
+  unitValue?: number | null; // Unit count (e.g., vehicles sold)
 }
 
 export interface ValidationResult {
@@ -354,6 +357,15 @@ export const parseFinancialExcel = (
             
             console.log(`[Excel Parse Sub] ${deptName} - Sheet "${actualSheetName}" Cell ${upperValueCellRef}: v=${(valueCell as any)?.v}, w=${(valueCell as any)?.w}, extracted=${value}`);
 
+            // Read unit value if unit_cell_reference is present
+            let unitValue: number | null = null;
+            if (mapping.unit_cell_reference) {
+              const upperUnitCellRef = mapping.unit_cell_reference.toUpperCase();
+              const unitCell = sheet[upperUnitCellRef];
+              unitValue = extractNumericValue(unitCell, workbook);
+              console.log(`[Excel Parse Sub] ${deptName} - Unit cell ${upperUnitCellRef}: ${unitValue}`);
+            }
+
             // Only include if we have both a name and the parent key
             if (metricName && mapping.parent_metric_key) {
               subMetricsResult[deptName].push({
@@ -361,8 +373,9 @@ export const parseFinancialExcel = (
                 name: metricName,
                 value: value,
                 orderIndex,
+                unitValue,
               });
-              console.log(`[Excel Parse Sub] Added sub-metric [${orderIndex}]: ${mapping.parent_metric_key} -> "${metricName}" = ${value}`);
+              console.log(`[Excel Parse Sub] Added sub-metric [${orderIndex}]: ${mapping.parent_metric_key} -> "${metricName}" = ${value}${unitValue !== null ? ` (units: ${unitValue})` : ''}`);
             } else {
               console.log(`[Excel Parse Sub] Skipped: metricName="${metricName}", parent_metric_key="${mapping.parent_metric_key}"`);
             }
@@ -681,6 +694,18 @@ export const importFinancialData = async (
           value: normalizedValue,
           created_by: userId,
         });
+
+        // Store unit value if present
+        if (subMetric.unitValue !== null && subMetric.unitValue !== undefined) {
+          const unitMetricName = `units:${subMetric.parentMetricKey}:${String(subMetric.orderIndex).padStart(3, '0')}:${subMetric.name}`;
+          subMetricEntries.push({
+            department_id: departmentId,
+            month: monthIdentifier,
+            metric_name: unitMetricName,
+            value: subMetric.unitValue,
+            created_by: userId,
+          });
+        }
       }
     }
   }
@@ -699,13 +724,13 @@ export const importFinancialData = async (
 
     // For each department with new entries, delete old and insert new atomically
     for (const [deptId, entries] of entriesByDept) {
-      // Delete existing sub-metrics for this dept/month
+      // Delete existing sub-metrics and unit entries for this dept/month
       const { error: deleteError } = await supabase
         .from('financial_entries')
         .delete()
         .eq('department_id', deptId)
         .eq('month', monthIdentifier)
-        .like('metric_name', 'sub:%');
+        .or('metric_name.like.sub:%,metric_name.like.units:%');
 
       if (deleteError) {
         console.error('Error deleting sub-metrics for dept:', deptId, deleteError);

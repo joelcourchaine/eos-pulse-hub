@@ -906,6 +906,7 @@ export type Database = {
           name_cell_reference: string | null
           parent_metric_key: string | null
           sheet_name: string
+          unit_cell_reference: string | null
           updated_at: string
         }
         Insert: {
@@ -920,6 +921,7 @@ export type Database = {
           name_cell_reference?: string | null
           parent_metric_key?: string | null
           sheet_name: string
+          unit_cell_reference?: string | null
           updated_at?: string
         }
         Update: {
@@ -934,6 +936,7 @@ export type Database = {
           name_cell_reference?: string | null
           parent_metric_key?: string | null
           sheet_name?: string
+          unit_cell_reference?: string | null
           updated_at?: string
         }
         Relationships: []
