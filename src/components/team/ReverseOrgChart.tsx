@@ -82,68 +82,90 @@ function getSpanWarning(count: number): { color: string; message: string | null 
   return { color: "transparent", message: null };
 }
 
-// Flatten tree to levels (bottom-up: root is at the bottom)
-// Calculate subtree width for each node (number of leaf descendants, min 1)
-function calcSubtreeWidth(node: TreeNode): number {
-  // Sort children by position then name for consistent ordering
-  node.children.sort((a, b) => {
-    const posCmp = a.member.position.localeCompare(b.member.position);
-    if (posCmp !== 0) return posCmp;
-    return a.member.name.localeCompare(b.member.name);
-  });
-  if (node.children.length === 0) return 1;
-  let total = 0;
-  node.children.forEach((c) => { total += calcSubtreeWidth(c); });
-  return total;
-}
-
 interface PositionedNode {
   node: TreeNode;
   x: number; // center x position in "slot" units
 }
 
-// Calculate x positions for each node based on subtree widths
-function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth: number } {
-  roots.forEach((r) => calcSubtreeWidth(r));
-
-  const levels: PositionedNode[][] = [];
-  let totalWidth = 0;
-
-  // Calculate total width from roots
-  roots.forEach((r) => { totalWidth += calcSubtreeWidth(r); });
-
-  // Assign x positions via BFS
-  // Roots are placed sequentially
-  let currentLevel: { node: TreeNode; leftEdge: number }[] = [];
-  let offset = 0;
-  roots.forEach((r) => {
-    const w = calcSubtreeWidth(r);
-    currentLevel.push({ node: r, leftEdge: offset });
-    offset += w;
+// Sort children recursively by position then name
+function sortChildren(node: TreeNode) {
+  node.children.sort((a, b) => {
+    const posCmp = a.member.position.localeCompare(b.member.position);
+    if (posCmp !== 0) return posCmp;
+    return a.member.name.localeCompare(b.member.name);
   });
+  node.children.forEach(sortChildren);
+}
 
-  while (currentLevel.length > 0) {
-    const positioned: PositionedNode[] = [];
-    const nextLevel: { node: TreeNode; leftEdge: number }[] = [];
+// Compact bottom-up layout: positions leaves tightly, then centers parents over children
+function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth: number } {
+  roots.forEach(sortChildren);
 
-    currentLevel.forEach(({ node, leftEdge }) => {
-      const w = calcSubtreeWidth(node);
-      positioned.push({ node, x: leftEdge + w / 2 });
-
-      // Lay out children within this node's allocated space
-      let childOffset = leftEdge;
-      node.children.forEach((child) => {
-        const cw = calcSubtreeWidth(child);
-        nextLevel.push({ node: child, leftEdge: childOffset });
-        childOffset += cw;
-      });
-    });
-
-    levels.push(positioned);
-    currentLevel = nextLevel;
+  // Collect levels via BFS (root first)
+  const bfsLevels: TreeNode[][] = [];
+  let currentNodes = roots;
+  while (currentNodes.length > 0) {
+    bfsLevels.push(currentNodes);
+    const next: TreeNode[] = [];
+    currentNodes.forEach((n) => next.push(...n.children));
+    currentNodes = next;
   }
 
-  return { levels: levels.reverse(), totalWidth };
+  // Reverse so leaves are index 0 (top of chart)
+  bfsLevels.reverse();
+
+  // Map each node to its assigned x position
+  const posMap = new Map<TreeNode, number>();
+
+  // Position leaves (level 0) tightly left-to-right
+  let cursor = 0;
+  bfsLevels[0]?.forEach((node) => {
+    posMap.set(node, cursor);
+    cursor += 1;
+  });
+
+  // For each subsequent level (toward root), center over children, resolve collisions
+  for (let li = 1; li < bfsLevels.length; li++) {
+    let minX = 0;
+    bfsLevels[li].forEach((node) => {
+      if (node.children.length === 0) {
+        // Leaf at a non-leaf level (orphan-like); place at minX
+        const x = Math.max(minX, 0);
+        posMap.set(node, x);
+        minX = x + 1;
+      } else {
+        // Center over children span
+        const childXs = node.children.map((c) => posMap.get(c)!);
+        const center = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+        const x = Math.max(center, minX);
+
+        // If we had to shift right, shift all children subtrees too
+        const shift = x - center;
+        if (shift > 0) {
+          const shiftSubtree = (n: TreeNode) => {
+            posMap.set(n, posMap.get(n)! + shift);
+            n.children.forEach(shiftSubtree);
+          };
+          node.children.forEach(shiftSubtree);
+        }
+
+        posMap.set(node, x);
+        minX = x + 1;
+      }
+    });
+  }
+
+  // Build positioned levels (keep leaf-first order for rendering)
+  let totalWidth = 0;
+  const levels: PositionedNode[][] = bfsLevels.map((level) => {
+    return level.map((node) => {
+      const x = posMap.get(node)!;
+      if (x + 1 > totalWidth) totalWidth = x + 1;
+      return { node, x };
+    });
+  });
+
+  return { levels, totalWidth };
 }
 
 interface OrgNodeProps {
