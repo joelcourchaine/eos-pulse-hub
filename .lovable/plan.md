@@ -1,46 +1,55 @@
 
 
-# Fix Org Chart Layout: Align Children Above Their Parent
+# Compact Org Chart Layout: Eliminate Excessive Horizontal Gaps
 
 ## Problem
 
-Currently, each level in the reverse org chart sorts nodes alphabetically by position, then by name. This breaks the visual parent-child relationship -- for example, Denver Bugera's detailers are clustered on the far left while he sits in the middle of his level, making the reporting lines cross awkwardly.
+The current subtree-width algorithm allocates horizontal space based on leaf descendant count. Denver Bugera has 3 detailer children, so he gets 3 "slots" wide in row 2 -- even though he's just one node. This creates a large empty gap in row 2 between the advisors on the left and Garret Moffat on the right.
 
 ## Solution
 
-Replace the position-based sorting with a **parent-preserving layout order**. Nodes at each level will be ordered so that siblings (children of the same parent) are grouped together, and those groups appear in the same left-to-right order as their parents in the level below.
+Switch to a **compact layout** that positions nodes with minimal spacing while preserving parent-child grouping. Instead of allocating space proportional to leaf count, each node gets a fixed-width slot, and parents are centered above their children group after children are positioned.
 
-This is how standard org charts work -- children fan out directly above (or below) their manager.
+The algorithm works bottom-up:
+1. Position leaf nodes (top row) tightly, left to right, grouped by parent
+2. For each parent, compute the center of its children group and position the parent there
+3. If a parent's position would overlap a previously placed sibling, shift the entire subtree right
+4. This naturally produces compact rows with no wasted space
 
-## How It Will Look
+## Visual Result
 
-- Denver Bugera's 3 detailers will cluster directly above him
-- Garret Moffat's technicians will cluster directly above him
-- Lines will run mostly vertically with minimal crossing
+```text
+Before (leaf-count allocation):
+[Advisor] [Advisor]          [Denver]                    [Garret]
+              ^--- 3 empty slots of gap ---^
+
+After (compact):
+[Advisor] [Advisor] [Denver] [Garret]
+                       |         |
+              [Det] [Det] [Det] [Tech] [Tech] [Tech] [Tech]
+```
+
+Row 2 nodes are tightly packed. Lines still connect correctly because children remain grouped above their parent.
 
 ## Technical Details
 
 ### File: `src/components/team/ReverseOrgChart.tsx`
 
-**Change the `getLevels` function** (lines 86-109):
+Replace the `calcSubtreeWidth` and `layoutTree` functions with a compact layout algorithm:
 
-Instead of flattening the tree by depth and then sorting by position, use a breadth-first traversal that preserves sibling order. Each parent's children are kept together in sequence, and within a parent's children, sort by position then name (for consistency).
+1. **Remove `calcSubtreeWidth`** -- no longer needed
+2. **New `layoutTree` function**:
+   - Collect nodes into levels via BFS (same as now)
+   - Reverse levels so leaves are first
+   - Position leaf level nodes with uniform spacing, grouped by parent
+   - For each subsequent level (moving toward root), center each node over its children's span
+   - Handle collision: if a node overlaps a previously placed node, shift it (and its subtree) right
+   - Return positioned nodes per level and total width
 
-```text
-Current approach:
-  1. Traverse tree, collect nodes by depth
-  2. Sort each level by position alphabetically (breaks parent alignment)
-  3. Reverse levels
+3. **Adjust `NODE_SLOT_WIDTH`** to represent actual node width + gap (e.g., keep at 140 or tune slightly) rather than a "subtree slot"
 
-New approach:
-  1. Traverse tree breadth-first, so each level's nodes appear
-     in the order dictated by their parent's position in the previous level
-  2. Within each parent's children, sort by position then name
-  3. Reverse levels (same as before)
-```
-
-The key change is removing the global `level.sort()` on lines 101-106 and instead ensuring the traversal itself produces the correct order by sorting each node's children before traversing them.
+4. **Keep the rendering logic mostly the same** -- it already uses absolute positioning with `left: x * NODE_SLOT_WIDTH`
 
 ### Files Changed
-- `src/components/team/ReverseOrgChart.tsx` -- Replace global level sort with parent-preserving child ordering
+- `src/components/team/ReverseOrgChart.tsx` -- Replace layout algorithm with compact bottom-up positioning
 
