@@ -440,32 +440,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
    * 2. Forecast entry fallback
    */
   const getTargetForMonth = useCallback((metricKey: string, monthId: string, metricDef: { targetDirection: "above" | "below"; type: string }): { value: number; direction: "above" | "below"; source: "manual" | "forecast" } | null => {
-    // Extract quarter from month identifier (e.g., "2025-03" → Q1)
+    // 1. Prefer monthly forecast entry (most accurate, month-specific)
+    const forecastValue = getForecastTarget(metricKey, monthId);
+    if (forecastValue !== null) {
+      return { value: forecastValue, direction: metricDef.targetDirection, source: 'forecast' };
+    }
+
+    // 2. Fallback to manual quarterly targets / 3
     const monthNum = parseInt(monthId.split('-')[1], 10);
     const monthQuarter = Math.ceil(monthNum / 3);
     const monthYear = parseInt(monthId.split('-')[0], 10);
 
-    // 1. Check manual quarterly targets (trend mode uses trendTargets, standard uses targets)
     const quarterYearKey = `Q${monthQuarter}-${monthYear}`;
     const trendTarget = trendTargets[metricKey]?.[quarterYearKey];
     if (trendTarget && trendTarget.value !== 0) {
       const monthlyValue = metricDef.type === 'percentage' ? trendTarget.value : trendTarget.value / 3;
       return { value: monthlyValue, direction: trendTarget.direction, source: 'manual' };
     }
-    // Also check standard quarter targets for the current quarter view
     if (!isQuarterTrendMode && !isMonthlyTrendMode && targets[metricKey] && targets[metricKey] !== 0) {
       const monthlyValue = metricDef.type === 'percentage' ? targets[metricKey] : targets[metricKey] / 3;
       return { value: monthlyValue, direction: targetDirections[metricKey] || metricDef.targetDirection, source: 'manual' };
     }
 
-    // 2. Fallback to forecast
-    const forecastValue = getForecastTarget(metricKey, monthId);
-    if (forecastValue !== null) {
-      return { value: forecastValue, direction: metricDef.targetDirection, source: 'forecast' };
-    }
-
     return null;
-  }, [trendTargets, targets, targetDirections, getForecastTarget, isQuarterTrendMode, isMonthlyTrendMode]);
+  }, [getForecastTarget, trendTargets, targets, targetDirections, isQuarterTrendMode, isMonthlyTrendMode]);
   
   // Toggle metric expansion
   const toggleMetricExpansion = useCallback((metricKey: string) => {
@@ -3264,135 +3262,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                   <TrendingUp className="h-4 w-4 mr-2" />
                   Forecast
                 </Button>
-                <Dialog open={targetsDialogOpen} onOpenChange={setTargetsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Set Targets
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-6xl max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
-                    <DialogHeader>
-                      <DialogTitle>Set Financial Targets</DialogTitle>
-                      <DialogDescription>
-                        Define target values for each financial metric by quarter
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="mb-4">
-                      <Label htmlFor="target-year">Target Year</Label>
-                      <Select
-                        value={targetYear.toString()}
-                        onValueChange={(value) => setTargetYear(parseInt(value))}
-                      >
-                        <SelectTrigger id="target-year" className="w-[200px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value={(year - 1).toString()}>{year - 1} (Last Year)</SelectItem>
-                          <SelectItem value={year.toString()}>{year} (Current Year)</SelectItem>
-                          <SelectItem value={(year + 1).toString()}>{year + 1} (Next Year)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="max-h-[50vh] overflow-y-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[200px]">Metric</TableHead>
-                            <TableHead className="text-center">Q1</TableHead>
-                            <TableHead className="text-center">Q2</TableHead>
-                            <TableHead className="text-center">Q3</TableHead>
-                            <TableHead className="text-center">Q4</TableHead>
-                            <TableHead className="w-[140px]">Direction</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {FINANCIAL_METRICS.map((metric) => {
-                            const isDepartmentProfit = metric.key === 'department_profit';
-                            return (
-                              <TableRow 
-                                key={metric.key}
-                                className={cn(
-                                  isDepartmentProfit && "border-y-2 border-primary/40 bg-primary/5"
-                                )}
-                              >
-                                <TableCell className={cn(
-                                  isDepartmentProfit ? "font-bold" : "font-medium"
-                                )}>
-                                  {metric.name}
-                                </TableCell>
-                              {[1, 2, 3, 4].map((q) => {
-                                const rawValue = editTargets[q]?.[metric.key];
-                                const numValue = rawValue !== undefined && rawValue !== "" ? parseFloat(rawValue) : null;
-                                const displayValue = numValue !== null 
-                                  ? metric.type === 'percentage' 
-                                    ? `${numValue.toFixed(1)}%`
-                                    : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(numValue)
-                                  : "-";
-                                return (
-                                  <TableCell key={q}>
-                                    <Input
-                                      type="number"
-                                      step="any"
-                                      value={rawValue || ""}
-                                      onChange={(e) => {
-                                        setEditTargets(prev => ({ 
-                                          ...prev, 
-                                          [q]: { ...prev[q], [metric.key]: e.target.value }
-                                        }));
-                                        // Keep direction consistent across all quarters
-                                        const direction = editTargetDirections[q]?.[metric.key] || metric.targetDirection;
-                                        [1, 2, 3, 4].forEach(quarter => {
-                                          setEditTargetDirections(prev => ({ 
-                                            ...prev, 
-                                            [quarter]: { ...prev[quarter], [metric.key]: direction }
-                                          }));
-                                        });
-                                      }}
-                                      placeholder={displayValue}
-                                      className="text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                  </TableCell>
-                                );
-                              })}
-                              <TableCell>
-                                <Select
-                                  value={editTargetDirections[1]?.[metric.key] || metric.targetDirection}
-                                  onValueChange={(value: "above" | "below") => {
-                                    // Apply direction to all quarters
-                                    [1, 2, 3, 4].forEach(q => {
-                                      setEditTargetDirections(prev => ({ 
-                                        ...prev, 
-                                        [q]: { ...prev[q], [metric.key]: value }
-                                      }));
-                                    });
-                                  }}
-                                >
-                                  <SelectTrigger className="w-[140px]">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="above">Higher is Better</SelectItem>
-                                    <SelectItem value="below">Lower is Better</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
-                            </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setTargetsDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSaveTargets}>
-                        Save All Targets
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
                 <Button variant="ghost" size="sm">
                   {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </Button>

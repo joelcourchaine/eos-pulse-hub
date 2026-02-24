@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { SetKPITargetsDialog } from "./SetKPITargetsDialog";
+
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -3575,26 +3575,6 @@ const ScorecardGrid = ({
 
           {kpis.length > 0 && (
             <>
-              <SetKPITargetsDialog
-                departmentId={departmentId}
-                kpis={kpis}
-                currentYear={year}
-                currentQuarter={quarter}
-                viewMode={viewMode === "quarterly" ? "monthly" : viewMode}
-                onTargetsChange={async () => {
-                  await recalculateAllEntryStatuses();
-                  const { data: freshTargetsData } = await supabase
-                    .from("kpi_targets")
-                    .select("*")
-                    .in("kpi_id", kpis.map((k) => k.id))
-                    .eq("quarter", quarter)
-                    .eq("year", year)
-                    .eq("entry_type", dbEntryType);
-                  const freshTargetsMap: { [key: string]: number } = {};
-                  freshTargetsData?.forEach((target) => { freshTargetsMap[target.kpi_id] = target.target_value || 0; });
-                  await loadScorecardData(freshTargetsMap);
-                }}
-              />
               {canManageKPIs && (
                 <>
                   <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={(e) => { e.stopPropagation(); setPasteDialogOpen(true); }}>
