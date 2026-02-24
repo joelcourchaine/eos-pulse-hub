@@ -1,66 +1,43 @@
 
 
-# Fix CSR Report Import Not Pulling KPI Data for Murray Merritt
+# Fix Import Failed: RLS Policy Blocking Alias Creation
 
-## Problem Analysis
+## Root Cause
 
-After investigating the database, I found two distinct issues causing KPI data not to be imported for Daniel Park at Murray Merritt:
+The postgres logs show: **"new row violates row-level security policy for table scorecard_user_aliases"**
 
-### Issue 1: Unmatched Advisor "DANIEL"
+Daniel Park's role is `department_manager`. The current RLS policies on `scorecard_user_aliases` only allow writes for:
+- `super_admin`
+- `store_gm` (matching store_id)
 
-The recent CSR reports contain an advisor named "DANIEL" (and "Cole") who have no user aliases configured. The import logs confirm:
-- Feb 24 import: only **4 metrics imported** (down from 11 in January), with unmatched users ["DANIEL", "Cole"]
-- The system cannot map "DANIEL" to Daniel Park's profile because there is no alias, and the initialization code only uses alias-based matching (no fuzzy matching)
-
-The "All Repair Orders" row IS correctly mapped to Daniel Park, which is why 4 department-total metrics still import. But the per-advisor "DANIEL" row data is completely lost.
-
-### Issue 2: One-Directional KPI Name Matching
-
-The `getKpiNameCandidates` function in `ScorecardImportPreviewDialog.tsx` only strips prefixes like "Total " and "Total CP " -- it never adds them. This means:
-
-- Template KPI "CP ELR" generates candidates: `["cp elr"]`
-- But Daniel's KPI is named "Total CP ELR" -- no match
-- Template KPI "CP Hours Per RO" generates `["cp hours per ro"]`
-- But Daniel's KPI is "Total CP Hours Per RO" -- no match
-
-While duplicate template entries exist for some KPIs (both "CP ELR" and "Total CP ELR" are configured), this is fragile and doesn't cover all cases.
+Department managers are not permitted to insert aliases, so when the import tries to save the new "DANIEL" alias mapping, it throws an RLS error that aborts the entire import.
 
 ## Solution
 
-### 1. Fix Build Error (logrocket type issue)
+Add an RLS policy allowing department managers (and fixed ops managers) to manage aliases for their own store. These are the users who actually perform scorecard imports day-to-day.
 
-The `skipLibCheck: true` is already set in tsconfig. This appears to be a transient build issue. If it persists, we'll add a type declaration override.
+## Technical Details
 
-### 2. Make KPI Name Matching Bidirectional
+### Database Migration
 
-In `ScorecardImportPreviewDialog.tsx`, update `getKpiNameCandidates` to also ADD "Total " and "Total CP " prefixes, not just strip them:
+Add a new RLS policy on `scorecard_user_aliases`:
 
-```text
-Current: "CP ELR" -> ["cp elr"]
-Fixed:   "CP ELR" -> ["cp elr", "total cp elr"]
-
-Current: "CP Hours" -> ["cp hours"]  
-Fixed:   "CP Hours" -> ["cp hours", "total cp hours"]
+```sql
+CREATE POLICY "Department managers can manage aliases for their store"
+ON public.scorecard_user_aliases
+FOR ALL
+USING (
+  store_id = (SELECT store_id FROM public.profiles WHERE id = auth.uid())
+  AND public.is_manager_or_above(auth.uid())
+)
+WITH CHECK (
+  store_id = (SELECT store_id FROM public.profiles WHERE id = auth.uid())
+  AND public.is_manager_or_above(auth.uid())
+);
 ```
 
-This makes the matching robust regardless of whether the template or the user's KPI uses the "Total" prefix.
+The existing `is_manager_or_above` function already covers `department_manager`, `fixed_ops_manager`, `store_gm`, and `super_admin` -- so this single policy replaces the need for the existing `store_gm` policy (though we can keep it for safety).
 
-### 3. Improve Advisor Name Pre-Matching
-
-Update the advisor initialization `useEffect` in `ScorecardImportPreviewDialog.tsx` to also attempt partial/fuzzy matching against store users when alias matching fails. This would catch cases like "DANIEL" matching "Daniel Park" via first-name matching. The existing `fuzzyNameMatch` utility supports this but it's not used during initialization.
-
-Specifically:
-- After alias lookup fails, check if the advisor's display name is a case-insensitive match for any store user's first name (when only one user matches)
-- Use a conservative threshold to avoid false matches
-- Mark these as non-alias matches so new aliases still get created on import
-
-### Files to Modify
-
-1. **`src/components/scorecard/ScorecardImportPreviewDialog.tsx`**
-   - Enhance `getKpiNameCandidates` to add "Total " and "Total CP " prefixes in addition to stripping them
-   - Add first-name / partial matching fallback in the advisor initialization useEffect when alias matching fails
-
-### What Won't Be Fixed in Code
-
-The user will still need to manually assign "DANIEL" to Daniel Park in the import preview dropdown the first time. After that, the alias will be saved automatically. The code improvement means the system will pre-suggest Daniel Park as a match (via first-name matching) rather than leaving the row blank.
+### Files Changed
+- **Database migration only** -- no code changes needed
 
