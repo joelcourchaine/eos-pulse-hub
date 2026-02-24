@@ -611,24 +611,26 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <SubMetricLYTooltip subMetricName={subMetric.name} monthIdentifier={period.identifier}>
-                        <span className={cn(
-                          status === 'success' && "text-success font-medium",
-                          status === 'warning' && "text-warning font-medium",
-                          status === 'destructive' && "text-destructive font-medium"
-                        )}>
-                          {value !== null ? formatValue(value) : "-"}
-                        </span>
-                      </SubMetricLYTooltip>
-                      {unitDisplayMode === 'inline' && hasUnitData && getSubMetricUnitValue && (() => {
-                        const unitVal = getSubMetricUnitValue(subMetric.name, period.identifier);
-                        if (unitVal === null) return null;
-                        return (
-                          <div className="text-[8px] leading-tight text-muted-foreground/60 italic mt-0.5">
-                            {Math.round(unitVal)} units
-                          </div>
-                        );
-                      })()}
+                      <>
+                        <SubMetricLYTooltip subMetricName={subMetric.name} monthIdentifier={period.identifier}>
+                          <span className={cn(
+                            status === 'success' && "text-success font-medium",
+                            status === 'warning' && "text-warning font-medium",
+                            status === 'destructive' && "text-destructive font-medium"
+                          )}>
+                            {value !== null ? formatValue(value) : "-"}
+                          </span>
+                        </SubMetricLYTooltip>
+                        {unitDisplayMode === 'inline' && hasUnitData && getSubMetricUnitValue && (() => {
+                          const unitVal = getSubMetricUnitValue(subMetric.name, period.identifier);
+                          if (unitVal === null) return null;
+                          return (
+                            <div className="text-[8px] leading-tight text-muted-foreground/60 italic mt-0.5">
+                              {Math.round(unitVal)} units
+                            </div>
+                          );
+                        })()}
+                      </>
                     )}
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
