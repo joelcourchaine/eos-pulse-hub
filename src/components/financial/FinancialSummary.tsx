@@ -496,9 +496,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       ? metrics.filter(m => !['semi_fixed_expense', 'semi_fixed_expense_percent'].includes(m.key))
       : metrics;
 
+    // For Nissan New/Used Vehicles, move total_variable_expenses before sales_expense
+    // to match the actual financial statement spreadsheet order
+    const isNissan = storeBrand?.toLowerCase().includes('nissan') || false;
+    const isNewOrUsed = departmentName ? ['new', 'used'].some(d => departmentName.toLowerCase().includes(d)) : false;
+    const reordered = (isNissan && isNewOrUsed)
+      ? (() => {
+          const withoutVar = filtered.filter(m => m.key !== 'total_variable_expenses');
+          const varMetric = filtered.find(m => m.key === 'total_variable_expenses');
+          if (!varMetric) return filtered;
+          const salesIdx = withoutVar.findIndex(m => m.key === 'sales_expense');
+          if (salesIdx === -1) return filtered;
+          const result = [...withoutVar];
+          result.splice(salesIdx, 0, varMetric);
+          return result;
+        })()
+      : filtered;
+
     // Defensive: ensure we never render duplicate metric rows (same key) even if configs change.
     const seen = new Set<string>();
-    return filtered.filter((m) => {
+    return reordered.filter((m) => {
       if (seen.has(m.key)) return false;
       seen.add(m.key);
       return true;
