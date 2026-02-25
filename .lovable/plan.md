@@ -1,51 +1,34 @@
 
-
-# Fix: Detailers Hidden Behind Technicians Due to Overlapping Positions
-
 ## Problem
 
-The compact bottom-up layout algorithm has a critical overlap bug. It positions all leaf nodes first (detailers at slots 0-2, technicians at slots 3-7), then when centering parents, Denver needs to shift right (to avoid colliding with Scott Bennie). This shifts Denver's 3 detailers from 0,1,2 to 3,4,5 -- but Garret's technicians are already at 3,4,5,6,7. The detailers render at the same coordinates as the technicians, making them invisible.
+New users like Cody Skene receive an email that says "Accept Invitation" with zero instruction about what happens next. When they click it, they land on `/set-password` which says "Create Your Password" — but the email gave no preparation for this. Users are confused and try to log in directly at `/auth` instead, where they get an error because they have no password yet.
 
-## Solution
+Two things need fixing:
 
-Replace the bottom-up "position all leaves, then center parents" algorithm with a **recursive subtree layout** that naturally prevents overlaps. Each subtree is positioned as a contiguous block, so siblings' subtrees never overlap.
+1. **The invitation email** — needs to clearly say "your next step is to create a password" before the button
+2. **The `/set-password` page** — needs to be more welcoming and visually clear that this is Step 1 of getting into the app
 
-```text
-layoutSubtree(node, startX):
-  if no children: place node at startX, return width = 1
-  offset = startX
-  for each child:
-    childWidth = layoutSubtree(child, offset)
-    offset += childWidth
-  node.x = midpoint of first and last child
-  return total width used (offset - startX)
-```
+## Changes
 
-This guarantees Denver's detailers occupy slots 4-6 and Garret's technicians occupy slots 7-11 (for example) -- never overlapping.
+### 1. `supabase/functions/resend-user-invite/index.ts` — Update `getInviteEmailHtml`
 
-## Visual Result
+Add explicit instructions in the email body:
 
-```text
-Before (broken overlap):
-Row 1: [Tech][Tech][Tech][Tech][Tech]  <-- detailers hidden underneath!
+- Change "Accept Invitation" button to **"Create Your Password →"**
+- Add a numbered step callout: "**Step 1:** Click the button below to create your password. **Step 2:** Sign in at dealergrowth.solutions"
+- Add a note: *"Do not try to log in before completing this step — you won't have a password yet"*
+- Keep the same branding/styling
 
-After (fixed):
-Row 1: [Det][Det][Det] [Tech][Tech][Tech][Tech][Tech]
-Row 2: ... [Denver] ... [Garret] ...
-```
+### 2. `src/pages/SetPassword.tsx` — Polish the "ready" state UI
 
-## Technical Details
+Make it unmistakably clear what this page is and why they're here:
 
-### File: `src/components/team/ReverseOrgChart.tsx`
-
-Replace the `layoutTree` function (lines 100-165) with a recursive approach:
-
-1. **Recursive `layoutSubtree(node, startX)` function**: Positions a node and all its descendants starting at `startX`. Leaf nodes get placed at `startX` with width 1. Non-leaf nodes recursively layout children left-to-right, then center themselves over their children's span.
-
-2. **`layoutTree` wraps the recursion**: Calls `layoutSubtree` for each root, accumulating the offset. Then collects all nodes into levels (via BFS) with their assigned positions.
-
-3. **Level collection remains the same**: BFS to group nodes by depth, reversed for rendering (leaves on top).
+- Add a prominent welcome banner at the top: **"Welcome to Dealer Growth Solutions!"** with a green checkmark or key icon
+- Add a step indicator: "Step 1 of 2: Create your password" / "Step 2: Sign in and get started"
+- Show the user's name prominently (already fetched, just make it more prominent: *"Hi Cody, let's get you set up"*)
+- Add inline password strength hints that update in real time as they type (uppercase ✓, number ✓, 8+ chars ✓)
+- Make the submit button say **"Create Password & Get Started"** instead of just "Create Password"
 
 ### Files Changed
-- `src/components/team/ReverseOrgChart.tsx` -- Replace layout algorithm with recursive subtree positioning
-
+- `supabase/functions/resend-user-invite/index.ts` — Update invite email template
+- `src/pages/SetPassword.tsx` — Improve UX of the password creation form
