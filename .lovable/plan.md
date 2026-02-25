@@ -1,34 +1,71 @@
 
-## Problem
+## The Core Problem
 
-New users like Cody Skene receive an email that says "Accept Invitation" with zero instruction about what happens next. When they click it, they land on `/set-password` which says "Create Your Password" — but the email gave no preparation for this. Users are confused and try to log in directly at `/auth` instead, where they get an error because they have no password yet.
+Looking at the screenshot, the chart is overwhelmingly wide because ALL nodes at the same depth level are placed in a single horizontal row. A large service department with ~30 technicians, 8 advisors, 3 detailers, etc. forces a massive row that's 1500px+ wide.
 
-Two things need fixing:
+The fundamental issue: **flat horizontal rows scale with total headcount, not with screen width.**
 
-1. **The invitation email** — needs to clearly say "your next step is to create a password" before the button
-2. **The `/set-password` page** — needs to be more welcoming and visually clear that this is Step 1 of getting into the app
+## The Best Solution: Grouped Role Rows with Collapsible Subtrees
 
-## Changes
+Instead of plotting every individual node at pixel-exact absolute positions, we restructure the layout idea:
 
-### 1. `supabase/functions/resend-user-invite/index.ts` — Update `getInviteEmailHtml`
+**Each "reporting group" is rendered as a cluster**, and the leaf row is replaced with **compact role chips showing name + position** grouped under their manager. This is the most space-efficient org chart pattern used in large service departments.
 
-Add explicit instructions in the email body:
+### Proposed Layout: "Manager → Grouped Reports" Cards
 
-- Change "Accept Invitation" button to **"Create Your Password →"**
-- Add a numbered step callout: "**Step 1:** Click the button below to create your password. **Step 2:** Sign in at dealergrowth.solutions"
-- Add a note: *"Do not try to log in before completing this step — you won't have a password yet"*
-- Keep the same branding/styling
+```text
+Current (broken for large teams):
+Row 1: [Tech][Tech][Tech][Tech][Tech][Tech][Tech][Tech][Tech][Tech][Tech]...  ← 30 nodes wide
+Row 2:    [Foreman A]        [Foreman B]        [Foreman C]
+Row 3:              [Craig - Service Manager]
 
-### 2. `src/pages/SetPassword.tsx` — Polish the "ready" state UI
+New: Collapsible group cards
+┌─────────────────────────────────────────────────────────┐
+│ Craig Heintzman - Service Manager                       │
+│  ├─ [Amanda M - Advisor] [Cory M - Advisor] [Jeff M...] │
+│  ├─ Foreman: Garret Willms ───────────────────────────  │
+│  │    └─ [Tech][Tech][Tech][Tech][Tech] (collapsed: 9)  │
+│  └─ Foreman: Denver Bugera ──────────────────────────── │
+│       └─ [Det][Det][Det]                                │
+└─────────────────────────────────────────────────────────┘
+```
 
-Make it unmistakably clear what this page is and why they're here:
+Actually, a more practical incremental fix preserving the existing layout engine but making it much more compact:
 
-- Add a prominent welcome banner at the top: **"Welcome to Dealer Growth Solutions!"** with a green checkmark or key icon
-- Add a step indicator: "Step 1 of 2: Create your password" / "Step 2: Sign in and get started"
-- Show the user's name prominently (already fetched, just make it more prominent: *"Hi Cody, let's get you set up"*)
-- Add inline password strength hints that update in real time as they type (uppercase ✓, number ✓, 8+ chars ✓)
-- Make the submit button say **"Create Password & Get Started"** instead of just "Create Password"
+### Practical Plan: 3 Key Changes
+
+**1. Compact "pill" node style for leaf nodes (biggest win)**
+- Leaf nodes (technicians, detailers, cashiers with no reports) render as tiny pill badges: just name abbreviated to first+last initial, colored by role
+- e.g., `[GB]` `[TW]` `[MK]` instead of full name boxes
+- On hover → tooltip shows full name and position
+- This collapses the widest row from ~2000px to ~400px
+
+**2. Auto-fit zoom on mount**
+- On mount, calculate the actual chart width vs container width and auto-set zoom so it fits
+- Currently zoom defaults to 1 (100%) regardless of how wide the chart is
+
+**3. Widen the available width calculation**
+- Change `AVAILABLE_WIDTH` from 1200 to use `window.innerWidth - 100` so `nodeScale` reflects the actual screen size, not a hardcoded assumption
 
 ### Files Changed
-- `supabase/functions/resend-user-invite/index.ts` — Update invite email template
-- `src/pages/SetPassword.tsx` — Improve UX of the password creation form
+- `src/components/team/ReverseOrgChart.tsx`
+
+### Detailed Implementation
+
+**Leaf pill nodes:**
+- Detect `node.children.length === 0` (leaf)
+- Render as a small rounded pill: `w-8 h-8` circle showing initials, colored by role
+- When `showNames` is true: render as compact `px-2 py-1` pill with abbreviated name (first name only, max 8 chars truncated)
+- Full name + position shown in a tooltip on hover
+- This is the biggest win — technicians especially are always leaf nodes
+
+**Auto-zoom on mount:**
+- After layout is computed, `useEffect` reads `containerRef.current.offsetWidth` and computes `fitZoom = containerWidth / (totalWidth * NODE_SLOT_WIDTH * nodeScale)`
+- Clamps between 0.25 and 1.0
+- Sets as initial zoom
+
+**Node slot width reduction:**
+- Change `NODE_SLOT_WIDTH` from 140 to 90 for leaf nodes, 130 for non-leaf
+- Or simply reduce the base to 100 and let compact pills benefit from the tighter spacing
+
+The combination of compact leaf pills + auto-fit zoom should make even a 50-person service department fit in a single viewport with all structure visible.
