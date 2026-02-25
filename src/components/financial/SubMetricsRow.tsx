@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Target, AlertCircle, Flag, Mountain } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -99,8 +100,7 @@ interface SubMetricsRowProps {
   // Unit data callbacks (e.g., number of vehicles sold)
   getSubMetricUnitValue?: (subMetricName: string, monthId: string) => number | null;
   hasUnitData?: boolean;
-  // How to display units: 'row' = separate row below, 'inline' = stacked inside value cell
-  unitDisplayMode?: 'row' | 'inline';
+  unitDisplayMode?: 'row';
 }
 
 // Helper to calculate average from values
@@ -177,7 +177,32 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   
   // Get question data for sub-metric tooltips
   const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
-  
+
+  // "View All" toggle: when OFF (default), hide sub-metrics where all values are 0 or blank
+  const [showAll, setShowAll] = useState(false);
+
+  // Determine which month identifiers to check for filtering
+  const filterMonthIds = useMemo(() => {
+    if (periods && periods.length > 0) {
+      return periods.filter(p => p.type === 'month').map(p => p.identifier);
+    }
+    return monthIdentifiers;
+  }, [periods, monthIdentifiers]);
+
+  // Filter sub-metrics: hide those with all-zero/null values unless showAll is on
+  const visibleSubMetrics = useMemo(() => {
+    if (showAll) return subMetrics;
+    return subMetrics.filter((sm) => {
+      return filterMonthIds.some((monthId) => {
+        const val = getSubMetricValue(sm.name, monthId);
+        return val !== null && val !== 0;
+      });
+    });
+  }, [showAll, subMetrics, filterMonthIds, getSubMetricValue]);
+
+  // Count how many are hidden so we can show context
+  const hiddenCount = subMetrics.length - visibleSubMetrics.length;
+
   // Helper to get period label for display
   const getPeriodLabel = (period: MonthlyPeriod): string => {
     if (period.type === 'month') {
@@ -436,11 +461,33 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     }
   };
 
+  // Toggle row rendered at the top of sub-metrics
+  const viewAllToggleRow = hiddenCount > 0 || showAll ? (
+    <TableRow className="bg-muted/10">
+      <TableCell
+        colSpan={totalDataColumns + 1}
+        className="sticky left-0 z-30 py-1 pl-6"
+      >
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={showAll}
+            onCheckedChange={setShowAll}
+            className="h-3.5 w-7 data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30 [&>span]:h-2.5 [&>span]:w-2.5"
+          />
+          <span className="text-[10px] text-muted-foreground">
+            {showAll ? "Showing all" : `${hiddenCount} hidden`}
+          </span>
+        </div>
+      </TableCell>
+    </TableRow>
+  ) : null;
+
   // If we have periods, render columns matching the parent row structure
   if (periods && periods.length > 0) {
     return (
       <>
-        {subMetrics.map((subMetric, idx) => {
+        {viewAllToggleRow}
+        {visibleSubMetrics.map((subMetric, idx) => {
           const subMetricHasRock = hasRockForSubMetric && parentMetricKey 
             ? hasRockForSubMetric(parentMetricKey, subMetric.name) 
             : false;
@@ -621,16 +668,6 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                             {value !== null ? formatValue(value) : "-"}
                           </span>
                         </SubMetricLYTooltip>
-                        {unitDisplayMode === 'inline' && hasUnitData && getSubMetricUnitValue && (() => {
-                          const unitVal = getSubMetricUnitValue(subMetric.name, period.identifier);
-                          if (unitVal === null) return null;
-                          return (
-                            <div className="text-[8px] leading-tight text-muted-foreground/60 italic mt-0.5">
-                              {Math.round(unitVal)} units
-                            </div>
-                          );
-                        })()}
-                      </>
                     )}
                     {hasCellIssue(subMetric.name, period.identifier) && (
                       <Flag className="h-3 w-3 absolute right-1 top-1/2 -translate-y-1/2 text-destructive z-20" />
@@ -872,8 +909,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
 
     return (
       <>
-        {subMetrics.map((subMetric, idx) => (
-          <TableRow 
+        {viewAllToggleRow}
+        {visibleSubMetrics.map((subMetric, idx) => (
+          <TableRow
             key={`sub-${subMetric.name}-${idx}`}
             className="bg-muted/20 hover:bg-muted/30"
           >
@@ -951,7 +989,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   // Default rendering for non-monthly-trend modes
   return (
     <>
-      {subMetrics.map((subMetric, idx) => {
+      {viewAllToggleRow}
+      {visibleSubMetrics.map((subMetric, idx) => {
         const subMetricHasRock = hasRockForSubMetric && parentMetricKey 
           ? hasRockForSubMetric(parentMetricKey, subMetric.name) 
           : false;
