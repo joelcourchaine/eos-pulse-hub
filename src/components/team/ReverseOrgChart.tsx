@@ -709,7 +709,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
               }
 
               return (
-                <div key={li} className="relative" style={{ width: layout.totalWidth, height: rowHeight }}>
+                <div key={li} className="relative" style={{ width: layout.totalWidth, height: rowHeight, marginBottom: 12 }}>
                   {/* Render non-clustered nodes */}
                   {level.map((pn) => (
                     <div
