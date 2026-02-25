@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export interface TeamMember {
   id: string;
@@ -52,6 +53,12 @@ const POSITION_LABELS: Record<string, string> = {
   cashier: "Cashier",
 };
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function buildTree(members: TeamMember[]): TreeNode[] {
   const memberMap = new Map<string, TreeNode>();
   const roots: TreeNode[] = [];
@@ -84,10 +91,9 @@ function getSpanWarning(count: number): { color: string; message: string | null 
 
 interface PositionedNode {
   node: TreeNode;
-  x: number; // center x position in "slot" units
+  x: number;
 }
 
-// Sort children recursively by position then name
 function sortChildren(node: TreeNode) {
   node.children.sort((a, b) => {
     const posCmp = a.member.position.localeCompare(b.member.position);
@@ -97,18 +103,25 @@ function sortChildren(node: TreeNode) {
   node.children.forEach(sortChildren);
 }
 
-// Recursive subtree layout: each subtree is a contiguous block, preventing overlaps
+// Leaf nodes get a much smaller slot to keep widths compact
+const LEAF_SLOT_WIDTH = 48;
+const NODE_SLOT_WIDTH = 130;
+
+function getSubtreeLeafWidth(node: TreeNode): number {
+  if (node.children.length === 0) return LEAF_SLOT_WIDTH;
+  return node.children.reduce((sum, child) => sum + getSubtreeLeafWidth(child), 0);
+}
+
 function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth: number } {
   roots.forEach(sortChildren);
 
   const posMap = new Map<TreeNode, number>();
 
-  // Recursively position a node and all descendants starting at startX.
-  // Returns the total width consumed by this subtree.
   const layoutSubtree = (node: TreeNode, startX: number): number => {
+    const width = getSubtreeLeafWidth(node);
     if (node.children.length === 0) {
-      posMap.set(node, startX);
-      return 1;
+      posMap.set(node, startX + LEAF_SLOT_WIDTH / 2);
+      return LEAF_SLOT_WIDTH;
     }
 
     let offset = startX;
@@ -116,21 +129,18 @@ function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth
       offset += layoutSubtree(child, offset);
     });
 
-    // Center parent over its children span
     const firstChildX = posMap.get(node.children[0])!;
     const lastChildX = posMap.get(node.children[node.children.length - 1])!;
     posMap.set(node, (firstChildX + lastChildX) / 2);
 
-    return offset - startX;
+    return width;
   };
 
-  // Layout each root's subtree contiguously
   let totalOffset = 0;
   roots.forEach((root) => {
     totalOffset += layoutSubtree(root, totalOffset);
   });
 
-  // Collect levels via BFS, then reverse for rendering (leaves on top)
   const bfsLevels: TreeNode[][] = [];
   let currentNodes = roots;
   while (currentNodes.length > 0) {
@@ -150,18 +160,18 @@ function layoutTree(roots: TreeNode[]): { levels: PositionedNode[][]; totalWidth
     })
   );
 
-  return { levels, totalWidth };
+  return { levels, totalWidth: totalOffset };
 }
 
 interface OrgNodeProps {
   node: TreeNode;
   showNames: boolean;
   headcountOnly: boolean;
-  nodeScale: number;
   onSelect: (member: TeamMember) => void;
 }
 
-const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNodeProps) => {
+const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => {
+  const isLeaf = node.children.length === 0;
   const primaryColors = POSITION_COLORS[node.member.position] || POSITION_COLORS.porter;
   const secondaryColors = node.member.position_secondary ? (POSITION_COLORS[node.member.position_secondary] || null) : null;
   const directReports = getDirectReportCount(node);
@@ -170,8 +180,48 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
   const isDual = !!secondaryColors;
 
   const bgStyle = isDual
-    ? `linear-gradient(135deg, ${primaryColors.bg} 50%, ${secondaryColors.bg} 50%)`
+    ? `linear-gradient(135deg, ${primaryColors.bg} 50%, ${secondaryColors!.bg} 50%)`
     : primaryColors.bg;
+
+  // Compact pill for leaf nodes
+  if (isLeaf && !headcountOnly) {
+    const initials = getInitials(node.member.name);
+    const firstName = node.member.name.split(" ")[0].slice(0, 8);
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none"
+              style={{
+                background: bgStyle,
+                color: primaryColors.text,
+                width: 36,
+                height: 36,
+                fontSize: 11,
+                fontWeight: 700,
+                border: isVacant ? `2px dashed ${primaryColors.border}` : `1px solid ${primaryColors.border}`,
+                opacity: isVacant ? 0.7 : 1,
+                flexShrink: 0,
+              }}
+              onClick={() => onSelect(node.member)}
+            >
+              {showNames ? (
+                <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
+              ) : (
+                initials
+              )}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            <p className="font-semibold">{node.member.name}</p>
+            <p className="opacity-75">{POSITION_LABELS[node.member.position] || node.member.position}</p>
+            {isVacant && <p className="italic opacity-60">Vacant</p>}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   if (headcountOnly) {
     return (
@@ -180,15 +230,15 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
         style={{
           background: bgStyle,
           color: primaryColors.text,
-          minWidth: Math.round(60 * nodeScale),
-          padding: `${Math.round(8 * nodeScale)}px ${Math.round(12 * nodeScale)}px`,
-          fontSize: `${Math.max(9, Math.round(12 * nodeScale))}px`,
+          minWidth: 70,
+          padding: "8px 12px",
+          fontSize: 12,
         }}
         onClick={() => onSelect(node.member)}
       >
         <span>{POSITION_LABELS[node.member.position] || node.member.position}</span>
         {isDual && (
-          <span className="opacity-80" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px` }}>
+          <span className="opacity-80" style={{ fontSize: 9 }}>
             / {POSITION_LABELS[node.member.position_secondary!] || node.member.position_secondary}
           </span>
         )}
@@ -205,24 +255,24 @@ const OrgNode = ({ node, showNames, headcountOnly, nodeScale, onSelect }: OrgNod
         borderWidth: isVacant ? 2 : spanWarning.color !== "transparent" ? 3 : 1,
         borderStyle: isVacant ? "dashed" : "solid",
         borderColor: isVacant ? primaryColors.border : spanWarning.color !== "transparent" ? spanWarning.color : primaryColors.border,
-        minWidth: Math.round(120 * nodeScale),
-        padding: `${Math.round(12 * nodeScale)}px ${Math.round(16 * nodeScale)}px`,
+        minWidth: 110,
+        padding: "10px 14px",
         boxShadow: spanWarning.color !== "transparent" ? `0 0 8px ${spanWarning.color}` : undefined,
       }}
       onClick={() => onSelect(node.member)}
     >
       {showNames && (
-        <span className="font-semibold truncate" style={{ fontSize: `${Math.max(10, Math.round(14 * nodeScale))}px`, maxWidth: Math.round(140 * nodeScale) }}>
+        <span className="font-semibold truncate" style={{ fontSize: 13, maxWidth: 130 }}>
           {node.member.name}
         </span>
       )}
-      <span className="opacity-80 mt-0.5" style={{ fontSize: `${Math.max(8, Math.round(10 * nodeScale))}px` }}>
+      <span className="opacity-80 mt-0.5" style={{ fontSize: 10 }}>
         {POSITION_LABELS[node.member.position] || node.member.position}
         {isDual && ` / ${POSITION_LABELS[node.member.position_secondary!] || node.member.position_secondary}`}
       </span>
-      {isVacant && <span className="opacity-70 italic mt-0.5" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px` }}>Vacant</span>}
+      {isVacant && <span className="opacity-70 italic mt-0.5" style={{ fontSize: 9 }}>Vacant</span>}
       {spanWarning.message && (
-        <span className="mt-1 text-center leading-tight" style={{ fontSize: `${Math.max(7, Math.round(9 * nodeScale))}px`, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : primaryColors.text }}>
+        <span className="mt-1 text-center leading-tight" style={{ fontSize: 9, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : primaryColors.text }}>
           ⚠ {directReports} reports
         </span>
       )}
@@ -243,18 +293,10 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   const chartRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lines, setLines] = useState<{ x1: number; y1: number; x2: number; y2: number }[]>([]);
+  const autoZoomSet = useRef(false);
 
   const tree = useMemo(() => buildTree(members), [members]);
   const layout = useMemo(() => layoutTree(tree), [tree]);
-
-  const NODE_SLOT_WIDTH = 140; // px per slot unit
-
-  const nodeScale = useMemo(() => {
-    const maxLevelSize = Math.max(...layout.levels.map((l) => l.length), 1);
-    const BASE_NODE_WIDTH = 132;
-    const AVAILABLE_WIDTH = 1200;
-    return Math.max(0.45, Math.min(1, AVAILABLE_WIDTH / (maxLevelSize * BASE_NODE_WIDTH)));
-  }, [layout.levels]);
 
   // Span of control warnings
   const warnings = useMemo(() => {
@@ -277,6 +319,22 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
     else nodeRefs.current.delete(id);
   }, []);
 
+  // Auto-fit zoom on mount
+  useEffect(() => {
+    if (autoZoomSet.current) return;
+    const timer = setTimeout(() => {
+      if (!containerRef.current || !chartRef.current) return;
+      const containerWidth = containerRef.current.offsetWidth - 64; // padding
+      const chartWidth = layout.totalWidth;
+      if (chartWidth <= 0) return;
+      const fitZoom = Math.min(1, containerWidth / chartWidth);
+      const clamped = Math.max(0.2, fitZoom);
+      setZoom(clamped);
+      autoZoomSet.current = true;
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [layout.totalWidth]);
+
   // Calculate lines after render
   useEffect(() => {
     const calcLines = () => {
@@ -293,9 +351,9 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
             const pRect = parentEl.getBoundingClientRect();
             newLines.push({
               x1: pRect.left + pRect.width / 2 - chartRect.left,
-              y1: pRect.top - chartRect.top, // top of parent (parent is below child in reverse)
+              y1: pRect.top - chartRect.top,
               x2: cRect.left + cRect.width / 2 - chartRect.left,
-              y2: cRect.bottom - chartRect.top, // bottom of child
+              y2: cRect.bottom - chartRect.top,
             });
           }
         }
@@ -303,8 +361,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       setLines(newLines);
     };
 
-    // Delay to allow DOM to settle
-    const timer = setTimeout(calcLines, 100);
+    const timer = setTimeout(calcLines, 120);
     return () => clearTimeout(timer);
   }, [members, zoom, showNames, headcountOnly]);
 
@@ -321,14 +378,14 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.3, z - 0.1))}>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.max(0.15, z - 0.1))}>
             <ZoomOut className="h-4 w-4" />
           </Button>
           <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom((z) => Math.min(2, z + 0.1))}>
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(1)}>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => { autoZoomSet.current = false; setZoom(1); }}>
             <RotateCcw className="h-4 w-4" />
           </Button>
         </div>
@@ -342,6 +399,8 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
           <Switch id="headcount-only" checked={headcountOnly} onCheckedChange={setHeadcountOnly} />
           <Label htmlFor="headcount-only" className="text-xs">Headcount Only</Label>
         </div>
+
+        <span className="text-xs text-muted-foreground">Tip: hover over small circles to see names</span>
       </div>
 
       {/* Warnings */}
@@ -366,7 +425,11 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
 
       {/* Chart container */}
       <div ref={containerRef} className="overflow-auto border rounded-lg bg-background">
-        <div ref={chartRef} className="relative p-8" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
+        <div
+          ref={chartRef}
+          className="relative p-8"
+          style={{ transform: `scale(${zoom})`, transformOrigin: "top center", minWidth: layout.totalWidth }}
+        >
           {/* SVG lines */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
             {lines.map((l, i) => (
@@ -375,16 +438,14 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                 x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
                 stroke="hsl(var(--border))"
                 strokeWidth={1.5}
-                strokeDasharray={undefined}
               />
             ))}
           </svg>
 
           {/* Levels rendered top (leaves) to bottom (root) */}
-          <div className="flex flex-col items-center gap-10 relative" style={{ zIndex: 1 }}>
+          <div className="flex flex-col items-center gap-5 relative" style={{ zIndex: 1 }}>
             {layout.levels.map((level, li) => {
               if (headcountOnly) {
-                // Group by position type at this level
                 const grouped: Record<string, PositionedNode[]> = {};
                 level.forEach((pn) => {
                   const pos = pn.node.member.position;
@@ -403,12 +464,12 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                           style={{
                             backgroundColor: colors.bg,
                             color: colors.text,
-                            minWidth: Math.round(80 * nodeScale),
-                            padding: `${Math.round(8 * nodeScale)}px ${Math.round(16 * nodeScale)}px`,
+                            minWidth: 80,
+                            padding: "8px 16px",
                           }}
                         >
-                          <span className="font-bold" style={{ fontSize: `${Math.max(12, Math.round(18 * nodeScale))}px` }}>{nodes.length}</span>
-                          <span className="opacity-80" style={{ fontSize: `${Math.max(8, Math.round(10 * nodeScale))}px` }}>{POSITION_LABELS[pos] || pos}</span>
+                          <span className="font-bold" style={{ fontSize: 18 }}>{nodes.length}</span>
+                          <span className="opacity-80" style={{ fontSize: 10 }}>{POSITION_LABELS[pos] || pos}</span>
                         </div>
                       );
                     })}
@@ -416,16 +477,22 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                 );
               }
 
-              const totalWidthPx = layout.totalWidth * NODE_SLOT_WIDTH * nodeScale;
+              // Is this the leaf level? (all nodes in this level have no children)
+              const isLeafLevel = level.every((pn) => pn.node.children.length === 0);
+
               return (
-                <div key={li} className="relative" style={{ width: totalWidthPx, height: Math.round(60 * nodeScale) }}>
+                <div
+                  key={li}
+                  className="relative"
+                  style={{ width: layout.totalWidth, height: isLeafLevel ? 40 : 62 }}
+                >
                   {level.map((pn) => (
                     <div
                       key={pn.node.member.id}
                       ref={(el) => setNodeRef(pn.node.member.id, el)}
                       className="absolute"
                       style={{
-                        left: pn.x * NODE_SLOT_WIDTH * nodeScale,
+                        left: pn.x,
                         top: 0,
                         transform: "translateX(-50%)",
                       }}
@@ -434,7 +501,6 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                         node={pn.node}
                         showNames={showNames}
                         headcountOnly={headcountOnly}
-                        nodeScale={nodeScale}
                         onSelect={onSelectMember}
                       />
                     </div>
