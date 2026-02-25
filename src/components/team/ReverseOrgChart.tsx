@@ -670,6 +670,13 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
                   if (!grouped[pos]) grouped[pos] = [];
                   grouped[pos].push(pn);
                 });
+                // Also fold in clustered leaf members (technicians, porters, etc.)
+                const clustersAtLevelHC = layout.clusterLevelMap.get(li) || [];
+                clustersAtLevelHC.forEach((pc) => {
+                  const pos = pc.cluster.position;
+                  if (!grouped[pos]) grouped[pos] = [];
+                  pc.cluster.members.forEach((m) => grouped[pos].push({ node: { member: m, children: [] }, x: 0 }));
+                });
                 return (
                   <div key={li} className="flex flex-wrap justify-center gap-3">
                     {Object.entries(grouped).map(([pos, nodes]) => {
