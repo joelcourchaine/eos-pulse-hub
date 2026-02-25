@@ -152,11 +152,11 @@ function sortChildren(node: TreeNode) {
 }
 
 const LEAF_SLOT_WIDTH = 48;
-const CLUSTER_SLOT_WIDTH = 130;
+const CLUSTER_SLOT_WIDTH = 160;
+const SLOT_GAP = 12;
 
 function getSubtreeLeafWidth(node: TreeNode, clusterMap: Map<string, LeafCluster>): number {
   if (node.children.length === 0) {
-    // Check if this leaf is in a cluster — clustered leaves contribute 0 individually
     return LEAF_SLOT_WIDTH;
   }
 
@@ -173,12 +173,15 @@ function getSubtreeLeafWidth(node: TreeNode, clusterMap: Map<string, LeafCluster
   });
 
   let total = 0;
-  Object.values(leafByPos).forEach((group) => {
-    total += group.length >= 2 ? CLUSTER_SLOT_WIDTH : group.length * LEAF_SLOT_WIDTH;
+  const posGroups = Object.values(leafByPos);
+  posGroups.forEach((group) => {
+    total += (group.length >= 2 ? CLUSTER_SLOT_WIDTH : group.length * LEAF_SLOT_WIDTH) + SLOT_GAP;
   });
   nonLeafChildren.forEach((child) => {
-    total += getSubtreeLeafWidth(child, clusterMap);
+    total += getSubtreeLeafWidth(child, clusterMap) + SLOT_GAP;
   });
+  // Remove the trailing gap from the last slot
+  if (posGroups.length + nonLeafChildren.length > 0) total -= SLOT_GAP;
   return total;
 }
 
@@ -215,6 +218,9 @@ function layoutTree(roots: TreeNode[], clusterMap: Map<string, LeafCluster>): {
 
     // Layout clusters first (sorted by position key for consistency)
     const sortedPosKeys = Object.keys(leafByPos).sort();
+    const allSlotCount = sortedPosKeys.length + nonLeafChildren.length;
+    let slotIndex = 0;
+
     sortedPosKeys.forEach((pos) => {
       const group = leafByPos[pos];
       if (group.length >= 2) {
@@ -228,11 +234,16 @@ function layoutTree(roots: TreeNode[], clusterMap: Map<string, LeafCluster>): {
           offset += LEAF_SLOT_WIDTH;
         });
       }
+      slotIndex++;
+      if (slotIndex < allSlotCount) offset += SLOT_GAP;
     });
 
     // Layout non-leaf children
     nonLeafChildren.forEach((child) => {
-      offset += layoutSubtree(child, offset);
+      const w = layoutSubtree(child, offset);
+      offset += w;
+      slotIndex++;
+      if (slotIndex < allSlotCount) offset += SLOT_GAP;
     });
 
     // Center the parent over ALL children (clusters + non-leaf)
@@ -385,7 +396,7 @@ const BalloonCluster = ({ cluster, showNames, onSelect, divRef }: BalloonCluster
         flexWrap: "wrap",
         gap: 3,
         justifyContent: "center",
-        width: Math.min(cluster.members.length, maxPerRow) * (pillSize + 3) + 14,
+        width: CLUSTER_SLOT_WIDTH - 10,
         background: "transparent",
       }}
     >
