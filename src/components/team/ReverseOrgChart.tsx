@@ -622,6 +622,11 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
         <div className="flex items-center gap-2">
           <Switch id="headcount-only" checked={headcountOnly} onCheckedChange={setHeadcountOnly} />
           <Label htmlFor="headcount-only" className="text-xs">Headcount Only</Label>
+          {headcountOnly && (
+            <span className="text-xs font-semibold bg-primary text-primary-foreground rounded px-2 py-0.5 ml-1">
+              {members.length} total
+            </span>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">Tip: hover over circles to see names</span>
       </div>
