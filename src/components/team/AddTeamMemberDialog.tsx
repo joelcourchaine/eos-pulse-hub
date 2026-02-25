@@ -43,8 +43,12 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!name.trim() || !position) {
-      toast({ title: "Missing fields", description: "Name and Position are required.", variant: "destructive" });
+    if (!position) {
+      toast({ title: "Missing fields", description: "Position is required.", variant: "destructive" });
+      return;
+    }
+    if (!isVacant && !name.trim()) {
+      toast({ title: "Missing fields", description: "Name is required for non-vacant positions.", variant: "destructive" });
       return;
     }
 
@@ -54,7 +58,7 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
       const { error } = await supabase.from("team_members").insert({
         store_id: storeId,
         created_by: user?.id,
-        name: name.trim(),
+        name: isVacant && !name.trim() ? "Vacant" : name.trim(),
         position,
         position_secondary: positionSecondary === "none" ? null : positionSecondary,
         reports_to: reportsTo === "none" ? null : reportsTo,
@@ -91,8 +95,8 @@ export const AddTeamMemberDialog = ({ storeId, existingMembers, onAdded }: AddTe
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div className="space-y-2">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" />
+            <Label className={isVacant ? "text-muted-foreground" : ""}>Name {isVacant && <span className="text-xs">(optional for vacant)</span>}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isVacant ? "Leave blank to use 'Vacant'" : "Full name"} disabled={false} className={isVacant ? "opacity-60" : ""} />
           </div>
 
           <div className="space-y-2">

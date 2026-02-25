@@ -58,11 +58,12 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
   const otherMembers = allMembers.filter((m) => m.id !== member.id);
 
   const handleSave = async () => {
-    if (!name.trim() || !position) return;
+    if (!position) return;
+    if (!isVacant && !name.trim()) return;
     setSaving(true);
     try {
       const { error } = await supabase.from("team_members").update({
-        name: name.trim(),
+        name: isVacant && !name.trim() ? "Vacant" : name.trim(),
         position,
         position_secondary: positionSecondary === "none" ? null : positionSecondary,
         reports_to: reportsTo === "none" ? null : reportsTo,
@@ -101,8 +102,8 @@ export const TeamMemberDetailPanel = ({ member, allMembers, open, onOpenChange, 
         </SheetHeader>
         <div className="space-y-4 pt-4">
           <div className="space-y-2">
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+            <Label className={isVacant ? "text-muted-foreground" : ""}>Name {isVacant && <span className="text-xs">(optional for vacant)</span>}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={isVacant ? "Leave blank to use 'Vacant'" : "Full name"} className={isVacant ? "opacity-60" : ""} />
           </div>
 
           <div className="space-y-2">
