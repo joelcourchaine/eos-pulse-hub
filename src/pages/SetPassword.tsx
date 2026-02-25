@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, AlertCircle, CheckCircle, Mail } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, Mail, KeyRound } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const passwordSchema = z.object({
@@ -348,7 +348,7 @@ const SetPassword = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <CheckCircle className="h-12 w-12 text-emerald-500 mb-4" />
+            <CheckCircle className="h-12 w-12 text-primary mb-4" />
             <h2 className="text-xl font-semibold mb-2">Password Created!</h2>
             <p className="text-muted-foreground text-center mb-4">
               Your password has been set successfully. Redirecting you to login...
@@ -360,31 +360,58 @@ const SetPassword = () => {
     );
   }
 
+  // Password strength checks
+  const hasMinLength = password.length >= 8;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+
+  const StrengthCheck = ({ met, label }: { met: boolean; label: string }) => (
+    <span className={`flex items-center gap-1 text-xs ${met ? "text-emerald-600" : "text-muted-foreground"}`}>
+      <CheckCircle className={`h-3 w-3 ${met ? "opacity-100" : "opacity-30"}`} />
+      {label}
+    </span>
+  );
+
   // Ready state - show password form
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create Your Password</CardTitle>
+        {/* Welcome banner */}
+        <div className="bg-primary rounded-t-lg px-6 py-5 text-primary-foreground text-center">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <KeyRound className="h-5 w-5" />
+            <span className="text-sm font-medium uppercase tracking-wide opacity-80">Step 1 of 2</span>
+          </div>
+          <h1 className="text-xl font-bold">Welcome to Dealer Growth Solutions!</h1>
+          {userName && <p className="text-sm opacity-90 mt-1">Hi {userName.split(' ')[0]}, let's get you set up</p>}
+        </div>
+
+        <CardHeader className="space-y-1 pb-2">
+          <CardTitle className="text-lg font-semibold">Create Your Password</CardTitle>
           <CardDescription>
-            Welcome! Please create a password for your new account.
+            After setting your password, you'll be able to sign in and access the app.
           </CardDescription>
-          {(userEmail || userName) && (
-            <div className="mt-4 p-4 bg-muted rounded-md space-y-1">
-              {userName && (
-                <p className="text-sm">
-                  <span className="font-medium">Name:</span> {userName}
-                </p>
-              )}
-              {userEmail && (
-                <p className="text-sm">
-                  <span className="font-medium">Email:</span> {userEmail}
-                </p>
-              )}
-            </div>
+          {userEmail && (
+            <p className="text-xs text-muted-foreground pt-1">
+              Setting password for: <span className="font-medium">{userEmail}</span>
+            </p>
           )}
         </CardHeader>
+
         <CardContent>
+          {/* Step indicators */}
+          <div className="flex items-center gap-2 mb-5 text-xs">
+            <div className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full px-3 py-1 font-semibold">
+              <span className="bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">1</span>
+              Create password
+            </div>
+            <div className="flex-1 h-px bg-border" />
+            <div className="flex items-center gap-1.5 text-muted-foreground rounded-full px-3 py-1">
+              <span className="bg-muted rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">2</span>
+              Sign in &amp; get started
+            </div>
+          </div>
+
           <form onSubmit={handleSetPassword} className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="password" className="text-sm font-medium">
@@ -399,9 +426,18 @@ const SetPassword = () => {
                 required
                 disabled={loading}
               />
-              <p className="text-xs text-muted-foreground">
-                Must be at least 8 characters, include one uppercase letter and one number
-              </p>
+              {password.length > 0 && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                  <StrengthCheck met={hasMinLength} label="8+ characters" />
+                  <StrengthCheck met={hasUppercase} label="Uppercase letter" />
+                  <StrengthCheck met={hasNumber} label="One number" />
+                </div>
+              )}
+              {password.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Must be at least 8 characters, include one uppercase letter and one number
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <label htmlFor="confirmPassword" className="text-sm font-medium">
@@ -424,7 +460,7 @@ const SetPassword = () => {
                   Creating...
                 </>
               ) : (
-                "Create Password"
+                "Create Password & Get Started"
               )}
             </Button>
           </form>

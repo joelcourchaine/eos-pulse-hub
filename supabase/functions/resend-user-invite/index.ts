@@ -18,12 +18,15 @@ function getInviteEmailHtml(continueLink: string): string {
     <html>
       <head>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; line-height: 1.6; color: #333; background-color: #ffffff; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background-color: #1a1a1a; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
           .content { background-color: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          .button { display: inline-block; background-color: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; }
-          .button:hover { background-color: #1d4ed8; }
+          .steps-box { background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .step { display: flex; align-items: flex-start; margin-bottom: 12px; }
+          .step-number { background-color: #2563eb; color: white; border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; flex-shrink: 0; margin-right: 12px; margin-top: 2px; }
+          .warning-box { background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 6px; padding: 12px 16px; margin: 20px 0; color: #9a3412; font-size: 14px; }
+          .button { display: inline-block; background-color: #2563eb; color: white !important; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 20px 0; font-size: 16px; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
         </style>
       </head>
@@ -31,18 +34,30 @@ function getInviteEmailHtml(continueLink: string): string {
         <div class="container">
           <div class="header">
             <h1 style="margin: 0;">Dealer Growth Solutions</h1>
+            <p style="margin: 8px 0 0; opacity: 0.8; font-size: 15px;">You've been invited to join</p>
           </div>
           <div class="content">
-            <h2>You've been invited</h2>
-            <p>You've been invited to join the <strong>Growth Scorecard</strong> app.</p>
-            <p>Click the button below to accept the invitation and create your account:</p>
-            <div style="text-align: center;">
-              <a href="${continueLink}" class="button">Accept Invitation</a>
+            <h2 style="margin-top: 0;">Welcome! Here's how to get started:</h2>
+            <div class="steps-box">
+              <div class="step">
+                <span class="step-number">1</span>
+                <div><strong>Create your password</strong> — Click the button below. This takes you to a secure page to set your password.</div>
+              </div>
+              <div class="step" style="margin-bottom: 0;">
+                <span class="step-number">2</span>
+                <div><strong>Sign in</strong> — After setting your password, you'll be redirected to log in at <a href="https://dealergrowth.solutions" style="color: #2563eb;">dealergrowth.solutions</a>.</div>
+              </div>
             </div>
-            <p style="margin-top: 30px; color: #666; font-size: 14px;">
-              This link will expire in 7 days. If it expires, ask your admin to resend the invite.
+            <div class="warning-box">
+              ⚠️ <strong>Important:</strong> Do not try to log in before completing Step 1 — you won't have a password yet and will get an error.
+            </div>
+            <div style="text-align: center;">
+              <a href="${continueLink}" class="button">Create Your Password →</a>
+            </div>
+            <p style="margin-top: 24px; color: #666; font-size: 14px;">
+              This link will expire in <strong>7 days</strong>. If it expires, ask your administrator to resend the invite.
             </p>
-            <p style="margin-top: 20px; color: #999; font-size: 13px;">
+            <p style="margin-top: 12px; color: #999; font-size: 13px;">
               If you weren't expecting this invitation, you can safely ignore this email.
             </p>
           </div>
