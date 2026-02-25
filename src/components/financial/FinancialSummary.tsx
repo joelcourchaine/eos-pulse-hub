@@ -4860,7 +4860,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                           getSubMetricUnitValue(subMetricSourceKey, subMetricName, monthId)
                         }
                         hasUnitData={hasUnitData(subMetricSourceKey)}
-                        unitDisplayMode="row"
+                        unitDisplayMode={
+                          departmentName?.toLowerCase().includes('new') ? 'inline' : 'row'
+                        }
                       />
                       </React.Fragment>
                     );
