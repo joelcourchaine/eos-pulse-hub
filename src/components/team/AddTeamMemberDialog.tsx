@@ -23,6 +23,7 @@ const POSITION_OPTIONS = [
   { value: "detailer", label: "Detailer" },
   { value: "administrative", label: "Administrative" },
   { value: "cashier", label: "Cashier" },
+  { value: "detail_manager", label: "Detail Manager" },
 ];
 
 interface AddTeamMemberDialogProps {
