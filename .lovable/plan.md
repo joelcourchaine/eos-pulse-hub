@@ -1,150 +1,99 @@
 
-## What the user wants
+## Analysis of the Overlap Problem
 
-The user wants leaf nodes that belong to the same parent to remain as **individual circles** (balloons), but grouped together visually as a tight **bunch** — like a cluster of balloons tied together. They don't want a card/box around them, just the individual pills packed close together with a single connector line going up to the parent, rather than N separate lines fanning out.
+Looking at the screenshot and the code, there are two overlap scenarios:
 
-## Visual Concept
+### Overlap Source 1: Clusters vs individual nodes at the same level
+The `clusterLevelMap` is built so clusters land at the same level as the individual leaf nodes. But when a parent has BOTH clustered leaf children AND non-leaf children, the BFS level for leaves (reversed level 0) may collide with standalone leaf pills from different parents — because everything is `position: absolute` placed by X coordinate, and the cluster container can be **wider** than its allocated `CLUSTER_SLOT_WIDTH` of 130px once pills wrap.
 
-```text
-BEFORE (9 techs spread wide under Foreman):
-        [Foreman A]
-  /  /  /  /  |  \  \  \  \
-[T][T][T][T][T][T][T][T][T]   ← 9 × 48px = 432px wide, 9 connector lines
-
-AFTER (9 techs bunched together like balloons):
-        [Foreman A]
-              |
-       ╔══════╧══════╗   ← thin dashed border container, no fill
-       ║ [T][T][T]   ║   ← individual colored balls, wrapping flexbox
-       ║ [T][T][T]   ║   ← max ~3 per row within cluster
-       ║ [T][T][T]   ║
-       ╚═════════════╝
+### Overlap Source 2: Cluster width miscalculation  
+The `BalloonCluster` width formula:
+```typescript
+width: Math.min(cluster.members.length, maxPerRow) * (pillSize + 3) + 14
 ```
+With `maxPerRow = 4` and `pillSize = 34`, max width = 4 × 37 + 14 = **162px** but `CLUSTER_SLOT_WIDTH = 130px`. The allocated layout slot is 130px but the actual rendered cluster can be up to 162px → overflow and overlap into adjacent columns.
 
-The "bunch" is a transparent/lightly-bordered wrapping flex container that holds the individual leaf pills (same circular style as today). Only ONE connector line goes from the parent down to the cluster container, not N individual lines.
+### Overlap Source 3: Mixed levels with different-depth subtrees
+Looking at the screenshot, the `Jody` and `Chris` circles (advisors, left side) appear at the same rendered row as the technician balloon clusters (they're both "leaf level" BFS nodes), but their parents are at different depths. The layout's absolute positioning places them at the same `top: 0` within a shared row div, but the x-spacing doesn't account for the fact that a cluster from one branch may visually overlap an individual pill from another branch.
 
-## Key Design Decisions
+### Root Cause Summary
 
-1. **Cluster container**: a transparent rounded rectangle with a very subtle dashed border (role-colored, low opacity). No fill, just a gentle outline to suggest grouping.
-2. **Individual pills inside**: the exact same 36px circular pills as today — same initials, same colors, same click handler, same tooltip.
-3. **Pills wrap**: `flex flex-wrap gap-1 justify-center` inside the container, max ~3-4 per row so the bunch is roughly square-ish (balloon bunch shape).
-4. **One line, not N lines**: The SVG connector line goes from the parent to the TOP CENTER of the cluster container, not to each individual pill. This requires the cluster container to have a `ref` for line calculation.
-5. **Clustering condition**: Group leaf siblings sharing the same position under the same parent where there are ≥2 such members.
-6. **Single-leaf case**: A single leaf with a unique position keeps the existing individual pill + individual line behavior.
-7. **Layout width reduction**: A cluster of N same-position leaves under a parent counts as ONE layout slot of `CLUSTER_SLOT_WIDTH = 130px` instead of N × 48px. This is the key width reduction.
+The core issue is **`CLUSTER_SLOT_WIDTH = 130px` is smaller than the actual rendered cluster width**, and there's **no minimum gap/margin** between adjacent clusters or between a cluster and an adjacent individual leaf.
 
-## Implementation Plan
+### Fix Plan
 
-### 1. Pre-process tree: identify clusters
+**1. Increase `CLUSTER_SLOT_WIDTH` to match actual max render width**  
+With 4 per row, pills of 34px, gap 3px: `4 × (34+3) - 3 + 2×7 = 4×37 - 3 + 14 = 159px` → set `CLUSTER_SLOT_WIDTH = 170` to give a comfortable margin.
 
-After `buildTree`, run a `clusterize(roots)` pass that:
-- For each non-leaf node, groups its leaf children by position
-- Any position group with ≥2 leaf members becomes a "LeafCluster"
-- Creates a `Map<string, LeafCluster>` keyed by a synthetic cluster ID like `"cluster_{parentId}_{position}"`
+**2. Add inter-item padding in the layout**  
+Add a `SLOT_GAP = 8` constant added between every layout slot so adjacent items (cluster→cluster, cluster→leaf, leaf→leaf) always have breathing room.
+
+**3. Fix `getSubtreeLeafWidth` to include gaps**  
+Currently it sums slot widths with no gaps between them. Add `SLOT_GAP` between each slot unit:
 
 ```typescript
-interface LeafCluster {
-  id: string;           // synthetic key e.g. "cluster_abc123_technician"
-  parentId: string;
-  position: string;
-  members: TeamMember[];
-}
+// Each child slot gets +SLOT_GAP except the last
+total += (numSlots) * SLOT_GAP + widths;
 ```
 
-### 2. Modify layout width calculation
+**4. Fix `layoutSubtree` to offset by `SLOT_GAP` between items**  
+In the loop that builds `offset`, add `+= SLOT_GAP` between each slot assignment.
 
-Add a `clusterMap` parameter to `getSubtreeLeafWidth`. When a parent's leaf children for a given position form a cluster, count them as `CLUSTER_SLOT_WIDTH = 130` instead of N × 48.
+**5. Increase `BalloonCluster` `maxPerRow` to 3 and adjust pill size**  
+Fewer per row means a taller but narrower cluster — more "balloon bunch" shaped, and less likely to overflow its width slot. With `maxPerRow = 3`:
+- Width = 3 × (34+3) - 3 + 14 = 122px → fits within 130px  
+- But we're raising `CLUSTER_SLOT_WIDTH` to 170 anyway, so we can keep `maxPerRow = 4` and it fits fine.
+
+Actually let me recalculate more carefully:
+- pillSize = 34, gap = 3, maxPerRow = 4, padding = 7px each side
+- Width = min(n, 4) × 34 + (min(n,4)-1) × 3 + 14
+- For n≥4: 4×34 + 3×3 + 14 = 136 + 9 + 14 = **159px**
+
+So `CLUSTER_SLOT_WIDTH = 160` covers this exactly. Add `SLOT_GAP = 12` to pad between all slots.
+
+**6. Fix `layoutSubtree` offset sequencing**  
+Currently the code lays out clusters first (sorted position keys), then non-leaf children. The gap must be applied consistently:
 
 ```typescript
-const CLUSTER_SLOT_WIDTH = 130;
-
-function getSubtreeLeafWidthWithClusters(node: TreeNode, clusters: Map<string, LeafCluster>): number {
-  if (node.children.length === 0) return LEAF_SLOT_WIDTH;
-  
-  // Group leaf children by position
-  let total = 0;
-  const leafByPos: Record<string, TreeNode[]> = {};
-  const nonLeafChildren: TreeNode[] = [];
-  
-  node.children.forEach(child => {
-    if (child.children.length === 0) {
-      if (!leafByPos[child.member.position]) leafByPos[child.member.position] = [];
-      leafByPos[child.member.position].push(child);
-    } else {
-      nonLeafChildren.push(child);
-    }
-  });
-  
-  // Each position group of 2+ leaf siblings = 1 cluster slot
-  Object.values(leafByPos).forEach(group => {
-    total += group.length >= 2 ? CLUSTER_SLOT_WIDTH : group.length * LEAF_SLOT_WIDTH;
-  });
-  
-  // Non-leaf children recurse normally
-  nonLeafChildren.forEach(child => {
-    total += getSubtreeLeafWidthWithClusters(child, clusters);
-  });
-  
-  return total;
-}
+// After placing each slot (cluster or individual leaf), add SLOT_GAP before next
+offset += CLUSTER_SLOT_WIDTH + SLOT_GAP;
+// OR
+offset += LEAF_SLOT_WIDTH + SLOT_GAP;
 ```
 
-### 3. Modify `layoutTree` to position clusters
-
-The layout algorithm needs to assign an X position to clusters (not just individual leaf nodes). For each parent node, after grouping its leaf children, assign the cluster's X as the midpoint of the N slots it occupies.
-
-The leaf children that belong to a cluster should NOT receive individual positions in `posMap` — instead the cluster ID gets a position. The SVG line will connect to the cluster ref.
-
-### 4. New `BalloonCluster` component
-
-```tsx
-const BalloonCluster = ({ members, showNames, onSelect }) => {
-  return (
-    <div
-      style={{
-        border: `1.5px dashed ${colors.border}`, // role color, 40% opacity
-        borderRadius: 12,
-        padding: "6px 8px",
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 4,
-        justifyContent: "center",
-        maxWidth: CLUSTER_SLOT_WIDTH - 10,
-        background: "transparent",  // no fill — just a border outline
-      }}
-    >
-      {members.map(member => (
-        // Existing individual 36px pill — same as today
-        <IndividualLeafPill key={member.id} member={member} showNames={showNames} onSelect={onSelect} />
-      ))}
-    </div>
-  );
-};
+And `getSubtreeLeafWidth` must return the same accounting:
+```typescript
+total += group.length >= 2 
+  ? CLUSTER_SLOT_WIDTH + SLOT_GAP 
+  : group.length * (LEAF_SLOT_WIDTH + SLOT_GAP);
 ```
 
-### 5. Modify render: clusters vs individual leaves
+This ensures the layout width allocated equals the layout width rendered.
 
-In the level renderer, for nodes that are part of a cluster:
-- Skip rendering them individually
-- Instead render the `BalloonCluster` component once per cluster, centered at the cluster's X position
-- The cluster container gets a `ref` registered under the cluster ID in `nodeRefs`
+**7. Fix the line endpoints**  
+The line currently goes from parent bottom → cluster bottom (using `cRect.bottom`), but it should go parent bottom → cluster **top** (lines come *down* from parent to child, not child-to-child). Wait, looking at the code:
 
-For the SVG lines: when building lines, check if a member's parent is in a cluster. The line goes from parent → cluster container top center (not individual pill).
+```typescript
+y2: cRect.bottom - chartRect.top,  // ← This is the BOTTOM of the cluster
+y1: parentY = pRect.top - chartRect.top,  // ← This is the TOP of the parent
+```
 
-### 6. Refactor `OrgNode` leaf path
+The tree is rendered **leaves at top, roots at bottom** (reversed BFS). So lines should go from parent **top** (which is visually above in the DOM but at a higher Y value since roots are at the bottom of the chart) down to child **bottom**. Actually looking at `isLeafLevel` at top and roots at bottom, the layout renders leaf rows at the top of the flex column and root rows at the bottom. So the line should be:
+- `y1 = parent top` (parent is lower in the page = higher Y = bottom of the column)  
+- `y2 = child bottom` (child is higher in the page = lower Y = top of the column)
 
-Extract the leaf pill into its own `LeafPill` component so it can be reused both standalone and inside `BalloonCluster` without code duplication.
+The current code uses `pRect.top` and `cRect.bottom`, which means line goes from parent's top edge down to child's bottom edge — visually wrong since child is above parent. It should be `pRect.top → cRect.bottom` since child (cluster/leaf) is rendered above the parent, so the cluster's bottom connects up to the parent's top. This looks correct actually.
 
-## Files Changed
-- `src/components/team/ReverseOrgChart.tsx` (single file, significant restructure of layout + render)
+Let me re-examine: `y1 = pRect.top - chartRect.top` = top of parent box. `y2 = cRect.bottom - chartRect.top` = bottom of child (cluster). Since the cluster is rendered ABOVE the parent (smaller Y on page), `cRect.bottom < pRect.top`, so the line goes from a higher Y (parent top) up to a lower Y (cluster bottom). That's correct visually.
 
-## Summary of Changes
+**Summary of changes to `ReverseOrgChart.tsx`:**
 
-| Change | Impact |
-|---|---|
-| Pre-process clusters from tree | Groups same-position leaf siblings |
-| Layout width uses `CLUSTER_SLOT_WIDTH` | Reduces row width by 60-70% for large teams |
-| `BalloonCluster` component | Transparent dashed border wrapping individual pills |
-| Extract `LeafPill` component | Reused in both standalone and cluster contexts |
-| One line per cluster | Cleaner connector, less SVG clutter |
-| Cluster ref registration | Lines connect to cluster container, not individuals |
+1. `CLUSTER_SLOT_WIDTH = 160` (was 130) — matches actual rendered cluster width  
+2. Add `SLOT_GAP = 12` constant — spacing between adjacent layout slots  
+3. `getSubtreeLeafWidth`: add `SLOT_GAP` per slot in both cluster and leaf cases  
+4. `layoutSubtree`: add `SLOT_GAP` when advancing `offset` between slots  
+5. `BalloonCluster`: sync the `width` formula with `CLUSTER_SLOT_WIDTH` (use `CLUSTER_SLOT_WIDTH - 10` instead of recalculating manually, so they stay in sync)  
+6. The row `height` calculation already uses `maxRows * 38 + 20` which should be fine
+
+## File Changed
+- `src/components/team/ReverseOrgChart.tsx`
