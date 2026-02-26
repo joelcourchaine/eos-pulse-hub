@@ -1,23 +1,18 @@
 
-## The Problem
+## Why December worked but January fails
 
-Each level row is a `<div>` with `position: relative` and a fixed `height`. The rows are stacked in a flex column with no gap between them — so rows with taller nodes (like manager pills at 62px) sit flush against rows with shorter nodes, causing the visual touching effect between names like Craig Hominick and Bryan Verhoski.
+The console logs confirm the error is thrown from `parseFinancialExcel.ts` line 106 (`reader.readAsBinaryString` + `XLSX.read(data, { type: 'binary' })`). 
 
-## The Fix
+The reason December worked but January doesn't: Mazda's DMS outputs `.xls` files (old binary format). The January 2026 file for Island Owl Mazda happens to use a slightly different internal structure (or a newer `.xls` variant) that the `xlsx` library misidentifies as encrypted when parsed in binary string mode. This is a known quirk — the `xlsx` library throws "File is password-protected" as a false positive for certain `.xls` file structures when using `type: 'binary'`.
 
-The level rows are returned from `layout.levels.map((level, li) => ...)` (around line 700). Each row is a `<div key={li} className="relative" style={{ width: ..., height: rowHeight }}>`.
+Switching to `readAsArrayBuffer` + `type: 'array'` is the standard fix for this — it handles all `.xls`/`.xlsx` variants more robustly.
 
-The simplest fix is to add `marginBottom: 12` (or a consistent gap) to each row's style. This adds 12px of breathing room between every pair of adjacent rows without touching any layout calculations.
+## Fix
 
-```tsx
-<div
-  key={li}
-  className="relative"
-  style={{ width: layout.totalWidth, height: rowHeight, marginBottom: 12 }}
->
-```
+**`src/utils/parseFinancialExcel.ts`** (lines ~180-393):
+1. Change `reader.readAsBinaryString(file)` → `reader.readAsArrayBuffer(file)` 
+2. Change `XLSX.read(data, { type: 'binary' })` → `XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' })`
 
-This is a 1-line change. It will apply consistently to all rows (leaf rows, cluster rows, manager rows) giving uniform vertical spacing throughout the chart.
+This is a 2-line change. No other logic changes needed.
 
-## Files Changed
-- `src/components/team/ReverseOrgChart.tsx` — add `marginBottom: 12` to the level row div style (line 712)
+Also check `parseStellantisExcel.ts` for the same pattern and fix it there too (to prevent the same issue on Stellantis stores in the future).
