@@ -1536,10 +1536,10 @@ const Dashboard = () => {
                   selectedDepartment &&
                   (meetingViewMode === "view-all" || meetingViewMode === "scorecard") && (
                     <FinancialSummary
-                      key={`financial-${selectedDepartment}-${selectedYear}-${selectedQuarter}`}
+                      key={`financial-${selectedDepartment}-${selectedYear}-${selectedQuarter}-${scorecardViewMode}`}
                       departmentId={selectedDepartment}
                       year={selectedYear}
-                      quarter={selectedQuarter}
+                      quarter={scorecardViewMode === "yearly" ? -1 : selectedQuarter}
                     />
                   )}
 
