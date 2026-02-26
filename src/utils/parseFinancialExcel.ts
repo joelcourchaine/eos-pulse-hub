@@ -180,20 +180,60 @@ export const parseFinancialExcel = (
       try {
         const data = e.target?.result;
         const uint8 = new Uint8Array(data as ArrayBuffer);
-        // Try parsing; if it throws a password error, retry with WTF:false to suppress OLE protection flags
         let workbook: XLSX.WorkBook;
-        try {
-          workbook = XLSX.read(uint8, { type: 'array', password: '' });
-        } catch (firstErr: any) {
-          const msg = (firstErr?.message || '').toLowerCase();
-          if (msg.includes('password') || msg.includes('encrypted') || msg.includes('protected')) {
-            // Some .xls files have a write-protection flag that xlsx misreads as encryption.
-            // Retry with WTF disabled to bypass non-critical structural errors.
-            workbook = XLSX.read(uint8, { type: 'array', WTF: false, cellFormula: false });
-          } else {
-            throw firstErr;
+
+        const attemptRead = (bytes: Uint8Array): XLSX.WorkBook => {
+          // Attempt 1: standard read with empty password (handles write-protected XLS)
+          try {
+            return XLSX.read(bytes, { type: 'array', password: '' });
+          } catch (e1: any) {
+            console.warn('[Excel Parse] Attempt 1 failed:', e1.message);
           }
-        }
+          // Attempt 2: try without password option (some files need no password hint at all)
+          try {
+            return XLSX.read(bytes, { type: 'array' });
+          } catch (e2: any) {
+            console.warn('[Excel Parse] Attempt 2 failed:', e2.message);
+          }
+          // Attempt 3: strip FILEPASS/WRITEPROT records from the BIFF8 stream via CFB
+          try {
+            const cfb = XLSX.CFB.read(bytes, { type: 'array' });
+            console.log('[Excel Parse] CFB paths:', cfb.FullPaths);
+            const entry = XLSX.CFB.find(cfb, '/Workbook') || XLSX.CFB.find(cfb, '/Book');
+            if (entry && entry.content) {
+              const stream = new Uint8Array(entry.content as ArrayBuffer);
+              // Scan BIFF8 records and zero-out protection records
+              let i = 0;
+              let stripped = false;
+              while (i < stream.length - 4) {
+                const rt = stream[i] | (stream[i + 1] << 8);
+                const rl = stream[i + 2] | (stream[i + 3] << 8);
+                // FILEPASS=0x002F, WRITEPROT=0x0086, FILESHARING=0x005C
+                if (rt === 0x002F || rt === 0x0086 || rt === 0x005C) {
+                  console.log(`[Excel Parse] Stripping protection record 0x${rt.toString(16)} (len=${rl}) at offset ${i}`);
+                  // Replace record type with CONTINUE (0x003C) and zero the data
+                  stream[i] = 0x3C; stream[i + 1] = 0x00;
+                  for (let j = 4; j < 4 + rl; j++) stream[i + j] = 0x00;
+                  stripped = true;
+                }
+                i += 4 + Math.max(0, rl);
+                if (rl === 0 && rt === 0) break;
+              }
+              if (stripped) {
+                entry.content = stream;
+                const rebuilt = XLSX.CFB.write(cfb, { type: 'array' });
+                return XLSX.read(new Uint8Array(rebuilt as ArrayBuffer), { type: 'array' });
+              }
+            }
+          } catch (e3: any) {
+            console.warn('[Excel Parse] Attempt 3 (CFB strip) failed:', e3.message);
+          }
+          throw new Error(
+            'File is password-protected and could not be read. Please open the file in Excel, go to Review → Unprotect or File → Save As → Excel Workbook (.xlsx), then re-import.'
+          );
+        };
+
+        workbook = attemptRead(uint8);
         
         console.log('[Excel Parse] Available sheets:', workbook.SheetNames);
         console.log('[Excel Parse] Total mappings:', mappings.length);
