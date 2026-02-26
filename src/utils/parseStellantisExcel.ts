@@ -224,16 +224,35 @@ export const parseStellantisExcel = (
         const data = e.target?.result;
         const uint8 = new Uint8Array(data as ArrayBuffer);
         let workbook: XLSX.WorkBook;
-        try {
-          workbook = XLSX.read(uint8, { type: 'array', password: '' });
-        } catch (firstErr: any) {
-          const msg = (firstErr?.message || '').toLowerCase();
-          if (msg.includes('password') || msg.includes('encrypted') || msg.includes('protected')) {
-            workbook = XLSX.read(uint8, { type: 'array', WTF: false, cellFormula: false });
-          } else {
-            throw firstErr;
-          }
-        }
+        const attemptReadStellantis = (bytes: Uint8Array): XLSX.WorkBook => {
+          try { return XLSX.read(bytes, { type: 'array', password: '' }); } catch (e1: any) { console.warn('[Stellantis] Attempt 1:', e1.message); }
+          try { return XLSX.read(bytes, { type: 'array' }); } catch (e2: any) { console.warn('[Stellantis] Attempt 2:', e2.message); }
+          try {
+            const cfb = XLSX.CFB.read(bytes, { type: 'array' });
+            const entry = XLSX.CFB.find(cfb, '/Workbook') || XLSX.CFB.find(cfb, '/Book');
+            if (entry && entry.content) {
+              const stream = new Uint8Array(entry.content as ArrayBuffer);
+              let i = 0; let stripped = false;
+              while (i < stream.length - 4) {
+                const rt = stream[i] | (stream[i + 1] << 8);
+                const rl = stream[i + 2] | (stream[i + 3] << 8);
+                if (rt === 0x002F || rt === 0x0086 || rt === 0x005C) {
+                  stream[i] = 0x3C; stream[i + 1] = 0x00;
+                  for (let j = 4; j < 4 + rl; j++) stream[i + j] = 0x00;
+                  stripped = true;
+                }
+                i += 4 + Math.max(0, rl); if (rl === 0 && rt === 0) break;
+              }
+              if (stripped) {
+                entry.content = stream;
+                const rebuilt = XLSX.CFB.write(cfb, { type: 'array' });
+                return XLSX.read(new Uint8Array(rebuilt as ArrayBuffer), { type: 'array' });
+              }
+            }
+          } catch (e3: any) { console.warn('[Stellantis] Attempt 3 (CFB strip):', e3.message); }
+          throw new Error('File is password-protected. Please open in Excel, unprotect, then re-import.');
+        };
+        workbook = attemptReadStellantis(uint8);
         
         console.log('[Stellantis Parse] Available sheets:', workbook.SheetNames);
         
