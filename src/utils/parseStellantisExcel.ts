@@ -222,7 +222,7 @@ export const parseStellantisExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
         
         console.log('[Stellantis Parse] Available sheets:', workbook.SheetNames);
         
@@ -445,7 +445,7 @@ export const parseStellantisExcel = (
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 };
 
@@ -464,7 +464,7 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
         
         // Check for data dump sheet (usually "dload" or first sheet in pure data dumps)
         const dataDumpSheetNames = ['dload', 'Data'];
@@ -544,6 +544,6 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 };

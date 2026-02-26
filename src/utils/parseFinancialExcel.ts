@@ -179,7 +179,7 @@ export const parseFinancialExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
         
         console.log('[Excel Parse] Available sheets:', workbook.SheetNames);
         console.log('[Excel Parse] Total mappings:', mappings.length);
@@ -389,7 +389,7 @@ export const parseFinancialExcel = (
     };
     
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   });
 };
 
