@@ -396,7 +396,8 @@ export const NISSAN_METRICS: FinancialMetric[] = [
     key: "total_fixed_expense",
     type: "dollar",
     description: "Total fixed expenses",
-    targetDirection: "below"
+    targetDirection: "below",
+    hasSubMetrics: true
   },
   {
     name: "Department Profit",
@@ -439,14 +440,16 @@ export const MAZDA_METRICS: FinancialMetric[] = [
     key: "total_sales", 
     type: "dollar", 
     description: "Total revenue for the period", 
-    targetDirection: "above" 
+    targetDirection: "above",
+    hasSubMetrics: true
   },
   { 
     name: "GP Net", 
     key: "gp_net", 
     type: "dollar", 
     description: "Gross profit after costs", 
-    targetDirection: "above" 
+    targetDirection: "above",
+    hasSubMetrics: true
   },
   { 
     name: "GP %", 
@@ -454,6 +457,7 @@ export const MAZDA_METRICS: FinancialMetric[] = [
     type: "percentage", 
     description: "Gross profit margin", 
     targetDirection: "above",
+    hasSubMetrics: true,
     calculation: {
       numerator: "gp_net",
       denominator: "total_sales"
@@ -464,7 +468,8 @@ export const MAZDA_METRICS: FinancialMetric[] = [
     key: "sales_expense", 
     type: "dollar", 
     description: "Total sales expenses", 
-    targetDirection: "below" 
+    targetDirection: "below",
+    hasSubMetrics: true
   },
   { 
     name: "Sales Expense %", 
@@ -477,12 +482,21 @@ export const MAZDA_METRICS: FinancialMetric[] = [
       denominator: "gp_net"
     }
   },
+  {
+    name: "Total Direct Expenses",
+    key: "total_direct_expenses",
+    type: "dollar",
+    description: "Total direct expenses",
+    targetDirection: "below",
+    hasSubMetrics: true
+  },
   { 
     name: "Semi Fixed Expense", 
     key: "semi_fixed_expense", 
     type: "dollar", 
     description: "Semi-fixed expenses", 
-    targetDirection: "below" 
+    targetDirection: "below",
+    hasSubMetrics: true
   },
   { 
     name: "Semi Fixed Expense %", 
@@ -512,7 +526,8 @@ export const MAZDA_METRICS: FinancialMetric[] = [
     key: "total_fixed_expense", 
     type: "dollar", 
     description: "Total fixed expenses", 
-    targetDirection: "below" 
+    targetDirection: "below",
+    hasSubMetrics: true
   },
   { 
     name: "Department Profit", 

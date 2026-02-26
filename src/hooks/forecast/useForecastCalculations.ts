@@ -1781,12 +1781,21 @@ export function useForecastCalculations({
           parentKey === 'sales_expense' || parentKey === 'sales_expense_percent') {
         return; // Already calculated above
       }
+
+      // Remap GMC legacy 'fixed_expense' key → 'total_fixed_expense'
+      // GMC sub-metrics were stored under sub:fixed_expense:* before the key was renamed
+      const resolvedKey = parentKey === 'fixed_expense' ? 'total_fixed_expense' : parentKey;
+
+      // Skip if we already have entries for the resolved key (avoid double-processing)
+      if (resolvedKey !== parentKey && result.has(resolvedKey)) {
+        return;
+      }
       
-      const isPercentageParent = percentageParents.has(parentKey);
+      const isPercentageParent = percentageParents.has(resolvedKey);
       const forecasts: SubMetricForecast[] = subs.map((sub, index) => 
-        calculateSingleSubMetric(sub, parentKey, index, isPercentageParent)
+        calculateSingleSubMetric(sub, resolvedKey, index, isPercentageParent)
       );
-      result.set(parentKey, forecasts);
+      result.set(resolvedKey, forecasts);
     });
     
     return result;
