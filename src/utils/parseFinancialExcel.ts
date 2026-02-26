@@ -179,7 +179,21 @@ export const parseFinancialExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array', password: '' });
+        const uint8 = new Uint8Array(data as ArrayBuffer);
+        // Try parsing; if it throws a password error, retry with WTF:false to suppress OLE protection flags
+        let workbook: XLSX.WorkBook;
+        try {
+          workbook = XLSX.read(uint8, { type: 'array', password: '' });
+        } catch (firstErr: any) {
+          const msg = (firstErr?.message || '').toLowerCase();
+          if (msg.includes('password') || msg.includes('encrypted') || msg.includes('protected')) {
+            // Some .xls files have a write-protection flag that xlsx misreads as encryption.
+            // Retry with WTF disabled to bypass non-critical structural errors.
+            workbook = XLSX.read(uint8, { type: 'array', WTF: false, cellFormula: false });
+          } else {
+            throw firstErr;
+          }
+        }
         
         console.log('[Excel Parse] Available sheets:', workbook.SheetNames);
         console.log('[Excel Parse] Total mappings:', mappings.length);

@@ -222,7 +222,18 @@ export const parseStellantisExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array', password: '' });
+        const uint8 = new Uint8Array(data as ArrayBuffer);
+        let workbook: XLSX.WorkBook;
+        try {
+          workbook = XLSX.read(uint8, { type: 'array', password: '' });
+        } catch (firstErr: any) {
+          const msg = (firstErr?.message || '').toLowerCase();
+          if (msg.includes('password') || msg.includes('encrypted') || msg.includes('protected')) {
+            workbook = XLSX.read(uint8, { type: 'array', WTF: false, cellFormula: false });
+          } else {
+            throw firstErr;
+          }
+        }
         
         console.log('[Stellantis Parse] Available sheets:', workbook.SheetNames);
         
