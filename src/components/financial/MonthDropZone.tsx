@@ -467,8 +467,13 @@ export const MonthDropZone = ({
         throw new Error("Failed to download file");
       }
 
-      // Convert to File object
-      const file = new File([fileData], attachment.file_name, { type: fileData.type });
+      // Convert to File object - force correct MIME type based on extension
+      // (storage blobs often return empty type, causing xlsx library to fail)
+      const ext = attachment.file_name.split('.').pop()?.toLowerCase();
+      const mimeType = ext === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : ext === 'xlsm' ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
+        : 'application/vnd.ms-excel'; // xls and fallback
+      const file = new File([fileData], attachment.file_name, { type: mimeType });
 
       // Process the file
       await processBrandExcel(file, attachment.file_path, user.id, storeBrand);
@@ -514,8 +519,12 @@ export const MonthDropZone = ({
         throw new Error("Failed to download file");
       }
 
-      // Convert to File object
-      const file = new File([fileData], siblingAttachment.file_name, { type: fileData.type });
+      // Convert to File object - force correct MIME type based on extension
+      const siblingExt = siblingAttachment.file_name.split('.').pop()?.toLowerCase();
+      const siblingMime = siblingExt === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : siblingExt === 'xlsm' ? 'application/vnd.ms-excel.sheet.macroEnabled.12'
+        : 'application/vnd.ms-excel';
+      const file = new File([fileData], siblingAttachment.file_name, { type: siblingMime });
 
       // Process using existing processBrandExcel (creates attachments for ALL departments)
       await processBrandExcel(file, siblingAttachment.file_path, user.id, storeBrand);
