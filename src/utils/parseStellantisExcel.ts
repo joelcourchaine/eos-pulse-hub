@@ -222,7 +222,7 @@ export const parseStellantisExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array', password: '' });
         
         console.log('[Stellantis Parse] Available sheets:', workbook.SheetNames);
         
@@ -464,7 +464,7 @@ export const isStellantisDataDump = (file: File): Promise<boolean> => {
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array', password: '' });
         
         // Check for data dump sheet (usually "dload" or first sheet in pure data dumps)
         const dataDumpSheetNames = ['dload', 'Data'];

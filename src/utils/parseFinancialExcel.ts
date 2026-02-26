@@ -179,7 +179,7 @@ export const parseFinancialExcel = (
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
-        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array' });
+        const workbook = XLSX.read(new Uint8Array(data as ArrayBuffer), { type: 'array', password: '' });
         
         console.log('[Excel Parse] Available sheets:', workbook.SheetNames);
         console.log('[Excel Parse] Total mappings:', mappings.length);
