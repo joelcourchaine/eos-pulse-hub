@@ -632,7 +632,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
     // Defensive: ensure we never render duplicate metric rows (same key) even if configs change.
     const seen = new Set<string>();
-    return reordered.filter((m) => {
+    return withDeptProfit.filter((m) => {
       if (seen.has(m.key)) return false;
       seen.add(m.key);
       return true;
@@ -1361,23 +1361,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
             FINANCIAL_METRICS.forEach((metric) => {
               const metricEntry = monthData?.find((e) => e.metric_name === metric.key);
+              const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
+              const monthId = `${monthObj.year}-${String(monthObj.month + 1).padStart(2, '0')}`;
+              const shouldCalc = shouldUseCalculationForMonth(metric.key, monthId);
 
-              if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
-                const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
-                averages[mKey] = metricEntry.value;
-              } else if (metric.type === "percentage" && metric.calculation && "numerator" in metric.calculation) {
-                // Calculate percentage metrics from underlying dollar amounts
-                const { numerator, denominator } = metric.calculation;
-
-                const numValue = getValueForMetric(monthData, numerator, monthObj);
-                const denValue = getValueForMetric(monthData, denominator, monthObj);
-
-                if (numValue !== undefined && denValue !== undefined && denValue > 0) {
-                  const calculatedPercentage = (numValue / denValue) * 100;
-                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
-                  averages[mKey] = calculatedPercentage;
-                }
-              } else if (metric.calculation && "type" in metric.calculation) {
+              // For metrics with a calculation, ALWAYS calculate from components
+              // This ensures overridden formulas (e.g. Nissan New/Used department_profit)
+              // are applied instead of stale stored values from old imports.
+              if (shouldCalc && metric.calculation && "type" in metric.calculation) {
                 // Calculate dollar metrics (subtract or complex)
                 const calc = metric.calculation;
                 const baseValue = getValueForMetric(monthData, calc.base, monthObj);
@@ -1401,14 +1392,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                     }
                   }
 
-                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
                   averages[mKey] = calculatedValue;
                 }
+              } else if (shouldCalc && metric.type === "percentage" && metric.calculation && 'numerator' in metric.calculation) {
+                // Calculate percentage metrics from underlying dollar amounts
+                const { numerator, denominator } = metric.calculation;
+
+                const numValue = getValueForMetric(monthData, numerator, monthObj);
+                const denValue = getValueForMetric(monthData, denominator, monthObj);
+
+                if (numValue !== undefined && denValue !== undefined && denValue > 0) {
+                  const calculatedPercentage = (numValue / denValue) * 100;
+                  averages[mKey] = calculatedPercentage;
+                }
+              } else if (metricEntry && metricEntry.value !== null && metricEntry.value !== undefined) {
+                averages[mKey] = metricEntry.value;
               } else {
                 // For non-calculated metrics without direct entries, try to sum sub-metrics
                 const subMetricSum = getValueForMetric(monthData, metric.key, monthObj);
                 if (subMetricSum !== undefined) {
-                  const mKey = `${metric.key}-M${monthObj.month + 1}-${monthObj.year}`;
                   averages[mKey] = subMetricSum;
                 }
               }
@@ -1548,28 +1550,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           };
 
           const getMonthValue = (metricKey: string, monthId: string): number | undefined => {
-            // First, use direct DB value when present
-            const direct = getDirectValueForMonth(metricKey, monthId);
-            if (direct !== undefined) return direct;
-
-            // Honda legacy rule: Total Direct Expenses = Sales Expense + Semi Fixed Expense (pre Nov 2025)
-            if (isHondaBrand && metricKey === "total_direct_expenses" && isHondaLegacyMonth(monthId)) {
-              const sales = getMonthValue("sales_expense", monthId);
-              const semiFixed = getMonthValue("semi_fixed_expense", monthId);
-              if (sales !== undefined && semiFixed !== undefined) return sales + semiFixed;
-              return undefined;
-            }
-
             const metric = FINANCIAL_METRICS.find((m) => m.key === metricKey);
-            if (!metric || !metric.calculation) return undefined;
+            const shouldCalc = metric?.calculation && shouldUseCalculationForMonth(metricKey, monthId);
 
-            // Honda legacy rule: Semi Fixed Expense is manual entry in legacy months
-            if (isHondaBrand && metricKey === "semi_fixed_expense" && isHondaLegacyMonth(monthId)) {
-              return undefined;
-            }
-
-            if ("type" in metric.calculation) {
-              const calc = metric.calculation;
+            // For metrics with a calculation, ALWAYS calculate from components
+            // This ensures overridden formulas (e.g. Nissan New/Used department_profit)
+            // are applied instead of stale stored values from old imports.
+            if (shouldCalc && metric!.calculation && "type" in metric!.calculation) {
+              const calc = metric!.calculation;
               const base = getMonthValue(calc.base, monthId);
               if (base === undefined) return undefined;
 
@@ -1587,6 +1575,18 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
               }
 
               return value;
+            }
+
+            // For non-calculated metrics, use direct DB value
+            const direct = getDirectValueForMonth(metricKey, monthId);
+            if (direct !== undefined) return direct;
+
+            // Honda legacy rule: Total Direct Expenses = Sales Expense + Semi Fixed Expense (pre Nov 2025)
+            if (isHondaBrand && metricKey === 'total_direct_expenses' && isHondaLegacyMonth(monthId)) {
+              const sales = getMonthValue('sales_expense', monthId);
+              const semiFixed = getMonthValue('semi_fixed_expense', monthId);
+              if (sales !== undefined && semiFixed !== undefined) return sales + semiFixed;
+              return undefined;
             }
 
             // Percentage calculations are handled separately in Quarter Trend
@@ -2024,11 +2024,33 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
       const yr = parseInt(yrStr, 10);
       const mo = parseInt(moStr, 10);
 
-      // First pass: dollar metrics (direct value or sub-metric sum)
+      // First pass: dollar metrics (direct value, sub-metric sum, or calculation)
       FINANCIAL_METRICS.forEach((metric) => {
         if (metric.type === "percentage") return; // Skip percentages in first pass
         const mKey = `${metric.key}-M${mo}-${yr}`;
         if (averages[mKey] !== undefined) return;
+
+        // For metrics with a dollar calculation, always calculate from components
+        const shouldCalc = shouldUseCalculationForMonth(metric.key, monthId);
+        if (shouldCalc && metric.calculation && "type" in metric.calculation) {
+          const calc = metric.calculation;
+          const baseKey = `${calc.base}-M${mo}-${yr}`;
+          const baseVal = averages[baseKey];
+          if (baseVal !== undefined) {
+            let calcVal = baseVal;
+            for (const deduction of calc.deductions) {
+              calcVal -= averages[`${deduction}-M${mo}-${yr}`] || 0;
+            }
+            if (calc.type === "complex" && "additions" in calc) {
+              for (const addition of calc.additions) {
+                calcVal += averages[`${addition}-M${mo}-${yr}`] || 0;
+              }
+            }
+            averages[mKey] = calcVal;
+            return; // Only return if calculation succeeded
+          }
+          // If base value not available yet, fall through to direct DB value
+        }
 
         const directEntry = data?.find((e) => e.month === monthId && e.metric_name === metric.key);
         if (directEntry?.value !== null && directEntry?.value !== undefined) {
