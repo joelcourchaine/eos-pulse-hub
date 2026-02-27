@@ -261,19 +261,19 @@ export function TodoManagementDialog({
               <SelectContent>
                 <SelectItem value="low">
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-success" />
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
                     Low
                   </span>
                 </SelectItem>
                 <SelectItem value="medium">
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-warning" />
+                    <span className="h-2 w-2 rounded-full bg-amber-500" />
                     Medium
                   </span>
                 </SelectItem>
                 <SelectItem value="high">
                   <span className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-destructive" />
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
                     High
                   </span>
                 </SelectItem>

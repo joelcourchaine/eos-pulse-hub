@@ -179,17 +179,17 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
 
   const getSeverityBorderColor = (severity: string) => {
     switch (severity) {
-      case "low": return "border-success/50 bg-success/10";
-      case "high": return "border-destructive/50 bg-destructive/10";
-      default: return "border-warning/50 bg-warning/10";
+      case "low": return "border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40";
+      case "high": return "border-red-300 dark:border-red-700 bg-red-100 dark:bg-red-900/40";
+      default: return "border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40";
     }
   };
 
   const getSeverityDotColor = (severity: string) => {
     switch (severity) {
-      case "low": return "bg-success";
-      case "high": return "bg-destructive";
-      default: return "bg-warning";
+      case "low": return "bg-emerald-500";
+      case "high": return "bg-red-500";
+      default: return "bg-amber-500";
     }
   };
 
