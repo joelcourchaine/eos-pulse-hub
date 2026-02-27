@@ -162,19 +162,29 @@ const Processes = () => {
                     </p>
                   ) : (
                     <div className="space-y-2 flex-1">
-                      {catProcesses.map((proc) => (
+                      {catProcesses.map((proc, idx) => (
                         <div
                           key={proc.id}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                          className="flex items-center justify-between p-3 rounded-lg border hover:opacity-90 cursor-pointer transition-all hover:shadow-sm"
+                          style={{
+                            background: `hsl(var(--primary) / ${0.07 + (idx % 3) * 0.03})`,
+                            borderColor: `hsl(var(--primary) / 0.2)`,
+                          }}
                           onClick={() => navigate(`/processes/${proc.id}`)}
                         >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{proc.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {proc.owner?.full_name && <span>{proc.owner.full_name} · </span>}
-                              Updated {formatDistanceToNow(new Date(proc.updated_at), { addSuffix: true })}
-                            </p>
-                           </div>
+                          <div className="min-w-0 flex items-center gap-2">
+                            <div
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ background: `hsl(var(--primary) / ${0.5 + (idx % 3) * 0.15})` }}
+                            />
+                            <div>
+                              <p className="text-sm font-medium truncate text-foreground">{proc.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {proc.owner?.full_name && <span>{proc.owner.full_name} · </span>}
+                                Updated {formatDistanceToNow(new Date(proc.updated_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                          </div>
                           {canEdit && (
                             <Button
                               variant="ghost"
