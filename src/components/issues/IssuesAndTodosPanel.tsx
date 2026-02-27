@@ -3,7 +3,7 @@ import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Plus, GripVertical, Trash2, Pencil, CheckSquare } from "lucide-react";
+import { AlertCircle, Plus, GripVertical, Trash2, Pencil, CheckSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -58,6 +58,8 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   const [deleteIssueId, setDeleteIssueId] = useState<string | null>(null);
   const [deleteTodoId, setDeleteTodoId] = useState<string | null>(null);
   const [selectedIssueForTodo, setSelectedIssueForTodo] = useState<Issue | null>(null);
+  const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
+  const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -437,8 +439,23 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                         >
                           <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-medium">{issue.title}</h4>
-                            {issue.description && (
+                            <div
+                              className="flex items-center gap-1 cursor-pointer"
+                              onClick={(e) => {
+                                if (issue.description) {
+                                  e.stopPropagation();
+                                  setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id);
+                                }
+                              }}
+                            >
+                              <h4 className="font-medium flex-1">{issue.title}</h4>
+                              {issue.description && (
+                                expandedIssueId === issue.id
+                                  ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                  : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              )}
+                            </div>
+                            {issue.description && expandedIssueId === issue.id && (
                               <p className="text-sm text-muted-foreground mt-1">
                                 {issue.description}
                               </p>
@@ -553,10 +570,24 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                       className="mt-1"
                     />
                     <div className="flex-1 min-w-0">
-                      <h4 className={`font-medium ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                        {todo.title}
-                      </h4>
-                      {todo.description && (
+                      <div
+                        className="flex items-center gap-1 cursor-pointer"
+                        onClick={() => {
+                          if (todo.description) {
+                            setExpandedTodoId(expandedTodoId === todo.id ? null : todo.id);
+                          }
+                        }}
+                      >
+                        <h4 className={`font-medium flex-1 ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                          {todo.title}
+                        </h4>
+                        {todo.description && (
+                          expandedTodoId === todo.id
+                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        )}
+                      </div>
+                      {todo.description && expandedTodoId === todo.id && (
                         <p className="text-sm text-muted-foreground mt-1">{todo.description}</p>
                       )}
                       <div className="flex flex-wrap items-center gap-2 mt-2">
