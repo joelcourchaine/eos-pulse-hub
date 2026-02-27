@@ -3435,11 +3435,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 </CardDescription>
                 <div className="flex items-center gap-4 mt-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                    <span className="text-xs text-muted-foreground">At/above target</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                     <span className="text-xs text-muted-foreground">At/above target</span>
+                   </div>
+                   <div className="flex items-center gap-1.5">
+                     <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
                     <span className="text-xs text-muted-foreground">Within 10%</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -3526,8 +3526,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             ref={periodIndex === monthlyTrendPeriods.length - 1 ? lastMonthlyColumnRef : undefined}
                             className={cn(
                               "text-center min-w-[125px] max-w-[125px] font-bold py-[7.2px] sticky top-0 z-10",
-                              period.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
-                              period.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
+                              period.type === "year-avg" && "bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                              period.type === "year-total" && "bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                               period.type === "month" && "bg-muted/50",
                             )}
                           >
@@ -3582,10 +3582,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                       ))
                     ) : (
                       <>
-                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Avg</div>
-                            <div className="text-xs font-normal text-muted-foreground">{year - 1}</div>
+                            <div className="text-xs font-normal opacity-70">{year - 1}</div>
                           </div>
                         </TableHead>
                         {previousYearMonths.map((month) => (
@@ -3622,10 +3622,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </MonthDropZone>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Target</div>
-                            <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                            <div className="text-xs font-normal opacity-70">{year}</div>
                           </div>
                         </TableHead>
                         {months.map((month) => (
@@ -3674,10 +3674,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                             </MonthDropZone>
                           </TableHead>
                         ))}
-                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-primary/10 border-x-2 border-primary/30 sticky top-0 z-10">
+                        <TableHead className="text-center font-bold min-w-[100px] max-w-[100px] py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 z-10">
                           <div className="flex flex-col items-center">
                             <div>Q{quarter} Avg</div>
-                            <div className="text-xs font-normal text-muted-foreground">{year}</div>
+                            <div className="text-xs font-normal opacity-70">{year}</div>
                           </div>
                         </TableHead>
                       </>
@@ -4006,24 +4006,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         key={period.identifier}
                                         className={cn(
                                           "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
-                                          status === "success" && "bg-success/10",
-                                          status === "warning" && "bg-warning/10",
-                                          status === "destructive" && "bg-destructive/10",
+                                          status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                          status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                          status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                           isDepartmentProfit && "bg-primary/5",
                                           isNetSellingGross && !status && "bg-muted/30",
                                         )}
                                       >
-                                        <TrendCellTooltip
+                                         <TrendCellTooltip
                                           metricKey={metric.key}
                                           metricType={metric.type}
                                           monthIdentifier={monthIdentifier}
                                         >
                                           <div
                                             className={cn(
-                                              "w-full h-full flex items-center justify-center",
-                                              status === "success" && "text-success font-medium",
-                                              status === "warning" && "text-warning font-medium",
-                                              status === "destructive" && "text-destructive font-medium",
+                                              "w-full h-full flex items-center justify-center text-xs",
+                                              status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                              status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                              status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                             )}
                                           >
                                             {calculatedValue !== null && calculatedValue !== undefined
@@ -4072,9 +4072,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         <TableCell
                                           className={cn(
                                             "p-1 relative min-w-[125px] max-w-[125px]",
-                                            status === "success" && "bg-success/10",
-                                            status === "warning" && "bg-warning/10",
-                                            status === "destructive" && "bg-destructive/10",
+                                            status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                            status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                            status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                             isDepartmentProfit && "bg-primary/5",
                                             isNetSellingGross && !status && "bg-muted/30",
                                           )}
@@ -4108,11 +4108,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   >
                                                     <div
                                                       className={cn(
-                                                        "h-full w-full flex items-center justify-center cursor-text",
-                                                        status === "success" && "text-success font-medium",
-                                                        status === "warning" && "text-warning font-medium",
-                                                        status === "destructive" && "text-destructive font-medium",
-                                                      )}
+                                                         "h-full w-full flex items-center justify-center cursor-text text-xs",
+                                                         status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                         status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                         status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
+                                                       )}
                                                       onClick={(e) => {
                                                         const input = (e.currentTarget.parentElement?.querySelector(
                                                           "input",
@@ -4294,8 +4294,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       <TableCell
                                         className={cn(
                                           "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] font-medium relative",
-                                          period.type === "year-avg" && "bg-primary/10 border-l-2 border-primary/30",
-                                          period.type === "year-total" && "bg-primary/10 border-r-2 border-primary/30",
+                                          period.type === "year-avg" && "bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                          period.type === "year-total" && "bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                                           isDepartmentProfit && "bg-primary/15",
                                           isNetSellingGross && "bg-muted/40",
                                         )}
@@ -4384,9 +4384,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   key={qtr.label}
                                   className={cn(
                                     "px-1 py-0.5 text-center min-w-[125px] max-w-[125px] relative",
-                                    status === "success" && "bg-success/10",
-                                    status === "warning" && "bg-warning/10",
-                                    status === "destructive" && "bg-destructive/10",
+                                    status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                    status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                    status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                     !status && "text-muted-foreground",
                                     isDepartmentProfit && "bg-primary/5",
                                     isNetSellingGross && !status && "bg-muted/30",
@@ -4400,10 +4400,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   >
                                     <div
                                       className={cn(
-                                        "w-full h-full flex items-center justify-center",
-                                        status === "success" && "text-success font-medium",
-                                        status === "warning" && "text-warning font-medium",
-                                        status === "destructive" && "text-destructive font-medium",
+                                        "w-full h-full flex items-center justify-center text-xs",
+                                        status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                        status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                        status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                       )}
                                     >
                                       {qValue !== null && qValue !== undefined
@@ -4444,12 +4444,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 return (
                                   <TableCell
                                     className={cn(
-                                      "text-center py-[7.2px] min-w-[100px] max-w-[100px] bg-primary/10 border-x-2 border-primary/30",
-                                      isDepartmentProfit && "z-10",
-                                      status === "success" && "bg-success/10 text-success font-medium",
-                                      status === "warning" && "bg-warning/10 text-warning font-medium",
-                                      status === "destructive" && "bg-destructive/10 text-destructive font-medium",
-                                      !status && "text-muted-foreground",
+                                   "text-center py-[7.2px] min-w-[100px] max-w-[100px] text-xs bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                          isDepartmentProfit && "z-10",
+                                          status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 font-medium",
+                                          status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-medium",
+                                          status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 font-medium",
+                                          !status && "text-muted-foreground",
                                     )}
                                   >
                                     {qValue !== null && qValue !== undefined ? formatTarget(qValue, metric.type) : "-"}
@@ -4620,24 +4620,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     key={month.identifier}
                                     className={cn(
                                       "text-center py-[7.2px] min-w-[125px] max-w-[125px]",
-                                      isDepartmentProfit && "z-10 bg-background",
-                                      status === "success" && "bg-success/10",
-                                      status === "warning" && "bg-warning/10",
-                                      status === "destructive" && "bg-destructive/10",
-                                      !status && "text-muted-foreground",
-                                    )}
-                                  >
-                                    <TrendCellTooltip
-                                      metricKey={metric.key}
-                                      metricType={metric.type}
-                                      monthIdentifier={month.identifier}
-                                    >
-                                      <span
-                                        className={cn(
-                                          "block w-full",
-                                          status === "success" && "text-success font-medium",
-                                          status === "warning" && "text-warning font-medium",
-                                          status === "destructive" && "text-destructive font-medium",
+                                          isDepartmentProfit && "z-10 bg-background",
+                                          status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                          status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                          status === "destructive" && "bg-red-100 dark:bg-red-900/40",
+                                          !status && "text-muted-foreground",
+                                        )}
+                                      >
+                                        <TrendCellTooltip
+                                          metricKey={metric.key}
+                                          metricType={metric.type}
+                                          monthIdentifier={month.identifier}
+                                        >
+                                          <span
+                                            className={cn(
+                                              "block w-full text-xs",
+                                              status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                              status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                              status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                         )}
                                       >
                                         {value !== null && value !== undefined ? formatTarget(value, metric.type) : "-"}
@@ -4913,12 +4913,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         className={cn(
                                           "p-1 relative min-w-[125px] max-w-[125px]",
                                           isDepartmentProfit && "z-10 bg-background",
-                                          status === "success" && "bg-success/10",
-                                          status === "warning" && "bg-warning/10",
-                                          status === "destructive" && "bg-destructive/10",
+                                          status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                          status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                          status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                         )}
-                                      >
-                                        <TrendCellTooltip
+                                       >
+                                         <TrendCellTooltip
                                           metricKey={metric.key}
                                           metricType={metric.type}
                                           monthIdentifier={month.identifier}
@@ -4933,11 +4933,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                       <>
                                                         <div
                                                           className={cn(
-                                                            "text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px]",
-                                                            status === "success" && "text-success font-medium",
-                                                            status === "warning" && "text-warning font-medium",
-                                                            status === "destructive" && "text-destructive font-medium",
-                                                            "text-muted-foreground",
+                                                             "text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px] text-xs",
+                                                             status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                             status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                             status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
+                                                             "text-muted-foreground",
                                                           )}
                                                         >
                                                           {value !== null && value !== undefined
@@ -4983,11 +4983,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                             return (
                                                               <div
                                                                 className={cn(
-                                                                  "h-full w-full flex items-center justify-center cursor-text",
-                                                                  status === "success" && "text-success font-medium",
-                                                                  status === "warning" && "text-warning font-medium",
-                                                                  status === "destructive" &&
-                                                                    "text-destructive font-medium",
+                                                                   "h-full w-full flex items-center justify-center cursor-text text-xs",
+                                                                   status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                                   status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                                   status === "destructive" &&
+                                                                     "text-red-800 dark:text-red-200 font-medium",
                                                                 )}
                                                                 onClick={(e) => {
                                                                   const input = e.currentTarget
