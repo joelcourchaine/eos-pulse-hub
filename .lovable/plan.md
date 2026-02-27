@@ -1,17 +1,16 @@
 
-## What needs to happen
+## Plan: Collapsible Descriptions for Issues & To-Dos
 
-**Database changes only — no code changes needed.**
+The descriptions are always visible, making cards tall. The fix is to hide descriptions by default and only show them when a card is clicked/expanded.
 
-1. **Delete Jordan Mitchell and Tyler Brooks** from `team_members`
-   - Jordan Mitchell: `668cb163-5960-455e-b223-55ef0e07948b`
-   - Tyler Brooks: `85a5ea32-1012-47e1-a795-ae1515776610`
+### Changes to `src/components/issues/IssuesAndTodosPanel.tsx`
 
-2. **Re-parent affected members to Blake Harrison** (`8999accf-6798-4b0a-b5c4-16a262835e97`):
-   - Sam Chen (foreman) — currently reports to Tyler Brooks → update to Blake Harrison
-   - Avery Kim (warranty_admin) — currently reports to Tyler Brooks → update to Blake Harrison
+1. Add `expandedIssueId` and `expandedTodoId` state (string | null)
+2. **Issues**: Wrap the description `<p>` in a conditional — only render when `expandedIssueId === issue.id`. Make the card clickable (excluding buttons/select) to toggle expansion. Add a subtle `ChevronDown`/`ChevronUp` indicator when a description exists.
+3. **Todos**: Same pattern — wrap description in conditional toggled by `expandedTodoId`. Make card body clickable to expand.
+4. Cards without descriptions are unaffected — no toggle indicator shown.
 
-3. **Set Blake Harrison as root** (no reports_to):
-   - Blake Harrison currently reports to Jordan Mitchell → set `reports_to = NULL`
-
-Result: Blake Harrison is the top of the chart, with Sam Chen, Avery Kim, Morgan Davis, Riley Thompson, Casey Williams, and Alex Rivera all reporting to him.
+### Result
+- Cards shrink significantly (title + badges only by default)
+- Click a card to reveal its description inline
+- Only one issue and one todo can be expanded at a time
