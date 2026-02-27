@@ -165,18 +165,11 @@ const Processes = () => {
                       {catProcesses.map((proc, idx) => (
                         <div
                           key={proc.id}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:opacity-90 cursor-pointer transition-all hover:shadow-sm"
-                          style={{
-                            background: `hsl(var(--primary) / ${0.07 + (idx % 3) * 0.03})`,
-                            borderColor: `hsl(var(--primary) / 0.2)`,
-                          }}
+                          className="flex items-center justify-between p-3 rounded-lg border hover:opacity-90 cursor-pointer transition-all hover:shadow-sm bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/40"
                           onClick={() => navigate(`/processes/${proc.id}`)}
                         >
                           <div className="min-w-0 flex items-center gap-2">
-                            <div
-                              className="h-2 w-2 rounded-full shrink-0"
-                              style={{ background: `hsl(var(--primary) / ${0.5 + (idx % 3) * 0.15})` }}
-                            />
+                            <div className="h-2 w-2 rounded-full shrink-0 bg-green-500" />
                             <div>
                               <p className="text-sm font-medium truncate text-foreground">{proc.title}</p>
                               <p className="text-xs text-muted-foreground">
