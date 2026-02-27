@@ -1,16 +1,12 @@
 
-## Plan: Collapsible Descriptions for Issues & To-Dos
+## Plan: Move Severity Inline with Assignee & Due Date
 
-The descriptions are always visible, making cards tall. The fix is to hide descriptions by default and only show them when a card is clicked/expanded.
+Currently todos have two rows below the title:
+1. Row 1: severity select (alone, with `mt-2`)
+2. Row 2: assignee + due date (separate `div` with `mt-2`)
 
-### Changes to `src/components/issues/IssuesAndTodosPanel.tsx`
+### Change in `src/components/issues/IssuesAndTodosPanel.tsx` (lines 593–632)
 
-1. Add `expandedIssueId` and `expandedTodoId` state (string | null)
-2. **Issues**: Wrap the description `<p>` in a conditional — only render when `expandedIssueId === issue.id`. Make the card clickable (excluding buttons/select) to toggle expansion. Add a subtle `ChevronDown`/`ChevronUp` indicator when a description exists.
-3. **Todos**: Same pattern — wrap description in conditional toggled by `expandedTodoId`. Make card body clickable to expand.
-4. Cards without descriptions are unaffected — no toggle indicator shown.
+Merge both `div`s into a single row: `severity select` + `assignee` + `due date` all on one `flex items-center gap-2 mt-1` line. Remove the separate assignee/due date `div` entirely.
 
-### Result
-- Cards shrink significantly (title + badges only by default)
-- Click a card to reveal its description inline
-- Only one issue and one todo can be expanded at a time
+Result: todo cards will be the same compact single-row-of-metadata height as issues.
