@@ -343,17 +343,17 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
       return "border-muted-foreground/30 bg-muted/50";
     }
     switch (severity) {
-      case "low": return "border-success/50 bg-success/10";
-      case "high": return "border-destructive/50 bg-destructive/10";
-      default: return "border-warning/50 bg-warning/10";
+      case "low": return "border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40";
+      case "high": return "border-red-300 dark:border-red-700 bg-red-100 dark:bg-red-900/40";
+      default: return "border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40";
     }
   };
 
   const getSeverityDotColor = (severity: string) => {
     switch (severity) {
-      case "low": return "bg-success";
-      case "high": return "bg-destructive";
-      default: return "bg-warning";
+      case "low": return "bg-emerald-500";
+      case "high": return "bg-red-500";
+      default: return "bg-amber-500";
     }
   };
 
@@ -472,19 +472,19 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                                 <SelectContent>
                                   <SelectItem value="low">
                                     <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-success" />
+                                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
                                       Low
                                     </span>
                                   </SelectItem>
                                   <SelectItem value="medium">
                                     <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-warning" />
+                                      <span className="h-2 w-2 rounded-full bg-amber-500" />
                                       Medium
                                     </span>
                                   </SelectItem>
                                   <SelectItem value="high">
                                     <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-destructive" />
+                                      <span className="h-2 w-2 rounded-full bg-red-500" />
                                       High
                                     </span>
                                   </SelectItem>
@@ -605,19 +605,19 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                           <SelectContent>
                             <SelectItem value="low">
                               <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-success" />
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
                                 Low
                               </span>
                             </SelectItem>
                             <SelectItem value="medium">
                               <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-warning" />
+                                <span className="h-2 w-2 rounded-full bg-amber-500" />
                                 Medium
                               </span>
                             </SelectItem>
                             <SelectItem value="high">
                               <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-destructive" />
+                                <span className="h-2 w-2 rounded-full bg-red-500" />
                                 High
                               </span>
                             </SelectItem>
