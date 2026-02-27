@@ -1,79 +1,68 @@
 
-## What Was and Wasn't Done
-
-The previous Nissan 2026 row-shift change was **incomplete**. Here's the current state:
-
-**Done:**
-- `total_direct_expenses` (D38→D37 for 2026) and `total_fixed_expense` (D61→D60 for 2026) were added with `effective_year: 2025` for Service and Parts departments only.
-
-**Missing — needs to be done:**
-
-### 1. Sub-metric rows D21-D37 need 2026 versions
-The DIGITAL ADVERTISING row was at position D26 (sub_6). For 2026+, sub_6 disappears and sub_7 through sub_17 each shift up by 1 row:
-- Currently sub_7=D27 → for 2026 becomes sub_6=D26 (renumbered)
-- sub_17=D37 → for 2026 becomes sub_16=D36
-
-The cleanest approach: add `effective_year: 2025` to `total_direct_expenses_sub_6` (the DIGITAL ADVERTISING row), and add **2026 rows** for sub_6 through sub_16 at the shifted cell references.
-
-### 2. Body Shop Department is entirely missing 2026-shifted mappings
-Body Shop uses column L (L38, L61, etc.) — same Nissan3 sheet but column L. It currently only has 4 sales_expense sub rows (L16-L19) with no year tagging. It needs full mappings matching Service/Parts but in column L.
-
-### 3. No 2026 mappings exist yet for any department
-The current `effective_year: 2025` entries are the 2025-specific cells. We need mirrored 2026 entries at the shifted cell addresses.
-
 ## Plan
 
-### Database migration — insert 2026 mappings for Nissan Nissan3
+### 1. Fix org chart position color coding (database update)
+The `team_members` positions are stored as free-text (e.g. "Service Director", "Shop Foreman", "Red Seal Technician") but `POSITION_COLORS` in `ReverseOrgChart.tsx` uses snake_case keys (e.g. `service_manager`, `foreman`, `red_seal_technician`). The positions need to match the keys used in the color map.
 
-For all 3 departments (Service=D, Parts=H, Body Shop=L):
+**Update `team_members` positions to snake_case keys:**
+- "Service Director" → there's no key for this; add `service_director` to `POSITION_COLORS` in code
+- "Fixed Ops Manager" → add `fixed_ops_manager` to `POSITION_COLORS`  
+- "Shop Foreman" → maps to `foreman`
+- "Service Manager" → `service_manager` ✓ (already exists)
+- "Service Advisor" → `advisor` ✓
+- "BDC Coordinator" → add `bdc_coordinator`
+- "Warranty Administrator" → `warranty_admin` (update DB: "Warranty Administrator" → "warranty_admin")
+- "Red Seal Technician" → `red_seal_technician` (add to POSITION_COLORS)
+- "3rd Year Apprentice" → `apprentice_3` (add to POSITION_COLORS)
+- "2nd Year Apprentice" → `apprentice_2` (add to POSITION_COLORS)
+- "Lube Technician" → `lube_technician` (add to POSITION_COLORS)
 
-**Tag existing 2025 sub_6 (DIGITAL ADVERTISING):**
-- Update `total_direct_expenses_sub_6` rows (D26, H26, L26) to `effective_year = 2025`
+**DB updates needed:** update `position` values to snake_case keys matching `POSITION_OPTIONS` in AddTeamMemberDialog (which already uses correct keys like `foreman`, `red_seal_technician`, etc.)
 
-**Insert 2026 mappings (sub rows shift -1 from row 27 onward):**
-- `total_direct_expenses_sub_6` → D26/H26/L26 but NOW these map to what was sub_7's content at 2026 (the sub_6 slot is vacated by removal of DIGITAL ADVERTISING, so sub_7's 2025 cell D27 becomes D26 in 2026)
-- sub_7 through sub_16 shift: D28→D27, D29→D28... D37→D36 (effective_year: 2026)
-- `total_direct_expenses` total: D38→D37 (effective_year: 2026)
-- `total_fixed_expense`: D61→D60 (effective_year: 2026)
-
-**Body Shop — add ALL missing base mappings plus 2026 variants:**
-- Add universal mappings for Body Shop: total_sales (L6), gp_net (L7), sales_expense (L20), total_direct_expenses_sub_1 through sub_17, total_direct_expenses (L38), total_fixed_expense (L61)
-- Add `effective_year: 2025` tag to Body Shop total_direct_expenses (L38) and total_fixed_expense (L61)
-- Add `effective_year: 2026` entries for Body Shop with shifted cells
-
-### No code changes needed
-The `fetchCellMappings` function in `parseFinancialExcel.ts` already correctly prioritizes `effective_year`-matched rows over universal ones — the logic is already there. This is purely a data fix.
-
-### SQL Summary
-```sql
--- 1. Tag existing sub_6 rows as 2025-only (DIGITAL ADVERTISING)
-UPDATE financial_cell_mappings SET effective_year = 2025
-WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
-  AND metric_key LIKE 'total_direct_expenses_sub_6';
-
--- 2. Tag existing total_direct_expenses and total_fixed_expense as 2025
-UPDATE financial_cell_mappings SET effective_year = 2025
-WHERE brand = 'Nissan' AND sheet_name = 'Nissan3'
-  AND department_name IN ('Service Department','Parts Department')
-  AND metric_key IN ('total_direct_expenses','total_fixed_expense');
-
--- 3. Insert 2026 sub rows for Service (col D), Parts (col H), Body Shop (col L)
---    sub_6 through sub_16 shift: old sub_7..sub_17 → new sub_6..sub_16 at row-1
-INSERT INTO financial_cell_mappings (...) VALUES
-  -- Service 2026
-  ('Nissan','Service Department','total_direct_expenses_sub_6','Nissan3','D26',2026),
-  ('Nissan','Service Department','total_direct_expenses_sub_7','Nissan3','D27',2026),
-  ...
-  ('Nissan','Service Department','total_direct_expenses_sub_16','Nissan3','D36',2026),
-  ('Nissan','Service Department','total_direct_expenses','Nissan3','D37',2026),
-  ('Nissan','Service Department','total_fixed_expense','Nissan3','D60',2026),
-  -- Parts 2026 (col H) — same logic
-  -- Body Shop base (col L) — universal + 2025/2026 variants
-
--- 4. Insert Body Shop base mappings (missing entirely)
-INSERT INTO financial_cell_mappings (...) VALUES
-  ('Nissan','Body Shop Department','total_sales','Nissan3','L6',NULL),
-  ('Nissan','Body Shop Department','gp_net','Nissan3','L7',NULL),
-  ('Nissan','Body Shop Department','sales_expense','Nissan3','L20',NULL),
-  ...
+**Code change:** Add missing position colors to `POSITION_COLORS` map in `ReverseOrgChart.tsx`:
+```ts
+service_director: { bg: "hsl(230 55% 30%)", text: "white", border: "..." },
+fixed_ops_manager: { bg: "hsl(200 60% 35%)", text: "white", border: "..." },
+bdc_coordinator: { bg: "hsl(290 50% 50%)", text: "white", border: "..." },
+lube_technician: { bg: "hsl(25 70% 58%)", text: "white", border: "..." },
+red_seal_technician: { bg: "hsl(25 95% 45%)", text: "white", border: "..." },
+apprentice_1/2/3/4: distinct amber/yellow shades,
 ```
+
+Also add these to `POSITION_LABELS`.
+
+### 2. Restructure org chart to match screenshot more closely
+The current data already matches the screenshot structure (Jordan Mitchell → Tyler Brooks + Blake Harrison → Sam Chen etc.). The issue is purely the position key mismatch causing no colors. Once positions are corrected, the chart will render with colors.
+
+**DB: Update positions to snake_case:**
+```sql
+UPDATE team_members SET position = 'foreman' WHERE name = 'Sam Chen';
+UPDATE team_members SET position = 'warranty_admin' WHERE name = 'Avery Kim';
+UPDATE team_members SET position = 'red_seal_technician' WHERE name IN ('Jordan Lee','Peyton Nguyen','Marcus Olsen','Tanner Walsh');
+UPDATE team_members SET position = 'apprentice_3' WHERE name = 'Dylan Park';
+UPDATE team_members SET position = 'apprentice_2' WHERE name = 'Brooke Santos';
+UPDATE team_members SET position = 'lube_technician' WHERE name IN ('Jamie Torres','Sage Anderson','Remy Castillo');
+UPDATE team_members SET position = 'advisor' WHERE position = 'Service Advisor';
+UPDATE team_members SET position = 'service_manager' WHERE name = 'Blake Harrison';
+UPDATE team_members SET position = 'fixed_ops_manager' WHERE name = 'Tyler Brooks';
+UPDATE team_members SET position = 'bdc_coordinator' WHERE name = 'Alex Rivera';
+-- Add service_director as new position type for Jordan Mitchell
+UPDATE team_members SET position = 'service_director' WHERE name = 'Jordan Mitchell';
+```
+
+### 3. Insert issues for the Service department
+
+Insert 6 realistic service department issues with mixed statuses and severities:
+```sql
+INSERT INTO issues (department_id, title, description, status, severity, created_by) VALUES
+('8d003f60...', 'CP Labour Absorption Below 75% Target', '...', 'open', 'high', '9477e2ed...'),
+('8d003f60...', 'Tech Efficiency at 98% — Below 105% Goal', '...', 'open', 'medium', ...),
+('8d003f60...', 'Advisor Upsell Compliance Low (42%)', '...', 'in_progress', 'medium', ...),
+('8d003f60...', 'CSI Score Declined 3 Consecutive Weeks', '...', 'open', 'high', ...),
+('8d003f60...', 'Parts WIP Aging Over 30 Days on 12 ROs', '...', 'in_progress', 'low', ...),
+('8d003f60...', 'Loaner Fleet Utilization at 61% — 2 Units Offline', '...', 'open', 'low', ...);
+```
+
+### Files changed
+- `src/components/team/ReverseOrgChart.tsx` — add missing position colors + labels
+- DB updates (no migrations needed — data + code only)
