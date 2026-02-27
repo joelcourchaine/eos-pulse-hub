@@ -415,26 +415,30 @@ export const RoutineSidebar = ({
               </SidebarMenuItem>
             );
           })}
-          {/* My Processes & My Resources */}
-          <SidebarSeparator className="my-2 !bg-white/10" />
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <Workflow className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest">My Processes</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <BookOpen className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest">My Resources</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
-              <Users className="h-4 w-4 shrink-0" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest">My Team</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {/* My Processes, My Resources & My Team — collapsed only */}
+          {isCollapsed && (
+            <>
+              <SidebarSeparator className="my-2 !bg-white/10" />
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="My Processes" onClick={() => navigate(`/processes?dept=${departmentId}`)} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+                  <Workflow className="h-4 w-4 shrink-0" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest">My Processes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="My Resources" onClick={() => navigate("/resources")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+                  <BookOpen className="h-4 w-4 shrink-0" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest">My Resources</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest">My Team</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
+          )}
         </SidebarMenu>
 
         {/* Routine Checklists - Only visible when expanded */}
