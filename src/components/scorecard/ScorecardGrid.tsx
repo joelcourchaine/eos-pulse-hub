@@ -583,7 +583,7 @@ const ScorecardGrid = ({
 
       // Load targets first and pass them directly to scorecard data to avoid stale state
       const { weeklyTargets, monthlyTargets } = await loadKPITargets();
-      await loadScorecardData(weeklyTargets, monthlyTargets);
+      await loadScorecardData(viewMode === "weekly" ? weeklyTargets : monthlyTargets);
 
       // Always load preceding quarters data (needed for monthly Q Avg columns and trend modes)
       await loadPrecedingQuartersData();
@@ -736,7 +736,7 @@ const ScorecardGrid = ({
 
           // Reload data to get the latest
           const { weeklyTargets, monthlyTargets } = await loadKPITargets();
-          await loadScorecardData(weeklyTargets, monthlyTargets);
+          await loadScorecardData(viewMode === "weekly" ? weeklyTargets : monthlyTargets);
 
           // Show toast notification for updates from other users
           if (payload.eventType === "UPDATE" || payload.eventType === "INSERT") {
@@ -5652,7 +5652,7 @@ const ScorecardGrid = ({
             setDroppedFile(null);
             setImportWeekStartDate(null);
             // Refresh scorecard data and import logs after import
-            loadKPITargets().then((freshTargets) => loadScorecardData(freshTargets));
+            loadKPITargets().then((freshTargets) => loadScorecardData(viewMode === "weekly" ? freshTargets.weeklyTargets : freshTargets.monthlyTargets));
             loadImportLogs();
           }}
         />
