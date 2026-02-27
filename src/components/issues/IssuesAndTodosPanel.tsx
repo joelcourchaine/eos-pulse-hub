@@ -590,15 +590,15 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                       {todo.description && expandedTodoId === todo.id && (
                         <p className="text-sm text-muted-foreground mt-1">{todo.description}</p>
                       )}
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
                         {todo.issue_id && (
-                          <Badge variant="outline">
+                          <Badge variant="outline" className="h-5 text-xs">
                             <AlertCircle className="h-3 w-3 mr-1" />
                             {getIssueTitle(todo.issue_id)}
                           </Badge>
                         )}
                         <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
-                          <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
+                          <SelectTrigger className="h-5 w-[6.5rem] text-xs capitalize">
                             <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
                             <SelectValue />
                           </SelectTrigger>
@@ -623,8 +623,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
                         <span>{getAssignedName(todo.assigned_to)}</span>
                         {todo.due_date && (
                           <span>Due: {format(new Date(todo.due_date), "MMM d")}</span>
