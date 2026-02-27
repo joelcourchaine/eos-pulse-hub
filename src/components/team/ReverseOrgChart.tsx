@@ -672,7 +672,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       <div ref={containerRef} className="overflow-auto border rounded-lg bg-background">
         <div
           ref={chartRef}
-          className="relative p-8"
+          className="relative pt-16 px-8 pb-8"
           style={{ transform: `scale(${zoom})`, transformOrigin: "top center", minWidth: layout.totalWidth }}
         >
           {/* SVG lines */}
