@@ -355,37 +355,35 @@ const LeafPill = ({ member, showNames, onSelect, size = 36 }: LeafPillProps) => 
     : primaryColors.bg;
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none flex-shrink-0"
-            style={{
-              background: bgStyle,
-              color: primaryColors.text,
-              width: size,
-              height: size,
-              fontSize: 11,
-              fontWeight: 700,
-              border: isVacant ? `2px dashed ${primaryColors.border}` : `1px solid ${primaryColors.border}`,
-              opacity: isVacant ? 0.7 : 1,
-            }}
-            onClick={() => onSelect(member)}
-          >
-            {showNames ? (
-              <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
-            ) : (
-              initials
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          <p className="font-semibold">{member.name}</p>
-          <p className="opacity-75">{POSITION_LABELS[member.position] || member.position}</p>
-          {isVacant && <p className="italic opacity-60">Vacant</p>}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none flex-shrink-0"
+          style={{
+            background: bgStyle,
+            color: primaryColors.text,
+            width: size,
+            height: size,
+            fontSize: 11,
+            fontWeight: 700,
+            border: isVacant ? `2px dashed ${primaryColors.border}` : `1px solid ${primaryColors.border}`,
+            opacity: isVacant ? 0.7 : 1,
+          }}
+          onClick={() => onSelect(member)}
+        >
+          {showNames ? (
+            <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
+          ) : (
+            initials
+          )}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs" sideOffset={8}>
+        <p className="font-semibold">{member.name}</p>
+        <p className="opacity-75">{POSITION_LABELS[member.position] || member.position}</p>
+        {isVacant && <p className="italic opacity-60">Vacant</p>}
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
@@ -618,6 +616,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   }
 
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4">
@@ -762,5 +761,6 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
         </div>
       </div>
     </div>
+    </TooltipProvider>
   );
 };
