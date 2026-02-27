@@ -633,9 +633,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   <TableCell 
                     className={cn(
                       "text-center py-1 text-xs min-w-[125px] max-w-[125px] relative",
-                      status === 'success' && "bg-success/10",
-                      status === 'warning' && "bg-warning/10",
-                      status === 'destructive' && "bg-destructive/10",
+                      status === 'success' && "bg-emerald-100 dark:bg-emerald-900/40",
+                      status === 'warning' && "bg-amber-100 dark:bg-amber-900/40",
+                      status === 'destructive' && "bg-red-100 dark:bg-red-900/40",
                       !status && "text-muted-foreground",
                       canEdit && onSaveSubMetricValue && "cursor-pointer hover:bg-muted/40",
                       // Add subtle indicator for rock target cells
@@ -657,9 +657,9 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     ) : (
                       <SubMetricLYTooltip subMetricName={subMetric.name} monthIdentifier={period.identifier}>
                           <span className={cn(
-                            status === 'success' && "text-success font-medium",
-                            status === 'warning' && "text-warning font-medium",
-                            status === 'destructive' && "text-destructive font-medium"
+                          status === 'success' && "text-emerald-800 dark:text-emerald-200 font-medium",
+                            status === 'warning' && "text-amber-800 dark:text-amber-200 font-medium",
+                            status === 'destructive' && "text-red-800 dark:text-red-200 font-medium"
                           )}>
                             {value !== null ? formatValue(value) : "-"}
                           </span>
@@ -958,17 +958,17 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   key={qtr.label} 
                   className={cn(
                     "text-center py-1 text-xs min-w-[125px] max-w-[125px]",
-                    status === 'success' && "bg-success/10",
-                    status === 'warning' && "bg-warning/10",
-                    status === 'destructive' && "bg-destructive/10",
+                    status === 'success' && "bg-emerald-100 dark:bg-emerald-900/40",
+                    status === 'warning' && "bg-amber-100 dark:bg-amber-900/40",
+                    status === 'destructive' && "bg-red-100 dark:bg-red-900/40",
                     !status && "text-muted-foreground"
                   )}
                 >
                   <SubMetricQtrLYTooltip subMetricName={subMetric.name} qtr={qtr.quarter} qtrYear={qtr.year}>
                     <span className={cn(
-                      status === 'success' && "text-success font-medium",
-                      status === 'warning' && "text-warning font-medium",
-                      status === 'destructive' && "text-destructive font-medium"
+                      status === 'success' && "text-emerald-800 dark:text-emerald-200 font-medium",
+                      status === 'warning' && "text-amber-800 dark:text-amber-200 font-medium",
+                      status === 'destructive' && "text-red-800 dark:text-red-200 font-medium"
                     )}>
                       {quarterValue !== null ? formatValue(quarterValue) : "-"}
                     </span>

@@ -4933,11 +4933,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                       <>
                                                         <div
                                                           className={cn(
-                                                             "text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px] text-xs",
+                                                              "text-center h-8 flex items-center justify-center flex-1 min-w-0 max-w-[105px] text-xs",
                                                              status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
                                                              status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
                                                              status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
-                                                             "text-muted-foreground",
+                                                             !status || status === "default" ? "text-muted-foreground" : "",
                                                           )}
                                                         >
                                                           {value !== null && value !== undefined
@@ -5081,9 +5081,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                           data-month-index={monthIndex}
                                                           className={cn(
                                                             "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                                                            status === "success" && "text-success font-medium",
-                                                            status === "warning" && "text-warning font-medium",
-                                                            status === "destructive" && "text-destructive font-medium",
+                                                            status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                            status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                            status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                                             saving[key] && "opacity-50",
                                                           )}
                                                           disabled={saving[key]}
