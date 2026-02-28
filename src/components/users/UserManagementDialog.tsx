@@ -255,13 +255,12 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
 
     if (currentStoreId) {
       // Run all queries in parallel for better performance
-      const [storeResult, storeUsersResult, storeAccessResult, departmentsResult, superAdminsResult] =
+      const [storeResult, storeUsersResult, storeAccessResult, departmentsResult] =
         await Promise.all([
           supabase.from("stores").select("group_id").eq("id", currentStoreId).single(),
           supabase.from("profiles").select("id").eq("store_id", currentStoreId),
           supabase.from("user_store_access").select("user_id").eq("store_id", currentStoreId),
           supabase.from("departments").select("id").eq("store_id", currentStoreId),
-          supabase.from("user_roles").select("user_id").eq("role", "super_admin"),
         ]);
 
       const storeGroupId = storeResult.data?.group_id;
@@ -269,7 +268,6 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       // Collect user IDs from parallel results
       userIds = storeUsersResult.data?.map((u) => u.id) || [];
       userIds = [...userIds, ...(storeAccessResult.data?.map((u) => u.user_id) || [])];
-      userIds = [...userIds, ...(superAdminsResult.data?.map((sa) => sa.user_id) || [])];
 
       // Secondary parallel queries that depend on first results
       const departmentIds = departmentsResult.data?.map((d) => d.id) || [];
@@ -330,18 +328,20 @@ export const UserManagementDialog = ({ open, onOpenChange, currentStoreId }: Use
       const roleMap = new Map<string, string>();
       allRoles?.forEach((r) => roleMap.set(r.user_id, r.role));
 
-      const profilesWithRoles = (data || []).map((profile) => {
-        // Flatten joined sensitive data onto the profile object
-        const sensitive = (profile as any).profile_sensitive_data;
-        return {
-          ...profile,
-          birthday_month: sensitive?.birthday_month ?? profile.birthday_month ?? null,
-          birthday_day: sensitive?.birthday_day ?? profile.birthday_day ?? null,
-          start_month: sensitive?.start_month ?? profile.start_month ?? null,
-          start_year: sensitive?.start_year ?? profile.start_year ?? null,
-          user_role: roleMap.get(profile.id) || profile.role,
-        };
-      });
+      const profilesWithRoles = (data || [])
+        .map((profile) => {
+          // Flatten joined sensitive data onto the profile object
+          const sensitive = (profile as any).profile_sensitive_data;
+          return {
+            ...profile,
+            birthday_month: sensitive?.birthday_month ?? profile.birthday_month ?? null,
+            birthday_day: sensitive?.birthday_day ?? profile.birthday_day ?? null,
+            start_month: sensitive?.start_month ?? profile.start_month ?? null,
+            start_year: sensitive?.start_year ?? profile.start_year ?? null,
+            user_role: roleMap.get(profile.id) || profile.role,
+          };
+        })
+        .filter((profile) => profile.user_role !== "super_admin");
       setProfiles(profilesWithRoles);
     }
     setLoading(false);
