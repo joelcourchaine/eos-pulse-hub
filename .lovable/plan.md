@@ -1,29 +1,32 @@
 
-## Plan: Match Financial Summary Visual Style to Scorecard
+## Plan: Suppress Red/Yellow/Green Status Colors When Value is Zero
 
-### Goal
-Replace the Financial Summary's CSS-variable-based cell colors (`bg-success/10`, `text-success`) with the same explicit Tailwind color tokens used in the Scorecard (`bg-emerald-100`, `text-emerald-800`, etc.). Also update the "Q Target" column header to use the same dark navy as the scorecard.
+### Problem
+When months have no financial data entered (value = `$0`), the status color logic still runs because `0` is a valid number. It computes variance against the target and marks the cell red (destructive) — but `$0` means "no data" not "bad performance."
 
-### Changes to `src/components/financial/FinancialSummary.tsx`
+### Fix: Treat `value === 0` as no-data (null status) in all status computation blocks
 
-**1. Cell background & text colors — replace ALL occurrences** (roughly 12–15 spots across monthly trend, quarter trend, standard view, and previous-year month columns):
+In `src/components/financial/FinancialSummary.tsx`, there are ~5 places where the `status` variable is computed. Each has a guard like:
 
-| Old (CSS variable) | New (matches scorecard) |
-|---|---|
-| `bg-success/10` | `bg-emerald-100 dark:bg-emerald-900/40` |
-| `bg-warning/10` | `bg-amber-100 dark:bg-amber-900/40` |
-| `bg-destructive/10` | `bg-red-100 dark:bg-red-900/40` |
-| `text-success font-medium` | `text-emerald-800 dark:text-emerald-200 font-medium` |
-| `text-warning font-medium` | `text-amber-800 dark:text-amber-200 font-medium` |
-| `text-destructive font-medium` | `text-red-800 dark:text-red-200 font-medium` |
-| `text-success` (without `font-medium`) | `text-emerald-800 dark:text-emerald-200` |
-| `text-warning` | `text-amber-800 dark:text-amber-200` |
-| `text-destructive` | `text-red-800 dark:text-red-200` |
+```ts
+if (value !== null && targetValue !== null && targetValue !== 0) {
+  // compute variance → set status
+}
+```
 
-**2. Q Target column header** — change from `bg-primary/10 border-x-2 border-primary/30` to `bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]` to match the scorecard's navy target column.
+The fix is to also add `&& value !== 0` to these guards — so a zero value produces `status = null` (no color background, just the neutral cell).
 
-**3. Legend dots** — update the header legend dots from `bg-green-500 / bg-yellow-500` to `bg-emerald-500 / bg-amber-500` for consistency with scorecard legend (line 3438 & 3442).
+### All locations to update (5 spots, same pattern each):
 
-**4. Font size on data cells** — scorecard uses `text-xs` on cell content; add `text-xs` to Financial Summary data cells to match. The scorecard cell font size is `text-xs` via the display div class.
+1. **~line 3986** — standard monthly view, first status block  
+2. **~line 4062** — standard monthly view, second status block (prev-year month column)  
+3. **~line 4374** — quarterly trend view  
+4. **~line 4436** — monthly trend view  
+5. **~line 4610** — year total / annual view  
+6. **~line 4899** — quarter-average view  
 
-All changes are in a single file: `src/components/financial/FinancialSummary.tsx`
+Each fix: add `&& mValue !== 0` (or `value !== 0` / `qtrValue !== 0` matching the local variable name) to the outer `if` condition that guards status computation.
+
+This keeps green/yellow/red for months with real data while showing plain neutral cells for months with no data entered yet.
+
+**Single file:** `src/components/financial/FinancialSummary.tsx`
