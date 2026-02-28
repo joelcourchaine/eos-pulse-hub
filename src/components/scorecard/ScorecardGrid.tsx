@@ -5186,9 +5186,9 @@ const ScorecardGrid = ({
                                         <TableCell
                                           className={cn(
                              "px-1 py-0.5 relative min-w-[90px] max-w-[90px]",
-                            status === "success" && "bg-success/10",
-                            status === "warning" && "bg-warning/10",
-                            status === "destructive" && "bg-destructive/10",
+                             status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                             status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                             status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                           )}
                                         >
                                           <div className="relative flex items-center justify-center gap-0 h-8 w-full">
@@ -5198,11 +5198,11 @@ const ScorecardGrid = ({
                                               // Display formatted value when data exists (always for calculated, when not focused for others)
                                               <div
                                                 data-display-value
-                                                className={cn(
-                                                  "h-full w-full flex items-center justify-center cursor-text",
-                                                  status === "success" && "text-success font-medium",
-                                                  status === "warning" && "text-warning font-medium",
-                                                  status === "destructive" && "text-destructive font-medium",
+                                                 className={cn(
+                                                  "h-full w-full flex items-center justify-center cursor-text text-xs",
+                                                  status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                  status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                  status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                                   isCalculatedKPI(kpi.name) && "cursor-default",
                                                 )}
                                                 onClick={(e) => {
@@ -5307,10 +5307,10 @@ const ScorecardGrid = ({
                                               )}
                                               className={cn(
                                                 "h-full w-full text-center border-0 bg-transparent absolute inset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none opacity-0 focus:opacity-100 focus:bg-background focus:text-foreground focus:z-10",
-                                                status === "success" && "text-success font-medium",
-                                                status === "warning" && "text-warning font-medium",
-                                                status === "destructive" && "text-destructive font-medium",
-                                                isCalculatedKPI(kpi.name) && "hidden",
+                                                 status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                 status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                 status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
+                                                 isCalculatedKPI(kpi.name) && "hidden",
                                               )}
                                               placeholder="-"
                                               disabled={saving[key] || isCalculatedKPI(kpi.name)}
