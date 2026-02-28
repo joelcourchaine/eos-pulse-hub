@@ -515,6 +515,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   const chartRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [lines, setLines] = useState<{ x1: number; y1: number; x2: number; y2: number }[]>([]);
+  const [refsVersion, setRefsVersion] = useState(0);
   const autoZoomSet = useRef(false);
 
   const tree = useMemo(() => buildTree(members), [members]);
@@ -536,8 +537,12 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   }, [tree]);
 
   const setNodeRef = useCallback((id: string, el: HTMLDivElement | null) => {
-    if (el) nodeRefs.current.set(id, el);
-    else nodeRefs.current.delete(id);
+    if (el) {
+      nodeRefs.current.set(id, el);
+      setRefsVersion((v) => v + 1);
+    } else {
+      nodeRefs.current.delete(id);
+    }
   }, []);
 
   // Auto-fit zoom on mount
@@ -605,7 +610,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
 
     const timer = setTimeout(calcLines, 150);
     return () => clearTimeout(timer);
-  }, [members, zoom, showNames, headcountOnly, memberClusterIndex, clusterMap]);
+  }, [members, zoom, showNames, headcountOnly, memberClusterIndex, clusterMap, refsVersion]);
 
   if (members.length === 0) {
     return (
