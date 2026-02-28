@@ -1,43 +1,42 @@
 
-## Feature: "Redistribute to Annual Totals" Button
+## Root Cause
 
-### What This Does
-A new button in the Forecast Drawer header that takes the **current annual totals** (already computed for each metric in the 2026 Annual column) and **redistributes them across the 12 months using the sales weightings** (the same weighted baseline distribution used for all other calculations). Any locked months remain unchanged; the redistribution only touches unlocked months.
+`handleRedistributeByWeights` has two problems:
 
-### Why This Is Useful
-After using the growth slider or manual annual edits, the monthly breakdown may be uneven or out of sync with the sales-weighted distribution. This button lets the user say "keep my annual totals but make the month-by-month split match our seasonal sales pattern."
+1. **No try/catch** — if `bulkUpdateEntries.mutateAsync` throws (e.g. a DB error or NaN value), the async function crashes silently but `bulkUpdateEntries.isPending` stays `true` forever, causing the "Saving..." and "Locking..." spinners to be permanently stuck.
 
----
+2. **Includes percentage metrics** — `metricDefinitions` contains `sales_expense_percent` (and possibly `gp_percent`). These are ratios, not dollar amounts — redistributing them by sales weighting produces garbage values and likely causes the mutation to error.
 
-## Implementation Plan
+## Fix (single file: `src/components/financial/ForecastDrawer.tsx`)
 
-### 1. Add `handleRedistributeByWeights` function in `ForecastDrawer.tsx`
+### Change 1 — Wrap `handleRedistributeByWeights` in try/catch (lines 392–446)
 
-Logic:
-- For each metric in the current `monthlyValues` map, compute the annual total (sum of all 12 unlocked months + locked month values)
-- For each unlocked month, calculate: `monthValue = annualTotal × (monthWeight / sumOfUnlockedWeights)`
-  - Where `monthWeight` = the `adjusted_weight` for that month from `weights` (or `calculatedWeights` as fallback)
-  - And `sumOfUnlockedWeights` = sum of weights for only the unlocked months
-  - Locked month values are subtracted from the annual total before redistribution
-- Call `bulkUpdateEntries.mutateAsync(updates)` with all the redistributed values
-- Show `toast.success('Redistributed to annual totals')`
-
-### 2. Add the button to the header toolbar in `ForecastDrawer.tsx`
-
-Place it alongside the existing Reset / Save / Email / Push to Targets buttons (around line 1555–1615).
-
-```tsx
-<Button
-  variant="outline"
-  size="sm"
-  onClick={handleRedistributeByWeights}
-  disabled={!forecast || bulkUpdateEntries.isPending}
-  title="Redistribute annual totals across months using sales weightings"
->
-  <BarChart2 className="h-4 w-4 mr-1" />
-  Redistribute
-</Button>
+```ts
+const handleRedistributeByWeights = async () => {
+  if (!forecast) return;
+  try {
+    // ... existing logic ...
+    if (updates.length > 0) {
+      await bulkUpdateEntries.mutateAsync(updates);
+      toast.success('Redistributed to annual totals');
+    }
+  } catch (error) {
+    console.error('[handleRedistributeByWeights] error:', error);
+    toast.error('Failed to redistribute. Please try again.');
+  }
+};
 ```
 
-### Files Changed
-- `src/components/financial/ForecastDrawer.tsx` only — add the handler function and the button.
+### Change 2 — Skip percentage/ratio metrics in the redistribute loop (lines 409–440)
+
+Filter out metrics where `metric.format === 'percent'` or `metric.isCalculated` (or by key: `sales_expense_percent`, `gp_percent`) so only dollar-value metrics are redistributed:
+
+```ts
+metricDefinitions.forEach((metric) => {
+  // Skip percentage/ratio metrics — they can't be meaningfully redistributed by weight
+  if (metric.format === 'percent' || metric.key.includes('percent')) return;
+  // ... rest of existing logic ...
+});
+```
+
+This prevents NaN/Infinity values from being submitted to the DB and crashing the mutation.
