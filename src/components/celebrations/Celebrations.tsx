@@ -35,7 +35,7 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
   const loadCelebrations = async () => {
     const { data, error } = await (supabase.rpc as any)("get_upcoming_celebrations", {
       p_store_id: currentStoreId || null,
-      p_days_ahead: 365,
+      p_days_ahead: 30,
     });
 
     if (error) {
