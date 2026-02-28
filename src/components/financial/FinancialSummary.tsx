@@ -4446,7 +4446,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 return (
                                   <TableCell
                                     className={cn(
-                                   "text-center py-[7.2px] min-w-[100px] max-w-[100px] text-xs bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                   "text-center py-[7.2px] min-w-[100px] max-w-[100px] text-xs border-x-2 border-primary/20",
                                           isDepartmentProfit && "z-10",
                                           status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 font-medium",
                                           status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-medium",
