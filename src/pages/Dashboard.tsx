@@ -1400,27 +1400,27 @@ const Dashboard = () => {
                       <p className="text-xs text-muted-foreground">{weekDateRange}</p>
                     </CardContent>
                   </Card>
-                  <Card>
+                  <Card className="overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">KPI Status</CardTitle>
                       <BarChart3 className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center gap-4">
+                      <div className="grid grid-cols-4 md:grid-cols-2 xl:grid-cols-4 gap-2">
                         <div className="flex items-center gap-1">
-                          <CircleCheck className="h-5 w-5 text-success" />
+                          <CircleCheck className="h-5 w-5 text-success shrink-0" />
                           <span className="text-2xl font-bold text-success">{kpiStatusCounts.green}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <AlertCircle className="h-5 w-5 text-warning" />
+                          <AlertCircle className="h-5 w-5 text-warning shrink-0" />
                           <span className="text-2xl font-bold text-warning">{kpiStatusCounts.yellow}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <XCircle className="h-5 w-5 text-destructive" />
+                          <XCircle className="h-5 w-5 text-destructive shrink-0" />
                           <span className="text-2xl font-bold text-destructive">{kpiStatusCounts.red}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <CircleDashed className="h-5 w-5 text-muted-foreground" />
+                          <CircleDashed className="h-5 w-5 text-muted-foreground shrink-0" />
                           <span className="text-2xl font-bold text-muted-foreground">{kpiStatusCounts.missing}</span>
                         </div>
                       </div>
