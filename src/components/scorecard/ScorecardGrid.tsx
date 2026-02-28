@@ -381,6 +381,7 @@ const ScorecardGrid = ({
   const [quarterlyViewData, setQuarterlyViewData] = useState<{ [key: string]: number }>({});
   const [quarterlyViewTargets, setQuarterlyViewTargets] = useState<{ [key: string]: number }>({});
   const [yearlyViewEntries, setYearlyViewEntries] = useState<{ [key: string]: ScorecardEntry }>({});
+  const [monthlyViewEntries, setMonthlyViewEntries] = useState<{ [key: string]: ScorecardEntry }>({});
   const [yearlyViewPrecedingData, setYearlyViewPrecedingData] = useState<{ [key: string]: number }>({});
   const [yearlyViewTrendTargets, setYearlyViewTrendTargets] = useState<{ [key: string]: number }>({});
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -570,6 +571,7 @@ const ScorecardGrid = ({
     setQuarterlyViewData({});
     setQuarterlyViewTargets({});
     setYearlyViewEntries({});
+    setMonthlyViewEntries({});
     setYearlyViewPrecedingData({});
     setYearlyViewTrendTargets({});
 
@@ -589,6 +591,8 @@ const ScorecardGrid = ({
       await loadPrecedingQuartersData();
       // Load quarterly view data (5 quarters of monthly averages)
       await loadQuarterlyViewData();
+      // Load monthly view data (current quarter months for instant monthly switching)
+      await loadMonthlyViewData(monthlyTargets);
       // Load yearly view data (12 months for instant yearly switching)
       await loadYearlyViewData();
       if (isMonthlyTrendMode) {
@@ -1711,6 +1715,68 @@ const ScorecardGrid = ({
     }
   };
 
+  // Pre-load monthly view data (current quarter + previous year same quarter) for instant switching
+  const loadMonthlyViewData = async (targetsToUse: { [key: string]: number }) => {
+    if (!departmentId || kpis.length === 0) return;
+    if (isQuarterTrendMode || isMonthlyTrendMode) return;
+
+    const kpiIds = kpis.map((k) => k.id);
+    const currentQuarterMonths = months.map((m) => m.identifier);
+    const prevYearMonths = previousYearMonths.map((m) => m.identifier);
+    const monthIdentifiers = [...currentQuarterMonths, ...prevYearMonths];
+
+    const allData: any[] = [];
+    let offset = 0;
+    const pageSize = 1000;
+
+    while (true) {
+      const { data: page, error } = await supabase
+        .from("scorecard_entries")
+        .select("*")
+        .in("kpi_id", kpiIds)
+        .eq("entry_type", "monthly")
+        .in("month", monthIdentifiers)
+        .range(offset, offset + pageSize - 1);
+
+      if (error) { console.error("Error loading monthly view data:", error); break; }
+      if (!page || page.length === 0) break;
+      allData.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    const previousYear = year - 1;
+    const newEntries: { [key: string]: ScorecardEntry } = {};
+    allData.forEach((entry) => {
+      const key = `${entry.kpi_id}-month-${entry.month}`;
+      const kpi = kpis.find((k) => k.id === entry.kpi_id);
+      if (kpi && entry.actual_value !== null && entry.actual_value !== undefined) {
+        const entryYear = parseInt(entry.month.split("-")[0]);
+        const isPrevYear = entryYear === previousYear;
+        const target = isPrevYear ? kpi.target_value : (targetsToUse[kpi.id] || kpi.target_value);
+        let variance: number;
+        if (kpi.metric_type === "percentage") {
+          variance = entry.actual_value - target;
+        } else if (target !== 0) {
+          variance = ((entry.actual_value - target) / target) * 100;
+        } else {
+          variance = kpi.target_direction === "below" ? (entry.actual_value > 0 ? 100 : 0) : (entry.actual_value > 0 ? 100 : -100);
+        }
+        let status: string;
+        if (kpi.target_direction === "above") {
+          status = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+        } else {
+          status = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+        }
+        entry.status = status;
+        entry.variance = variance;
+      }
+      newEntries[key] = entry;
+    });
+
+    setMonthlyViewEntries(newEntries);
+  };
+
   const calculateYearlyAverages = async () => {
     if (!departmentId || kpis.length === 0) return;
 
@@ -1962,6 +2028,12 @@ const ScorecardGrid = ({
           delete newEntries[key];
           return newEntries;
         });
+        // Also update monthly view entries
+        setMonthlyViewEntries((prev) => {
+          const newEntries = { ...prev };
+          delete newEntries[key];
+          return newEntries;
+        });
         // Keep an explicit empty local value so the UI doesn't fall back to cached/preceding data
         setLocalValues((prev) => ({
           ...prev,
@@ -2061,6 +2133,13 @@ const ScorecardGrid = ({
         ...prev,
         [key]: data as ScorecardEntry,
       }));
+      // Also update monthly view entries for instant monthly view
+      if (isMonthly) {
+        setMonthlyViewEntries((prev) => ({
+          ...prev,
+          [key]: data as ScorecardEntry,
+        }));
+      }
 
       // Clear localValues after successful save
       setLocalValues((prev) => {
@@ -4932,7 +5011,7 @@ const ScorecardGrid = ({
                                 {/* Previous Year Months with visual cues */}
                                 {previousYearMonths.map((month) => {
                                   const key = `${kpi.id}-month-${month.identifier}`;
-                                  const entry = entries[key];
+                                  const entry = monthlyViewEntries[key] ?? entries[key];
                                   const status = getStatus(entry?.status || null);
 
                                   return (
@@ -5093,7 +5172,7 @@ const ScorecardGrid = ({
                                 {/* Months */}
                                 {months.map((month) => {
                                   const key = `${kpi.id}-month-${month.identifier}`;
-                                  const entry = entries[key];
+                                  const entry = monthlyViewEntries[key] ?? entries[key];
                                   const status = getStatus(entry?.status || null);
                                   const displayValue =
                                     localValues[key] !== undefined
