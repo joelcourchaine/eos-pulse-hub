@@ -11,6 +11,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useAutoCollapseSidebar } from "@/hooks/use-auto-collapse-sidebar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { RoutineChecklist } from "./RoutineChecklist";
@@ -135,8 +136,9 @@ export const RoutineSidebar = ({
   canDeleteItems = false,
 }: RoutineSidebarProps) => {
   const navigate = useNavigate();
-  const { state, setOpen } = useSidebar();
+  const { state, setOpen, open } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { isAutoHidden } = useAutoCollapseSidebar();
   
   const [routines, setRoutines] = useState<DepartmentRoutine[]>([]);
   const [completionCounts, setCompletionCounts] = useState<Record<string, { completed: number; total: number }>>({});
@@ -341,9 +343,10 @@ export const RoutineSidebar = ({
   };
 
   return (
-    <Sidebar 
-      side="right" 
-      collapsible="icon" 
+    <>
+    <Sidebar
+      side="right"
+      collapsible={isAutoHidden ? "offcanvas" : "icon"}
       className="!top-[5.5rem] !h-[calc(100svh-5.5rem)] border-l border-white/10"
       style={{
         "--sidebar-width": "28rem",
@@ -494,5 +497,15 @@ export const RoutineSidebar = ({
 
       </SidebarContent>
     </Sidebar>
+    {isAutoHidden && !open && (
+      <button
+        onClick={() => setOpen(true)}
+        className="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full bg-[hsl(222,47%,16%)] text-white shadow-lg flex items-center justify-center hover:bg-[hsl(222,47%,24%)] transition-colors"
+        title="Open Routines"
+      >
+        <CheckSquare className="h-5 w-5" />
+      </button>
+    )}
+    </>
   );
 };
