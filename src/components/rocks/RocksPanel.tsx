@@ -3,7 +3,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Target, Trash2, Loader2, Mountain, TrendingUp, TrendingDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Target, Trash2, Loader2, Mountain, TrendingUp, TrendingDown } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -88,6 +89,8 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
   const [rocks, setRocks] = useState<Rock[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteRockId, setDeleteRockId] = useState<string | null>(null);
+  const [pendingProgress, setPendingProgress] = useState<{[id: string]: number}>({});
+  const [updatingRockId, setUpdatingRockId] = useState<string | null>(null);
   const [rockTargets, setRockTargets] = useState<{ [rockId: string]: RockMonthlyTarget[] }>({});
   const [actualValues, setActualValues] = useState<{ [key: string]: number }>({});
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
@@ -266,6 +269,14 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
       return `${parentMetric?.name || rock.linked_parent_metric_key} > ${rock.linked_submetric_name}`;
     }
     return "";
+  };
+
+  const handleProgressCommit = async (rockId: string, value: number) => {
+    setUpdatingRockId(rockId);
+    await supabase.from("rocks").update({ progress_percentage: value }).eq("id", rockId);
+    setUpdatingRockId(null);
+    setPendingProgress(p => { const n = {...p}; delete n[rockId]; return n; });
+    loadRocks();
   };
 
   const handleDeleteRock = async (id: string) => {
@@ -494,9 +505,20 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Progress</span>
-                        <span className="font-medium">{rock.progress_percentage}%</span>
+                        <span className="font-medium flex items-center gap-1">
+                          {pendingProgress[rock.id] ?? rock.progress_percentage}%
+                          {updatingRockId === rock.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                        </span>
                       </div>
-                      <Progress value={rock.progress_percentage} className="h-2" />
+                      <Slider
+                        value={[pendingProgress[rock.id] ?? rock.progress_percentage]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={([v]) => setPendingProgress(p => ({...p, [rock.id]: v}))}
+                        onValueCommit={([v]) => handleProgressCommit(rock.id, v)}
+                        className="cursor-pointer"
+                      />
                     </div>
                   </div>
                 );
