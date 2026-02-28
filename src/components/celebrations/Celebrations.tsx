@@ -27,7 +27,7 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
   const loadCelebrations = async () => {
     const { data, error } = await (supabase.rpc as any)("get_upcoming_celebrations", {
       p_store_id: currentStoreId || null,
-      p_days_ahead: 30,
+      p_days_ahead: 365,
     });
 
     if (error) {
@@ -45,7 +45,7 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
       yearsOfService: row.years_of_service ?? undefined,
     }));
 
-    setCelebrations(mapped);
+    setCelebrations(mapped.slice(0, 8));
     setLoading(false);
   };
 
