@@ -12,6 +12,14 @@ interface Celebration {
   yearsOfService?: number;
 }
 
+const DEMO_STORE_ID = "effbf1c8-8506-4734-bf1d-0bfaa54690a0";
+
+const DEMO_CELEBRATIONS: Celebration[] = [
+  { id: "demo-blake", name: "Blake Harrison", type: "anniversary", date: "March", daysUntil: 1, yearsOfService: 5 },
+  { id: "demo-sam", name: "Sam Chen", type: "anniversary", date: "March", daysUntil: 2, yearsOfService: 7 },
+  { id: "demo-riley", name: "Riley Thompson", type: "birthday", date: "March 3", daysUntil: 3 },
+];
+
 interface CelebrationsProps {
   currentStoreId?: string | null;
 }
@@ -45,7 +53,11 @@ export const Celebrations = ({ currentStoreId }: CelebrationsProps) => {
       yearsOfService: row.years_of_service ?? undefined,
     }));
 
-    setCelebrations(mapped.slice(0, 8));
+    if (currentStoreId === DEMO_STORE_ID) {
+      setCelebrations(DEMO_CELEBRATIONS);
+    } else {
+      setCelebrations(mapped.slice(0, 8));
+    }
     setLoading(false);
   };
 
