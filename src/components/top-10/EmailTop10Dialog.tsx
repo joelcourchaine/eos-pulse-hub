@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Printer, Loader2 } from "lucide-react";
+import { Mail, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 interface Recipient {
@@ -209,7 +209,7 @@ export function EmailTop10Dialog({
         onClick={() => setOpen(true)}
         title="Email this list"
       >
-        <Printer className="h-4 w-4" />
+        <Mail className="h-4 w-4" />
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
