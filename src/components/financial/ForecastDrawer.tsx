@@ -391,57 +391,63 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Handle Redistribute by Weights
   const handleRedistributeByWeights = async () => {
     if (!forecast) return;
-
-    const mergedWeights = months.map((month) => {
-      const monthNum = parseInt(month.slice(5, 7), 10);
-      const saved = weights?.find((w) => w.month_number === monthNum);
-      const calc = calculatedWeights.find((w) => w.month_number === monthNum);
-      return {
-        month,
-        monthNum,
-        adjusted_weight: saved?.adjusted_weight ?? calc?.weight ?? 0,
-        is_locked: saved?.is_locked ?? false,
-      };
-    });
-
-    const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number; isLocked?: boolean }[] = [];
-
-    metricDefinitions.forEach((metric) => {
-      // Compute annual total across all 12 months
-      let annualTotal = 0;
-      let lockedTotal = 0;
-      months.forEach((month) => {
-        const result = monthlyValues.get(month)?.get(metric.key);
-        const val = result?.value ?? 0;
-        annualTotal += val;
-        const mw = mergedWeights.find((w) => w.month === month);
-        if (mw?.is_locked) lockedTotal += val;
+    try {
+      const mergedWeights = months.map((month) => {
+        const monthNum = parseInt(month.slice(5, 7), 10);
+        const saved = weights?.find((w) => w.month_number === monthNum);
+        const calc = calculatedWeights.find((w) => w.month_number === monthNum);
+        return {
+          month,
+          monthNum,
+          adjusted_weight: saved?.adjusted_weight ?? calc?.weight ?? 0,
+          is_locked: saved?.is_locked ?? false,
+        };
       });
 
-      const redistributableTotal = annualTotal - lockedTotal;
-      const unlockedWeights = mergedWeights.filter((w) => !w.is_locked);
-      const sumUnlockedWeights = unlockedWeights.reduce((s, w) => s + w.adjusted_weight, 0);
+      const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number; isLocked?: boolean }[] = [];
 
-      if (sumUnlockedWeights === 0) return;
+      metricDefinitions.forEach((metric) => {
+        // Skip percentage/ratio metrics — they can't be meaningfully redistributed by weight
+        if (metric.key.includes('percent')) return;
 
-      months.forEach((month) => {
-        const mw = mergedWeights.find((w) => w.month === month);
-        if (!mw || mw.is_locked) return;
-        const result = monthlyValues.get(month)?.get(metric.key);
-        const newValue = redistributableTotal * (mw.adjusted_weight / sumUnlockedWeights);
-        updates.push({
-          month,
-          metricName: metric.key,
-          forecastValue: newValue,
-          baselineValue: result?.baseline_value,
-          isLocked: false,
+        let annualTotal = 0;
+        let lockedTotal = 0;
+        months.forEach((month) => {
+          const result = monthlyValues.get(month)?.get(metric.key);
+          const val = result?.value ?? 0;
+          annualTotal += val;
+          const mw = mergedWeights.find((w) => w.month === month);
+          if (mw?.is_locked) lockedTotal += val;
+        });
+
+        const redistributableTotal = annualTotal - lockedTotal;
+        const unlockedWeights = mergedWeights.filter((w) => !w.is_locked);
+        const sumUnlockedWeights = unlockedWeights.reduce((s, w) => s + w.adjusted_weight, 0);
+
+        if (sumUnlockedWeights === 0) return;
+
+        months.forEach((month) => {
+          const mw = mergedWeights.find((w) => w.month === month);
+          if (!mw || mw.is_locked) return;
+          const result = monthlyValues.get(month)?.get(metric.key);
+          const newValue = redistributableTotal * (mw.adjusted_weight / sumUnlockedWeights);
+          updates.push({
+            month,
+            metricName: metric.key,
+            forecastValue: newValue,
+            baselineValue: result?.baseline_value,
+            isLocked: false,
+          });
         });
       });
-    });
 
-    if (updates.length > 0) {
-      await bulkUpdateEntries.mutateAsync(updates);
-      toast.success('Redistributed to annual totals');
+      if (updates.length > 0) {
+        await bulkUpdateEntries.mutateAsync(updates);
+        toast.success('Redistributed to annual totals');
+      }
+    } catch (error) {
+      console.error('[handleRedistributeByWeights] error:', error);
+      toast.error('Failed to redistribute. Please try again.');
     }
   };
 
