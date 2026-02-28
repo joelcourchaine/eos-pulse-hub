@@ -276,7 +276,7 @@ const RocksPanel = ({ departmentId }: RocksPanelProps) => {
     await supabase.from("rocks").update({ progress_percentage: value }).eq("id", rockId);
     setUpdatingRockId(null);
     setPendingProgress(p => { const n = {...p}; delete n[rockId]; return n; });
-    loadRocks();
+    setRocks(prev => prev.map(r => r.id === rockId ? { ...r, progress_percentage: value } : r));
   };
 
   const handleDeleteRock = async (id: string) => {
