@@ -1135,8 +1135,8 @@ const Dashboard = () => {
                       )}
                     </div>
 
-                    {/* Desktop Navigation - hidden on mobile */}
-                    <div className="hidden md:flex md:flex-row md:items-center md:gap-3">
+                    {/* Desktop Navigation - hidden below lg */}
+                    <div className="hidden lg:flex lg:flex-row lg:items-center lg:gap-3">
                       {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
                         <Button type="button" variant="outline" size="sm" onClick={() => navigate("/enterprise")}>
                           <TrendingUp className="mr-2 h-4 w-4" />
@@ -1183,8 +1183,8 @@ const Dashboard = () => {
                       </Button>
                     </div>
 
-                    {/* Mobile Hamburger Menu */}
-                    <div className="md:hidden flex justify-end">
+                    {/* Hamburger Menu - visible below lg */}
+                    <div className="lg:hidden flex justify-end">
                       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                         <SheetTrigger asChild>
                           <Button variant="outline" size="sm">
