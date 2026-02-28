@@ -1,42 +1,18 @@
 
 ## Root Cause
 
-`handleRedistributeByWeights` has two problems:
+In `handleRedistributeByWeights` (line 438), redistributed entries are saved with `isLocked: false`. After saving, the calculation engine in `useForecastCalculations.ts` (line 592) only uses stored values when `isLocked === true` — unlocked stored values are ignored and the engine recalculates from growth. So the DB gets the right numbers but the UI immediately overwrites them with growth-calculated values.
 
-1. **No try/catch** — if `bulkUpdateEntries.mutateAsync` throws (e.g. a DB error or NaN value), the async function crashes silently but `bulkUpdateEntries.isPending` stays `true` forever, causing the "Saving..." and "Locking..." spinners to be permanently stuck.
+## Fix — `src/components/financial/ForecastDrawer.tsx`, line 438
 
-2. **Includes percentage metrics** — `metricDefinitions` contains `sales_expense_percent` (and possibly `gp_percent`). These are ratios, not dollar amounts — redistributing them by sales weighting produces garbage values and likely causes the mutation to error.
-
-## Fix (single file: `src/components/financial/ForecastDrawer.tsx`)
-
-### Change 1 — Wrap `handleRedistributeByWeights` in try/catch (lines 392–446)
+Change `isLocked: false` to `isLocked: true` in the `updates.push(...)` call inside `handleRedistributeByWeights`:
 
 ```ts
-const handleRedistributeByWeights = async () => {
-  if (!forecast) return;
-  try {
-    // ... existing logic ...
-    if (updates.length > 0) {
-      await bulkUpdateEntries.mutateAsync(updates);
-      toast.success('Redistributed to annual totals');
-    }
-  } catch (error) {
-    console.error('[handleRedistributeByWeights] error:', error);
-    toast.error('Failed to redistribute. Please try again.');
-  }
-};
+// BEFORE (line 438)
+isLocked: false,
+
+// AFTER
+isLocked: true,
 ```
 
-### Change 2 — Skip percentage/ratio metrics in the redistribute loop (lines 409–440)
-
-Filter out metrics where `metric.format === 'percent'` or `metric.isCalculated` (or by key: `sales_expense_percent`, `gp_percent`) so only dollar-value metrics are redistributed:
-
-```ts
-metricDefinitions.forEach((metric) => {
-  // Skip percentage/ratio metrics — they can't be meaningfully redistributed by weight
-  if (metric.format === 'percent' || metric.key.includes('percent')) return;
-  // ... rest of existing logic ...
-});
-```
-
-This prevents NaN/Infinity values from being submitted to the DB and crashing the mutation.
+This makes redistributed values stick in the UI (calculation engine respects locked entries), which is also the correct semantic — the user has explicitly overridden the monthly distribution, so those values should be preserved until they unlock or reset.
