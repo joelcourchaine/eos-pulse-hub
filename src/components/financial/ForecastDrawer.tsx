@@ -436,7 +436,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             metricName: metric.key,
             forecastValue: newValue,
             baselineValue: result?.baseline_value,
-            isLocked: false,
+            isLocked: true,
           });
         });
       });
