@@ -94,7 +94,7 @@ const Dashboard = () => {
   };
 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedQuarter, setSelectedQuarter] = useState(-1); // Default to Monthly Trend view
+  const [selectedQuarter, setSelectedQuarter] = useState(() => Math.floor(new Date().getMonth() / 3) + 1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview">(
     "monthly",
