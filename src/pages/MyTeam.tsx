@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const MyTeam = () => {
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>("");
 
+  const [searchParams] = useSearchParams();
   const { isSuperAdmin, isStoreGM, isDepartmentManager, isFixedOpsManager, loading: rolesLoading } = useUserRole(user?.id);
   const canManage = isSuperAdmin || isStoreGM || isDepartmentManager || isFixedOpsManager;
 
@@ -51,7 +52,9 @@ const MyTeam = () => {
       supabase.from("stores").select("id, name").order("name").then(({ data }) => {
         if (data) {
           setStores(data);
-          if (data.length > 0 && !selectedStoreId) setSelectedStoreId(data[0].id);
+          const paramStore = searchParams.get("store");
+          const preferred = paramStore && data.find(s => s.id === paramStore) ? paramStore : (data.length > 0 ? data[0].id : "");
+          if (!selectedStoreId) setSelectedStoreId(preferred);
         }
       });
     }
