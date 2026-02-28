@@ -1,32 +1,12 @@
 
-## What's still wrong
+## What's happening
 
-The **Monthly view** cells (lines 5187–5312) were missed in the previous fix — they still use `bg-success/10`, `text-success`, `bg-warning/10`, `text-warning`, `bg-destructive/10`, `text-destructive`.
+Line 56–60 already handles the demo store (`DEMO_STORE_ID = "effbf1c8-8506-4734-bf1d-0bfaa54690a0"`) with hardcoded `DEMO_CELEBRATIONS` — this is the "Growth Automotive" test store for explainer videos.
 
-The Quarterly trend view and Yearly view are already correct (emerald/amber/red tokens).
+The problem is the real store query still uses `p_days_ahead: 365`, which floods North Island Nissan (and any real store) with a full year of events.
 
-## Fix — `src/components/scorecard/ScorecardGrid.tsx`
+## Fix — `src/components/celebrations/Celebrations.tsx`
 
-Three targeted replacements in the Monthly view rendering block:
+**Line 38**: Change `p_days_ahead: 365` → `p_days_ahead: 30`
 
-**1. TableCell background (lines 5189–5191)**
-```
-bg-success/10  →  bg-emerald-100 dark:bg-emerald-900/40
-bg-warning/10  →  bg-amber-100 dark:bg-amber-900/40
-bg-destructive/10  →  bg-red-100 dark:bg-red-900/40
-```
-
-**2. Display div text color + add `text-xs` (lines 5201–5207)**
-```
-text-success  →  text-emerald-800 dark:text-emerald-200
-text-warning  →  text-amber-800 dark:text-amber-200
-text-destructive  →  text-red-800 dark:text-red-200
-add text-xs to the className string
-```
-
-**3. Input field text color (lines 5309–5312)**
-```
-text-success  →  text-emerald-800 dark:text-emerald-200
-text-warning  →  text-amber-800 dark:text-amber-200
-text-destructive  →  text-red-800 dark:text-red-200
-```
+The demo store path (lines 56–58) stays untouched — it will continue showing the 3 hardcoded demo celebrations regardless of date. Only real stores will now be filtered to 30 days ahead.
