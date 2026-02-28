@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail, Lock, LockOpen, Target, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Loader2, RotateCcw, Mail, Lock, LockOpen, Target, CheckCircle2, BarChart2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -387,6 +387,63 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
       lockPercentage: totalCells > 0 ? Math.round((lockedCells / totalCells) * 100) : 0,
     };
   }, [months, metricDefinitions, monthlyValues]);
+
+  // Handle Redistribute by Weights
+  const handleRedistributeByWeights = async () => {
+    if (!forecast) return;
+
+    const mergedWeights = months.map((month) => {
+      const monthNum = parseInt(month.slice(5, 7), 10);
+      const saved = weights?.find((w) => w.month_number === monthNum);
+      const calc = calculatedWeights.find((w) => w.month_number === monthNum);
+      return {
+        month,
+        monthNum,
+        adjusted_weight: saved?.adjusted_weight ?? calc?.weight ?? 0,
+        is_locked: saved?.is_locked ?? false,
+      };
+    });
+
+    const updates: { month: string; metricName: string; forecastValue: number; baselineValue?: number; isLocked?: boolean }[] = [];
+
+    metricDefinitions.forEach((metric) => {
+      // Compute annual total across all 12 months
+      let annualTotal = 0;
+      let lockedTotal = 0;
+      months.forEach((month) => {
+        const result = monthlyValues.get(month)?.get(metric.key);
+        const val = result?.value ?? 0;
+        annualTotal += val;
+        const mw = mergedWeights.find((w) => w.month === month);
+        if (mw?.is_locked) lockedTotal += val;
+      });
+
+      const redistributableTotal = annualTotal - lockedTotal;
+      const unlockedWeights = mergedWeights.filter((w) => !w.is_locked);
+      const sumUnlockedWeights = unlockedWeights.reduce((s, w) => s + w.adjusted_weight, 0);
+
+      if (sumUnlockedWeights === 0) return;
+
+      months.forEach((month) => {
+        const mw = mergedWeights.find((w) => w.month === month);
+        if (!mw || mw.is_locked) return;
+        const result = monthlyValues.get(month)?.get(metric.key);
+        const newValue = redistributableTotal * (mw.adjusted_weight / sumUnlockedWeights);
+        updates.push({
+          month,
+          metricName: metric.key,
+          forecastValue: newValue,
+          baselineValue: result?.baseline_value,
+          isLocked: false,
+        });
+      });
+    });
+
+    if (updates.length > 0) {
+      await bulkUpdateEntries.mutateAsync(updates);
+      toast.success('Redistributed to annual totals');
+    }
+  };
 
   // Handle Lock All Cells
   const handleLockAllCells = () => {
@@ -1553,6 +1610,16 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               — {departmentName}
             </SheetTitle>
             <div className="flex items-center gap-2 mr-8">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRedistributeByWeights}
+                disabled={!forecast || bulkUpdateEntries.isPending}
+                title="Redistribute annual totals across months using sales weightings"
+              >
+                <BarChart2 className="h-4 w-4 mr-1" />
+                Redistribute
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
