@@ -4501,9 +4501,9 @@ const ScorecardGrid = ({
                                         <TableCell
                                           className={cn(
                              "px-1 py-0.5 relative min-w-[90px] max-w-[90px]",
-                            trendStatus === "success" && "bg-success/10",
-                            trendStatus === "warning" && "bg-warning/10",
-                            trendStatus === "destructive" && "bg-destructive/10",
+                             trendStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                             trendStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                             trendStatus === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                             !trendStatus && "text-muted-foreground",
                                           )}
                                         >
@@ -4514,10 +4514,10 @@ const ScorecardGrid = ({
                                               <div
                                                 data-display-value
                                                 className={cn(
-                                                  "h-full w-full flex items-center justify-center cursor-text",
-                                                  trendStatus === "success" && "text-success font-medium",
-                                                  trendStatus === "warning" && "text-warning font-medium",
-                                                  trendStatus === "destructive" && "text-destructive font-medium",
+                                                   "h-full w-full flex items-center justify-center cursor-text text-xs",
+                                                  trendStatus === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                                  trendStatus === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                                  trendStatus === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                                   isCalculatedKPI(kpi.name) && "cursor-default",
                                                 )}
                                                 onClick={(e) => {
@@ -5019,17 +5019,17 @@ const ScorecardGrid = ({
                                       key={month.identifier}
                                       className={cn(
                                         "px-1 py-0.5 relative min-w-[90px] max-w-[90px] text-center bg-muted/20",
-                                        status === "success" && "bg-success/10",
-                                        status === "warning" && "bg-warning/10",
-                                        status === "destructive" && "bg-destructive/10",
+                                        status === "success" && "bg-emerald-100 dark:bg-emerald-900/40",
+                                        status === "warning" && "bg-amber-100 dark:bg-amber-900/40",
+                                        status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                       )}
                                     >
                                       <span
                                         className={cn(
-                                          "text-muted-foreground",
-                                          status === "success" && "text-success font-medium",
-                                          status === "warning" && "text-warning font-medium",
-                                          status === "destructive" && "text-destructive font-medium",
+                                          "text-muted-foreground text-xs",
+                                          status === "success" && "text-emerald-800 dark:text-emerald-200 font-medium",
+                                          status === "warning" && "text-amber-800 dark:text-amber-200 font-medium",
+                                          status === "destructive" && "text-red-800 dark:text-red-200 font-medium",
                                         )}
                                       >
                                         {entry?.actual_value !== null && entry?.actual_value !== undefined
@@ -5063,9 +5063,9 @@ const ScorecardGrid = ({
                                         }
                                         const adjustedVariance =
                                           kpi.target_direction === "below" ? -variance : variance;
-                                        if (adjustedVariance >= 0) return "bg-success/10";
-                                        if (adjustedVariance >= -10) return "bg-warning/10";
-                                        return "bg-destructive/10";
+                                        if (adjustedVariance >= 0) return "bg-emerald-100 dark:bg-emerald-900/40";
+                                        if (adjustedVariance >= -10) return "bg-amber-100 dark:bg-amber-900/40";
+                                        return "bg-red-100 dark:bg-red-900/40";
                                       }
                                       return "";
                                     })(),
@@ -5091,9 +5091,9 @@ const ScorecardGrid = ({
                                         variance = ((qValue - target) / target) * 100;
                                       }
                                       const adjustedVariance = kpi.target_direction === "below" ? -variance : variance;
-                                      if (adjustedVariance >= 0) statusClass = "text-success font-medium";
-                                      else if (adjustedVariance >= -10) statusClass = "text-warning font-medium";
-                                      else statusClass = "text-destructive font-medium";
+                                      if (adjustedVariance >= 0) statusClass = "text-emerald-800 dark:text-emerald-200 font-medium text-xs";
+                                       else if (adjustedVariance >= -10) statusClass = "text-amber-800 dark:text-amber-200 font-medium text-xs";
+                                       else statusClass = "text-red-800 dark:text-red-200 font-medium text-xs";
                                     }
 
                                     return (
