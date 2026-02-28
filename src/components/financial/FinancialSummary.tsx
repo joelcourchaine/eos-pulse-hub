@@ -3986,6 +3986,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     if (
                                       calculatedValue !== null &&
                                       calculatedValue !== undefined &&
+                                      calculatedValue !== 0 &&
                                       targetValue !== null
                                     ) {
                                       const variance =
@@ -4053,7 +4054,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const targetSource2 = resolvedTarget2?.source ?? null;
                                   let status: "success" | "warning" | "destructive" | null = null;
 
-                                  if (mValue !== null && mValue !== undefined && targetValue !== null) {
+                                  if (mValue !== null && mValue !== undefined && mValue !== 0 && targetValue !== null) {
                                     const variance =
                                       metric.type === "percentage"
                                         ? mValue - targetValue
@@ -4363,6 +4364,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               if (
                                 qValue !== null &&
                                 qValue !== undefined &&
+                                qValue !== 0 &&
                                 targetValue !== null &&
                                 targetValue !== undefined &&
                                 targetValue !== 0
@@ -4425,7 +4427,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
                                 let status: "success" | "warning" | "destructive" | null = null;
 
-                                if (qValue !== null && qValue !== undefined && targetInfo?.value) {
+                                if (qValue !== null && qValue !== undefined && qValue !== 0 && targetInfo?.value) {
                                   const target = targetInfo.value;
                                   const targetDirection = targetInfo.direction || metric.targetDirection;
 
@@ -4599,7 +4601,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
                                 let status: "success" | "warning" | "destructive" | null = null;
 
-                                if (value !== null && value !== undefined && targetInfo?.value) {
+                                if (value !== null && value !== undefined && value !== 0 && targetInfo?.value) {
                                   const target = targetInfo.value;
                                   const targetDir = targetInfo.direction || metric.targetDirection;
 
@@ -4890,7 +4892,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 const effectiveDir = resolvedMonthTarget?.direction ?? targetDirection;
                                 const monthTargetSource = resolvedMonthTarget?.source ?? (target ? "manual" : null);
                                 let status = "default";
-                                if (value !== null && value !== undefined && effectiveTarget) {
+                                if (value !== null && value !== undefined && value !== 0 && effectiveTarget) {
                                   const variance =
                                     metric.type === "percentage"
                                       ? value - effectiveTarget
