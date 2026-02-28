@@ -1,18 +1,29 @@
 
 ## Root Cause
 
-In `handleRedistributeByWeights` (line 438), redistributed entries are saved with `isLocked: false`. After saving, the calculation engine in `useForecastCalculations.ts` (line 592) only uses stored values when `isLocked === true` — unlocked stored values are ignored and the engine recalculates from growth. So the DB gets the right numbers but the UI immediately overwrites them with growth-calculated values.
+`ScorecardGrid` in `Dashboard.tsx` is keyed only on `selectedDepartment`:
 
-## Fix — `src/components/financial/ForecastDrawer.tsx`, line 438
-
-Change `isLocked: false` to `isLocked: true` in the `updates.push(...)` call inside `handleRedistributeByWeights`:
-
-```ts
-// BEFORE (line 438)
-isLocked: false,
-
-// AFTER
-isLocked: true,
+```tsx
+key={`scorecard-${selectedDepartment}`}
 ```
 
-This makes redistributed values stick in the UI (calculation engine respects locked entries), which is also the correct semantic — the user has explicitly overridden the monthly distribution, so those values should be preserved until they unlock or reset.
+When the user switches stores, the department often stays the same (e.g., "Service Department"). Because the `key` doesn't change, React keeps the component mounted and its internal `viewMode` state (line 380 of `ScorecardGrid.tsx`) is preserved at whatever the user last set it to — not reset to `"weekly"`.
+
+Dashboard does have a `useEffect` at line 167–169 that resets its own `scorecardViewMode` state to `"weekly"` on store change, but that value is never passed into `ScorecardGrid` as a prop — the grid manages `viewMode` entirely internally.
+
+## Fix — `src/pages/Dashboard.tsx`, line 1551
+
+Change the `key` prop on `ScorecardGrid` to include `selectedStore`:
+
+```tsx
+// BEFORE
+key={`scorecard-${selectedDepartment}`}
+
+// AFTER  
+key={`scorecard-${selectedDepartment}-${selectedStore}`}
+```
+
+This forces the grid to fully remount on store switch, resetting `viewMode` back to its default of `"weekly"` (line 380 of `ScorecardGrid.tsx`).
+
+## Files Changed
+- `src/pages/Dashboard.tsx` only — one character change to the `key` prop on `ScorecardGrid`.
