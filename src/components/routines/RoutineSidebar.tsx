@@ -435,7 +435,7 @@ export const RoutineSidebar = ({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="My Team" onClick={() => navigate("/my-team")} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
+                <SidebarMenuButton tooltip="My Team" onClick={() => { const storeId = localStorage.getItem("selectedStore"); navigate(storeId ? `/my-team?store=${storeId}` : "/my-team"); }} className="text-white/80 hover:!bg-white/10 hover:!text-white group-data-[collapsible=icon]:!size-auto group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!w-full">
                   <Users className="h-4 w-4 shrink-0" />
                   <span className="text-[10px] font-semibold uppercase tracking-widest">My Team</span>
                 </SidebarMenuButton>
