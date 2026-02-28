@@ -1,25 +1,24 @@
 
+## Goal
+Make Blake Harrison, Sam Chen, and Riley Thompson always appear in the Celebrations card for the Growth Automotive demo store (`effbf1c8-8506-4734-bf1d-0bfaa54690a0`), regardless of what date it is.
+
 ## Problem
-The `celebrations` section pulls from `profiles` + `profile_sensitive_data`. Growth Automotive's store (ID: `effbf1c8-8506-4734-bf1d-0bfaa54690a0`) has 4 test user profiles, none with birthday/anniversary data set.
+The DB function `get_upcoming_celebrations` calculates `days_until` based on real `CURRENT_DATE`. The anniversary `start_month` values are set to March, so once March 2026 passes, they fall outside the window and disappear permanently (even with 365 days ahead).
 
-The org chart `team_members` are separate from auth users — they're display-only records and aren't linked to `profiles`.
+## Solution
+In `Celebrations.tsx`, after fetching from the DB, **inject 3 hardcoded demo entries** when the current store is the Growth Automotive demo store. These entries always show as upcoming (fixed `daysUntil` of 1, 1, and 3), overriding or supplementing whatever the DB returns.
 
-## Plan
-Pick 3 existing Growth Automotive profiles and:
-1. Update their `full_name` to match 3 org chart people (Blake Harrison, Riley Thompson, Sam Chen)
-2. Insert `profile_sensitive_data` rows for those 3 with celebration dates that will appear soon:
+This keeps real stores working normally — only the demo store gets the pinned entries.
 
-| Person | Type | Date | Days Until |
-|--------|------|------|------------|
-| Blake Harrison | Anniversary | March 2026 (start_year = 2021) | ~1 day away |
-| Sam Chen | Anniversary | March 2026 (start_year = 2019) | ~1 day away |
-| Riley Thompson | Birthday | March 3 | ~3 days away |
+### Changes to `src/components/celebrations/Celebrations.tsx`
 
-This way all 3 show up in the Celebrations card immediately.
+1. Define the demo store ID constant: `DEMO_STORE_ID = 'effbf1c8-8506-4734-bf1d-0bfaa54690a0'`
 
-**Also fix** the 30-day window bug in `Celebrations.tsx` → change to 365 days, slice to 8 results.
+2. Define 3 hardcoded demo celebrations:
+   - Blake Harrison — Anniversary — 5 years — "In 1 day"
+   - Sam Chen — Anniversary — 7 years — "In 2 days"  
+   - Riley Thompson — Birthday — "March 3" — "In 3 days"
 
-### Operations
-1. UPDATE 3 profiles: set `full_name` to Blake Harrison, Sam Chen, Riley Thompson
-2. UPSERT 3 `profile_sensitive_data` rows with the celebration dates
-3. Edit `src/components/celebrations/Celebrations.tsx`: `p_days_ahead: 30` → `365`, add `.slice(0, 8)`
+3. After loading, if `currentStoreId === DEMO_STORE_ID`, replace results with the hardcoded entries instead of the DB results (so the display never changes).
+
+Single file edit: `src/components/celebrations/Celebrations.tsx`
