@@ -24,7 +24,9 @@ import {
   ClipboardList,
   TrendingUp,
   CheckSquare,
+  Menu,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { AdminNavDropdown } from "@/components/navigation/AdminNavDropdown";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import ScorecardGrid from "@/components/scorecard/ScorecardGrid";
@@ -74,6 +76,8 @@ const Dashboard = () => {
   const [selectedDepartment, setSelectedDepartment] = useState<string>(""); // Don't load from localStorage until validated
   const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
   const [kpis, setKpis] = useState<any[]>([]);
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Mobile tasks view state - default to true on mobile, persisted in localStorage
   const [showMobileTasksView, setShowMobileTasksView] = useState(() => {
@@ -1131,247 +1135,279 @@ const Dashboard = () => {
                       )}
                     </div>
 
-                    {/* Navigation Buttons - grid on mobile for better layout */}
-                    <div className="grid grid-cols-2 gap-2 w-full md:flex md:flex-row md:w-auto md:items-center md:gap-3">
+                    {/* Desktop Navigation - hidden on mobile */}
+                    <div className="hidden md:flex md:flex-row md:items-center md:gap-3">
                       {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate("/enterprise")}
-                          className="w-full md:w-auto"
-                        >
+                        <Button type="button" variant="outline" size="sm" onClick={() => navigate("/enterprise")}>
                           <TrendingUp className="mr-2 h-4 w-4" />
                           Enterprise
                         </Button>
                       )}
                       {isSuperAdmin && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowStores(true)}
-                          className="w-full md:w-auto"
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setShowStores(true)}>
                           <Building2 className="mr-2 h-4 w-4" />
                           Stores
                         </Button>
                       )}
                       {(isSuperAdmin || isStoreGM) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowDepartments(true)}
-                          className="w-full md:w-auto"
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setShowDepartments(true)}>
                           <Building className="mr-2 h-4 w-4" />
                           Departments
                         </Button>
                       )}
                       {isSuperAdmin && <AdminNavDropdown />}
                       {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowUsers(true)}
-                          className="w-full md:w-auto"
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setShowUsers(true)}>
                           <Users className="mr-2 h-4 w-4" />
                           Users
                         </Button>
                       )}
                       {selectedDepartment && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowDepartmentInfo(true)}
-                          className="w-full md:w-auto"
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setShowDepartmentInfo(true)}>
                           <ClipboardList className="mr-2 h-4 w-4" />
                           Department Info
                         </Button>
                       )}
-                      <Dialog
-                        open={printDialogOpen}
-                        onOpenChange={(open) => {
-                          setPrintDialogOpen(open);
-                          if (open) {
-                            // Load recipients when dialog opens
-                            const loadRecipients = async () => {
-                              // Get super admin user IDs first
-                              const { data: superAdminRoles } = await supabase
-                                .from("user_roles")
-                                .select("user_id")
-                                .eq("role", "super_admin");
-
-                              const superAdminIds = superAdminRoles?.map((r) => r.user_id) || [];
-
-                              // Fetch users in the same store group
-                              let groupProfiles: any[] = [];
-                              if (profile?.store_group_id) {
-                                const { data } = await supabase
-                                  .from("profiles")
-                                  .select("id, full_name, email")
-                                  .eq("store_group_id", profile.store_group_id)
-                                  .eq("is_system_user", false)
-                                  .order("full_name");
-                                groupProfiles = data || [];
-                              }
-
-                              // Fetch super admins separately (they may not have store_group_id)
-                              const { data: superAdminProfiles } = await supabase
-                                .from("profiles")
-                                .select("id, full_name, email")
-                                .in("id", superAdminIds)
-                                .eq("is_system_user", false);
-
-                              // Merge and dedupe
-                              const allProfiles = [...groupProfiles];
-                              superAdminProfiles?.forEach((sa) => {
-                                if (!allProfiles.find((p) => p.id === sa.id)) {
-                                  allProfiles.push(sa);
-                                }
-                              });
-
-                              // Sort by name
-                              allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
-
-                              setEmailRecipients(allProfiles);
-                            };
-                            loadRecipients();
-                          }
-                        }}
-                      >
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="w-full md:w-auto">
-                            <Mail className="h-4 w-4 mr-2" />
-                            Email Report
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="no-print max-w-xl" aria-describedby="email-description">
-                          <DialogTitle>Email Scorecard Report</DialogTitle>
-                          <div id="email-description" className="sr-only">
-                            Send scorecard report via email
-                          </div>
-                          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
-                            <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
-                            <RadioGroup
-                              value={printMode}
-                              onValueChange={(
-                                value: "weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview",
-                              ) => setPrintMode(value)}
-                            >
-                              <div className="p-2 rounded-lg border border-primary/20 bg-primary/5">
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="gm-overview" id="gm-overview" />
-                                  <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
-                                    <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard,
-                                    Financial, Rocks & Celebrations
-                                  </Label>
-                                </div>
-                                {printMode === "gm-overview" && (
-                                  <div className="mt-3 ml-6 p-3 bg-background/50 rounded-md border">
-                                    <Label className="text-xs font-medium text-muted-foreground mb-2 block">
-                                      Time Period
-                                    </Label>
-                                    <RadioGroup
-                                      value={gmOverviewPeriod}
-                                      onValueChange={(value: "quarterly" | "yearly") => setGmOverviewPeriod(value)}
-                                      className="flex gap-4"
-                                    >
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="quarterly" id="gm-quarterly" />
-                                        <Label htmlFor="gm-quarterly" className="cursor-pointer font-normal text-sm">
-                                          Quarterly (Q{selectedQuarter})
-                                        </Label>
-                                      </div>
-                                      <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="yearly" id="gm-yearly" />
-                                        <Label htmlFor="gm-yearly" className="cursor-pointer font-normal text-sm">
-                                          Monthly Trend (All 12 months)
-                                        </Label>
-                                      </div>
-                                    </RadioGroup>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="weekly" id="weekly" />
-                                <Label htmlFor="weekly" className="cursor-pointer font-normal">
-                                  Weekly Scores (13 weeks per quarter)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="monthly" id="monthly" />
-                                <Label htmlFor="monthly" className="cursor-pointer font-normal">
-                                  Monthly Scores (3 months per quarter)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="quarterly-trend" id="quarterly-trend" />
-                                <Label htmlFor="quarterly-trend" className="cursor-pointer font-normal">
-                                  Quarterly Trend (Rolling 5 quarters)
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="yearly" id="yearly" />
-                                <Label htmlFor="yearly" className="cursor-pointer font-normal">
-                                  Yearly Report (All 12 months with KPIs & Financial Summary)
-                                </Label>
-                              </div>
-                            </RadioGroup>
-                          </div>
-                          <div className="mb-4 p-4 border rounded-lg bg-muted/30">
-                            <Label className="text-sm font-semibold mb-3 block">Recipients</Label>
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {emailRecipients.map((recipient) => (
-                                <div key={recipient.id} className="flex items-center space-x-2">
-                                  <Checkbox
-                                    id={`recipient-${recipient.id}`}
-                                    checked={selectedEmailRecipients.includes(recipient.email)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedEmailRecipients([...selectedEmailRecipients, recipient.email]);
-                                      } else {
-                                        setSelectedEmailRecipients(
-                                          selectedEmailRecipients.filter((email) => email !== recipient.email),
-                                        );
-                                      }
-                                    }}
-                                  />
-                                  <Label
-                                    htmlFor={`recipient-${recipient.id}`}
-                                    className="cursor-pointer font-normal text-sm flex-1"
-                                  >
-                                    {recipient.full_name} ({recipient.email})
-                                  </Label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2 mt-4">
-                            <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button
-                              onClick={handleEmailScorecard}
-                              disabled={isEmailLoading || selectedEmailRecipients.length === 0}
-                            >
-                              <Mail className="h-4 w-4 mr-2" />
-                              {isEmailLoading ? "Sending..." : "Send Email"}
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                      <div className="text-right hidden sm:block">
+                      <Button variant="outline" size="sm" onClick={() => setPrintDialogOpen(true)}>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Email Report
+                      </Button>
+                      <div className="text-right">
                         <p className="text-sm font-medium">{profile.full_name}</p>
                         <p className="text-xs text-muted-foreground capitalize">{profile.role.replace("_", " ")}</p>
                       </div>
                       <ThemeToggle />
-                      <Button variant="outline" size="sm" onClick={handleSignOut} className="w-full md:w-auto">
+                      <Button variant="outline" size="sm" onClick={handleSignOut}>
                         <LogOut className="h-4 w-4 mr-2" />
                         Sign Out
                       </Button>
                     </div>
+
+                    {/* Mobile Hamburger Menu */}
+                    <div className="md:hidden flex justify-end">
+                      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                        <SheetTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Menu className="h-5 w-5" />
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="w-64 p-4">
+                          <div className="flex flex-col gap-2 mt-4">
+                            {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
+                              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { navigate("/enterprise"); setMobileMenuOpen(false); }}>
+                                <TrendingUp className="mr-2 h-4 w-4" />
+                                Enterprise
+                              </Button>
+                            )}
+                            {isSuperAdmin && (
+                              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { setShowStores(true); setMobileMenuOpen(false); }}>
+                                <Building2 className="mr-2 h-4 w-4" />
+                                Stores
+                              </Button>
+                            )}
+                            {(isSuperAdmin || isStoreGM) && (
+                              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { setShowDepartments(true); setMobileMenuOpen(false); }}>
+                                <Building className="mr-2 h-4 w-4" />
+                                Departments
+                              </Button>
+                            )}
+                            {isSuperAdmin && <AdminNavDropdown />}
+                            {(isSuperAdmin || isStoreGM || isDepartmentManager) && (
+                              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { setShowUsers(true); setMobileMenuOpen(false); }}>
+                                <Users className="mr-2 h-4 w-4" />
+                                Users
+                              </Button>
+                            )}
+                            {selectedDepartment && (
+                              <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { setShowDepartmentInfo(true); setMobileMenuOpen(false); }}>
+                                <ClipboardList className="mr-2 h-4 w-4" />
+                                Department Info
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => { setPrintDialogOpen(true); setMobileMenuOpen(false); }}>
+                              <Mail className="h-4 w-4 mr-2" />
+                              Email Report
+                            </Button>
+
+                            <div className="border-t my-2" />
+
+                            <div className="px-2 py-1">
+                              <p className="text-sm font-medium">{profile.full_name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{profile.role.replace("_", " ")}</p>
+                            </div>
+                            <div className="flex items-center justify-between px-2">
+                              <span className="text-sm text-muted-foreground">Theme</span>
+                              <ThemeToggle />
+                            </div>
+                            <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleSignOut}>
+                              <LogOut className="h-4 w-4 mr-2" />
+                              Sign Out
+                            </Button>
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    </div>
+
+                    {/* Email Report Dialog - always mounted (portaled) */}
+                    <Dialog
+                      open={printDialogOpen}
+                      onOpenChange={(open) => {
+                        setPrintDialogOpen(open);
+                        if (open) {
+                          const loadRecipients = async () => {
+                            const { data: superAdminRoles } = await supabase
+                              .from("user_roles")
+                              .select("user_id")
+                              .eq("role", "super_admin");
+
+                            const superAdminIds = superAdminRoles?.map((r) => r.user_id) || [];
+
+                            let groupProfiles: any[] = [];
+                            if (profile?.store_group_id) {
+                              const { data } = await supabase
+                                .from("profiles")
+                                .select("id, full_name, email")
+                                .eq("store_group_id", profile.store_group_id)
+                                .eq("is_system_user", false)
+                                .order("full_name");
+                              groupProfiles = data || [];
+                            }
+
+                            const { data: superAdminProfiles } = await supabase
+                              .from("profiles")
+                              .select("id, full_name, email")
+                              .in("id", superAdminIds)
+                              .eq("is_system_user", false);
+
+                            const allProfiles = [...groupProfiles];
+                            superAdminProfiles?.forEach((sa) => {
+                              if (!allProfiles.find((p) => p.id === sa.id)) {
+                                allProfiles.push(sa);
+                              }
+                            });
+
+                            allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
+                            setEmailRecipients(allProfiles);
+                          };
+                          loadRecipients();
+                        }
+                      }}
+                    >
+                      <DialogContent className="no-print max-w-xl" aria-describedby="email-description">
+                        <DialogTitle>Email Scorecard Report</DialogTitle>
+                        <div id="email-description" className="sr-only">
+                          Send scorecard report via email
+                        </div>
+                        <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+                          <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
+                          <RadioGroup
+                            value={printMode}
+                            onValueChange={(
+                              value: "weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview",
+                            ) => setPrintMode(value)}
+                          >
+                            <div className="p-2 rounded-lg border border-primary/20 bg-primary/5">
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="gm-overview" id="gm-overview" />
+                                <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
+                                  <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard,
+                                  Financial, Rocks & Celebrations
+                                </Label>
+                              </div>
+                              {printMode === "gm-overview" && (
+                                <div className="mt-3 ml-6 p-3 bg-background/50 rounded-md border">
+                                  <Label className="text-xs font-medium text-muted-foreground mb-2 block">
+                                    Time Period
+                                  </Label>
+                                  <RadioGroup
+                                    value={gmOverviewPeriod}
+                                    onValueChange={(value: "quarterly" | "yearly") => setGmOverviewPeriod(value)}
+                                    className="flex gap-4"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem value="quarterly" id="gm-quarterly" />
+                                      <Label htmlFor="gm-quarterly" className="cursor-pointer font-normal text-sm">
+                                        Quarterly (Q{selectedQuarter})
+                                      </Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <RadioGroupItem value="yearly" id="gm-yearly" />
+                                      <Label htmlFor="gm-yearly" className="cursor-pointer font-normal text-sm">
+                                        Monthly Trend (All 12 months)
+                                      </Label>
+                                    </div>
+                                  </RadioGroup>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="weekly" id="weekly" />
+                              <Label htmlFor="weekly" className="cursor-pointer font-normal">
+                                Weekly Scores (13 weeks per quarter)
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="monthly" id="monthly" />
+                              <Label htmlFor="monthly" className="cursor-pointer font-normal">
+                                Monthly Scores (3 months per quarter)
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="quarterly-trend" id="quarterly-trend" />
+                              <Label htmlFor="quarterly-trend" className="cursor-pointer font-normal">
+                                Quarterly Trend (Rolling 5 quarters)
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <RadioGroupItem value="yearly" id="yearly" />
+                              <Label htmlFor="yearly" className="cursor-pointer font-normal">
+                                Yearly Report (All 12 months with KPIs & Financial Summary)
+                              </Label>
+                            </div>
+                          </RadioGroup>
+                        </div>
+                        <div className="mb-4 p-4 border rounded-lg bg-muted/30">
+                          <Label className="text-sm font-semibold mb-3 block">Recipients</Label>
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {emailRecipients.map((recipient) => (
+                              <div key={recipient.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`recipient-${recipient.id}`}
+                                  checked={selectedEmailRecipients.includes(recipient.email)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedEmailRecipients([...selectedEmailRecipients, recipient.email]);
+                                    } else {
+                                      setSelectedEmailRecipients(
+                                        selectedEmailRecipients.filter((email) => email !== recipient.email),
+                                      );
+                                    }
+                                  }}
+                                />
+                                <Label
+                                  htmlFor={`recipient-${recipient.id}`}
+                                  className="cursor-pointer font-normal text-sm flex-1"
+                                >
+                                  {recipient.full_name} ({recipient.email})
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-4">
+                          <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={handleEmailScorecard}
+                            disabled={isEmailLoading || selectedEmailRecipients.length === 0}
+                          >
+                            <Mail className="h-4 w-4 mr-2" />
+                            {isEmailLoading ? "Sending..." : "Send Email"}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
       </header>
