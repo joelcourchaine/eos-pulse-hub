@@ -595,13 +595,6 @@ export function useForecastCalculations({
             console.log('[useForecastCalculations] sales_expense_percent 2026-01 USING LOCKED VALUE:', existingEntry.forecast_value);
           }
           value = existingEntry.forecast_value;
-        } else if (hasStoredForecastValue) {
-          // Use stored forecast value even if not locked (highest priority after locked values)
-          // This is critical for metrics like sales_expense_percent that were edited via annual cell
-          if (metric.key === 'sales_expense_percent' && month === '2026-01') {
-            console.log('[useForecastCalculations] sales_expense_percent 2026-01 USING STORED VALUE:', existingEntry.forecast_value);
-          }
-          value = existingEntry.forecast_value;
         } else if (useBaselineDirectly) {
           // At baseline settings - use baseline value for ALL metrics to avoid rounding differences
           value = baselineValue;
