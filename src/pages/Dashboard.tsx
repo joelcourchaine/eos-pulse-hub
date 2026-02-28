@@ -165,6 +165,10 @@ const Dashboard = () => {
   }, [profile, isSuperAdmin, rolesLoading]);
 
   useEffect(() => {
+    setScorecardViewMode("weekly");
+  }, [selectedStore]);
+
+  useEffect(() => {
     if (selectedStore && profile && storesLoaded) {
       // Mark that we're switching stores
       setIsStoreSwitching(true);
