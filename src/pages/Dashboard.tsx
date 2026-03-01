@@ -62,6 +62,7 @@ const Dashboard = () => {
   const isMobile = useIsMobile();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,19 +131,13 @@ const Dashboard = () => {
   const weekDateRange = `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`;
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (!session) {
-        navigate("/auth");
-      }
-    });
-
+    // First resolve the session from storage, then set up the listener.
+    // This prevents a race condition where onAuthStateChange fires with null
+    // before localStorage has been read, causing a premature redirect to /auth.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      setIsAuthReady(true);
       if (!session) {
         navigate("/auth");
       } else {
@@ -150,7 +145,19 @@ const Dashboard = () => {
       }
     });
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      // Only redirect once auth is known to be ready (avoids redirect on initial null)
+      if (isAuthReady && !session) {
+        navigate("/auth");
+      }
+    });
+
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   useEffect(() => {
