@@ -1,49 +1,36 @@
 
-## The Problem
+## Root Cause
 
-When a new technician is created, the UI doesn't show them in the dropdown or auto-select them after creation. There are two race conditions:
+The import log confirms `metrics_imported: {}` — no data was written for anyone, despite the import showing "success". Bill Vanderbos has KPI definitions but zero entries.
 
-1. **Profile race**: The `create-user` edge function sets `store_id` on the profile *after* creating the user. The `refetchUsers()` call in `onSuccess` fires immediately, potentially before the profile update completes, so the new user (filtered by `store_id`) doesn't appear in results.
+The issue: **`importMutation` captures a stale closure over `mappings`**. When the user creates a new user (Bill) and then clicks Import, React's `useMutation` `mutationFn` closes over the `mappings` state at the time the mutation was *defined*, not when it's *called*. This means Bill's `selectedUserId` is still `null` in the function's view, even though the UI shows him as mapped.
 
-2. **Auto-select timing**: `setMappings` runs to auto-select the new user, but since `storeUsers` doesn't include them yet, the badge shows `"Mapped"` instead of their name — and on next render the mapping may also reset (since `storeUsers` is null for that ID).
+Additionally, the import log's `metrics_imported` field is always empty `{}` — it's never populated in the code — so there's no visibility into what actually got written.
 
 ## Fix Plan
 
-### `src/components/scorecard/TechnicianImportPreviewDialog.tsx`
+### 1. Fix stale closure on `mappings` in `importMutation`
 
-In the `createUserMutation.onSuccess` handler (lines 196–211):
+**`src/components/scorecard/TechnicianImportPreviewDialog.tsx`**
 
-1. **Add a small delay before refetching** — wait 500ms to let the edge function finish writing the `store_id` to the profile before the frontend queries it.
-
-2. **Invalidate the query key** in addition to calling `refetchUsers()`, to ensure React Query marks it stale and triggers a fresh fetch.
-
-3. **Move the `setMappings` auto-select AFTER the await** so it runs once the updated `storeUsers` is available, ensuring the new user is in the list when they get auto-selected.
+Use a `useRef` to always hold the latest `mappings` value, and read from the ref inside `mutationFn`:
 
 ```typescript
-onSuccess: async (data, _vars) => {
-  toast({ title: "User created", description: `${_vars.fullName} added as Technician` });
-  
-  // Wait for edge function to finish writing store_id to profile
-  await new Promise((resolve) => setTimeout(resolve, 600));
-  
-  // Invalidate + refetch so the new user appears in the list
-  await queryClient.invalidateQueries({ queryKey: ["store-users-tech-import", storeId] });
-  await refetchUsers();
-  
-  // Auto-select the newly created user
-  if (data?.user?.id && newUserForm.techIndex !== null) {
-    setMappings((prev) => {
-      const updated = [...prev];
-      updated[newUserForm.techIndex!] = {
-        ...updated[newUserForm.techIndex!],
-        selectedUserId: data.user.id,
-        isNew: false,
-      };
-      return updated;
-    });
-  }
-  setNewUserForm({ techIndex: null, fullName: "", email: "", isSubmitting: false });
-},
+const mappingsRef = useRef(mappings);
+useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
+
+// In importMutation mutationFn:
+const currentMappings = mappingsRef.current; // always fresh
+for (let i = 0; i < currentMappings.length; i++) {
+  const { tech, selectedUserId } = currentMappings[i];
+  ...
+}
 ```
 
-That's the only change needed — one file, the `onSuccess` callback.
+### 2. Populate `metrics_imported` in the import log
+
+Currently logged as `{}`. Change it to record actual KPI IDs written per user so the admin logs show real data.
+
+### 3. Keep the fix minimal and safe
+
+Only change `TechnicianImportPreviewDialog.tsx` — add the ref, wire it up, use `mappingsRef.current` inside `mutationFn`.
