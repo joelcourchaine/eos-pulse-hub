@@ -373,12 +373,11 @@ export const TechnicianImportPreviewDialog = ({
         // Upsert monthly entries
         for (const mo of tech.monthlyTotals) {
           const monthEntries = [
-            { kpi_id: availableId, actual_value: mo.clockedInHrs, week_start_date: mo.month + "-01" },
-            { kpi_id: soldId, actual_value: mo.soldHrs, week_start_date: mo.month + "-01" },
+            { kpi_id: availableId, actual_value: mo.clockedInHrs },
+            { kpi_id: soldId, actual_value: mo.soldHrs },
             {
               kpi_id: productiveId,
               actual_value: mo.productive !== null ? parseFloat((mo.productive * 100).toFixed(2)) : null,
-              week_start_date: mo.month + "-01",
             },
           ].filter((e) => e.actual_value !== null);
 
@@ -386,12 +385,12 @@ export const TechnicianImportPreviewDialog = ({
             await supabase.from("scorecard_entries").upsert(
               {
                 kpi_id: entry.kpi_id,
-                week_start_date: entry.week_start_date,
+                month: mo.month,
                 entry_type: "monthly",
                 actual_value: entry.actual_value,
                 created_by: currentUserId,
               },
-              { onConflict: "kpi_id,week_start_date,entry_type" }
+              { onConflict: "kpi_id,month,entry_type" }
             );
           }
         }
