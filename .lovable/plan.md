@@ -1,36 +1,45 @@
 
-## Root Cause
+## Two Problems to Fix
 
-The import log confirms `metrics_imported: {}` — no data was written for anyone, despite the import showing "success". Bill Vanderbos has KPI definitions but zero entries.
+### Problem 1: Duplicate Michael Abrahamsz entries in the list
+The parser has deduplication logic, but 4 entries are still showing. The dedup uses `tech.rawName.toLowerCase().trim()` as the key. If the names differ by even a single whitespace or invisible character, they won't deduplicate. The fix: **also deduplicate in the UI layer** inside `TechnicianImportPreviewDialog`, after `parseResult.technicians` is received, using a `Map` keyed on normalized name — this is a safety net that catches any edge case the parser misses.
 
-The issue: **`importMutation` captures a stale closure over `mappings`**. When the user creates a new user (Bill) and then clicks Import, React's `useMutation` `mutationFn` closes over the `mappings` state at the time the mutation was *defined*, not when it's *called*. This means Bill's `selectedUserId` is still `null` in the function's view, even though the UI shows him as mapped.
+### Problem 2: Allow creating a user with a name that already exists
+When the user clicks "Create Technician", there's no check against `storeUsers`. If "Michael Abrahamsz" already exists in the store, we should:
+- Show a warning inline and block submission
+- Optionally auto-select the existing user instead
 
-Additionally, the import log's `metrics_imported` field is always empty `{}` — it's never populated in the code — so there's no visibility into what actually got written.
+## Changes — one file only: `TechnicianImportPreviewDialog.tsx`
 
-## Fix Plan
+### 1. Deduplicate `parseResult.technicians` in the `useEffect` that builds `mappings` (lines 136–164)
 
-### 1. Fix stale closure on `mappings` in `importMutation`
-
-**`src/components/scorecard/TechnicianImportPreviewDialog.tsx`**
-
-Use a `useRef` to always hold the latest `mappings` value, and read from the ref inside `mutationFn`:
+Before building the mapping array, deduplicate technicians by normalized name:
 
 ```typescript
-const mappingsRef = useRef(mappings);
-useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
+// Deduplicate technicians by normalized name (safety net over parser)
+const seen = new Map<string, TechnicianData>();
+for (const tech of parseResult.technicians) {
+  const key = tech.rawName.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!seen.has(key)) seen.set(key, tech);
+}
+const uniqueTechs = Array.from(seen.values());
+```
 
-// In importMutation mutationFn:
-const currentMappings = mappingsRef.current; // always fresh
-for (let i = 0; i < currentMappings.length; i++) {
-  const { tech, selectedUserId } = currentMappings[i];
-  ...
+Then use `uniqueTechs` instead of `parseResult.technicians` when building `initialMappings`.
+
+### 2. Validate name uniqueness before creating user (around line 560)
+
+In the "Create Technician" button's `onClick`, check if the typed name already exists in `storeUsers`:
+
+```typescript
+// Before calling createUserMutation.mutate(...)
+const nameExists = storeUsers?.some(
+  (u) => u.full_name?.toLowerCase().trim() === newUserForm.fullName.toLowerCase().trim()
+);
+if (nameExists) {
+  toast({ title: "User already exists", description: `${newUserForm.fullName} is already a user at this store.`, variant: "destructive" });
+  return;
 }
 ```
 
-### 2. Populate `metrics_imported` in the import log
-
-Currently logged as `{}`. Change it to record actual KPI IDs written per user so the admin logs show real data.
-
-### 3. Keep the fix minimal and safe
-
-Only change `TechnicianImportPreviewDialog.tsx` — add the ref, wire it up, use `mappingsRef.current` inside `mutationFn`.
+Also add a real-time warning label beneath the Full Name input that appears as the user types, showing "This name already exists" in red if a match is found — so they see it before hitting the button.
