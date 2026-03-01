@@ -1,16 +1,49 @@
 
-The `DialogContent` has `max-h-[90vh] flex flex-col overflow-hidden` but the Radix Dialog root renders inside a portal and the content doesn't have a real height constraint — `max-h` only kicks in when the element would naturally exceed that height. Since the dialog is sized to its content by default, the `ScrollArea` with `flex-1 min-h-0` has no fixed parent height to anchor against, so it never scrolls.
+## The Problem
 
-**Fix**: Add `h-[90vh]` (explicit height, not just max-height) to `DialogContent`. This gives the flex container a real height, allowing `flex-1 min-h-0` on the `ScrollArea` to work correctly.
+When a new technician is created, the UI doesn't show them in the dropdown or auto-select them after creation. There are two race conditions:
 
-**Single change in `src/components/scorecard/TechnicianImportPreviewDialog.tsx` line 405:**
+1. **Profile race**: The `create-user` edge function sets `store_id` on the profile *after* creating the user. The `refetchUsers()` call in `onSuccess` fires immediately, potentially before the profile update completes, so the new user (filtered by `store_id`) doesn't appear in results.
 
-```tsx
-// Before
-<DialogContent className="max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+2. **Auto-select timing**: `setMappings` runs to auto-select the new user, but since `storeUsers` doesn't include them yet, the badge shows `"Mapped"` instead of their name — and on next render the mapping may also reset (since `storeUsers` is null for that ID).
 
-// After  
-<DialogContent className="max-w-3xl h-[90vh] flex flex-col overflow-hidden">
+## Fix Plan
+
+### `src/components/scorecard/TechnicianImportPreviewDialog.tsx`
+
+In the `createUserMutation.onSuccess` handler (lines 196–211):
+
+1. **Add a small delay before refetching** — wait 500ms to let the edge function finish writing the `store_id` to the profile before the frontend queries it.
+
+2. **Invalidate the query key** in addition to calling `refetchUsers()`, to ensure React Query marks it stale and triggers a fresh fetch.
+
+3. **Move the `setMappings` auto-select AFTER the await** so it runs once the updated `storeUsers` is available, ensuring the new user is in the list when they get auto-selected.
+
+```typescript
+onSuccess: async (data, _vars) => {
+  toast({ title: "User created", description: `${_vars.fullName} added as Technician` });
+  
+  // Wait for edge function to finish writing store_id to profile
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  
+  // Invalidate + refetch so the new user appears in the list
+  await queryClient.invalidateQueries({ queryKey: ["store-users-tech-import", storeId] });
+  await refetchUsers();
+  
+  // Auto-select the newly created user
+  if (data?.user?.id && newUserForm.techIndex !== null) {
+    setMappings((prev) => {
+      const updated = [...prev];
+      updated[newUserForm.techIndex!] = {
+        ...updated[newUserForm.techIndex!],
+        selectedUserId: data.user.id,
+        isNew: false,
+      };
+      return updated;
+    });
+  }
+  setNewUserForm({ techIndex: null, fullName: "", email: "", isSubmitting: false });
+},
 ```
 
-Changing `max-h-[90vh]` → `h-[90vh]` forces the dialog to always be 90% of the viewport height, giving the inner `ScrollArea` a concrete height to fill, so the technician list scrolls properly.
+That's the only change needed — one file, the `onSuccess` callback.
