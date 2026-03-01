@@ -141,7 +141,15 @@ export const TechnicianImportPreviewDialog = ({
       aliasMap.set(alias.alias_name.toLowerCase().trim(), alias.user_id);
     }
 
-    const initialMappings: TechMapping[] = parseResult.technicians.map((tech) => {
+    // Deduplicate technicians by normalized name (safety net over parser)
+    const seen = new Map<string, typeof parseResult.technicians[0]>();
+    for (const tech of parseResult.technicians) {
+      const key = tech.rawName.toLowerCase().replace(/\s+/g, " ").trim();
+      if (!seen.has(key)) seen.set(key, tech);
+    }
+    const uniqueTechs = Array.from(seen.values());
+
+    const initialMappings: TechMapping[] = uniqueTechs.map((tech) => {
       const byDisplay = aliasMap.get(tech.displayName.toLowerCase().trim());
       const byRaw = aliasMap.get(tech.rawName.toLowerCase().trim());
       let matchedUserId = byDisplay || byRaw || null;
@@ -542,7 +550,7 @@ export const TechnicianImportPreviewDialog = ({
                   {newUserForm.techIndex === idx && (
                     <div className="rounded bg-muted/50 p-3 space-y-2 border">
                       <div className="text-xs font-medium">Create new user</div>
-                      <div>
+                       <div>
                         <Label className="text-xs">Full Name</Label>
                         <Input
                           className="h-8 text-xs"
@@ -551,18 +559,32 @@ export const TechnicianImportPreviewDialog = ({
                             setNewUserForm((prev) => ({ ...prev, fullName: e.target.value }))
                           }
                         />
+                        {newUserForm.fullName && storeUsers?.some(
+                          (u) => u.full_name?.toLowerCase().trim() === newUserForm.fullName.toLowerCase().trim()
+                        ) && (
+                          <p className="text-xs text-destructive mt-1">This name already exists at this store.</p>
+                        )}
                       </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           className="h-7 text-xs"
-                          disabled={!newUserForm.fullName || createUserMutation.isPending}
-                          onClick={() =>
+                          disabled={!newUserForm.fullName || createUserMutation.isPending || !!storeUsers?.some(
+                            (u) => u.full_name?.toLowerCase().trim() === newUserForm.fullName.toLowerCase().trim()
+                          )}
+                          onClick={() => {
+                            const nameExists = storeUsers?.some(
+                              (u) => u.full_name?.toLowerCase().trim() === newUserForm.fullName.toLowerCase().trim()
+                            );
+                            if (nameExists) {
+                              toast({ title: "User already exists", description: `${newUserForm.fullName} is already a user at this store.`, variant: "destructive" });
+                              return;
+                            }
                             createUserMutation.mutate({
                               fullName: newUserForm.fullName,
                               email: newUserForm.email,
-                            })
-                          }
+                            });
+                          }}
                         >
                           {createUserMutation.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin mr-1" />
