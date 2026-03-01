@@ -1,49 +1,32 @@
 
 ## Root Cause
 
-The `useEffect` on line 136 rebuilds the entire `mappings` array whenever `storeUsers` changes (it's in the deps array on line 172). This fires every time:
-- A new user is created and `refetchUsers()` is called
-- Any other trigger causes `storeUsers` to update
+Monthly scorecard entries use a `month` column (format `"YYYY-MM"`) and conflict key `kpi_id,month`. The technician import instead sets `week_start_date = mo.month + "-01"` and uses conflict `kpi_id,week_start_date,entry_type`. The `month` field is never populated, so the scorecard's `.in("month", [...])` filter returns empty results.
 
-So when you map Technician A to User X, then create a new user for Technician B, the `refetchUsers()` call causes `storeUsers` to update, which triggers the `useEffect` to **reset all mappings back to their auto-detected defaults** — wiping out your manual selections.
+Weekly entries also have a subtle issue — the scorecard queries `scorecard_entries` filtered by `week_start_date` with no `month` filter, so weekly data may actually be loading but hidden by the technician role filter. The monthly data is definitively broken.
 
-## Fix
+## Fix — `TechnicianImportPreviewDialog.tsx` only
 
-Two changes to `TechnicianImportPreviewDialog.tsx`:
-
-### 1. Remove `storeUsers` from the `useEffect` dependency array
-
-The effect should only run **once** when the dialog opens with fresh parse data. It should not re-run when `storeUsers` changes.
-
-Change line 172 from:
-```typescript
-}, [open, parseResult.technicians, userAliases, storeUsers]);
-```
-to:
-```typescript
-}, [open, parseResult.technicians, userAliases]);
-```
-
-### 2. Use a "has initialized" guard so it only runs once per dialog open
-
-Add a `hasInitialized` ref so even if `open` flips, we don't reset mappings that already have user selections:
+### Monthly entries (lines 374–396)
+Change the monthly upsert to:
+- Set `month: mo.month` (not `week_start_date`)
+- Use `onConflict: "kpi_id,month,entry_type"` to match the correct unique key
 
 ```typescript
-const hasInitialized = useRef(false);
+// BEFORE (broken)
+await supabase.from("scorecard_entries").upsert(
+  { kpi_id: ..., week_start_date: mo.month + "-01", entry_type: "monthly", ... },
+  { onConflict: "kpi_id,week_start_date,entry_type" }
+);
 
-useEffect(() => {
-  if (!open) { hasInitialized.current = false; return; }
-  if (hasInitialized.current) return; // don't re-run if already built
-  if (!parseResult.technicians || !userAliases) return;
-  
-  hasInitialized.current = true;
-  // ... build initialMappings using storeUsers (current value only, not reactive)
-  // ...
-  setMappings(initialMappings);
-}, [open, parseResult.technicians, userAliases]);
+// AFTER (correct)
+await supabase.from("scorecard_entries").upsert(
+  { kpi_id: ..., month: mo.month, entry_type: "monthly", ... },
+  { onConflict: "kpi_id,month" }
+);
 ```
 
-This way:
-- On dialog open: mappings initialize once with auto-matching
-- After creating a new user: `storeUsers` refetches but mappings are **not reset**
-- The new user's auto-selection still works because it uses `setMappings(prev => ...)` (a targeted update), not the full rebuild
+### Weekly entries (lines 341–370)
+Weekly entries look structurally correct (`week_start_date` + `onConflict: "kpi_id,week_start_date,entry_type"`), but verify the conflict key matches the DB. Also add `entry_type: "weekly"` explicitly to ensure the filter works.
+
+This is a one-file change to `TechnicianImportPreviewDialog.tsx`.
