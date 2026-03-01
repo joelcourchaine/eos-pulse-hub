@@ -303,17 +303,21 @@ export const TechnicianImportPreviewDialog = ({
 
         const kpiIdMap: Record<string, string> = {};
         for (const spec of kpiSpecs) {
-          // Check existing
-          const { data: existing } = await supabase
+          // Check existing — exact match to prevent duplicates
+          const { data: existingList } = await supabase
             .from("kpi_definitions")
             .select("id, name")
             .eq("department_id", departmentId)
             .eq("assigned_to", selectedUserId)
-            .ilike("name", spec.name)
-            .maybeSingle();
+            .eq("name", spec.name);
 
-          if (existing) {
-            kpiIdMap[spec.name] = existing.id;
+          if (existingList && existingList.length > 0) {
+            kpiIdMap[spec.name] = existingList[0].id;
+            // Clean up any duplicate KPI definitions
+            if (existingList.length > 1) {
+              const idsToDelete = existingList.slice(1).map((e) => e.id);
+              await supabase.from("kpi_definitions").delete().in("id", idsToDelete);
+            }
           } else {
             const { data: created, error: createErr } = await supabase
               .from("kpi_definitions")
