@@ -1,18 +1,17 @@
 
-## Remove Drop Zone Animations from Month Headers
+Yes — the Import dialog (`ScorecardImportDropZone`) already has **both slots** side by side:
 
-**File: `src/components/financial/MonthDropZone.tsx`**
+- **Left slot** → Service Advisors (CSR Productivity Report) — uses `parseCSRProductivityReport` → opens `ScorecardImportPreviewDialog`
+- **Right slot** → Technicians (Technician Hours Report) — uses `parseTechnicianHoursReport` → opens `TechnicianImportPreviewDialog`
 
-Remove all the animated/hover cue additions:
+The plan is simply to wire this dialog into the scorecard toolbar so you can actually reach it.
 
-1. **Lines 105-106**: Remove `isHovered` and `showPulse` state declarations
-2. **Lines 108**: Remove `outerRef` ref
-3. **Lines 110-126**: Remove the `IntersectionObserver` useEffect entirely
-4. **Line 827**: Change `<Tooltip open={isHovered && ...}>` to `<Tooltip>` (remove controlled open)
-5. **Line 830**: Remove `ref={outerRef}` from outer div
-6. **Lines 835-836**: Remove `onMouseEnter`/`onMouseLeave` handlers
-7. **Line 843**: Remove hover ring class line (`isHovered && "ring-1 ring-dashed..."`)
-8. **Line 844**: Remove pulse class line (`showPulse && ...animate-pulse`)
-9. **Lines 853-857**: Remove the ChevronDown bounce indicator block entirely
+## What needs to be done
 
-The drag-over visual (`isDragOver && "ring-2 ring-primary..."`) stays — that's the active drop feedback which is still useful.
+**`src/components/scorecard/ScorecardGrid.tsx`**
+1. Import `ScorecardImportDropZone`
+2. Add `importOpen` state
+3. Add an "Import" button in the toolbar (visible to `canManageKPIs` users)
+4. Render `<ScorecardImportDropZone>` with `storeId`, `departmentId`, and `onImportComplete` wired up
+
+That's a single file, ~10 line change. Once done, clicking **Import** opens the dialog with both the CSR Advisor drop zone and the Technician drop zone right next to each other — you drop whichever report applies.
