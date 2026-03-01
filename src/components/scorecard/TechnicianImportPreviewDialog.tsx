@@ -193,10 +193,20 @@ export const TechnicianImportPreviewDialog = ({
 
   const createUserMutation = useMutation({
     mutationFn: async ({ fullName, email }: { fullName: string; email: string }) => {
-      // First check if a profile with this exact name already exists in the store
+      // 1. Check aliases first (most reliable — set at end of successful import)
+      const { data: alias } = await supabase
+        .from("scorecard_user_aliases")
+        .select("user_id")
+        .eq("store_id", storeId)
+        .eq("alias_name", fullName)
+        .maybeSingle();
+
+      if (alias) return { user: { id: alias.user_id } };
+
+      // 2. Then check profiles by exact name match
       const { data: existingProfile } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id")
         .eq("store_id", storeId)
         .eq("full_name", fullName)
         .maybeSingle();
