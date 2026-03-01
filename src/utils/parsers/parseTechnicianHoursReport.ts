@@ -299,7 +299,42 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           technicians.push(buildTechnicianData(currentTech));
         }
 
-        console.log("[TechParse] Found", technicians.length, "technicians");
+        // Deduplicate: merge entries with the same name (case-insensitive)
+        const mergedMap = new Map<string, TechnicianData>();
+        for (const tech of technicians) {
+          const key = tech.rawName.toLowerCase().trim();
+          if (mergedMap.has(key)) {
+            const existing = mergedMap.get(key)!;
+            // Merge daily values by date
+            const dateMap = new Map<string, TechnicianDailyValue>();
+            for (const dv of existing.dailyValues) dateMap.set(dv.date, { ...dv });
+            for (const dv of tech.dailyValues) {
+              if (dateMap.has(dv.date)) {
+                const e = dateMap.get(dv.date)!;
+                dateMap.set(dv.date, {
+                  date: dv.date,
+                  soldHrs: e.soldHrs + dv.soldHrs,
+                  clockedInHrs: e.clockedInHrs + dv.clockedInHrs,
+                });
+              } else {
+                dateMap.set(dv.date, { ...dv });
+              }
+            }
+            // Rebuild from merged daily values
+            const soldHrs: Record<string, number> = {};
+            const clockedInHrs: Record<string, number> = {};
+            for (const dv of dateMap.values()) {
+              soldHrs[dv.date] = dv.soldHrs;
+              clockedInHrs[dv.date] = dv.clockedInHrs;
+            }
+            mergedMap.set(key, buildTechnicianData({ name: existing.rawName, soldHrs, clockedInHrs }));
+          } else {
+            mergedMap.set(key, tech);
+          }
+        }
+        const deduped = Array.from(mergedMap.values());
+
+        console.log("[TechParse] Found", technicians.length, "technicians,", deduped.length, "after dedup");
 
         // Extract store name from top rows
         let storeName = "Unknown Store";
@@ -316,8 +351,8 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
         resolve({
           storeName,
           month: dominantMonth,
-          technicians,
-          detectedNames: technicians.map(t => t.rawName),
+          technicians: deduped,
+          detectedNames: deduped.map(t => t.rawName),
         });
 
       } catch (err: any) {
