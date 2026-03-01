@@ -1,60 +1,37 @@
 
-## Root Cause — Two distinct problems
+## What I found
 
-### Problem 1: Orphan duplicate profiles in the database
-Michael Abrahamsz has **4 profiles** (IDs: `d1db405c`, `34c0d739`, `5fe36bb8`, `bd0f8f56`). Three are orphan duplicates with no KPI definitions, created during earlier failed import attempts before the de-duplication fix. These orphan profiles show up in the scorecard's user list causing empty duplicate rows.
+All 18 technician KPI definitions exist in the database with **zero scorecard entries** — the re-imports never actually wrote data (likely because the KPI label `Open and Closed Hours` didn't match the new expected label `Sold Hours`). The technician profiles and aliases are fine and should be kept.
 
-### Problem 2: Bill Vanderbos has a stale "Closed Hours" KPI
-He has both `Closed Hours` (id: `2eb30f65`) and `Open and Closed Hours` — the old KPI from a previous import before the label was corrected. This causes his row to appear twice.
+## Plan: Delete all tech KPIs, keep profiles & aliases, re-import fresh
 
----
+### Step 1: Database cleanup (direct delete)
 
-## Fix — Two parts
+Delete all 18 KPI definitions for the 6 technicians in department `c6ffe45e-de3d-4b5c-a913-e1b41393c153`. Since entry count is 0 for all, there's no data loss:
 
-### Part 1: Database cleanup (direct data operations)
-
-**Delete orphan Michael Abrahamsz profiles** (the 3 duplicates, keeping the oldest `d1db405c`):
 ```sql
-DELETE FROM profiles 
-WHERE id IN (
-  '34c0d739-4feb-46d6-b425-d55615610c58',
-  '5fe36bb8-d8be-4d9d-be57-1b54a9e9cf72',
-  'bd0f8f56-e842-4d6a-bce2-521b6670ddf2'
-);
+DELETE FROM kpi_definitions
+WHERE department_id = 'c6ffe45e-de3d-4b5c-a913-e1b41393c153'
+AND assigned_to IN (
+  '008d17fa-0db7-49fc-a4ed-b584da119d6d', -- Bill Vanderbos
+  'd1db405c-e737-4eeb-9b57-c4dcf4114243', -- Michael Abrahamsz
+  'a67aef03-766b-4136-9e5c-aa846eda3de7', -- Vincente Castillo
+  'cd312d24-403c-481c-a54d-92eaf034ba83', -- Samantha Reitsema
+  '156f0c95-659c-4bec-852a-6ecf9d7ad120', -- Manny Ruiz
+  '83c83e30-fdeb-4c1b-9fde-581b566bc3b3'  -- Ray Prakash
+)
+AND name IN ('Available Hours', 'Open and Closed Hours', 'Sold Hours', 'Closed Hours', 'Productive');
 ```
 
-**Delete the stale "Closed Hours" KPI for Bill Vanderbos** (id: `2eb30f65`):
-```sql
-DELETE FROM kpi_definitions WHERE id = '2eb30f65-bbd5-4f8b-9d39-a77173a55981';
-```
+### Step 2: Also fix the import label used in code
 
-### Part 2: Code fix — prevent future orphan profile creation
+Looking at the current import code, `kpiLabel` is used for the "Sold Hrs" KPI name. I need to verify what value it resolves to — the previous import created `Open and Closed Hours` which suggests `kpiLabel` was being set to that old label. I need to check the current code to confirm it now correctly uses `Sold Hours`.
 
-The `createUserMutation` check added in the last fix queries `profiles` by `full_name` and `store_id`, but the auth user deletion (if the orphan auth.users records still exist) could still cause issues. The real issue is the check was added AFTER the `auth.users` user was already being created — so if the profile lookup returned nothing (because the profile hadn't synced yet via trigger), it created a new one anyway.
+### Step 3: Re-import
 
-The fix is to make the lookup also check `scorecard_user_aliases` so that if a technician was previously imported and aliased, we reuse that user ID without hitting the `profiles` table timing issue:
+After cleanup, re-import the technician hours report. The aliases are still intact so technician names will auto-match — you just confirm and submit.
 
-In `TechnicianImportPreviewDialog.tsx`, in `createUserMutation`, add a fallback alias check before the profile check:
-```typescript
-// 1. Check aliases first (most reliable — set at end of successful import)
-const { data: alias } = await supabase
-  .from("scorecard_user_aliases")
-  .select("user_id")
-  .eq("store_id", storeId)
-  .eq("alias_name", fullName)
-  .maybeSingle();
-if (alias) return { user: { id: alias.user_id } };
-
-// 2. Then check profiles
-const { data: existingProfile } = await supabase
-  .from("profiles")
-  .select("id")
-  .eq("store_id", storeId)
-  .eq("full_name", fullName)
-  .maybeSingle();
-if (existingProfile) return { user: { id: existingProfile.id } };
-
-// 3. Only then create new user
-```
-
-This two-part fix: cleans up the database now, and prevents the issue from recurring.
+### What stays intact
+- All 6 technician **profiles** (their user accounts, won't be touched)
+- All 6 **aliases** (name → user ID mapping, won't be touched)
+- All **advisor scorecard data** (completely separate department rows)
