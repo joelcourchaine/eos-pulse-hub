@@ -1,0 +1,1 @@
+ALTER TABLE public.departments ADD COLUMN IF NOT EXISTS technician_sold_hours_label TEXT DEFAULT 'closed_hours';

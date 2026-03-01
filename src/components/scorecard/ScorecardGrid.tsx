@@ -415,7 +415,7 @@ const ScorecardGrid = ({
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
   const monthDropZoneRefs = useRef<Record<string, ScorecardMonthDropZoneHandle | null>>({});
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("all");
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("service_advisor");
   const [pasteOwnerFilter, setPasteOwnerFilter] = useState<string>("all");
   const [pasteKpi, setPasteKpi] = useState<string>("");
   const [pasteData, setPasteData] = useState<string>("");
@@ -3554,10 +3554,9 @@ const ScorecardGrid = ({
           {/* Role filter */}
           <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
             <SelectTrigger className="h-8 w-[140px] text-xs bg-background">
-              <SelectValue placeholder="All Advisors" />
+              <SelectValue placeholder="Service Advisor" />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
-              <SelectItem value="all">All Advisors</SelectItem>
               {uniqueRoles.map((role) => (
                 <SelectItem key={role} value={role as string}>
                   {role === "department_manager" ? "Department Manager" : role === "service_advisor" ? "Service Advisor" : role === "sales_advisor" ? "Sales Advisor" : role === "parts_advisor" ? "Parts Advisor" : role === "technician" ? "Technician" : role === "store_gm" ? "Store GM" : role === "super_admin" ? "Super Admin" : role}
