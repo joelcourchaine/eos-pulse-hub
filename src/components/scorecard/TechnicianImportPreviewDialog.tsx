@@ -193,6 +193,18 @@ export const TechnicianImportPreviewDialog = ({
 
   const createUserMutation = useMutation({
     mutationFn: async ({ fullName, email }: { fullName: string; email: string }) => {
+      // First check if a profile with this exact name already exists in the store
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("store_id", storeId)
+        .eq("full_name", fullName)
+        .maybeSingle();
+
+      if (existingProfile) {
+        return { user: { id: existingProfile.id } };
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
 
