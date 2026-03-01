@@ -132,9 +132,14 @@ export const TechnicianImportPreviewDialog = ({
     }
   }, [department]);
 
-  // Build initial mappings when data is ready
+  const hasInitialized = useRef(false);
+
+  // Build initial mappings when data is ready — runs once per dialog open
   useEffect(() => {
-    if (!open || !parseResult.technicians || !userAliases) return;
+    if (!open) { hasInitialized.current = false; return; }
+    if (hasInitialized.current) return;
+    if (!parseResult.technicians || !userAliases) return;
+    hasInitialized.current = true;
 
     const aliasMap = new Map<string, string>();
     for (const alias of userAliases) {
@@ -169,7 +174,7 @@ export const TechnicianImportPreviewDialog = ({
     });
 
     setMappings(initialMappings);
-  }, [open, parseResult.technicians, userAliases, storeUsers]);
+  }, [open, parseResult.technicians, userAliases]);
 
   const saveLabelMutation = useMutation({
     mutationFn: async (label: string) => {
