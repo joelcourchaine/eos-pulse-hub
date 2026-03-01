@@ -3557,9 +3557,11 @@ const ScorecardGrid = ({
               <SelectValue placeholder="Service Advisor" />
             </SelectTrigger>
             <SelectContent className="bg-background z-50">
-              {uniqueRoles.map((role) => (
+              <SelectItem value="service_advisor">Service Advisor</SelectItem>
+              <SelectItem value="technician">Technician</SelectItem>
+              {uniqueRoles.filter(r => r !== "service_advisor" && r !== "technician").map((role) => (
                 <SelectItem key={role} value={role as string}>
-                  {role === "department_manager" ? "Department Manager" : role === "service_advisor" ? "Service Advisor" : role === "sales_advisor" ? "Sales Advisor" : role === "parts_advisor" ? "Parts Advisor" : role === "technician" ? "Technician" : role === "store_gm" ? "Store GM" : role === "super_admin" ? "Super Admin" : role}
+                  {role === "department_manager" ? "Department Manager" : role === "sales_advisor" ? "Sales Advisor" : role === "parts_advisor" ? "Parts Advisor" : role === "store_gm" ? "Store GM" : role === "super_admin" ? "Super Admin" : role}
                 </SelectItem>
               ))}
             </SelectContent>
