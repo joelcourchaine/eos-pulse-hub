@@ -1,49 +1,60 @@
 
-## Root Cause
+## Root Cause — Two distinct problems
 
-The image shows each technician appearing **twice** in the scorecard (e.g., Bill Vanderbos appears at two different positions, Michael Abrahamsz appears twice). This happens because the KPI lookup during import uses `.ilike("name", spec.name)` — a case-insensitive **partial match** — instead of an exact match.
+### Problem 1: Orphan duplicate profiles in the database
+Michael Abrahamsz has **4 profiles** (IDs: `d1db405c`, `34c0d739`, `5fe36bb8`, `bd0f8f56`). Three are orphan duplicates with no KPI definitions, created during earlier failed import attempts before the de-duplication fix. These orphan profiles show up in the scorecard's user list causing empty duplicate rows.
 
-On re-import, `.ilike("name", "Productive")` would match any KPI containing "Productive" in its name. If it silently returns nothing (or the match fails due to whitespace), a **second** KPI definition is created for the same technician+department with the same name. The scorecard then shows both KPI rows per technician.
+### Problem 2: Bill Vanderbos has a stale "Closed Hours" KPI
+He has both `Closed Hours` (id: `2eb30f65`) and `Open and Closed Hours` — the old KPI from a previous import before the label was corrected. This causes his row to appear twice.
 
-## Fix — `TechnicianImportPreviewDialog.tsx` only
+---
 
-### Change `.ilike()` to `.eq()` for exact KPI name matching (line 312)
+## Fix — Two parts
 
-```typescript
-// BEFORE (broken — partial match can miss or create duplicates)
-.ilike("name", spec.name)
+### Part 1: Database cleanup (direct data operations)
 
-// AFTER (correct — exact match prevents duplicates)
-.eq("name", spec.name)
+**Delete orphan Michael Abrahamsz profiles** (the 3 duplicates, keeping the oldest `d1db405c`):
+```sql
+DELETE FROM profiles 
+WHERE id IN (
+  '34c0d739-4feb-46d6-b425-d55615610c58',
+  '5fe36bb8-d8be-4d9d-be57-1b54a9e9cf72',
+  'bd0f8f56-e842-4d6a-bce2-521b6670ddf2'
+);
 ```
 
-### Also: Delete orphaned duplicate KPI definitions on import
-
-When checking for an existing KPI, if multiple rows are found (which is why `.maybeSingle()` silently fails), we should:
-1. Keep the first one
-2. Delete the duplicates (or at minimum, not create another one)
-
-Change the existing check from `.maybeSingle()` to `.limit(1)` with a separate cleanup step:
-
-```typescript
-// Get all KPIs with this exact name for this user
-const { data: existingList } = await supabase
-  .from("kpi_definitions")
-  .select("id, name")
-  .eq("department_id", departmentId)
-  .eq("assigned_to", selectedUserId)
-  .eq("name", spec.name);  // exact match
-
-if (existingList && existingList.length > 0) {
-  // Use the first one, delete any extras
-  kpiIdMap[spec.name] = existingList[0].id;
-  if (existingList.length > 1) {
-    const idsToDelete = existingList.slice(1).map(e => e.id);
-    await supabase.from("kpi_definitions").delete().in("id", idsToDelete);
-  }
-} else {
-  // Create new KPI
-}
+**Delete the stale "Closed Hours" KPI for Bill Vanderbos** (id: `2eb30f65`):
+```sql
+DELETE FROM kpi_definitions WHERE id = '2eb30f65-bbd5-4f8b-9d39-a77173a55981';
 ```
 
-This is a one-file change that both prevents future duplicates and cleans up existing ones on the next import.
+### Part 2: Code fix — prevent future orphan profile creation
+
+The `createUserMutation` check added in the last fix queries `profiles` by `full_name` and `store_id`, but the auth user deletion (if the orphan auth.users records still exist) could still cause issues. The real issue is the check was added AFTER the `auth.users` user was already being created — so if the profile lookup returned nothing (because the profile hadn't synced yet via trigger), it created a new one anyway.
+
+The fix is to make the lookup also check `scorecard_user_aliases` so that if a technician was previously imported and aliased, we reuse that user ID without hitting the `profiles` table timing issue:
+
+In `TechnicianImportPreviewDialog.tsx`, in `createUserMutation`, add a fallback alias check before the profile check:
+```typescript
+// 1. Check aliases first (most reliable — set at end of successful import)
+const { data: alias } = await supabase
+  .from("scorecard_user_aliases")
+  .select("user_id")
+  .eq("store_id", storeId)
+  .eq("alias_name", fullName)
+  .maybeSingle();
+if (alias) return { user: { id: alias.user_id } };
+
+// 2. Then check profiles
+const { data: existingProfile } = await supabase
+  .from("profiles")
+  .select("id")
+  .eq("store_id", storeId)
+  .eq("full_name", fullName)
+  .maybeSingle();
+if (existingProfile) return { user: { id: existingProfile.id } };
+
+// 3. Only then create new user
+```
+
+This two-part fix: cleans up the database now, and prevents the issue from recurring.
