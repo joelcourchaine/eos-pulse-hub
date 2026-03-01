@@ -45,6 +45,7 @@ import { ScorecardMonthDropZone, ScorecardImportLog, ScorecardMonthDropZoneHandl
 import { ScorecardWeekDropZone, WeekImportLog } from "./ScorecardWeekDropZone";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
+import { ScorecardImportDropZone } from "./ScorecardImportDropZone";
 import { StickyHScrollbar } from "./StickyHScrollbar";
 
 const PRESET_KPIS = [
@@ -413,6 +414,7 @@ const ScorecardGrid = ({
   const [importLogs, setImportLogs] = useState<{ [month: string]: ScorecardImportLog }>({});
   const [weekImportLogs, setWeekImportLogs] = useState<{ [weekDate: string]: WeekImportLog }>({});
   const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [importDropZoneOpen, setImportDropZoneOpen] = useState(false);
   const monthDropZoneRefs = useRef<Record<string, ScorecardMonthDropZoneHandle | null>>({});
   const [selectedKpiFilter, setSelectedKpiFilter] = useState<string>("all");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("service_advisor");
@@ -3657,6 +3659,10 @@ const ScorecardGrid = ({
             <>
               {canManageKPIs && (
                 <>
+                  <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={() => setImportDropZoneOpen(true)}>
+                    <Upload className="h-3.5 w-3.5" />
+                    Import
+                  </Button>
                   <Button variant="outline" size="sm" className="h-8 gap-1 text-xs" onClick={(e) => { e.stopPropagation(); setPasteDialogOpen(true); }}>
                     <ClipboardPaste className="h-3.5 w-3.5" />
                     Paste Row
@@ -5704,6 +5710,18 @@ const ScorecardGrid = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Drop Zone Dialog */}
+      <ScorecardImportDropZone
+        open={importDropZoneOpen}
+        onOpenChange={setImportDropZoneOpen}
+        departmentId={departmentId}
+        storeId={departmentStoreId || ""}
+        onImportComplete={() => {
+          loadKPITargets().then((freshTargets) => loadScorecardData(viewMode === "weekly" ? freshTargets.weeklyTargets : freshTargets.monthlyTargets));
+          loadImportLogs();
+        }}
+      />
 
       {/* Scorecard Import Preview Dialog */}
       {departmentStoreId && droppedParseResult && (
