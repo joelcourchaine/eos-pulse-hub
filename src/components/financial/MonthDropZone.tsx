@@ -102,32 +102,7 @@ export const MonthDropZone = ({
 }: MonthDropZoneProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const [showPulse, setShowPulse] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const outerRef = useRef<HTMLDivElement>(null);
-
-  // One-shot pulse animation when header first scrolls into view (only if no attachment)
-  useEffect(() => {
-    if (attachment || isUploading || copiedFrom) return;
-    const el = outerRef.current;
-    if (!el) return;
-    let fired = false;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!fired && entries[0]?.isIntersecting) {
-          fired = true;
-          observer.disconnect();
-          setShowPulse(true);
-          setTimeout(() => setShowPulse(false), 2000);
-        }
-      },
-      { threshold: 0.5 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const [validationStatus, setValidationStatus] = useState<"match" | "mismatch" | "imported" | null>(null);
   const [validationDetails, setValidationDetails] = useState<ValidationResult[]>([]);
   const { toast } = useToast();
@@ -824,35 +799,25 @@ export const MonthDropZone = ({
 
   const content = (
     <TooltipProvider>
-      <Tooltip open={isHovered && !attachment && !isUploading && !copiedFrom} delayDuration={0}>
+      <Tooltip>
         <TooltipTrigger asChild>
           <div
-            ref={outerRef}
             className={cn("relative group", className)}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
           >
             <div
               className={cn(
                 "transition-all duration-200",
                 isDragOver && "ring-2 ring-primary ring-inset bg-primary/10 rounded",
                 isCopying && "opacity-50 pointer-events-none",
-                !attachment && !isUploading && !copiedFrom && isHovered && "ring-1 ring-dashed ring-primary/50 bg-primary/5 rounded",
-                !attachment && !isUploading && !copiedFrom && showPulse && !isHovered && "ring-1 ring-dashed ring-primary/30 rounded animate-pulse",
               )}
             >
               {children}
               {isCopying && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded z-10">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                </div>
-              )}
-              {!attachment && !isUploading && !copiedFrom && (showPulse || isHovered) && (
-                <div className="absolute inset-x-0 bottom-0 flex justify-center pointer-events-none z-10">
-                  <ChevronDown className={cn("h-3 w-3 text-primary/50", showPulse && !isHovered && "animate-bounce")} />
                 </div>
               )}
             </div>
