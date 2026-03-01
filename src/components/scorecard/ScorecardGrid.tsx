@@ -2192,7 +2192,8 @@ const ScorecardGrid = ({
     return value.toString();
   };
 
-  const formatTarget = (value: number, type: string, kpiName?: string) => {
+  const formatTarget = (value: number | null, type: string, kpiName?: string) => {
+    if (value === null || value === undefined) return "—";
     // CP Hours Per RO (including "Total CP Hours Per RO") should always show 2 decimal places
     if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO") {
       return Number(value).toFixed(2);
