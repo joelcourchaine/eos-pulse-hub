@@ -517,6 +517,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   const [lines, setLines] = useState<{ x1: number; y1: number; x2: number; y2: number }[]>([]);
   const [refsVersion, setRefsVersion] = useState(0);
   const autoZoomSet = useRef(false);
+  const refsVersionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tree = useMemo(() => buildTree(members), [members]);
   const clusterMap = useMemo(() => buildClusterMap(tree), [tree]);
@@ -539,7 +540,11 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
   const setNodeRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) {
       nodeRefs.current.set(id, el);
-      setRefsVersion((v) => v + 1);
+      // Debounce to batch multiple simultaneous ref attachments into one state update
+      if (refsVersionTimer.current) clearTimeout(refsVersionTimer.current);
+      refsVersionTimer.current = setTimeout(() => {
+        setRefsVersion((v) => v + 1);
+      }, 16);
     } else {
       nodeRefs.current.delete(id);
     }
