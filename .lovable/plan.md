@@ -1,45 +1,49 @@
 
-## Two Problems to Fix
+## Root Cause
 
-### Problem 1: Duplicate Michael Abrahamsz entries in the list
-The parser has deduplication logic, but 4 entries are still showing. The dedup uses `tech.rawName.toLowerCase().trim()` as the key. If the names differ by even a single whitespace or invisible character, they won't deduplicate. The fix: **also deduplicate in the UI layer** inside `TechnicianImportPreviewDialog`, after `parseResult.technicians` is received, using a `Map` keyed on normalized name — this is a safety net that catches any edge case the parser misses.
+The `useEffect` on line 136 rebuilds the entire `mappings` array whenever `storeUsers` changes (it's in the deps array on line 172). This fires every time:
+- A new user is created and `refetchUsers()` is called
+- Any other trigger causes `storeUsers` to update
 
-### Problem 2: Allow creating a user with a name that already exists
-When the user clicks "Create Technician", there's no check against `storeUsers`. If "Michael Abrahamsz" already exists in the store, we should:
-- Show a warning inline and block submission
-- Optionally auto-select the existing user instead
+So when you map Technician A to User X, then create a new user for Technician B, the `refetchUsers()` call causes `storeUsers` to update, which triggers the `useEffect` to **reset all mappings back to their auto-detected defaults** — wiping out your manual selections.
 
-## Changes — one file only: `TechnicianImportPreviewDialog.tsx`
+## Fix
 
-### 1. Deduplicate `parseResult.technicians` in the `useEffect` that builds `mappings` (lines 136–164)
+Two changes to `TechnicianImportPreviewDialog.tsx`:
 
-Before building the mapping array, deduplicate technicians by normalized name:
+### 1. Remove `storeUsers` from the `useEffect` dependency array
 
+The effect should only run **once** when the dialog opens with fresh parse data. It should not re-run when `storeUsers` changes.
+
+Change line 172 from:
 ```typescript
-// Deduplicate technicians by normalized name (safety net over parser)
-const seen = new Map<string, TechnicianData>();
-for (const tech of parseResult.technicians) {
-  const key = tech.rawName.toLowerCase().replace(/\s+/g, " ").trim();
-  if (!seen.has(key)) seen.set(key, tech);
-}
-const uniqueTechs = Array.from(seen.values());
+}, [open, parseResult.technicians, userAliases, storeUsers]);
+```
+to:
+```typescript
+}, [open, parseResult.technicians, userAliases]);
 ```
 
-Then use `uniqueTechs` instead of `parseResult.technicians` when building `initialMappings`.
+### 2. Use a "has initialized" guard so it only runs once per dialog open
 
-### 2. Validate name uniqueness before creating user (around line 560)
-
-In the "Create Technician" button's `onClick`, check if the typed name already exists in `storeUsers`:
+Add a `hasInitialized` ref so even if `open` flips, we don't reset mappings that already have user selections:
 
 ```typescript
-// Before calling createUserMutation.mutate(...)
-const nameExists = storeUsers?.some(
-  (u) => u.full_name?.toLowerCase().trim() === newUserForm.fullName.toLowerCase().trim()
-);
-if (nameExists) {
-  toast({ title: "User already exists", description: `${newUserForm.fullName} is already a user at this store.`, variant: "destructive" });
-  return;
-}
+const hasInitialized = useRef(false);
+
+useEffect(() => {
+  if (!open) { hasInitialized.current = false; return; }
+  if (hasInitialized.current) return; // don't re-run if already built
+  if (!parseResult.technicians || !userAliases) return;
+  
+  hasInitialized.current = true;
+  // ... build initialMappings using storeUsers (current value only, not reactive)
+  // ...
+  setMappings(initialMappings);
+}, [open, parseResult.technicians, userAliases]);
 ```
 
-Also add a real-time warning label beneath the Full Name input that appears as the user types, showing "This name already exists" in red if a match is found — so they see it before hitting the button.
+This way:
+- On dialog open: mappings initialize once with auto-matching
+- After creating a new user: `storeUsers` refetches but mappings are **not reset**
+- The new user's auto-selection still works because it uses `setMappings(prev => ...)` (a targeted update), not the full rebuild
