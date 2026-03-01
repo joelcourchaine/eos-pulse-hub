@@ -195,8 +195,12 @@ export const TechnicianImportPreviewDialog = ({
     },
     onSuccess: async (data, _vars) => {
       toast({ title: "User created", description: `${_vars.fullName} added as Technician` });
+      // Wait for edge function to finish writing store_id to profile
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      // Invalidate + refetch so the new user appears in the list
+      await queryClient.invalidateQueries({ queryKey: ["store-users-tech-import", storeId] });
       await refetchUsers();
-      // Auto-select newly created user
+      // Auto-select newly created user (after refetch so they're in the list)
       if (data?.user?.id && newUserForm.techIndex !== null) {
         setMappings((prev) => {
           const updated = [...prev];
