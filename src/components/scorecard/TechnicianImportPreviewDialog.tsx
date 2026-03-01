@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -69,6 +69,8 @@ export const TechnicianImportPreviewDialog = ({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [mappings, setMappings] = useState<TechMapping[]>([]);
+  const mappingsRef = useRef<TechMapping[]>([]);
+  useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
   const [soldHrsLabel, setSoldHrsLabel] = useState<string>("closed_hours");
   const [labelSaved, setLabelSaved] = useState(false);
   const [newUserForm, setNewUserForm] = useState<NewUserForm>({
@@ -247,9 +249,11 @@ export const TechnicianImportPreviewDialog = ({
         if (!uploadError) reportFilePath = path;
       }
 
-      // For each mapped technician
-      for (let i = 0; i < mappings.length; i++) {
-        const { tech, selectedUserId } = mappings[i];
+      // For each mapped technician — use ref to get latest mappings (avoid stale closure)
+      const currentMappings = mappingsRef.current;
+      const metricsImported: Record<string, number> = {};
+      for (let i = 0; i < currentMappings.length; i++) {
+        const { tech, selectedUserId } = currentMappings[i];
         if (!selectedUserId) continue;
 
         // Save alias
@@ -378,6 +382,9 @@ export const TechnicianImportPreviewDialog = ({
             );
           }
         }
+
+        // Track KPI count for this technician in the log
+        metricsImported[tech.rawName] = Object.keys(kpiIdMap).length;
       }
 
       // Log the import
@@ -389,6 +396,7 @@ export const TechnicianImportPreviewDialog = ({
         report_file_path: reportFilePath,
         imported_by: currentUserId,
         import_source: "technician_hours",
+        metrics_imported: metricsImported,
         status: "success",
       });
     },
