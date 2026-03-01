@@ -530,34 +530,21 @@ export const TechnicianImportPreviewDialog = ({
                   {newUserForm.techIndex === idx && (
                     <div className="rounded bg-muted/50 p-3 space-y-2 border">
                       <div className="text-xs font-medium">Create new user</div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs">Full Name</Label>
-                          <Input
-                            className="h-8 text-xs"
-                            value={newUserForm.fullName}
-                            onChange={(e) =>
-                              setNewUserForm((prev) => ({ ...prev, fullName: e.target.value }))
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Email</Label>
-                          <Input
-                            className="h-8 text-xs"
-                            type="email"
-                            value={newUserForm.email}
-                            onChange={(e) =>
-                              setNewUserForm((prev) => ({ ...prev, email: e.target.value }))
-                            }
-                          />
-                        </div>
+                      <div>
+                        <Label className="text-xs">Full Name</Label>
+                        <Input
+                          className="h-8 text-xs"
+                          value={newUserForm.fullName}
+                          onChange={(e) =>
+                            setNewUserForm((prev) => ({ ...prev, fullName: e.target.value }))
+                          }
+                        />
                       </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           className="h-7 text-xs"
-                          disabled={!newUserForm.fullName || !newUserForm.email || createUserMutation.isPending}
+                          disabled={!newUserForm.fullName || createUserMutation.isPending}
                           onClick={() =>
                             createUserMutation.mutate({
                               fullName: newUserForm.fullName,
