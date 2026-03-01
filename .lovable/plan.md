@@ -1,32 +1,49 @@
 
 ## Root Cause
 
-Monthly scorecard entries use a `month` column (format `"YYYY-MM"`) and conflict key `kpi_id,month`. The technician import instead sets `week_start_date = mo.month + "-01"` and uses conflict `kpi_id,week_start_date,entry_type`. The `month` field is never populated, so the scorecard's `.in("month", [...])` filter returns empty results.
+The image shows each technician appearing **twice** in the scorecard (e.g., Bill Vanderbos appears at two different positions, Michael Abrahamsz appears twice). This happens because the KPI lookup during import uses `.ilike("name", spec.name)` — a case-insensitive **partial match** — instead of an exact match.
 
-Weekly entries also have a subtle issue — the scorecard queries `scorecard_entries` filtered by `week_start_date` with no `month` filter, so weekly data may actually be loading but hidden by the technician role filter. The monthly data is definitively broken.
+On re-import, `.ilike("name", "Productive")` would match any KPI containing "Productive" in its name. If it silently returns nothing (or the match fails due to whitespace), a **second** KPI definition is created for the same technician+department with the same name. The scorecard then shows both KPI rows per technician.
 
 ## Fix — `TechnicianImportPreviewDialog.tsx` only
 
-### Monthly entries (lines 374–396)
-Change the monthly upsert to:
-- Set `month: mo.month` (not `week_start_date`)
-- Use `onConflict: "kpi_id,month,entry_type"` to match the correct unique key
+### Change `.ilike()` to `.eq()` for exact KPI name matching (line 312)
 
 ```typescript
-// BEFORE (broken)
-await supabase.from("scorecard_entries").upsert(
-  { kpi_id: ..., week_start_date: mo.month + "-01", entry_type: "monthly", ... },
-  { onConflict: "kpi_id,week_start_date,entry_type" }
-);
+// BEFORE (broken — partial match can miss or create duplicates)
+.ilike("name", spec.name)
 
-// AFTER (correct)
-await supabase.from("scorecard_entries").upsert(
-  { kpi_id: ..., month: mo.month, entry_type: "monthly", ... },
-  { onConflict: "kpi_id,month" }
-);
+// AFTER (correct — exact match prevents duplicates)
+.eq("name", spec.name)
 ```
 
-### Weekly entries (lines 341–370)
-Weekly entries look structurally correct (`week_start_date` + `onConflict: "kpi_id,week_start_date,entry_type"`), but verify the conflict key matches the DB. Also add `entry_type: "weekly"` explicitly to ensure the filter works.
+### Also: Delete orphaned duplicate KPI definitions on import
 
-This is a one-file change to `TechnicianImportPreviewDialog.tsx`.
+When checking for an existing KPI, if multiple rows are found (which is why `.maybeSingle()` silently fails), we should:
+1. Keep the first one
+2. Delete the duplicates (or at minimum, not create another one)
+
+Change the existing check from `.maybeSingle()` to `.limit(1)` with a separate cleanup step:
+
+```typescript
+// Get all KPIs with this exact name for this user
+const { data: existingList } = await supabase
+  .from("kpi_definitions")
+  .select("id, name")
+  .eq("department_id", departmentId)
+  .eq("assigned_to", selectedUserId)
+  .eq("name", spec.name);  // exact match
+
+if (existingList && existingList.length > 0) {
+  // Use the first one, delete any extras
+  kpiIdMap[spec.name] = existingList[0].id;
+  if (existingList.length > 1) {
+    const idsToDelete = existingList.slice(1).map(e => e.id);
+    await supabase.from("kpi_definitions").delete().in("id", idsToDelete);
+  }
+} else {
+  // Create new KPI
+}
+```
+
+This is a one-file change that both prevents future duplicates and cleans up existing ones on the next import.
