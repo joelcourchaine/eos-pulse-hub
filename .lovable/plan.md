@@ -1,12 +1,12 @@
 
-## What's happening
+## Remove "Calls with Joel" from MeetingFramework
 
-Line 56–60 already handles the demo store (`DEMO_STORE_ID = "effbf1c8-8506-4734-bf1d-0bfaa54690a0"`) with hardcoded `DEMO_CELEBRATIONS` — this is the "Growth Automotive" test store for explainer videos.
+**File: `src/components/meeting/MeetingFramework.tsx`**
 
-The problem is the real store query still uses `p_days_ahead: 365`, which floods North Island Nissan (and any real store) with a full year of events.
+1. **Remove the data-fetching block** (lines ~75–161): The entire `useQuery` for `consulting-calls-for-meeting` that fetches `upcomingCalls` and `lastCompletedCall`, plus the two const declarations on lines 160–161.
 
-## Fix — `src/components/celebrations/Celebrations.tsx`
+2. **Remove the UI block** (lines ~339–420): The entire `{/* Calls with Joel Dropdown */}` JSX section including the `<DropdownMenu>` and the "Last call" display below it.
 
-**Line 38**: Change `p_days_ahead: 365` → `p_days_ahead: 30`
+3. **Remove unused imports**: `Phone`, `Badge`, `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuLabel`, `DropdownMenuSeparator`, `DropdownMenuItem` — any that are only used by the removed block.
 
-The demo store path (lines 56–58) stays untouched — it will continue showing the 3 hardcoded demo celebrations regardless of date. Only real stores will now be filtered to 30 days ahead.
+Single file change, no DB changes needed.
