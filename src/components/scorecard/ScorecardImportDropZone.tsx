@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileSpreadsheet, X, User, Wrench, Loader2 } from "lucide-react";
 import { parseCSRProductivityReport, CSRParseResult } from "@/utils/parsers/parseCSRProductivityReport";
+import { parseTechnicianHoursReport, TechnicianHoursParseResult } from "@/utils/parsers/parseTechnicianHoursReport";
 import { ScorecardImportPreviewDialog } from "./ScorecardImportPreviewDialog";
+import { TechnicianImportPreviewDialog } from "./TechnicianImportPreviewDialog";
 
 interface ScorecardImportDropZoneProps {
   open: boolean;
@@ -30,7 +32,7 @@ interface FileSlot {
   icon: React.ReactNode;
   roleType: string;
   file: File | null;
-  parseResult: CSRParseResult | null;
+  parseResult: CSRParseResult | TechnicianHoursParseResult | null;
   isProcessing: boolean;
   error: string | null;
   enabled: boolean;
@@ -73,7 +75,7 @@ export const ScorecardImportDropZone = ({
       parseResult: null,
       isProcessing: false,
       error: null,
-      enabled: false, // Coming soon
+      enabled: true,
     },
   ]);
 
@@ -93,56 +95,42 @@ export const ScorecardImportDropZone = ({
     const slot = fileSlots[slotIndex];
     if (!slot.enabled) return;
 
-    // Update slot with file and processing state
     setFileSlots(prev => {
       const updated = [...prev];
-      updated[slotIndex] = {
-        ...updated[slotIndex],
-        file,
-        isProcessing: true,
-        error: null,
-        parseResult: null,
-      };
+      updated[slotIndex] = { ...updated[slotIndex], file, isProcessing: true, error: null, parseResult: null };
       return updated;
     });
 
     try {
-      // Parse the file
-      const result = await parseCSRProductivityReport(file);
-      
-      // Override month with selected month
-      result.month = selectedMonth;
-      
+      let result: CSRParseResult | TechnicianHoursParseResult;
+      let description: string;
+
+      if (slot.roleType === "technician") {
+        const techResult = await parseTechnicianHoursReport(file);
+        techResult.month = selectedMonth;
+        result = techResult;
+        description = `Found ${techResult.technicians.length} technicians`;
+      } else {
+        const csrResult = await parseCSRProductivityReport(file);
+        csrResult.month = selectedMonth;
+        result = csrResult;
+        description = `Found ${csrResult.advisors.length} advisors`;
+      }
+
       setFileSlots(prev => {
         const updated = [...prev];
-        updated[slotIndex] = {
-          ...updated[slotIndex],
-          parseResult: result,
-          isProcessing: false,
-        };
+        updated[slotIndex] = { ...updated[slotIndex], parseResult: result, isProcessing: false };
         return updated;
       });
 
-      toast({
-        title: "File parsed successfully",
-        description: `Found ${result.advisors.length} advisors`,
-      });
+      toast({ title: "File parsed successfully", description });
     } catch (error: any) {
       setFileSlots(prev => {
         const updated = [...prev];
-        updated[slotIndex] = {
-          ...updated[slotIndex],
-          isProcessing: false,
-          error: error.message || "Failed to parse file",
-        };
+        updated[slotIndex] = { ...updated[slotIndex], isProcessing: false, error: error.message || "Failed to parse file" };
         return updated;
       });
-      
-      toast({
-        title: "Parse error",
-        description: error.message || "Failed to parse file",
-        variant: "destructive",
-      });
+      toast({ title: "Parse error", description: error.message || "Failed to parse file", variant: "destructive" });
     }
   }, [fileSlots, selectedMonth, toast]);
 
@@ -280,7 +268,7 @@ export const ScorecardImportDropZone = ({
                   ) : slot.file && slot.parseResult ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                        <FileSpreadsheet className="h-4 w-4 text-green-500" />
+                        <FileSpreadsheet className="h-4 w-4 text-primary" />
                         <span className="text-sm truncate flex-1">{slot.file.name}</span>
                         <Button
                           variant="ghost"
@@ -292,7 +280,9 @@ export const ScorecardImportDropZone = ({
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {slot.parseResult.advisors.length} advisors found
+                        {slot.roleType === "technician"
+                          ? `${(slot.parseResult as TechnicianHoursParseResult).technicians.length} technicians found`
+                          : `${(slot.parseResult as CSRParseResult).advisors.length} advisors found`}
                       </p>
                       <Button
                         size="sm"
@@ -341,19 +331,33 @@ export const ScorecardImportDropZone = ({
         </DialogContent>
       </Dialog>
 
-      {/* Preview Dialog */}
+      {/* Preview Dialogs */}
       {selectedSlotIndex !== null && fileSlots[selectedSlotIndex].parseResult && (
-        <ScorecardImportPreviewDialog
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-          parseResult={fileSlots[selectedSlotIndex].parseResult!}
-          fileName={fileSlots[selectedSlotIndex].file?.name || ""}
-          file={fileSlots[selectedSlotIndex].file}
-          departmentId={departmentId}
-          storeId={storeId}
-          month={selectedMonth}
-          onImportSuccess={handleImportSuccess}
-        />
+        fileSlots[selectedSlotIndex].roleType === "technician" ? (
+          <TechnicianImportPreviewDialog
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            parseResult={fileSlots[selectedSlotIndex].parseResult as TechnicianHoursParseResult}
+            fileName={fileSlots[selectedSlotIndex].file?.name || ""}
+            file={fileSlots[selectedSlotIndex].file}
+            departmentId={departmentId}
+            storeId={storeId}
+            month={selectedMonth}
+            onImportSuccess={handleImportSuccess}
+          />
+        ) : (
+          <ScorecardImportPreviewDialog
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            parseResult={fileSlots[selectedSlotIndex].parseResult as CSRParseResult}
+            fileName={fileSlots[selectedSlotIndex].file?.name || ""}
+            file={fileSlots[selectedSlotIndex].file}
+            departmentId={departmentId}
+            storeId={storeId}
+            month={selectedMonth}
+            onImportSuccess={handleImportSuccess}
+          />
+        )
       )}
     </>
   );

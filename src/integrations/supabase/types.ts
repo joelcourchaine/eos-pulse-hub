@@ -657,6 +657,7 @@ export type Database = {
           manager_id: string | null
           name: string
           store_id: string
+          technician_sold_hours_label: string | null
           updated_at: string
         }
         Insert: {
@@ -666,6 +667,7 @@ export type Database = {
           manager_id?: string | null
           name: string
           store_id: string
+          technician_sold_hours_label?: string | null
           updated_at?: string
         }
         Update: {
@@ -675,6 +677,7 @@ export type Database = {
           manager_id?: string | null
           name?: string
           store_id?: string
+          technician_sold_hours_label?: string | null
           updated_at?: string
         }
         Relationships: [
