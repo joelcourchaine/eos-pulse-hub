@@ -1,17 +1,13 @@
 
-Yes — the Import dialog (`ScorecardImportDropZone`) already has **both slots** side by side:
+## Plan: Make Email Optional in Inline Technician Creation
 
-- **Left slot** → Service Advisors (CSR Productivity Report) — uses `parseCSRProductivityReport` → opens `ScorecardImportPreviewDialog`
-- **Right slot** → Technicians (Technician Hours Report) — uses `parseTechnicianHoursReport` → opens `TechnicianImportPreviewDialog`
+### Problem
+The "Create new user" inline form in `TechnicianImportPreviewDialog.tsx` requires both `fullName` AND `email` to enable the Create Technician button. Email is unnecessary — the `create-user` edge function already auto-generates a dummy email (`user-{uuid}@test.local`) when none is provided.
 
-The plan is simply to wire this dialog into the scorecard toolbar so you can actually reach it.
+### Changes to `src/components/scorecard/TechnicianImportPreviewDialog.tsx`
 
-## What needs to be done
+1. **Remove the Email `<Input>` field** from the inline create form (lines ~531–586)
+2. **Update the button disabled condition** — remove `!newUserForm.email` from line ~560
+3. **Pass empty string for email** in the `createUserMutation` call — it already handles this
 
-**`src/components/scorecard/ScorecardGrid.tsx`**
-1. Import `ScorecardImportDropZone`
-2. Add `importOpen` state
-3. Add an "Import" button in the toolbar (visible to `canManageKPIs` users)
-4. Render `<ScorecardImportDropZone>` with `storeId`, `departmentId`, and `onImportComplete` wired up
-
-That's a single file, ~10 line change. Once done, clicking **Import** opens the dialog with both the CSR Advisor drop zone and the Technician drop zone right next to each other — you drop whichever report applies.
+That's it — one file, three small edits.
