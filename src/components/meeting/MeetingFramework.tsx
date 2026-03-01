@@ -4,20 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, LayoutGrid, ChevronLeft, ChevronRight, Phone, ChevronDown } from "lucide-react";
+import { Clock, LayoutGrid, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { format, startOfWeek, addWeeks, subWeeks, isSameWeek, differenceInWeeks, parseISO } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, isSameWeek, differenceInWeeks } from "date-fns";
 import { IssuesAndTodosPanel } from "@/components/issues/IssuesAndTodosPanel";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export type MeetingViewMode = "view-all" | "segue" | "scorecard" | "rocks" | "headlines" | "issues-todos" | "conclude";
 
@@ -58,23 +49,19 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
   const isCurrentWeek = isSameWeek(selectedWeekStart, currentWeekStart, { weekStartsOn: 1 });
   const weeksDiff = differenceInWeeks(currentWeekStart, selectedWeekStart);
-  const maxFutureWeeks = 1; // Allow navigating 1 week into the future
+  const maxFutureWeeks = 1;
   const isAtMaxFuture = weeksDiff <= -maxFutureWeeks;
   
-  // Format the meeting date based on selected week
   const meetingDate = format(selectedWeekStart, 'yyyy-MM-dd');
 
-  // Navigate to previous week
   const goToPreviousWeek = () => {
     setSelectedWeekStart(prev => subWeeks(prev, 1));
   };
 
-  // Navigate to next week
   const goToNextWeek = () => {
     setSelectedWeekStart(prev => addWeeks(prev, 1));
   };
 
-  // Get relative week text
   const getRelativeWeekText = () => {
     if (isCurrentWeek) return null;
     if (weeksDiff === 1) return "1 week ago";
@@ -84,115 +71,10 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
     return null;
   };
 
-  // Fetch all upcoming calls and last completed call for this department
-  const { data: callsData } = useQuery({
-    queryKey: ['department-calls', departmentId],
-    queryFn: async () => {
-      // First get the department info to find the store and department name
-      const { data: department, error: deptError } = await supabase
-        .from('departments')
-        .select('name, store_id, stores(name)')
-        .eq('id', departmentId)
-        .single();
-
-      if (deptError || !department) {
-        console.error('Error fetching department:', deptError);
-        return { upcomingCalls: [], lastCompletedCall: null };
-      }
-
-      const storeName = (department.stores as { name: string })?.name;
-      const departmentName = department.name;
-
-      if (!storeName) return { upcomingCalls: [], lastCompletedCall: null };
-
-      // Find consulting clients that match this store name and department
-      const { data: clients, error: clientError } = await supabase
-        .from('consulting_clients')
-        .select('id')
-        .eq('name', storeName)
-        .eq('department_name', departmentName);
-
-      if (clientError || !clients?.length) {
-        return { upcomingCalls: [], lastCompletedCall: null };
-      }
-
-      const clientIds = clients.map(c => c.id);
-      const today = format(new Date(), 'yyyy-MM-dd');
-
-      // Fetch upcoming calls (today and future, not cancelled)
-      const { data: upcomingCalls, error: upcomingError } = await supabase
-        .from('consulting_calls')
-        .select('id, call_date, call_time, status')
-        .in('client_id', clientIds)
-        .gte('call_date', today)
-        .neq('status', 'cancelled')
-        .order('call_date', { ascending: true })
-        .order('call_time', { ascending: true })
-        .limit(10);
-
-      if (upcomingError) {
-        console.error('Error fetching upcoming calls:', upcomingError);
-      }
-
-      // Fetch last completed call
-      const { data: completedCalls, error: completedError } = await supabase
-        .from('consulting_calls')
-        .select('id, call_date, call_time, status')
-        .in('client_id', clientIds)
-        .lt('call_date', today)
-        .eq('status', 'completed')
-        .order('call_date', { ascending: false })
-        .order('call_time', { ascending: false })
-        .limit(1);
-
-      if (completedError) {
-        console.error('Error fetching completed calls:', completedError);
-      }
-
-      return {
-        upcomingCalls: upcomingCalls || [],
-        lastCompletedCall: completedCalls?.[0] || null
-      };
-    },
-    enabled: !!departmentId,
-  });
-
-  const upcomingCalls = callsData?.upcomingCalls || [];
-  const lastCompletedCall = callsData?.lastCompletedCall || null;
-
-  // Format the call date/time for display
-  const formatCallDateTime = (callDate: string, callTime: string | null) => {
-    const date = parseISO(callDate);
-    const dayStr = format(date, 'EEE MMM d');
-    
-    if (callTime) {
-      // Parse time like "10:00" and format nicely
-      const [hours, minutes] = callTime.split(':').map(Number);
-      const timeDate = new Date();
-      timeDate.setHours(hours, minutes);
-      const timeStr = format(timeDate, 'h:mm a');
-      return `${dayStr} @ ${timeStr}`;
-    }
-    
-    return dayStr;
-  };
-
-  // Get status badge variant
-  const getStatusVariant = (status: string | null) => {
-    switch (status) {
-      case 'completed':
-        return 'default';
-      case 'cancelled':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
-  };
-
   // Notify parent of initial view mode on mount and when component remounts
   useEffect(() => {
     onViewModeChange?.("view-all");
-  }, [departmentId]); // Reset to view-all when department changes
+  }, [departmentId]);
 
   // Notify parent when view mode changes
   const handleTabChange = (value: string) => {
@@ -244,7 +126,6 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const saveNote = async (section: string, content: string) => {
     if (!departmentId) return;
 
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast({
@@ -269,7 +150,6 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
     }
 
     if (existing) {
-      // Update existing note
       const { error } = await supabase
         .from('meeting_notes')
         .update({ notes: content })
@@ -284,7 +164,6 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
         });
       }
     } else {
-      // Insert new note
       const { error } = await supabase
         .from('meeting_notes')
         .insert({
@@ -310,12 +189,10 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const handleNoteChange = (section: string, content: string) => {
     setNotes(prev => ({ ...prev, [section]: content }));
     
-    // Clear existing timeout for this section
     if (saveTimeouts[section]) {
       clearTimeout(saveTimeouts[section]);
     }
     
-    // Debounce the save
     const timeoutId = setTimeout(() => {
       saveNote(section, content);
     }, 1000);
@@ -337,61 +214,6 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
           </div>
           
           <div className="flex items-center gap-6">
-            {/* Calls with Joel Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <Phone className="h-4 w-4" />
-                  Calls with Joel
-                  {upcomingCalls.length > 0 && (
-                    <Badge variant="secondary" className="ml-1">
-                      {upcomingCalls.length}
-                    </Badge>
-                  )}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Upcoming Calls</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {upcomingCalls.length > 0 ? (
-                  upcomingCalls.map((call) => (
-                    <DropdownMenuItem key={call.id} className="flex items-center justify-between">
-                      <span className="text-sm">
-                        {formatCallDateTime(call.call_date, call.call_time)}
-                      </span>
-                      <Badge variant={getStatusVariant(call.status)} className="text-xs capitalize">
-                        {call.status || 'Scheduled'}
-                      </Badge>
-                    </DropdownMenuItem>
-                  ))
-                ) : (
-                  <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                    No upcoming calls
-                  </div>
-                )}
-                
-                {/* Recent Call Section */}
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Recent Call</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {lastCompletedCall ? (
-                  <DropdownMenuItem className="flex items-center justify-between">
-                    <span className="text-sm">
-                      {formatCallDateTime(lastCompletedCall.call_date, lastCompletedCall.call_time)}
-                    </span>
-                    <Badge variant="default" className="text-xs">
-                      Completed
-                    </Badge>
-                  </DropdownMenuItem>
-                ) : (
-                  <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                    No recent calls
-                  </div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            
             {/* Week Navigation */}
             <div className="flex items-center gap-2">
               <Button
