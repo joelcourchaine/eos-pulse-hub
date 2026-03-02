@@ -5373,13 +5373,21 @@ const ScorecardGrid = ({
                     })}
                   {/* ── Technician Totals Section ── */}
                   {(() => {
-                    const availKpis = filteredKpis.filter((k) => k.name === "Available Hours");
+                    // Use role-filtered (but NOT KPI-name-filtered) kpis so totals always have data
+                    const roleFilteredKpis = kpis.filter((kpi) => {
+                      if (selectedRoleFilter !== "all") {
+                        const assignedProfile = kpi.assigned_to ? profiles[kpi.assigned_to] : null;
+                        if (!assignedProfile || assignedProfile.role !== selectedRoleFilter) return false;
+                      }
+                      return true;
+                    });
+                    const availKpis = roleFilteredKpis.filter((k) => k.name === "Available Hours");
                     if (availKpis.length === 0) return null;
 
                     // Find sold-hours KPIs (may be named "Sold Hours" or departmentally renamed)
-                    const soldKpis = filteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.aggregation_type === "sum" && k.metric_type === "unit");
+                    const soldKpis = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.aggregation_type === "sum" && k.metric_type === "unit");
                     // Fallback: any unit KPI that isn't Available Hours / Productive
-                    const soldKpisFallback = filteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.metric_type === "unit");
+                    const soldKpisFallback = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.metric_type === "unit");
                     const effectiveSoldKpis = soldKpis.length > 0 ? soldKpis : soldKpisFallback;
 
                     // First: pick the unique sold-hours name (could be "Sold Hours", "Open Hours", etc.)
@@ -5409,7 +5417,7 @@ const ScorecardGrid = ({
                     const soldIds = effectiveSoldKpis.map((k) => k.id);
 
                     // Productive target: average of productive KPIs' targets (if any), otherwise null
-                    const productiveKpis = filteredKpis.filter((k) => k.name === "Productive");
+                    const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productive");
                     const productiveTarget = productiveKpis.length > 0
                       ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
                       : null;
@@ -5424,11 +5432,15 @@ const ScorecardGrid = ({
                     };
 
                     // Rows to render: Available, Sold, Productive
-                    const totalRows = [
+                    const allTotalRows = [
                       { label: "Available Hours", kpiIds: availIds, type: "avail" as const },
                       { label: soldHoursName, kpiIds: soldIds, type: "sold" as const },
                       { label: "Productive", kpiIds: [], type: "productive" as const },
                     ];
+                    // When a specific KPI is selected, only show the matching total row
+                    const totalRows = selectedKpiFilter === "all"
+                      ? allTotalRows
+                      : allTotalRows.filter((row) => row.label.toLowerCase() === selectedKpiFilter.toLowerCase());
 
                     return (
                       <React.Fragment key="totals-section">
