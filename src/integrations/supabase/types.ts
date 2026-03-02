@@ -2871,6 +2871,7 @@ export type Database = {
           entry_type: string | null
           id: string
           kpi_id: string
+          manually_edited: boolean
           month: string | null
           notes: string | null
           status: string | null
@@ -2885,6 +2886,7 @@ export type Database = {
           entry_type?: string | null
           id?: string
           kpi_id: string
+          manually_edited?: boolean
           month?: string | null
           notes?: string | null
           status?: string | null
@@ -2899,6 +2901,7 @@ export type Database = {
           entry_type?: string | null
           id?: string
           kpi_id?: string
+          manually_edited?: boolean
           month?: string | null
           notes?: string | null
           status?: string | null

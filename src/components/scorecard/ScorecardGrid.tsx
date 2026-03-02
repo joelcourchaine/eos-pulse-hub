@@ -2114,6 +2114,7 @@ const ScorecardGrid = ({
       status,
       created_by: userId,
       entry_type: isMonthly ? "monthly" : "weekly",
+      manually_edited: true,
     };
 
     if (isMonthly) {

@@ -1,0 +1,1 @@
+ALTER TABLE public.scorecard_entries ADD COLUMN IF NOT EXISTS manually_edited boolean NOT NULL DEFAULT false;
