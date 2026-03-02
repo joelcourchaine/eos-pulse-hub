@@ -20,22 +20,7 @@ export const useForecastTargets = (departmentId: string, year: number) => {
 
     setLoading(true);
     try {
-      // Step 1: Get forecast for this department + year
-      const { data: forecasts, error: forecastError } = await supabase
-        .from("department_forecasts")
-        .select("id")
-        .eq("department_id", departmentId)
-        .eq("forecast_year", year)
-        .limit(1);
-
-      if (forecastError || !forecasts || forecasts.length === 0) {
-        setForecastTargets(new Map());
-        return;
-      }
-
-      const forecastId = forecasts[0].id;
-
-      // Step 2: Get all forecast entries with non-null forecast_value
+      // Single query: join forecast_entries → department_forecasts to avoid serial round-trips
       const allRows: { metric_name: string; month: string; forecast_value: number }[] = [];
       let from = 0;
       const pageSize = 1000;
@@ -43,8 +28,9 @@ export const useForecastTargets = (departmentId: string, year: number) => {
       while (true) {
         const { data: page, error: pageError } = await supabase
           .from("forecast_entries")
-          .select("metric_name, month, forecast_value")
-          .eq("forecast_id", forecastId)
+          .select("metric_name, month, forecast_value, department_forecasts!inner(department_id, forecast_year)")
+          .eq("department_forecasts.department_id", departmentId)
+          .eq("department_forecasts.forecast_year", year)
           .not("forecast_value", "is", null)
           .range(from, from + pageSize - 1);
 
@@ -54,7 +40,7 @@ export const useForecastTargets = (departmentId: string, year: number) => {
         }
         if (!page || page.length === 0) break;
 
-        allRows.push(...(page as { metric_name: string; month: string; forecast_value: number }[]));
+        allRows.push(...(page as unknown as { metric_name: string; month: string; forecast_value: number }[]));
         if (page.length < pageSize) break;
         from += pageSize;
       }
