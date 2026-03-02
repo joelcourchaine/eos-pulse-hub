@@ -127,8 +127,8 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           const normed = row.map(normCol);
           const dIdx = normed.findIndex(c => c === "date" || c.startsWith("date "));
           const sIdx = normed.findIndex(c => c.includes("sold hrs") || c.includes("sold hours") || c.includes("clsd hrs") || c.includes("closed hrs"));
-          // "Actual Hrs" is the available/scheduled hours column (not "Clocked In Hrs")
-          const cIdx = normed.findIndex(c => c === "actual hrs" || c.includes("actual hrs") || (c.includes("avail") && c.includes("hrs")));
+          // "Clocked In Hrs" is the available hours column used for the scorecard
+          const cIdx = normed.findIndex(c => c.includes("clocked in hrs") || c.includes("clocked in hours") || c === "clocked in");
           if (dIdx !== -1 && sIdx !== -1 && cIdx !== -1) {
             headerRowIndex = ri;
             dateColIdx = dIdx;
@@ -139,12 +139,12 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
         }
 
         // Fallback: use fixed column positions from known Nissan format
-          // Col 2 = Date, Col 3 = Actual Hrs (Available), Col 4 = Sold Hrs
+          // Col 2 = Date, Col 4 = Sold Hrs, Col 6 = Clocked In Hrs (Available Hours)
           if (headerRowIndex === -1) {
-            console.warn("[TechParse] Could not find header row dynamically, using fixed column positions (2,3,4)");
+            console.warn("[TechParse] Could not find header row dynamically, using fixed column positions (2,4,6)");
             dateColIdx = 2;
             soldColIdx = 4;
-            clockColIdx = 3; // Actual Hrs = Available Hours
+            clockColIdx = 6; // Clocked In Hrs = Available Hours
             headerRowIndex = 0;
           }
 
