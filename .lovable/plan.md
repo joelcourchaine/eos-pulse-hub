@@ -1,46 +1,45 @@
 
-## Root Cause
+## Root Causes Found
 
-The parser (`parseTechnicianHoursReport.ts`) was written for a **horizontal** format where dates are column headers and KPI rows run underneath. The actual Nissan report is **vertical** — each row is one day, with the date in column C, Sold Hrs in column E, and Clocked In Hrs in column G.
+### 1. Wrong column mapped to "Available Hours"
+The report has 3 relevant columns:
+- Col D (index 3): **Actual Hrs** → this is what should be "Available Hours"
+- Col E (index 4): **Sold Hrs** → this should be "Open and Closed Hours" / "Closed Hours"
+- Col G (index 6): **Clocked In Hrs** → this is a 3rd metric (not currently captured)
 
-**Actual structure:**
-```text
-Row: [blank]  [blank]  [Date col C]  [Actual Hrs]  [Sold Hrs]  [Sold%]  [Clocked In Hrs]  ...
-Row: 13 - Michael Abrahamsz         ← technician header (col A)
-Row:           12/29/2025  0.00  0.00  0.00  0.00  ...       ← date+values in cols C,D,E,F,G
-Row: Week Total:  ...                ← skip
-Row: Total (Tech): 13  ...           ← end of technician block
-Row: 605 - Bill Vanderbos            ← next technician
-```
+The current parser only captures 2 columns (Sold + Clocked In), but maps "Clocked In Hrs" as `clockedInHrs` which then becomes "Available Hours" in the import dialog. However, looking at the report data, **Actual Hrs** (col D) is the correct "Available Hours" and **Clocked In Hrs** (col G) is a separate value. Since the "Productive" KPI is sold/available, the parser needs to use **Actual Hrs** for `clockedInHrs` (which is written to "Available Hours").
 
-The parser currently looks for a row with 3+ dates spread across column headers, which never matches this vertical format. So it returns 0 technicians found → 0 data written.
+The column header row is: `Date | Actual Hrs | Sold Hrs | Sold/Actual% | Clocked In Hrs | ...`
+
+The parser currently finds "Clocked In Hrs" with `c.includes("clocked in")` and uses that as `clockColIdx`. But the import code uses `clockedInHrs` as "Available Hours". So the fix is: the parser should capture **"Actual Hrs" (col D/index 3)** as `clockedInHrs` (= Available Hours), not "Clocked In Hrs".
+
+### 2. Import is extremely slow — hundreds of individual DB round-trips
+The import loop does `await supabase.from("scorecard_entries").upsert(...)` one-at-a-time for every weekly and monthly entry. With 6 technicians × ~13 weeks × 3 KPIs = ~234 weekly upserts + monthly upserts, that's hundreds of sequential DB calls.
+
+### 3. Name case mismatch
+`6189 - VINCENTE CASTILLO` → stripped to `VINCENTE CASTILLO` but alias was saved as `Vincente Castillo`. The alias lookup uses `.toLowerCase()` on both sides so it should match, but the `displayName` stored in the mapping will be uppercase, which looks odd. Need to normalize to title case.
 
 ---
 
-## Fix
+## Fix Plan
 
-Rewrite `parseTechnicianHoursReport.ts` to handle this vertical format:
+### Fix A — Parser: capture "Actual Hrs" as the available hours column
+In `parseTechnicianHoursReport.ts`:
+- Change the column detection for `clockColIdx` to look for `"actual hrs"` instead of `"clocked in"`.
+- The existing fallback column indices also need to change: `actualColIdx = 3` (not 6).
+- Rename variable from `clockColIdx` to `actualColIdx` for clarity.
+- Keep collecting the same `clockedInHrs` field name since the import dialog maps it to "Available Hours".
 
-1. **Find the column header row** — look for a row containing "Date", "Sold Hrs", "Clocked In Hrs" (col labels). Record which column index each lives at.
+### Fix B — Import: batch all scorecard_entries upserts
+In `TechnicianImportPreviewDialog.tsx`:
+- Collect all weekly entries across all technicians into one array.
+- Collect all monthly entries into a second array.
+- Upsert in batches of 500 using a loop with a 50ms yield between batches.
+- This reduces ~250+ sequential calls to 1-2 batched calls.
 
-2. **Walk rows** — when col A matches pattern `\d+ - Name` (e.g. `13 - Michael Abrahamsz`) or just a name with no digits, start a new technician block. Strip the `13 - ` prefix to get display name.
+### Fix C — Name normalization  
+In the parser, after stripping the numeric prefix, apply title-case normalization so `VINCENTE CASTILLO` becomes `Vincente Castillo`. This ensures alias lookups and display names are consistent.
 
-3. **For each data row** — if col C has a parseable date AND col A is blank/empty, read:
-   - `soldHrs` from the "Sold Hrs" column (col E, index 4)
-   - `clockedInHrs` from the "Clocked In Hrs" column (col G, index 6)
-   
-4. **Skip** rows where col A is "Week Total:", "Total (Tech):", page header repeats (store name/report title), or blank.
-
-5. **Page break handling** — when the report repeats the header `[store name] / Technician Productivity Report / Page N` + column headers mid-sheet, continue the same technician (col A will still show the technician name again after the page break header rows). The existing dedup-by-name merge handles this correctly.
-
-6. **Aggregation** — the existing `buildTechnicianData()` function (weekly/monthly grouping) stays unchanged since it works on `dailyValues[]`.
-
-7. **Dominant month** — derive from the date values found, same as current logic.
-
-**Column index map (0-based):**
-- Col 0 (A): Technician name or row label
-- Col 2 (C): Date  
-- Col 4 (E): Sold Hrs
-- Col 6 (G): Clocked In Hrs
-
-To be robust, dynamically detect the column positions from the header row rather than hardcoding them, in case the report shifts columns.
+### Files to change
+- `src/utils/parsers/parseTechnicianHoursReport.ts` — Fix A + Fix C
+- `src/components/scorecard/TechnicianImportPreviewDialog.tsx` — Fix B
