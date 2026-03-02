@@ -5371,6 +5371,477 @@ const ScorecardGrid = ({
                         </React.Fragment>
                       );
                     })}
+                  {/* ── Technician Totals Section ── */}
+                  {(() => {
+                    const availKpis = filteredKpis.filter((k) => k.name === "Available Hours");
+                    if (availKpis.length === 0) return null;
+
+                    // Find sold-hours KPIs (may be named "Sold Hours" or departmentally renamed)
+                    const soldKpis = filteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.aggregation_type === "sum" && k.metric_type === "unit");
+                    // Fallback: any unit KPI that isn't Available Hours / Productive
+                    const soldKpisFallback = filteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.metric_type === "unit");
+                    const effectiveSoldKpis = soldKpis.length > 0 ? soldKpis : soldKpisFallback;
+
+                    // First: pick the unique sold-hours name (could be "Sold Hours", "Open Hours", etc.)
+                    const soldHoursName = effectiveSoldKpis[0]?.name ?? "Sold Hours";
+
+                    // Helper: sum a set of kpiIds for a lookup-key
+                    const sumFor = (kpiIds: string[], keyFn: (id: string) => string): number => {
+                      return kpiIds.reduce((acc, id) => {
+                        const val = entries[keyFn(id)]?.actual_value;
+                        return acc + (val ?? 0);
+                      }, 0);
+                    };
+                    const sumForMonthly = (kpiIds: string[], keyFn: (id: string) => string): number => {
+                      return kpiIds.reduce((acc, id) => {
+                        const entryVal = monthlyViewEntries[keyFn(id)]?.actual_value ?? entries[keyFn(id)]?.actual_value;
+                        return acc + (entryVal ?? 0);
+                      }, 0);
+                    };
+                    const sumForYearly = (kpiIds: string[], keyFn: (id: string) => string): number => {
+                      return kpiIds.reduce((acc, id) => {
+                        const val = yearlyViewEntries[keyFn(id)]?.actual_value;
+                        return acc + (val ?? 0);
+                      }, 0);
+                    };
+
+                    const availIds = availKpis.map((k) => k.id);
+                    const soldIds = effectiveSoldKpis.map((k) => k.id);
+
+                    // Productive target: average of productive KPIs' targets (if any), otherwise null
+                    const productiveKpis = filteredKpis.filter((k) => k.name === "Productive");
+                    const productiveTarget = productiveKpis.length > 0
+                      ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
+                      : null;
+
+                    const calcProductiveStatus = (sold: number, avail: number): "success" | "warning" | "destructive" | null => {
+                      if (avail === 0 || productiveTarget === null || productiveTarget === 0) return null;
+                      const pct = (sold / avail) * 100;
+                      const variance = pct - productiveTarget;
+                      if (variance >= 0) return "success";
+                      if (variance >= -10) return "warning";
+                      return "destructive";
+                    };
+
+                    // Rows to render: Available, Sold, Productive
+                    const totalRows = [
+                      { label: "Available Hours", kpiIds: availIds, type: "avail" as const },
+                      { label: soldHoursName, kpiIds: soldIds, type: "sold" as const },
+                      { label: "Productive", kpiIds: [], type: "productive" as const },
+                    ];
+
+                    return (
+                      <React.Fragment key="totals-section">
+                        {/* Totals owner header row */}
+                        <TableRow className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)]">
+                          <TableCell className="sticky left-0 z-10 bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1 w-[170px] min-w-[170px] max-w-[170px] border-r border-white/10 shadow-[2px_0_4px_rgba(0,0,0,0.2)]">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-white">Σ Totals</span>
+                            </div>
+                          </TableCell>
+                          {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
+                            <>
+                              <TableCell className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1 min-w-[80px] border-x-2 border-white/10" style={{ position: "sticky", left: 170, zIndex: 9 }} />
+                              {weeks.map((week) => (
+                                <TableCell key={`totals-owner-week-${week.label}`} className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1 min-w-[90px]" />
+                              ))}
+                              <TableCell className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1 min-w-[80px]" />
+                            </>
+                          )}
+                          {(isMonthlyTrendMode || isYearlyView || isQuarterTrendMode || viewMode !== "weekly") && (
+                            <TableCell
+                              colSpan={
+                                isYearlyView
+                                  ? 2 + yearlyPeriods.length
+                                  : isMonthlyTrendMode
+                                    ? 2 + monthlyTrendPeriods.length
+                                    : isQuarterTrendMode
+                                      ? quarterTrendPeriods.length
+                                      : viewMode === "quarterly"
+                                        ? quarterlyViewPeriods.length
+                                        : 1 + previousYearMonths.length + 1 + 1 + months.length + 1
+                              }
+                              className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1"
+                            />
+                          )}
+                        </TableRow>
+
+                        {/* Totals KPI rows */}
+                        {totalRows.map((row) => (
+                          <TableRow key={`totals-${row.type}`} className="hover:bg-muted/20">
+                            <TableCell className="sticky left-0 bg-background z-10 w-[170px] min-w-[170px] max-w-[170px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs">
+                              {row.label}
+                            </TableCell>
+
+                            {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
+                              <>
+                                {/* Target cell (placeholder) */}
+                                <TableCell
+                                  className="text-center py-0.5 min-w-[80px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-primary-foreground text-xs"
+                                  style={{ position: "sticky", left: 170, zIndex: 9 }}
+                                >
+                                  {row.type === "productive" && productiveTarget !== null
+                                    ? `${parseFloat(productiveTarget.toFixed(2))}%`
+                                    : "-"}
+                                </TableCell>
+
+                                {/* Weekly data cells */}
+                                {weeks.map((week) => {
+                                  const weekDate = week.start.toISOString().split("T")[0];
+                                  let value: number | null = null;
+                                  let status: "success" | "warning" | "destructive" | null = null;
+
+                                  if (row.type === "avail") {
+                                    const total = sumFor(availIds, (id) => `${id}-${weekDate}`);
+                                    value = availIds.some((id) => entries[`${id}-${weekDate}`]?.actual_value != null) ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = sumFor(soldIds, (id) => `${id}-${weekDate}`);
+                                    value = soldIds.some((id) => entries[`${id}-${weekDate}`]?.actual_value != null) ? total : null;
+                                  } else {
+                                    const totalAvail = sumFor(availIds, (id) => `${id}-${weekDate}`);
+                                    const totalSold = sumFor(soldIds, (id) => `${id}-${weekDate}`);
+                                    const hasData = availIds.some((id) => entries[`${id}-${weekDate}`]?.actual_value != null);
+                                    value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                    status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                  }
+
+                                  return (
+                                    <TableCell
+                                      key={`totals-${row.type}-${weekDate}`}
+                                      className={cn(
+                                        "px-0.5 py-0 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                        status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                        status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                        status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                      )}
+                                    >
+                                      {value !== null
+                                        ? row.type === "productive"
+                                          ? `${parseFloat(value.toFixed(2))}%`
+                                          : parseFloat(value.toFixed(2)).toString()
+                                        : "-"}
+                                    </TableCell>
+                                  );
+                                })}
+
+                                {/* Q TOTAL cell */}
+                                {(() => {
+                                  let qValue: number | null = null;
+                                  let qStatus: "success" | "warning" | "destructive" | null = null;
+
+                                  if (row.type === "avail") {
+                                    const vals = weeks.map((w) => {
+                                      const wd = w.start.toISOString().split("T")[0];
+                                      return availIds.some((id) => entries[`${id}-${wd}`]?.actual_value != null)
+                                        ? sumFor(availIds, (id) => `${id}-${wd}`)
+                                        : null;
+                                    }).filter((v): v is number => v !== null);
+                                    qValue = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+                                  } else if (row.type === "sold") {
+                                    const vals = weeks.map((w) => {
+                                      const wd = w.start.toISOString().split("T")[0];
+                                      return soldIds.some((id) => entries[`${id}-${wd}`]?.actual_value != null)
+                                        ? sumFor(soldIds, (id) => `${id}-${wd}`)
+                                        : null;
+                                    }).filter((v): v is number => v !== null);
+                                    qValue = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+                                  } else {
+                                    const totalAvail = weeks.reduce((acc, w) => {
+                                      const wd = w.start.toISOString().split("T")[0];
+                                      return acc + sumFor(availIds, (id) => `${id}-${wd}`);
+                                    }, 0);
+                                    const totalSold = weeks.reduce((acc, w) => {
+                                      const wd = w.start.toISOString().split("T")[0];
+                                      return acc + sumFor(soldIds, (id) => `${id}-${wd}`);
+                                    }, 0);
+                                    const hasAnyData = weeks.some((w) => {
+                                      const wd = w.start.toISOString().split("T")[0];
+                                      return availIds.some((id) => entries[`${id}-${wd}`]?.actual_value != null);
+                                    });
+                                    qValue = hasAnyData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                    qStatus = qValue !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                  }
+
+                                  return (
+                                    <TableCell className={cn(
+                                      "px-0.5 py-0 text-center min-w-[80px] max-w-[80px] border-l-2 border-border bg-muted/30 font-semibold text-xs",
+                                      qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                      qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                      qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                    )}>
+                                      {qValue !== null
+                                        ? row.type === "productive"
+                                          ? `${parseFloat(qValue.toFixed(2))}%`
+                                          : parseFloat(qValue.toFixed(2)).toString()
+                                        : "-"}
+                                    </TableCell>
+                                  );
+                                })()}
+                              </>
+                            )}
+
+                            {/* Monthly trend / Yearly view */}
+                            {(isMonthlyTrendMode || isYearlyView) && (
+                              <>
+                                {/* Sparkline placeholder */}
+                                <TableCell className="px-1 py-0.5 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]" />
+                                {/* Target placeholder */}
+                                <TableCell className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 text-xs">
+                                  {row.type === "productive" && productiveTarget !== null
+                                    ? `${parseFloat(productiveTarget.toFixed(2))}%`
+                                    : "-"}
+                                </TableCell>
+                                {activeYearlyPeriods.map((month) => {
+                                  if (month.type !== "month") {
+                                    // Summary columns
+                                    let value: number | null = null;
+                                    let status: "success" | "warning" | "destructive" | null = null;
+                                    const monthsForYear: string[] = [];
+                                    for (let m = 0; m < 12; m++) {
+                                      monthsForYear.push(`${month.summaryYear}-${String(m + 1).padStart(2, "0")}`);
+                                    }
+                                    if (row.type === "avail") {
+                                      const vals = monthsForYear.flatMap((mi) =>
+                                        availIds.map((id) => {
+                                          const k = `${id}-month-${mi}`;
+                                          return (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value ?? null;
+                                        })
+                                      ).filter((v): v is number => v !== null);
+                                      value = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+                                    } else if (row.type === "sold") {
+                                      const vals = monthsForYear.flatMap((mi) =>
+                                        soldIds.map((id) => {
+                                          const k = `${id}-month-${mi}`;
+                                          return (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value ?? null;
+                                        })
+                                      ).filter((v): v is number => v !== null);
+                                      value = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) : null;
+                                    } else {
+                                      const totalAvail = monthsForYear.reduce((acc, mi) =>
+                                        acc + availIds.reduce((a, id) => {
+                                          const k = `${id}-month-${mi}`;
+                                          return a + ((isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value ?? 0);
+                                        }, 0), 0);
+                                      const totalSold = monthsForYear.reduce((acc, mi) =>
+                                        acc + soldIds.reduce((a, id) => {
+                                          const k = `${id}-month-${mi}`;
+                                          return a + ((isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value ?? 0);
+                                        }, 0), 0);
+                                      value = totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                      status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                    }
+                                    return (
+                                      <TableCell key={month.identifier} className={cn(
+                                        "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] font-medium text-xs",
+                                        month.type === "year-avg" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                        month.type === "year-total" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                        status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                        status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                        status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                      )}>
+                                        {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                      </TableCell>
+                                    );
+                                  }
+                                  const monthIdentifier = `${month.year}-${String(month.month + 1).padStart(2, "0")}`;
+                                  let value: number | null = null;
+                                  let status: "success" | "warning" | "destructive" | null = null;
+
+                                  if (row.type === "avail") {
+                                    const total = availIds.reduce((acc, id) => {
+                                      const k = `${id}-month-${monthIdentifier}`;
+                                      const v = (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value;
+                                      return acc + (v ?? 0);
+                                    }, 0);
+                                    const hasData = availIds.some((id) => (isYearlyView ? yearlyViewEntries : entries)[`${id}-month-${monthIdentifier}`]?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = soldIds.reduce((acc, id) => {
+                                      const k = `${id}-month-${monthIdentifier}`;
+                                      const v = (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value;
+                                      return acc + (v ?? 0);
+                                    }, 0);
+                                    const hasData = soldIds.some((id) => (isYearlyView ? yearlyViewEntries : entries)[`${id}-month-${monthIdentifier}`]?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else {
+                                    const totalAvail = availIds.reduce((acc, id) => {
+                                      const k = `${id}-month-${monthIdentifier}`;
+                                      const v = (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value;
+                                      return acc + (v ?? 0);
+                                    }, 0);
+                                    const totalSold = soldIds.reduce((acc, id) => {
+                                      const k = `${id}-month-${monthIdentifier}`;
+                                      const v = (isYearlyView ? yearlyViewEntries[k] : entries[k])?.actual_value;
+                                      return acc + (v ?? 0);
+                                    }, 0);
+                                    const hasData = availIds.some((id) => (isYearlyView ? yearlyViewEntries : entries)[`${id}-month-${monthIdentifier}`]?.actual_value != null);
+                                    value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                    status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                  }
+
+                                  return (
+                                    <TableCell key={month.identifier} className={cn(
+                                      "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                      status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                      status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                      status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                      !status && "text-muted-foreground",
+                                    )}>
+                                      {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                    </TableCell>
+                                  );
+                                })}
+                              </>
+                            )}
+
+                            {/* Quarter trend mode */}
+                            {isQuarterTrendMode && quarterTrendPeriods.map((qtr) => {
+                              const qKey = (id: string) => `${id}-Q${qtr.quarter}-${qtr.year}`;
+                              let value: number | null = null;
+                              let status: "success" | "warning" | "destructive" | null = null;
+
+                              if (row.type === "avail") {
+                                const total = availIds.reduce((acc, id) => acc + (precedingQuartersData[qKey(id)] ?? 0), 0);
+                                const hasData = availIds.some((id) => precedingQuartersData[qKey(id)] != null);
+                                value = hasData ? total : null;
+                              } else if (row.type === "sold") {
+                                const total = soldIds.reduce((acc, id) => acc + (precedingQuartersData[qKey(id)] ?? 0), 0);
+                                const hasData = soldIds.some((id) => precedingQuartersData[qKey(id)] != null);
+                                value = hasData ? total : null;
+                              } else {
+                                const totalAvail = availIds.reduce((acc, id) => acc + (precedingQuartersData[qKey(id)] ?? 0), 0);
+                                const totalSold = soldIds.reduce((acc, id) => acc + (precedingQuartersData[qKey(id)] ?? 0), 0);
+                                const hasData = availIds.some((id) => precedingQuartersData[qKey(id)] != null);
+                                value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                              }
+
+                              return (
+                                <TableCell key={qtr.label} className={cn(
+                                  "px-0.5 py-0 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                  status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                  status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                  status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                  !status && "text-muted-foreground",
+                                )}>
+                                  {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                </TableCell>
+                              );
+                            })}
+
+                            {/* Quarterly view mode */}
+                            {viewMode === "quarterly" && !isQuarterTrendMode && quarterlyViewPeriods.map((qtr, qIdx) => {
+                              const qKey = (id: string) => `${id}-Q${qtr.quarter}-${qtr.year}`;
+                              const isSelected = qIdx === quarterlyViewPeriods.length - 1;
+                              let value: number | null = null;
+                              let status: "success" | "warning" | "destructive" | null = null;
+
+                              if (row.type === "avail") {
+                                const total = availIds.reduce((acc, id) => acc + (quarterlyViewData[qKey(id)] ?? 0), 0);
+                                const hasData = availIds.some((id) => quarterlyViewData[qKey(id)] != null);
+                                value = hasData ? total : null;
+                              } else if (row.type === "sold") {
+                                const total = soldIds.reduce((acc, id) => acc + (quarterlyViewData[qKey(id)] ?? 0), 0);
+                                const hasData = soldIds.some((id) => quarterlyViewData[qKey(id)] != null);
+                                value = hasData ? total : null;
+                              } else {
+                                const totalAvail = availIds.reduce((acc, id) => acc + (quarterlyViewData[qKey(id)] ?? 0), 0);
+                                const totalSold = soldIds.reduce((acc, id) => acc + (quarterlyViewData[qKey(id)] ?? 0), 0);
+                                const hasData = availIds.some((id) => quarterlyViewData[qKey(id)] != null);
+                                value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                              }
+
+                              return (
+                                <TableCell key={qtr.label} className={cn(
+                                  "px-0.5 py-0 text-center min-w-[100px] max-w-[100px] text-xs font-medium",
+                                  isSelected && "border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]",
+                                  status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                  status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                  status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                  !status && "text-muted-foreground",
+                                )}>
+                                  {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                </TableCell>
+                              );
+                            })}
+
+                            {/* Standard monthly view (previous year + current quarter months) */}
+                            {viewMode === "monthly" && !isMonthlyTrendMode && !isYearlyView && (
+                              <>
+                                {/* Prev year target placeholder */}
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] text-muted-foreground bg-muted/70 border-x-2 border-muted-foreground/30 text-xs">-</TableCell>
+                                {/* Prev year months */}
+                                {previousYearMonths.map((month) => {
+                                  const mi = month.identifier;
+                                  let value: number | null = null;
+                                  if (row.type === "avail") {
+                                    const total = availIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = availIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = soldIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = soldIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else {
+                                    const totalAvail = availIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const totalSold = soldIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = availIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                  }
+                                  return (
+                                    <TableCell key={mi} className="px-1 py-0.5 text-center min-w-[90px] max-w-[90px] bg-muted/20 text-muted-foreground text-xs">
+                                      {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                    </TableCell>
+                                  );
+                                })}
+                                {/* Prev year quarter avg placeholder */}
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-muted/50 border-x-2 border-muted-foreground/30 text-muted-foreground text-xs">-</TableCell>
+                                {/* Target placeholder */}
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
+                                  {row.type === "productive" && productiveTarget !== null ? `${parseFloat(productiveTarget.toFixed(2))}%` : "-"}
+                                </TableCell>
+                                {/* Current months */}
+                                {months.map((month) => {
+                                  const mi = month.identifier;
+                                  let value: number | null = null;
+                                  let status: "success" | "warning" | "destructive" | null = null;
+                                  if (row.type === "avail") {
+                                    const total = availIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = availIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = soldIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = soldIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData ? total : null;
+                                  } else {
+                                    const totalAvail = availIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const totalSold = soldIds.reduce((acc, id) => acc + ((monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value ?? 0), 0);
+                                    const hasData = availIds.some((id) => (monthlyViewEntries[`${id}-month-${mi}`] ?? entries[`${id}-month-${mi}`])?.actual_value != null);
+                                    value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                    status = value !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                  }
+                                  return (
+                                    <TableCell key={mi} className={cn(
+                                      "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                      status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                      status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                      status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                      !status && "text-muted-foreground",
+                                    )}>
+                                      {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
+                                    </TableCell>
+                                  );
+                                })}
+                                {/* Current quarter avg placeholder */}
+                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-xs text-muted-foreground">-</TableCell>
+                              </>
+                            )}
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })()}
                 </TableBody>
               </Table>
             </div>
