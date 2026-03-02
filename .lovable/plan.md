@@ -1,16 +1,32 @@
 
+## Fix: Infinite loop in forecast for all brands
 
-## Plan: Show Totals row when a specific KPI is selected
+**Root cause (confirmed):**
+- `impliedGrowth` useMemo at line 2046–2054 has `growth` in its dependency array because it uses `growth` as a fallback (`return growth`)
+- When `baselineTotalSalesAnnual` is 0 or results in an extreme ratio (Parts Nissan sub-metrics produce near-zero baseline), the returned value is either `growth` itself (creating a circular dep) or an astronomical number like `e+200`
+- The sync `useEffect` in `ForecastDrawer.tsx` (line 758) then calls `setGrowth(impliedGrowth)` → changes `growth` → triggers the useMemo → repeat
 
-**Problem:** The Totals section derives `availKpis`, `soldKpis`, and `productiveKpis` from `filteredKpis` (line 5376). When a specific KPI like "Sold Hours" is selected, `filteredKpis` excludes "Available Hours", so `availKpis` is empty and the guard at line 5377 returns `null`, hiding the entire Totals section.
+**Two-line fix in `src/hooks/forecast/useForecastCalculations.ts` (lines 2046–2054):**
 
-**Fix in `src/components/scorecard/ScorecardGrid.tsx`:**
+1. Return `undefined` instead of `growth` as the fallback — this removes `growth` from the dependency array entirely
+2. Clamp the result to a sane range (-99% to 9900%) before returning, preventing extreme IEEE 754 values from any near-zero baseline division
 
-1. **Use unfiltered `kpis` for Totals data** (~lines 5376–5412): Change `filteredKpis` → `kpis` (with role filter only) when deriving `availKpis`, `soldKpis`, and `productiveKpis`. This ensures the Totals section always has the underlying data to compute all three rows regardless of KPI filter.
+```typescript
+const impliedGrowth = useMemo(() => {
+  const adjustedTotalSalesAnnual = annualValues.get('total_sales')?.value || 0;
+  const baselineTotalSalesAnnual = annualBaseline['total_sales'] || 0;
+  
+  if (baselineTotalSalesAnnual > 0 && adjustedTotalSalesAnnual > 0) {
+    const raw = ((adjustedTotalSalesAnnual / baselineTotalSalesAnnual) - 1) * 100;
+    // Clamp to prevent extreme values from near-zero baselines (e.g. Parts Nissan)
+    return Math.max(-99, Math.min(9900, raw));
+  }
+  return undefined; // ← was: return growth (caused circular dependency)
+}, [annualValues, annualBaseline]); // ← removed `growth` from deps
+```
 
-2. **Filter which total rows render** (~line 5427): When `selectedKpiFilter !== "all"`, only show the matching total row. For example, selecting "Sold Hours" shows just the Sold Hours total; selecting "Available Hours" shows just Available Hours; selecting "Productive" shows just Productive. If the selected KPI matches none of the three total row labels, show nothing.
+The existing guard `if (impliedGrowth === undefined) return;` at line 760 of `ForecastDrawer.tsx` already handles the `undefined` case, so no other changes are needed.
 
-3. **Keep the guard intact** — if the department has no Available Hours KPIs at all (from full `kpis`), the section still won't render.
+This fix applies to **all brands** since it's in shared calculation logic — Parts Nissan triggered it but any brand with a near-zero `total_sales` baseline would have the same issue.
 
-This is a ~10-line change confined to the Totals section block.
-
+**File:** `src/hooks/forecast/useForecastCalculations.ts` — lines 2046–2054 only.
