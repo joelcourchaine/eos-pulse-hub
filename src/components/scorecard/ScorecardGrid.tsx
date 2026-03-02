@@ -2217,7 +2217,7 @@ const ScorecardGrid = ({
     }
     if (type === "dollar") return `$${value.toLocaleString()}`;
     if (type === "percentage") return `${Math.round(value)}%`;
-    return value.toString();
+    return parseFloat(Number(value).toFixed(2)).toString();
   };
 
   const formatQuarterAverage = (value: number, type: string, kpiName?: string) => {
