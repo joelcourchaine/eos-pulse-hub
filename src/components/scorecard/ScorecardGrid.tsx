@@ -2188,8 +2188,8 @@ const ScorecardGrid = ({
     ) {
       return Math.round(value).toString();
     }
-    // Don't format with commas for input fields - number inputs don't accept them
-    return value.toString();
+    // Round to at most 2 decimal places for display
+    return parseFloat(Number(value).toFixed(2)).toString();
   };
 
   const formatTarget = (value: number | null, type: string, kpiName?: string) => {
