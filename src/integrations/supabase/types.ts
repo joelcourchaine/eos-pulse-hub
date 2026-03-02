@@ -3979,6 +3979,10 @@ export type Database = {
       }
     }
     Functions: {
+      bulk_update_forecast_entries: {
+        Args: { p_updates: Json }
+        Returns: undefined
+      }
       can_access_signature_document: {
         Args: { file_path: string }
         Returns: boolean

@@ -1862,24 +1862,36 @@ const ScorecardGrid = ({
     // Use the updated entries if provided, otherwise use state
     const currentEntries = updatedEntries || entries;
 
-    // Define calculation rules (empty - no auto-calculated KPIs currently)
-    const calculationRules: { [key: string]: { numerator: string; denominator: string } } = {
-      // "CP Labour Sales Per RO": { numerator: "CP Labour Sales", denominator: "CP RO's" }, - removed to allow manual entry
-    };
+    // Define calculation rules for auto-derived KPIs
+    // For Productivity: numerator = sold-hours KPI (any unit KPI that isn't Available Hours/Productivity),
+    // denominator = Available Hours. We resolve dynamically by owner context below.
 
     // Find KPIs that need to be calculated based on the changed KPI
     for (const kpi of kpis) {
-      const rule = calculationRules[kpi.name];
-      if (!rule) continue;
+      if (kpi.name !== "Productivity") continue;
+      if (kpi.assigned_to !== changedKpi.assigned_to) continue;
 
-      // Check if the changed KPI is part of this calculation
-      if (rule.numerator !== changedKpi.name && rule.denominator !== changedKpi.name) continue;
+      // Resolve denominator: Available Hours owned by same technician
+      const denominatorKpi = kpis.find((k) => k.name === "Available Hours" && k.assigned_to === kpi.assigned_to);
 
-      // CRITICAL: Find the numerator and denominator KPIs that belong to the SAME OWNER as the calculated KPI
-      const numeratorKpi = kpis.find((k) => k.name === rule.numerator && k.assigned_to === kpi.assigned_to);
-      const denominatorKpi = kpis.find((k) => k.name === rule.denominator && k.assigned_to === kpi.assigned_to);
+      // Resolve numerator: any unit/sum KPI (not Available Hours, not Productivity) owned by same technician
+      const numeratorKpi = kpis.find(
+        (k) =>
+          k.assigned_to === kpi.assigned_to &&
+          k.name !== "Available Hours" &&
+          k.name !== "Productivity" &&
+          k.metric_type === "unit",
+      ) ?? kpis.find(
+        (k) =>
+          k.assigned_to === kpi.assigned_to &&
+          k.name !== "Available Hours" &&
+          k.name !== "Productivity",
+      );
 
       if (!numeratorKpi || !denominatorKpi) continue;
+
+      // Only trigger if the changed KPI is the numerator or denominator
+      if (changedKpi.id !== numeratorKpi.id && changedKpi.id !== denominatorKpi.id) continue;
 
       // Get the values for this period
       const numeratorKey = isMonthly ? `${numeratorKpi.id}-month-${monthId}` : `${numeratorKpi.id}-${periodKey}`;
@@ -1898,9 +1910,9 @@ const ScorecardGrid = ({
         console.log("✅ Calculating:", kpi.name, "=", numeratorValue, "/", denominatorValue);
         let calculatedValue = numeratorValue / denominatorValue;
 
-        // Round CP Labour Sales Per RO to nearest dollar
-        if (kpi.name === "CP Labour Sales Per RO") {
-          calculatedValue = Math.round(calculatedValue);
+        // For Productivity: multiply by 100 to get percentage
+        if (kpi.name === "Productivity") {
+          calculatedValue = calculatedValue * 100;
         }
 
         const target = kpiTargets[kpi.id] || kpi.target_value;
@@ -2658,9 +2670,7 @@ const ScorecardGrid = ({
 
   // Check if a KPI is automatically calculated
   const isCalculatedKPI = (kpiName: string): boolean => {
-    const calculatedKPIs: string[] = [
-      // "CP Labour Sales Per RO" - removed to allow manual entry/paste
-    ];
+    const calculatedKPIs: string[] = ["Productivity"];
     return calculatedKPIs.includes(kpiName);
   };
 
@@ -5385,9 +5395,9 @@ const ScorecardGrid = ({
                     if (availKpis.length === 0) return null;
 
                     // Find sold-hours KPIs (may be named "Sold Hours" or departmentally renamed)
-                    const soldKpis = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.aggregation_type === "sum" && k.metric_type === "unit");
-                    // Fallback: any unit KPI that isn't Available Hours / Productive
-                    const soldKpisFallback = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productive" && k.metric_type === "unit");
+                    const soldKpis = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productivity" && k.aggregation_type === "sum" && k.metric_type === "unit");
+                    // Fallback: any unit KPI that isn't Available Hours / Productivity
+                    const soldKpisFallback = roleFilteredKpis.filter((k) => k.name !== "Available Hours" && k.name !== "Productivity" && k.metric_type === "unit");
                     const effectiveSoldKpis = soldKpis.length > 0 ? soldKpis : soldKpisFallback;
 
                     // First: pick the unique sold-hours name (could be "Sold Hours", "Open Hours", etc.)
@@ -5417,7 +5427,7 @@ const ScorecardGrid = ({
                     const soldIds = effectiveSoldKpis.map((k) => k.id);
 
                     // Productive target: average of productive KPIs' targets (if any), otherwise null
-                    const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productive");
+                    const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productivity");
                     const productiveTarget = productiveKpis.length > 0
                       ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
                       : null;
@@ -5435,7 +5445,7 @@ const ScorecardGrid = ({
                     const allTotalRows = [
                       { label: "Available Hours", kpiIds: availIds, type: "avail" as const },
                       { label: soldHoursName, kpiIds: soldIds, type: "sold" as const },
-                      { label: "Productive", kpiIds: [], type: "productive" as const },
+                      { label: "Productivity", kpiIds: [], type: "productive" as const },
                     ];
                     // When a specific KPI is selected, only show the matching total row
                     const totalRows = selectedKpiFilter === "all"

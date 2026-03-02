@@ -329,7 +329,7 @@ export const TechnicianImportPreviewDialog = ({
             aggregation_type: "sum",
           },
           {
-            name: "Productive",
+            name: "Productivity",
             metric_type: "percentage",
             target_direction: "above",
             aggregation_type: "average",
@@ -374,7 +374,7 @@ export const TechnicianImportPreviewDialog = ({
 
         const availableId = kpiIdMap["Available Hours"];
         const soldId = kpiIdMap[kpiLabel];
-        const productiveId = kpiIdMap["Productive"];
+        const productiveId = kpiIdMap["Productivity"];
 
         // Collect weekly entries for batch upsert
         for (const week of tech.weeklyTotals) {
