@@ -2048,10 +2048,12 @@ export function useForecastCalculations({
     const baselineTotalSalesAnnual = annualBaseline['total_sales'] || 0;
     
     if (baselineTotalSalesAnnual > 0 && adjustedTotalSalesAnnual > 0) {
-      return ((adjustedTotalSalesAnnual / baselineTotalSalesAnnual) - 1) * 100;
+      const raw = ((adjustedTotalSalesAnnual / baselineTotalSalesAnnual) - 1) * 100;
+      // Clamp to prevent extreme values from near-zero baselines (e.g. Parts Nissan)
+      return Math.max(-99, Math.min(9900, raw));
     }
-    return growth; // fallback to current growth slider value
-  }, [annualValues, annualBaseline, growth]);
+    return undefined; // removed `growth` fallback to break circular dependency
+  }, [annualValues, annualBaseline]); // removed `growth` from deps
 
   return {
     monthlyValues,
