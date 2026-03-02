@@ -1,30 +1,32 @@
 
-## Column map confirmed from the screenshot
+## Root Cause: Wrong conflict key on weekly upsert
 
-| Col index | Header |
-|---|---|
-| 0 (A) | Technician name / row label |
-| 2 (C) | Date |
-| 3 (D) | Actual Hrs |
-| 4 (E) | Sold Hrs |
-| 5 (F) | Sold/Actual% |
-| 6 (G) | Clocked In Hrs ← Available Hours |
-| 7 (H) | Sold/Clocked% |
-
-**Available Hours → Clocked In Hrs (index 6)**
-**Sold Hours → Sold Hrs (index 4)** ← already correct
-
-## One-file fix in `parseTechnicianHoursReport.ts`
-
-**Dynamic detection (around line 131):** Change the `cIdx` findIndex to match `"clocked in"` instead of `"actual hrs"`:
+The weekly batch upsert uses:
 ```typescript
-const cIdx = normed.findIndex(c =>
-  c.includes("clocked in hrs") || c.includes("clocked in hours") || c === "clocked in"
-);
+{ onConflict: "kpi_id,week_start_date,entry_type" }
 ```
 
-**Fallback fixed index (around line 147):** Change `clockColIdx = 3` → `clockColIdx = 6`
+But the database unique index is:
+```
+CREATE UNIQUE INDEX unique_kpi_week ON public.scorecard_entries (kpi_id, week_start_date)
+```
 
-**Comment update:** `// Col 2 = Date, Col 6 = Clocked In Hrs (Available Hours), Col 4 = Sold Hrs`
+`entry_type` is **not** part of the unique index. When `onConflict` specifies columns that don't match any unique constraint, Supabase/PostgreSQL rejects or ignores the upsert silently — **no error is thrown, but no rows are written either**. This is why the scorecard shows all dashes.
 
-That's the entire change — no other files need to be touched.
+The monthly upsert is correct (`kpi_id,month,entry_type` matches the `scorecard_entries_kpi_month_entry_unique` index).
+
+## Fix
+
+One-line change in `TechnicianImportPreviewDialog.tsx`:
+
+```typescript
+// FROM:
+{ onConflict: "kpi_id,week_start_date,entry_type" }
+
+// TO:
+{ onConflict: "kpi_id,week_start_date" }
+```
+
+This matches the existing `unique_kpi_week` index `(kpi_id, week_start_date)` and the upsert will correctly insert or update weekly entries.
+
+**File to change:** `src/components/scorecard/TechnicianImportPreviewDialog.tsx` — line ~412
