@@ -281,7 +281,7 @@ export function useForecast(departmentId: string | undefined, year: number) {
       console.log('[bulkUpdateEntries] Starting mutation with', updates.length, 'updates');
 
       // Separate updates and inserts
-      const updateOps: Promise<void>[] = [];
+      const updatePayload: { id: string; forecast_value: number | null; baseline_value?: number | null; is_locked?: boolean }[] = [];
       const insertRows: {
         forecast_id: string;
         month: string;
@@ -303,20 +303,15 @@ export function useForecast(departmentId: string | undefined, year: number) {
           // 2. The update is explicitly setting a lock status (either true or false)
           //    This allows both locking and unlocking operations
           const canUpdate = !existing.is_locked || update.isLocked !== undefined;
-          
+
           if (canUpdate) {
-            const op = (async () => {
-              const { error } = await supabase
-                .from('forecast_entries')
-                .update({
-                  forecast_value: update.forecastValue,
-                  ...(update.baselineValue !== undefined && { baseline_value: update.baselineValue }),
-                  ...(update.isLocked !== undefined && { is_locked: update.isLocked }),
-                })
-                .eq('id', existing.id);
-              if (error) throw error;
-            })();
-            updateOps.push(op);
+            const item: { id: string; forecast_value: number | null; baseline_value?: number | null; is_locked?: boolean } = {
+              id: existing.id,
+              forecast_value: update.forecastValue,
+            };
+            if (update.baselineValue !== undefined) item.baseline_value = update.baselineValue;
+            if (update.isLocked !== undefined) item.is_locked = update.isLocked;
+            updatePayload.push(item);
           }
         } else {
           insertRows.push({
@@ -330,8 +325,11 @@ export function useForecast(departmentId: string | undefined, year: number) {
         }
       }
 
-      console.log('[bulkUpdateEntries] Executing', updateOps.length, 'updates and inserting', insertRows.length, 'rows');
-      await Promise.all(updateOps);
+      console.log('[bulkUpdateEntries] Executing', updatePayload.length, 'updates and inserting', insertRows.length, 'rows');
+      if (updatePayload.length > 0) {
+        const { error } = await supabase.rpc('bulk_update_forecast_entries', { p_updates: updatePayload });
+        if (error) throw error;
+      }
 
       if (insertRows.length > 0) {
         const { error } = await supabase.from('forecast_entries').insert(insertRows);
