@@ -404,23 +404,58 @@ export const TechnicianImportPreviewDialog = ({
         metricsImported[tech.rawName] = Object.keys(kpiIdMap).length;
       }
 
+      // Pre-fetch manually-edited entries to protect them from being overwritten
+      const allKpiIds = [...new Set([
+        ...allWeeklyEntries.map(e => e.kpi_id),
+        ...allMonthlyEntries.map(e => e.kpi_id),
+      ])];
+
+      const [{ data: protectedWeekly }, { data: protectedMonthly }] = await Promise.all([
+        supabase
+          .from("scorecard_entries")
+          .select("kpi_id, week_start_date")
+          .in("kpi_id", allKpiIds)
+          .eq("manually_edited", true)
+          .eq("entry_type", "weekly"),
+        supabase
+          .from("scorecard_entries")
+          .select("kpi_id, month")
+          .in("kpi_id", allKpiIds)
+          .eq("manually_edited", true)
+          .eq("entry_type", "monthly"),
+      ]);
+
+      const protectedWeeklyKeys = new Set(
+        (protectedWeekly ?? []).map(e => `${e.kpi_id}|${e.week_start_date}`)
+      );
+      const protectedMonthlyKeys = new Set(
+        (protectedMonthly ?? []).map(e => `${e.kpi_id}|${e.month}`)
+      );
+
+      const filteredWeekly = allWeeklyEntries.filter(
+        e => !protectedWeeklyKeys.has(`${e.kpi_id}|${e.week_start_date}`)
+      );
+      const filteredMonthly = allMonthlyEntries.filter(
+        e => !protectedMonthlyKeys.has(`${e.kpi_id}|${e.month}`)
+      );
+
       // Batch upsert weekly entries (500 per batch)
       const BATCH = 500;
-      for (let b = 0; b < allWeeklyEntries.length; b += BATCH) {
+      for (let b = 0; b < filteredWeekly.length; b += BATCH) {
         await supabase.from("scorecard_entries").upsert(
-          allWeeklyEntries.slice(b, b + BATCH),
+          filteredWeekly.slice(b, b + BATCH),
           { onConflict: "kpi_id,week_start_date" }
         );
-        if (b + BATCH < allWeeklyEntries.length) await new Promise(r => setTimeout(r, 50));
+        if (b + BATCH < filteredWeekly.length) await new Promise(r => setTimeout(r, 50));
       }
 
       // Batch upsert monthly entries
-      for (let b = 0; b < allMonthlyEntries.length; b += BATCH) {
+      for (let b = 0; b < filteredMonthly.length; b += BATCH) {
         await supabase.from("scorecard_entries").upsert(
-          allMonthlyEntries.slice(b, b + BATCH),
+          filteredMonthly.slice(b, b + BATCH),
           { onConflict: "kpi_id,month,entry_type" }
         );
-        if (b + BATCH < allMonthlyEntries.length) await new Promise(r => setTimeout(r, 50));
+        if (b + BATCH < filteredMonthly.length) await new Promise(r => setTimeout(r, 50));
       }
 
       // Log the import
