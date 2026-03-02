@@ -287,6 +287,17 @@ export const TechnicianImportPreviewDialog = ({
       // For each mapped technician — use ref to get latest mappings (avoid stale closure)
       const currentMappings = mappingsRef.current;
       const metricsImported: Record<string, number> = {};
+
+      // Query current max display_order in this department so we can assign unique values per technician
+      const { data: maxOrderRow } = await supabase
+        .from("kpi_definitions")
+        .select("display_order")
+        .eq("department_id", departmentId)
+        .order("display_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      let nextDisplayOrder = Math.max((maxOrderRow?.display_order ?? 9989), 9989) + 1;
+
       for (let i = 0; i < currentMappings.length; i++) {
         const { tech, selectedUserId } = currentMappings[i];
         if (!selectedUserId) continue;
@@ -350,7 +361,7 @@ export const TechnicianImportPreviewDialog = ({
                 metric_type: spec.metric_type,
                 target_direction: spec.target_direction,
                 aggregation_type: spec.aggregation_type,
-                display_order: 9999,
+                display_order: nextDisplayOrder++,
               })
               .select("id")
               .single();
