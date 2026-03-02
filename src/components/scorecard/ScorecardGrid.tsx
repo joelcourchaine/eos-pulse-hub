@@ -4157,8 +4157,10 @@ const ScorecardGrid = ({
                         return aRolePriority - bRolePriority;
                       }
 
-                      // Same role priority: sort by the minimum display_order of the owner group
-                      return getOwnerMinOrder(a.assigned_to) - getOwnerMinOrder(b.assigned_to);
+                      // Same role priority: sort by the minimum display_order of the owner group (stable tie-breaker)
+                      const orderDiff = getOwnerMinOrder(a.assigned_to) - getOwnerMinOrder(b.assigned_to);
+                      if (orderDiff !== 0) return orderDiff;
+                      return (a.assigned_to || "").localeCompare(b.assigned_to || "");
                     })
                     .map((kpi, index, sortedKpis) => {
                       const showOwnerHeader = index === 0 || kpi.assigned_to !== sortedKpis[index - 1]?.assigned_to;
