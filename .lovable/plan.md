@@ -1,64 +1,82 @@
 
-## Two changes: rename "Productive" → "Productivity" + make it read-only and auto-derived
+## Plan: Preserve manually-edited cells during technician import
 
-### What needs to change
+### Problem
+The import does a blind `upsert` on `scorecard_entries` using `onConflict: "kpi_id,week_start_date"` (weekly) and `onConflict: "kpi_id,month,entry_type"` (monthly). This overwrites any value the user manually typed in the scorecard grid.
 
-**1. Rename "Productive" → "Productivity" everywhere**
+### Solution
+1. **Add a `manually_edited` boolean column** to `scorecard_entries` (default `false`)
+2. **Mark entries as manually edited** when a user saves a cell in `ScorecardGrid.tsx`
+3. **Pre-filter import entries** — before the batch upsert, fetch existing entries for the affected KPI IDs that have `manually_edited = true`, then exclude those from the upsert batches
 
-The KPI name `"Productive"` is used as a string literal in several places for:
-- Detection/filtering (the `isCalculatedKPI` guard, soldKpis exclusions, productiveKpis filter)
-- Auto-creation during technician import
-- Totals section row label and KPI filter matching
+---
 
-Files with the literal string `"Productive"` tied to the KPI name:
-- `src/components/scorecard/ScorecardGrid.tsx` — lines 5388, 5390, 5420, 5438 (all string comparisons and labels)
-- `src/components/scorecard/TechnicianImportPreviewDialog.tsx` — line 332, 377 (KPI creation name and ID lookup)
+### Step 1 — Migration
+New column: `manually_edited BOOLEAN NOT NULL DEFAULT false`
 
-**2. Make "Productivity" read-only + auto-recalculate from Available/Sold Hours**
-
-Currently `isCalculatedKPI()` returns an empty array (line 2661–2663) — nothing is auto-calculated. The `calculateDependentKPIs()` function at line 1852 already has full machinery to:
-- Watch for a changed KPI
-- Find a matching calculated KPI owned by the same technician
-- Compute numerator/denominator
-- Upsert the result to `scorecard_entries`
-
-**Changes required:**
-
-**A. `isCalculatedKPI` — add "Productivity" to the list (line 2661)**
-```typescript
-const calculatedKPIs: string[] = ["Productivity"];
-```
-This makes every cell for a "Productivity" KPI `disabled` and `readOnly` in the UI — already wired at lines 4633–4634, 4926–4927, 5326–5327.
-
-**B. `calculateDependentKPIs` — add rule for "Productivity" (line 1866)**
-```typescript
-const calculationRules: { [key: string]: { numerator: string; denominator: string } } = {
-  "Productivity": { numerator: "Sold Hours", denominator: "Available Hours" },
-};
-```
-When a user saves Available Hours or Sold Hours, this rule fires for all KPIs named "Productivity" owned by the same technician, computes `sold / available * 100`, and saves it.
-
-> Note: The sold KPI may be named differently (e.g., "Open Hours", "Closed Hours"). We need to handle that. Instead of hardcoding "Sold Hours" as numerator, we should look up the sold KPI by: same owner + unit type + not "Available Hours" + not "Productivity". This already mirrors the logic at line 5388. We'll add a helper that resolves the rule dynamically by owner context.
-
-**C. Update the rename references in `ScorecardGrid.tsx`**
-- Line 5388: `k.name !== "Productive"` → `k.name !== "Productivity"`
-- Line 5390: same
-- Line 5420: `k.name === "Productive"` → `k.name === "Productivity"`
-- Line 5438: `label: "Productive"` → `label: "Productivity"`
-
-**D. Update `TechnicianImportPreviewDialog.tsx`**
-- Line 332: `name: "Productive"` → `name: "Productivity"`
-- Line 377: `kpiIdMap["Productive"]` → `kpiIdMap["Productivity"]`
-
-### Migration note for existing data
-Existing KPIs named "Productive" in the database won't automatically be renamed — but since KPI names are stored per-department, and the filtering logic is string-match based, existing old-named KPIs will simply not match the new rules. A one-off database migration renaming existing "Productive" KPIs to "Productivity" is needed.
-
-**New migration file:** `supabase/migrations/20260303130000_rename_productive_to_productivity.sql`
 ```sql
-UPDATE public.kpis SET name = 'Productivity' WHERE name = 'Productive';
+ALTER TABLE public.scorecard_entries 
+ADD COLUMN manually_edited boolean NOT NULL DEFAULT false;
 ```
+
+---
+
+### Step 2 — Mark cells as manually edited (`ScorecardGrid.tsx`)
+When a user saves a cell value, the upsert already happens in the grid. Add `manually_edited: true` to that upsert payload.
+
+Search `ScorecardGrid.tsx` for the saveEntry / upsert call to `scorecard_entries` and add the flag.
+
+---
+
+### Step 3 — Skip protected entries during import (`TechnicianImportPreviewDialog.tsx`)
+
+After building `allWeeklyEntries` and `allMonthlyEntries`, before the batch upserts:
+
+```typescript
+// Collect all KPI IDs involved in this import
+const allKpiIds = [...new Set([
+  ...allWeeklyEntries.map(e => e.kpi_id),
+  ...allMonthlyEntries.map(e => e.kpi_id),
+])];
+
+// Fetch existing manually-edited weekly entries
+const { data: protectedWeekly } = await supabase
+  .from("scorecard_entries")
+  .select("kpi_id, week_start_date")
+  .in("kpi_id", allKpiIds)
+  .eq("manually_edited", true)
+  .eq("entry_type", "weekly");
+
+// Fetch existing manually-edited monthly entries
+const { data: protectedMonthly } = await supabase
+  .from("scorecard_entries")
+  .select("kpi_id, month")
+  .in("kpi_id", allKpiIds)
+  .eq("manually_edited", true)
+  .eq("entry_type", "monthly");
+
+// Build Sets for O(1) lookup
+const protectedWeeklyKeys = new Set(
+  (protectedWeekly ?? []).map(e => `${e.kpi_id}|${e.week_start_date}`)
+);
+const protectedMonthlyKeys = new Set(
+  (protectedMonthly ?? []).map(e => `${e.kpi_id}|${e.month}`)
+);
+
+// Filter out protected entries
+const filteredWeekly = allWeeklyEntries.filter(
+  e => !protectedWeeklyKeys.has(`${e.kpi_id}|${e.week_start_date}`)
+);
+const filteredMonthly = allMonthlyEntries.filter(
+  e => !protectedMonthlyKeys.has(`${e.kpi_id}|${e.month}`)
+);
+```
+
+Then use `filteredWeekly` and `filteredMonthly` for the batch upserts instead of the originals.
+
+---
 
 ### Files changed
-1. `src/components/scorecard/ScorecardGrid.tsx` — 5 string literal replacements + add "Productivity" to `isCalculatedKPI` + dynamic rule in `calculateDependentKPIs`
-2. `src/components/scorecard/TechnicianImportPreviewDialog.tsx` — 2 string literal replacements
-3. **New:** `supabase/migrations/20260303130000_rename_productive_to_productivity.sql`
+1. **New migration** — adds `manually_edited` column to `scorecard_entries`
+2. **`ScorecardGrid.tsx`** — add `manually_edited: true` to user-save upserts
+3. **`TechnicianImportPreviewDialog.tsx`** — pre-fetch protected entries and filter them out before upserting
