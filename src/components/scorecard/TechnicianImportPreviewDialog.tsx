@@ -409,7 +409,7 @@ export const TechnicianImportPreviewDialog = ({
       for (let b = 0; b < allWeeklyEntries.length; b += BATCH) {
         await supabase.from("scorecard_entries").upsert(
           allWeeklyEntries.slice(b, b + BATCH),
-          { onConflict: "kpi_id,week_start_date,entry_type" }
+          { onConflict: "kpi_id,week_start_date" }
         );
         if (b + BATCH < allWeeklyEntries.length) await new Promise(r => setTimeout(r, 50));
       }
