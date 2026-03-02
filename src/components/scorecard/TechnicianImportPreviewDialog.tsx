@@ -287,6 +287,8 @@ export const TechnicianImportPreviewDialog = ({
       // For each mapped technician — use ref to get latest mappings (avoid stale closure)
       const currentMappings = mappingsRef.current;
       const metricsImported: Record<string, number> = {};
+      const allWeeklyEntries: Array<{ kpi_id: string; week_start_date: string; entry_type: string; actual_value: number; created_by: string | undefined }> = [];
+      const allMonthlyEntries: Array<{ kpi_id: string; month: string; entry_type: string; actual_value: number; created_by: string | undefined }> = [];
 
       // Query current max display_order in this department so we can assign unique values per technician
       const { data: maxOrderRow } = await supabase
@@ -374,66 +376,51 @@ export const TechnicianImportPreviewDialog = ({
         const soldId = kpiIdMap[kpiLabel];
         const productiveId = kpiIdMap["Productive"];
 
-        // Upsert weekly entries
+        // Collect weekly entries for batch upsert
         for (const week of tech.weeklyTotals) {
-          const baseEntry = {
-            kpi_id: "",
-            week_start_date: week.weekStartDate,
-            entry_type: "weekly",
-            created_by: currentUserId,
-          };
-
-          const entries = [
-            { ...baseEntry, kpi_id: availableId, actual_value: week.clockedInHrs },
-            { ...baseEntry, kpi_id: soldId, actual_value: week.soldHrs },
-            {
-              ...baseEntry,
-              kpi_id: productiveId,
-              actual_value: week.productive !== null ? parseFloat((week.productive * 100).toFixed(2)) : null,
-            },
-          ].filter((e) => e.actual_value !== null);
-
-          for (const entry of entries) {
-            await supabase.from("scorecard_entries").upsert(
-              {
-                kpi_id: entry.kpi_id,
-                week_start_date: entry.week_start_date,
-                entry_type: entry.entry_type,
-                actual_value: entry.actual_value,
-                created_by: entry.created_by,
-              },
-              { onConflict: "kpi_id,week_start_date,entry_type" }
-            );
+          const base = { week_start_date: week.weekStartDate, entry_type: "weekly" as const, created_by: currentUserId };
+          allWeeklyEntries.push(
+            { ...base, kpi_id: availableId, actual_value: week.clockedInHrs },
+            { ...base, kpi_id: soldId, actual_value: week.soldHrs },
+          );
+          if (week.productive !== null) {
+            allWeeklyEntries.push({ ...base, kpi_id: productiveId, actual_value: parseFloat((week.productive * 100).toFixed(2)) });
           }
         }
 
-        // Upsert monthly entries
+        // Collect monthly entries for batch upsert
         for (const mo of tech.monthlyTotals) {
-          const monthEntries = [
-            { kpi_id: availableId, actual_value: mo.clockedInHrs },
-            { kpi_id: soldId, actual_value: mo.soldHrs },
-            {
-              kpi_id: productiveId,
-              actual_value: mo.productive !== null ? parseFloat((mo.productive * 100).toFixed(2)) : null,
-            },
-          ].filter((e) => e.actual_value !== null);
-
-          for (const entry of monthEntries) {
-            await supabase.from("scorecard_entries").upsert(
-              {
-                kpi_id: entry.kpi_id,
-                month: mo.month,
-                entry_type: "monthly",
-                actual_value: entry.actual_value,
-                created_by: currentUserId,
-              },
-              { onConflict: "kpi_id,month,entry_type" }
-            );
+          const base = { month: mo.month, entry_type: "monthly" as const, created_by: currentUserId };
+          allMonthlyEntries.push(
+            { ...base, kpi_id: availableId, actual_value: mo.clockedInHrs },
+            { ...base, kpi_id: soldId, actual_value: mo.soldHrs },
+          );
+          if (mo.productive !== null) {
+            allMonthlyEntries.push({ ...base, kpi_id: productiveId, actual_value: parseFloat((mo.productive * 100).toFixed(2)) });
           }
         }
 
         // Track KPI count for this technician in the log
         metricsImported[tech.rawName] = Object.keys(kpiIdMap).length;
+      }
+
+      // Batch upsert weekly entries (500 per batch)
+      const BATCH = 500;
+      for (let b = 0; b < allWeeklyEntries.length; b += BATCH) {
+        await supabase.from("scorecard_entries").upsert(
+          allWeeklyEntries.slice(b, b + BATCH),
+          { onConflict: "kpi_id,week_start_date,entry_type" }
+        );
+        if (b + BATCH < allWeeklyEntries.length) await new Promise(r => setTimeout(r, 50));
+      }
+
+      // Batch upsert monthly entries
+      for (let b = 0; b < allMonthlyEntries.length; b += BATCH) {
+        await supabase.from("scorecard_entries").upsert(
+          allMonthlyEntries.slice(b, b + BATCH),
+          { onConflict: "kpi_id,month,entry_type" }
+        );
+        if (b + BATCH < allMonthlyEntries.length) await new Promise(r => setTimeout(r, 50));
       }
 
       // Log the import
