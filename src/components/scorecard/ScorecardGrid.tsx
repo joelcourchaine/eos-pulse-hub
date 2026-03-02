@@ -4517,7 +4517,7 @@ const ScorecardGrid = ({
                                             !trendStatus && "text-muted-foreground",
                                           )}
                                         >
-                                          <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                          <div className="relative flex items-center justify-center gap-0 h-5 w-full">
                                             {(isCalculatedKPI(kpi.name) || focusedInput !== key) &&
                                             mValue !== null &&
                                             mValue !== undefined ? (
@@ -5201,7 +5201,7 @@ const ScorecardGrid = ({
                              status === "destructive" && "bg-red-100 dark:bg-red-900/40",
                                           )}
                                         >
-                                          <div className="relative flex items-center justify-center gap-0 h-8 w-full">
+                                          <div className="relative flex items-center justify-center gap-0 h-5 w-full">
                                             {(isCalculatedKPI(kpi.name) || focusedInput !== key) &&
                                             entry?.actual_value !== null &&
                                             entry?.actual_value !== undefined ? (
