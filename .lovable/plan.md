@@ -1,27 +1,21 @@
 
-## Root Cause
+## Fix: Tooltip instability in Financial Summary cells
 
-The UI shows "in progress" on an issue when it has **at least one linked to-do** (`issueHasLinkedTodo`). The actual `status` value in the database for those issues is still `"open"` — the "in progress" label is purely a UI display trick based on whether linked todos exist.
+### Root Cause
+Every tooltip in `FinancialSummary.tsx` wraps itself in its own `<TooltipProvider>`. Radix UI's `TooltipProvider` manages the open/close timing globally — when each cell creates its own provider, the shared "already-open" state is lost as the cursor moves between cells. This causes the tooltip to close and reopen (or just vanish) during cursor movement.
 
-So in the edge function, `.neq("status", "in_progress")` does nothing useful — no issue in the database actually has `status = "in_progress"`. All issues with linked todos are stored as `status = "open"` and just displayed differently in the UI.
+The fix is to:
+1. Add a **single `<TooltipProvider>`** high up in the render tree (at the top of the returned JSX) with `disableHoverableContent={false}` and a short `delayDuration` so tooltips stay open while hovering.
+2. Remove all the individual `<TooltipProvider>` wrappers from `TrendCellTooltip`, `QuarterTrendCellTooltip`, and the other inline tooltip spots — keep only the inner `<Tooltip>` + `<TooltipTrigger>` + `<TooltipContent>`.
 
-## Fix — `supabase/functions/send-todos-email/index.ts`
+### Affected spots (all in `FinancialSummary.tsx`)
+- Lines 2394 + 2414 — `TrendCellTooltip`
+- Lines 2449 + 2469 — `QuarterTrendCellTooltip`
+- Lines 3658–3667 — trophy icon tooltip in month header
+- Lines 3729–3833 — metric name tooltip
+- Lines 3734–3748 — rock icon tooltip (nested)
+- Lines 4929–5119 — cell value tooltip
 
-Change the issues query to **also exclude issues that have at least one linked todo** (i.e., the same `issueHasLinkedTodo` logic but server-side).
-
-The cleanest approach: after fetching issues, also fetch `todos` for the department and filter out issues that have a linked todo in that list:
-
-```ts
-// After fetching todos, build a set of issue IDs that have linked todos
-const linkedIssueIds = new Set(
-  (todos || []).map(t => t.issue_id).filter(Boolean)
-);
-
-// Filter open issues to exclude those with linked todos ("in progress" in UI)
-const openIssues = (issues || []).filter(i => !linkedIssueIds.has(i.id));
-```
-
-Also remove the now-redundant `.neq("status", "in_progress")` line since no issue actually has that status value.
-
-### Only file changed
-- `supabase/functions/send-todos-email/index.ts` — redeploy after
+### Change
+- Strip `<TooltipProvider>` from all 6 locations above (keep only `<Tooltip>`, `<TooltipTrigger>`, `<TooltipContent>`)
+- Find the outermost `return (` of the component and wrap it in a single `<TooltipProvider delayDuration={100}>` so all tooltips share one provider
