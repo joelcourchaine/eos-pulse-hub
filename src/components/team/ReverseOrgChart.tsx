@@ -77,6 +77,7 @@ const POSITION_LABELS: Record<string, string> = {
   apprentice_3: "3rd Year Apprentice",
   apprentice_4: "4th Year Apprentice",
   porter: "Porter",
+  shuttle_driver: "Shuttle Driver",
   warranty_admin: "Warranty Admin",
   detailer: "Detailer",
   administrative: "Administrative",

@@ -27,6 +27,7 @@ const POSITION_OPTIONS = [
   { value: "apprentice_4", label: "4th Year Apprentice" },
   { value: "red_seal_technician", label: "Red Seal Technician" },
   { value: "porter", label: "Porter" },
+  { value: "shuttle_driver", label: "Shuttle Driver" },
   { value: "warranty_admin", label: "Warranty Admin" },
   { value: "detailer", label: "Detailer" },
   { value: "administrative", label: "Administrative" },
