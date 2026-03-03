@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp, NotebookPen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { IssuesAndTodosPanel } from "./IssuesAndTodosPanel";
 
@@ -12,6 +12,7 @@ interface CollapsibleIssuesPanelProps {
 
 export function CollapsibleIssuesPanel({ departmentId, userId }: CollapsibleIssuesPanelProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [expandAllNotes, setExpandAllNotes] = useState(false);
 
   return (
     <Card>
@@ -19,14 +20,28 @@ export function CollapsibleIssuesPanel({ departmentId, userId }: CollapsibleIssu
         <CardHeader className="pb-3">
           <CollapsibleTrigger asChild>
             <div className="flex items-center justify-between cursor-pointer">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Issues & To-Dos
-                </CardTitle>
-                <CardDescription>
-                  Track issues and action items for this department
-                </CardDescription>
+              <div className="flex items-center gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Issues & To-Dos
+                  </CardTitle>
+                  <CardDescription>
+                    Track issues and action items for this department
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandAllNotes(v => !v);
+                  }}
+                >
+                  <NotebookPen className="h-3.5 w-3.5" />
+                  {expandAllNotes ? "Collapse Notes" : "Expand Notes"}
+                </Button>
               </div>
               <Button variant="ghost" size="sm">
                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -36,7 +51,7 @@ export function CollapsibleIssuesPanel({ departmentId, userId }: CollapsibleIssu
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="pt-0">
-            <IssuesAndTodosPanel departmentId={departmentId} userId={userId} />
+            <IssuesAndTodosPanel departmentId={departmentId} userId={userId} expandAllNotes={expandAllNotes} />
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
