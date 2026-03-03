@@ -1,37 +1,56 @@
 
-## Root Cause
+## Bug: Connector lines don't appear between team members
 
-For Ford's `GP %` sub-metrics (Parts Department, etc.), visual color cues require a `effectiveTarget` value — either a manual quarterly target, a Rock target, or a **forecast fallback**.
+### Root Cause
 
-The forecast fallback logic in `FinancialSummary.tsx` (lines 5314–5349) for percentage metrics first tries to look up `sub:gp_percent:001:NAME` in the forecast store. Ford's forecast engine stores sub-metric entries under the **dollar parent key** (`sub:gp_net:001:NAME`), not under `gp_percent`. When the percentage key returns null, the code explicitly refuses to fall back to the dollar key (to avoid showing a dollar value as a percentage). So the forecast fallback always returns `null` for `gp_percent` sub-metrics → no `effectiveTarget` → no color cues.
+The SVG lines are drawn by measuring DOM element positions using `getBoundingClientRect()`. The connecting line from a **child** goes to the **top** of the parent (`pRect.top - chartRect.top`), and from the **bottom** of the child (`cRect.bottom - chartRect.top`).
 
-This is the same issue that would affect any brand whose `GP %` sub-metrics don't have explicit percentage-keyed forecast entries.
+Looking at the image: the child circles (Jamie, Pete, Shandi) are **above** Sara (the Service Manager). This is the reversed org chart layout — leaves at top, roots at bottom. The line should go:
 
-## Fix
+- **From**: bottom of the child node (`cRect.bottom`)  
+- **To**: top of the parent node (`pRect.top`)
 
-In the `getForecastTarget` lambda inside `SubMetricsRow`'s usage (lines 5314–5349 of `FinancialSummary.tsx`), add a **synthesis path** for `gp_percent`:
-
-When both `sub:gp_percent:...` keys return null AND the metric is `gp_percent`, synthesize the percentage forecast by:
-1. Look up the `gp_net` sub-metric forecast for this sub-metric name + month → `numeratorForecast`
-2. Look up the **parent** `total_sales` forecast for this month (via `getForecastTarget("total_sales", monthId)`)
-3. Return `(numeratorForecast / totalSalesForecast) * 100`
-
-This mirrors exactly how the displayed sub-metric values are calculated (line 5175–5183), so the forecast target will be in the same percentage units as the actual value.
-
-### Only file changed
-- `src/components/financial/FinancialSummary.tsx` — update the `getForecastTarget` callback passed to `SubMetricsRow` (lines ~5314–5349)
-
-```text
-Current (simplified):
-  if percentage metric:
-    try sub:gp_percent:001:NAME  → null
-    return null  ← cues disabled
-
-Fixed:
-  if percentage metric (gp_percent):
-    try sub:gp_percent:001:NAME  → null
-    synthesize: (gp_net submetric forecast) / (total_sales parent forecast) * 100  ← cues work
+But the current code at lines 581–598 draws:
+```
+y1 = pRect.top - chartRect.top      ← top of parent (correct anchor on parent)
+y2 = cRect.bottom - chartRect.top   ← bottom of child (correct anchor on child)
 ```
 
-### Technical note
-The synthesis uses `allSubMetrics` to find the order index for the `gp_net` sub-metric, then reads from the `forecastTargets` map the same way the existing logic already does for dollar keys. No new hooks or database changes required.
+That math is actually right in isolation — but the issue is the **`chartRect`** reference point. The chart `div` has `transform: scale(${zoom})` applied to it. `getBoundingClientRect()` returns **scaled** coordinates, but the SVG sits **inside** the same scaled div. This means the coordinates fed into the SVG are in "screen space" post-scale, but the SVG coordinate system is "pre-scale" (its own local space). When zoom ≠ 1 the lines are drawn in the wrong positions, and at zoom levels far from 1 the lines might be completely off-screen or invisible.
+
+**But there's an additional problem**: `chartRect` is obtained by calling `chartRef.current.getBoundingClientRect()` on the **scaled** element. All child rects are also scaled, so `child - chart` should cancel out the scaling. The real bug is subtler:
+
+The line endpoints connect **bottom of child → top of parent**, but when the chart has `transformOrigin: "top center"`, the `getBoundingClientRect` on children inside the scaled div **does** account for the transform. So the coordinates are correct when zoom=1.
+
+**The actual bug**: The line `y2` for individual leaf nodes uses `cRect.bottom` (bottom of child). This means the line exits the bottom of the child. Since children are **above** parents in this reversed layout, the line should connect the **bottom** of the child (`y2`) to the **top** of the parent (`y1`). That's what the code does — and it should work.
+
+Re-examining more carefully: The SVG is `position: absolute; inset: 0` inside the **scaled** div. The `getBoundingClientRect` returns viewport coordinates. The SVG's coordinate space matches the div's unscaled internal layout space only when zoom=1.
+
+**Fix**: Divide the computed coordinates by `zoom` to convert from viewport space back to the SVG's local coordinate space:
+
+```ts
+const scale = zoom;
+// instead of:
+const parentX = pRect.left + pRect.width / 2 - chartRect.left;
+// use:
+const parentX = (pRect.left + pRect.width / 2 - chartRect.left) / scale;
+```
+
+### Changes
+- **`src/components/team/ReverseOrgChart.tsx`** — In the `calcLines` effect (lines 570–618), divide all computed x/y coordinates by `zoom` to convert from scaled viewport coordinates to the SVG's unscaled local coordinate space.
+
+```text
+Before:
+  parentX = (pRect.left + pRect.width/2 - chartRect.left)
+  parentY = (pRect.top - chartRect.top)
+  childX  = (cRect.left + cRect.width/2 - chartRect.left)
+  childY  = (cRect.bottom - chartRect.top)
+
+After:
+  parentX = (pRect.left + pRect.width/2 - chartRect.left) / zoom
+  parentY = (pRect.top - chartRect.top) / zoom
+  childX  = (cRect.left + cRect.width/2 - chartRect.left) / zoom
+  childY  = (cRect.bottom - chartRect.top) / zoom
+```
+
+The `zoom` value is already in component scope so no additional state is needed.
