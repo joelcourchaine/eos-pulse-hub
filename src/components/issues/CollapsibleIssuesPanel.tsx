@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, ChevronDown, ChevronUp, NotebookPen } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { IssuesAndTodosPanel } from "./IssuesAndTodosPanel";
+import { EmailTodosDialog } from "./EmailTodosDialog";
 
 interface CollapsibleIssuesPanelProps {
   departmentId: string;
@@ -30,18 +31,18 @@ export function CollapsibleIssuesPanel({ departmentId, userId }: CollapsibleIssu
                     Track issues and action items for this department
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setExpandAllNotes(v => !v);
-                  }}
-                >
-                  <NotebookPen className="h-3.5 w-3.5" />
-                  {expandAllNotes ? "Collapse Notes" : "Expand Notes"}
-                </Button>
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={() => setExpandAllNotes(v => !v)}
+                  >
+                    <NotebookPen className="h-3.5 w-3.5" />
+                    {expandAllNotes ? "Collapse Notes" : "Expand Notes"}
+                  </Button>
+                  <EmailTodosDialog departmentId={departmentId} />
+                </div>
               </div>
               <Button variant="ghost" size="sm">
                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
