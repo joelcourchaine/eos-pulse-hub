@@ -1,31 +1,32 @@
 
-## Plan: Show linked Issue name next to To-Do title in the email
+## Plan: Add Open Issues section to the To-Do summary email
 
-### Root cause
-The `send-todos-email` edge function's todos query does not include `issue_id` in the SELECT, and there's no fetch of issues to build a title lookup map. So even if the template tried to show an issue name, the data isn't there.
+The `issues` table has: `id`, `department_id`, `title`, `description`, `status`, `severity`, `display_order`.
 
-### Changes — `supabase/functions/send-todos-email/index.ts`
+### What "open issues" means
+Issues where `status != 'resolved'` (or whatever the closed/done status is). Need to check — but the table has a free-text `status` column. Looking at the app code it uses values like `"open"`, `"in_progress"`, `"resolved"`. We'll fetch all non-resolved issues.
 
-1. **Update the todos `select`** on line 64 to include `issue_id`:
-   ```
-   .select("id, title, description, status, severity, due_date, assigned_to, issue_id")
-   ```
+### Changes — `supabase/functions/send-todos-email/index.ts` only
 
-2. **After fetching todos**, add a fetch for all issues in the department and build an `issueMap`:
+1. **Update the existing issues fetch** (line 71-76) — currently only fetching `id, title` for the `issueMap`. Expand to fetch full issue data for display, and filter to only **open** (non-resolved) issues:
    ```ts
    const { data: issues } = await supabaseClient
      .from("issues")
-     .select("id, title")
-     .eq("department_id", departmentId);
-   const issueMap: Record<string, string> = {};
-   (issues || []).forEach(i => { issueMap[i.id] = i.title; });
+     .select("id, title, description, status, severity")
+     .eq("department_id", departmentId)
+     .neq("status", "resolved");
    ```
+   Still build the `issueMap` from this data.
 
-3. **Update `buildTodoRow`** to accept `issueMap` and render a small inline pill immediately after the todo title span when `todo.issue_id` is present:
-   ```html
-   <span style="display:inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: #eff6ff; color: #3b82f6; margin-left: 6px; vertical-align: middle;">
-     ↳ {issueName}
-   </span>
-   ```
+2. **Add `buildIssueRow` helper** — similar style to `buildTodoRow` but simpler (no due date / assignee), with severity dot and status badge. Use a slightly different left border accent color (red/orange for issues).
 
-That's the only file that needs to change. Redeploy after.
+3. **Add `buildIssuesSection`** — calls `buildIssueRow` for each open issue, same `buildSection` pattern with a 🔥 icon and red accent `#ef4444`.
+
+4. **Update summary pills** — add a third pill showing open issues count (e.g. `🔥 N Issues`).
+
+5. **Insert issues section** into the HTML — place it **before** the to-dos sections so readers see the issues context first, then the action items.
+
+6. **Redeploy** the edge function.
+
+### Files changed
+- `supabase/functions/send-todos-email/index.ts` only — redeploy after
