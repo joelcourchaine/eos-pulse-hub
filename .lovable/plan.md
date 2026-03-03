@@ -1,29 +1,27 @@
 
-## Two fixes in `send-todos-email/index.ts`
+## Root Cause
 
-### Fix 1 — Exclude "in_progress" issues (line 77)
-Add `.neq("status", "in_progress")` to the issues query so only truly `open` issues appear:
+The UI shows "in progress" on an issue when it has **at least one linked to-do** (`issueHasLinkedTodo`). The actual `status` value in the database for those issues is still `"open"` — the "in progress" label is purely a UI display trick based on whether linked todos exist.
+
+So in the edge function, `.neq("status", "in_progress")` does nothing useful — no issue in the database actually has `status = "in_progress"`. All issues with linked todos are stored as `status = "open"` and just displayed differently in the UI.
+
+## Fix — `supabase/functions/send-todos-email/index.ts`
+
+Change the issues query to **also exclude issues that have at least one linked todo** (i.e., the same `issueHasLinkedTodo` logic but server-side).
+
+The cleanest approach: after fetching issues, also fetch `todos` for the department and filter out issues that have a linked todo in that list:
+
 ```ts
-.neq("status", "resolved")
-.neq("status", "in_progress")  // ← add this
+// After fetching todos, build a set of issue IDs that have linked todos
+const linkedIssueIds = new Set(
+  (todos || []).map(t => t.issue_id).filter(Boolean)
+);
+
+// Filter open issues to exclude those with linked todos ("in progress" in UI)
+const openIssues = (issues || []).filter(i => !linkedIssueIds.has(i.id));
 ```
 
-### Fix 2 — Date showing one day ahead (line 108)
-The edge function runs in UTC. When it's March 2 at 10pm in the user's timezone, the server clock reads March 3 UTC, so `new Date().toLocaleDateString()` returns March 3.
+Also remove the now-redundant `.neq("status", "in_progress")` line since no issue actually has that status value.
 
-**Fix**: pass `clientDate` from the browser in the request payload and use it in the email instead of computing it server-side.
-
-**Client side** (`src/components/issues/EmailTodosDialog.tsx` or wherever the function is invoked) — add `clientDate` to the request body:
-```ts
-clientDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-```
-
-**Edge function** — read `clientDate` from the request and fall back to server date if absent:
-```ts
-const { departmentId, recipientEmails, clientDate } = await req.json();
-const dateStr = clientDate || now.toLocaleDateString("en-US", { ... });
-```
-
-### Files changed
-- `supabase/functions/send-todos-email/index.ts` — 2 small changes, redeploy
-- `src/components/issues/EmailTodosDialog.tsx` (or equivalent call site) — pass `clientDate`
+### Only file changed
+- `supabase/functions/send-todos-email/index.ts` — redeploy after
