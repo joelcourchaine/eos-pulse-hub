@@ -5818,8 +5818,29 @@ const ScorecardGrid = ({
                                     </TableCell>
                                   );
                                 })}
-                                {/* Prev year quarter avg placeholder */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-muted/50 border-x-2 border-muted-foreground/30 text-muted-foreground text-xs">-</TableCell>
+                                {/* Prev year quarter avg */}
+                                {(() => {
+                                  let qValue: number | null = null;
+                                  if (row.type === "avail") {
+                                    const total = previousYearMonths.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = previousYearMonths.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = previousYearMonths.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = previousYearMonths.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData ? total : null;
+                                  } else {
+                                    const totalAvail = previousYearMonths.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const totalSold = previousYearMonths.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = previousYearMonths.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                  }
+                                  return (
+                                    <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-muted/50 border-x-2 border-muted-foreground/30 text-muted-foreground text-xs">
+                                      {qValue !== null ? (row.type === "productive" ? `${parseFloat(qValue.toFixed(2))}%` : parseFloat(qValue.toFixed(2)).toString()) : "-"}
+                                    </TableCell>
+                                  );
+                                })()}
                                 {/* Target placeholder */}
                                 <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
                                   {row.type === "productive" && productiveTarget !== null ? `${parseFloat(productiveTarget.toFixed(2))}%` : "-"}
@@ -5857,7 +5878,37 @@ const ScorecardGrid = ({
                                   );
                                 })}
                                 {/* Current quarter avg placeholder */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy)/0.1)] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-xs text-muted-foreground">-</TableCell>
+                                {/* Current quarter avg */}
+                                {(() => {
+                                  let qValue: number | null = null;
+                                  let qStatus: "success" | "warning" | "destructive" | null = null;
+                                  if (row.type === "avail") {
+                                    const total = months.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = months.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData ? total : null;
+                                  } else if (row.type === "sold") {
+                                    const total = months.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = months.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData ? total : null;
+                                  } else {
+                                    const totalAvail = months.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const totalSold = months.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                    const hasData = months.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                    qValue = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
+                                    qStatus = qValue !== null ? calcProductiveStatus(totalSold, totalAvail) : null;
+                                  }
+                                  return (
+                                    <TableCell className={cn(
+                                      "text-center py-0.5 min-w-[80px] max-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-xs font-medium",
+                                      qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
+                                      qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
+                                      qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
+                                      !qStatus && "bg-[hsl(var(--scorecard-navy)/0.1)] text-muted-foreground",
+                                    )}>
+                                      {qValue !== null ? (row.type === "productive" ? `${parseFloat(qValue.toFixed(2))}%` : parseFloat(qValue.toFixed(2)).toString()) : "-"}
+                                    </TableCell>
+                                  );
+                                })()}
                               </>
                             )}
                           </TableRow>
