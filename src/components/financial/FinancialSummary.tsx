@@ -2391,27 +2391,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
     return (
-      <TooltipProvider>
-        <Tooltip delayDuration={150}>
-          <TooltipTrigger asChild>{children}</TooltipTrigger>
-          <TooltipContent side="top" className="p-2">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
-              {lyValue != null && (
-                <>
-                  <span className="text-muted-foreground">LY</span>
-                  <span className="text-right">{formatTarget(lyValue, metricType)}</span>
-                </>
-              )}
-              {forecastValue != null && (
-                <>
-                  <span className="text-muted-foreground">Forecast</span>
-                  <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
-                </>
-              )}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipContent side="top" className="p-2">
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+            {lyValue != null && (
+              <>
+                <span className="text-muted-foreground">LY</span>
+                <span className="text-right">{formatTarget(lyValue, metricType)}</span>
+              </>
+            )}
+            {forecastValue != null && (
+              <>
+                <span className="text-muted-foreground">Forecast</span>
+                <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
+              </>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
     );
   };
 
@@ -2446,27 +2444,25 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
     return (
-      <TooltipProvider>
-        <Tooltip delayDuration={150}>
-          <TooltipTrigger asChild>{children}</TooltipTrigger>
-          <TooltipContent side="top" className="p-2">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
-              {lyValue != null && (
-                <>
-                  <span className="text-muted-foreground">LY</span>
-                  <span className="text-right">{formatTarget(lyValue, metricType)}</span>
-                </>
-              )}
-              {forecastValue != null && (
-                <>
-                  <span className="text-muted-foreground">Forecast</span>
-                  <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
-                </>
-              )}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip delayDuration={150}>
+        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipContent side="top" className="p-2">
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs font-mono whitespace-nowrap">
+            {lyValue != null && (
+              <>
+                <span className="text-muted-foreground">LY</span>
+                <span className="text-right">{formatTarget(lyValue, metricType)}</span>
+              </>
+            )}
+            {forecastValue != null && (
+              <>
+                <span className="text-muted-foreground">Forecast</span>
+                <span className="text-right">{formatTarget(forecastValue, metricType)}</span>
+              </>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
     );
   };
 
@@ -3420,6 +3416,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   }
 
   return (
+    <TooltipProvider delayDuration={100}>
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader>
@@ -3655,16 +3652,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 <div className="flex items-center justify-center gap-1">
                                   {month.label.replace(/\s\d{4}$/, "")}
                                   {highestProfitMonth === month.identifier && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger>
-                                          <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>Highest Department Profit</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Trophy className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Highest Department Profit</p>
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
                                 </div>
                                 <div className="text-xs font-normal text-muted-foreground">
@@ -3726,27 +3721,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               metricHasRock && "border-l-4 border-l-amber-500 bg-amber-100 dark:bg-amber-900/40",
                             )}
                           >
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-1.5">
-                                    {metricHasRock && (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <Mountain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                                          </TooltipTrigger>
-                                          <TooltipContent side="right" className="max-w-[250px]">
-                                            <p className="font-medium text-sm">Rock Target</p>
-                                            <p className="text-xs text-muted-foreground">{metricRock?.title}</p>
-                                            <p className="text-xs mt-1">
-                                              Direction: {metricRock?.target_direction === "above" ? "Above" : "Below"}{" "}
-                                              target
-                                            </p>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    )}
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1.5">
+                                  {metricHasRock && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Mountain className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="max-w-[250px]">
+                                        <p className="font-medium text-sm">Rock Target</p>
+                                        <p className="text-xs text-muted-foreground">{metricRock?.title}</p>
+                                        <p className="text-xs mt-1">
+                                          Direction: {metricRock?.target_direction === "above" ? "Above" : "Below"}{" "}
+                                          target
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
                                     <ExpandableMetricName
                                       metricName={metric.name}
                                       hasSubMetrics={metricHasSubMetrics}
@@ -3830,7 +3822,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                     )}
                                 </TooltipContent>
                               </Tooltip>
-                            </TooltipProvider>
                           </TableCell>
                           {isMonthlyTrendMode ? (
                             <>
@@ -4926,9 +4917,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           monthIdentifier={month.identifier}
                                         >
                                           <div className="w-full">
-                                            <TooltipProvider>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
                                                   <div className="relative flex items-center justify-center gap-0 h-8 w-full">
                                                     {isCalculated ? (
                                                       // Display calculated values as read-only
@@ -5116,7 +5106,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                                   </TooltipContent>
                                                 )}
                                               </Tooltip>
-                                            </TooltipProvider>
                                           </div>
                                         </TrendCellTooltip>
                                       </TableCell>
@@ -5646,5 +5635,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+    </TooltipProvider>
   );
 };
