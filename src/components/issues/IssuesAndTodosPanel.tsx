@@ -3,7 +3,8 @@ import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Plus, GripVertical, Trash2, Pencil, CheckSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { AlertCircle, GripVertical, Trash2, Pencil, CheckSquare, ChevronDown, ChevronUp, NotebookPen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -60,6 +61,10 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   const [selectedIssueForTodo, setSelectedIssueForTodo] = useState<Issue | null>(null);
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
+  const [expandAllIssues, setExpandAllIssues] = useState(false);
+  const [expandAllTodos, setExpandAllTodos] = useState(false);
+  const [editingIssueNotes, setEditingIssueNotes] = useState<{ [id: string]: string }>({});
+  const [editingTodoNotes, setEditingTodoNotes] = useState<{ [id: string]: string }>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -99,7 +104,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!departmentId) return;
 
     try {
-      // First get the store_id for this department
       const { data: department, error: deptError } = await supabase
         .from("departments")
         .select("store_id")
@@ -108,21 +112,18 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
       if (deptError) throw deptError;
 
-      // Get super admin user IDs
       const { data: superAdminRoles } = await supabase
         .from("user_roles")
         .select("user_id")
         .eq("role", "super_admin");
       const superAdminIds = superAdminRoles?.map(r => r.user_id) || [];
 
-      // Use security definer function to get basic profile data, then filter by store
       const { data, error } = await supabase.rpc("get_profiles_basic");
 
       if (error) throw error;
 
       const profilesMap: { [key: string]: Profile } = {};
       data?.forEach((profile: { id: string; full_name: string; store_id: string | null }) => {
-        // Include profiles that belong to this store OR are super admins
         if (profile.store_id === department.store_id || superAdminIds.includes(profile.id)) {
           profilesMap[profile.id] = { id: profile.id, full_name: profile.full_name };
         }
@@ -144,7 +145,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
       if (error) throw error;
 
-      // Sort by severity: high first, then medium, then low
       const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
       const sorted = (data || []).sort((a, b) => {
         const orderA = severityOrder[a.severity] ?? 1;
@@ -198,7 +198,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     newIssues.splice(draggedIndex, 1);
     newIssues.splice(targetIndex, 0, draggedIssue);
 
-    // Update display_order for all issues
     const updatedIssues = newIssues.map((issue, index) => ({
       ...issue,
       display_order: index,
@@ -211,7 +210,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!draggedIssue) return;
 
     try {
-      // Update all issue orders in the database
       const updates = issues.map((issue) => ({
         id: issue.id,
         display_order: issue.display_order,
@@ -224,17 +222,10 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
           .eq("id", update.id);
       }
 
-      toast({
-        title: "Success",
-        description: "Issue order updated",
-      });
+      toast({ title: "Success", description: "Issue order updated" });
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
-      loadIssues(); // Reload to reset order
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
+      loadIssues();
     } finally {
       setDraggedIssue(null);
     }
@@ -244,25 +235,13 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!deleteIssueId) return;
 
     try {
-      const { error } = await supabase
-        .from("issues")
-        .delete()
-        .eq("id", deleteIssueId);
-
+      const { error } = await supabase.from("issues").delete().eq("id", deleteIssueId);
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Issue deleted",
-      });
+      toast({ title: "Success", description: "Issue deleted" });
       setDeleteIssueId(null);
       loadIssues();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
     }
   };
 
@@ -270,25 +249,13 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     if (!deleteTodoId) return;
 
     try {
-      const { error } = await supabase
-        .from("todos")
-        .delete()
-        .eq("id", deleteTodoId);
-
+      const { error } = await supabase.from("todos").delete().eq("id", deleteTodoId);
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "To-Do deleted",
-      });
+      toast({ title: "Success", description: "To-Do deleted" });
       setDeleteTodoId(null);
       loadTodos();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
     }
   };
 
@@ -296,24 +263,12 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     const newStatus = currentStatus === "pending" ? "completed" : "pending";
 
     try {
-      const { error } = await supabase
-        .from("todos")
-        .update({ status: newStatus })
-        .eq("id", todoId);
-
+      const { error } = await supabase.from("todos").update({ status: newStatus }).eq("id", todoId);
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `To-Do marked as ${newStatus}`,
-      });
+      toast({ title: "Success", description: `To-Do marked as ${newStatus}` });
       loadTodos();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
     }
   };
 
@@ -327,21 +282,12 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
     return issues.find(i => i.id === issueId)?.title;
   };
 
-  const getIssueSeverity = (issueId: string | null) => {
-    if (!issueId) return null;
-    return issues.find(i => i.id === issueId)?.severity;
-  };
-
-  // Check if an issue has any linked todos (in motion)
   const issueHasLinkedTodo = (issueId: string) => {
     return todos.some(todo => todo.issue_id === issueId);
   };
 
   const getSeverityBorderColor = (severity: string, isInMotion: boolean = false) => {
-    // If issue is in motion (has linked todo), use muted gray background
-    if (isInMotion) {
-      return "border-muted-foreground/30 bg-muted/50";
-    }
+    if (isInMotion) return "border-muted-foreground/30 bg-muted/50";
     switch (severity) {
       case "low": return "border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40";
       case "high": return "border-red-300 dark:border-red-700 bg-red-100 dark:bg-red-900/40";
@@ -359,37 +305,47 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
 
   const handleUpdateIssueSeverity = async (issueId: string, newSeverity: string) => {
     try {
-      const { error } = await supabase
-        .from("issues")
-        .update({ severity: newSeverity })
-        .eq("id", issueId);
-
+      const { error } = await supabase.from("issues").update({ severity: newSeverity }).eq("id", issueId);
       if (error) throw error;
       loadIssues();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
     }
   };
 
   const handleUpdateTodoSeverity = async (todoId: string, newSeverity: string) => {
     try {
-      const { error } = await supabase
-        .from("todos")
-        .update({ severity: newSeverity })
-        .eq("id", todoId);
-
+      const { error } = await supabase.from("todos").update({ severity: newSeverity }).eq("id", todoId);
       if (error) throw error;
       loadTodos();
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: getUserFriendlyError(error),
-      });
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
+    }
+  };
+
+  const saveIssueNotes = async (issueId: string, notes: string) => {
+    const issue = issues.find(i => i.id === issueId);
+    const original = issue?.description ?? "";
+    if (notes === original) return;
+    try {
+      const { error } = await supabase.from("issues").update({ description: notes || null }).eq("id", issueId);
+      if (error) throw error;
+      loadIssues();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
+    }
+  };
+
+  const saveTodoNotes = async (todoId: string, notes: string) => {
+    const todo = todos.find(t => t.id === todoId);
+    const original = todo?.description ?? "";
+    if (notes === original) return;
+    try {
+      const { error } = await supabase.from("todos").update({ description: notes || null }).eq("id", todoId);
+      if (error) throw error;
+      loadTodos();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
     }
   };
 
@@ -412,10 +368,21 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                     Drag to reorder by importance
                   </p>
                 </div>
-                <IssueManagementDialog
-                  departmentId={departmentId}
-                  onIssueAdded={loadIssues}
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setExpandAllIssues(v => !v)}
+                    className="gap-1 text-xs"
+                  >
+                    <NotebookPen className="h-3.5 w-3.5" />
+                    {expandAllIssues ? "Collapse Notes" : "Expand Notes"}
+                  </Button>
+                  <IssueManagementDialog
+                    departmentId={departmentId}
+                    onIssueAdded={loadIssues}
+                  />
+                </div>
               </div>
             </div>
             <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}>
@@ -427,6 +394,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
               ) : (
                 issues.map((issue) => {
                   const isInMotion = issueHasLinkedTodo(issue.id);
+                  const isExpanded = expandAllIssues || expandedIssueId === issue.id;
                   return (
                     <ContextMenu key={issue.id}>
                       <ContextMenuTrigger>
@@ -442,23 +410,27 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                             <div
                               className="flex items-center gap-1 cursor-pointer"
                               onClick={(e) => {
-                                if (issue.description) {
-                                  e.stopPropagation();
-                                  setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id);
-                                }
+                                e.stopPropagation();
+                                setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id);
                               }}
                             >
                               <h4 className="font-medium flex-1">{issue.title}</h4>
-                              {issue.description && (
-                                expandedIssueId === issue.id
+                              {(issue.description || expandAllIssues) && (
+                                isExpanded
                                   ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                                   : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                               )}
                             </div>
-                            {issue.description && expandedIssueId === issue.id && (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                {issue.description}
-                              </p>
+                            {isExpanded && (
+                              <Textarea
+                                value={editingIssueNotes[issue.id] ?? issue.description ?? ""}
+                                placeholder="Add notes..."
+                                rows={2}
+                                className="mt-1 text-sm resize-none"
+                                onChange={(e) => setEditingIssueNotes(prev => ({ ...prev, [issue.id]: e.target.value }))}
+                                onBlur={(e) => saveIssueNotes(issue.id, e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                              />
                             )}
                             <div className="flex items-center gap-2 mt-2">
                               <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
@@ -544,12 +516,23 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                     Action items and tasks
                   </p>
                 </div>
-                <TodoManagementDialog
-                  departmentId={departmentId}
-                  profiles={profilesList}
-                  onTodoAdded={loadTodos}
-                  onDialogOpen={loadProfiles}
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setExpandAllTodos(v => !v)}
+                    className="gap-1 text-xs"
+                  >
+                    <NotebookPen className="h-3.5 w-3.5" />
+                    {expandAllTodos ? "Collapse Notes" : "Expand Notes"}
+                  </Button>
+                  <TodoManagementDialog
+                    departmentId={departmentId}
+                    profiles={profilesList}
+                    onTodoAdded={loadTodos}
+                    onDialogOpen={loadProfiles}
+                  />
+                </div>
               </div>
             </div>
             <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}>
@@ -559,100 +542,107 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                   <p>No to-dos yet</p>
                 </div>
               ) : (
-                todos.map((todo) => (
-                  <div
-                    key={todo.id}
-                    className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(todo.severity)}`}
-                  >
-                    <Checkbox
-                      checked={todo.status === "completed"}
-                      onCheckedChange={() => handleToggleTodoStatus(todo.id, todo.status)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div
-                        className="flex items-center gap-1 cursor-pointer"
-                        onClick={() => {
-                          if (todo.description) {
-                            setExpandedTodoId(expandedTodoId === todo.id ? null : todo.id);
-                          }
-                        }}
-                      >
-                        <h4 className={`font-medium flex-1 ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
-                          {todo.title}
-                        </h4>
-                        {todo.description && (
-                          expandedTodoId === todo.id
-                            ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        )}
-                      </div>
-                      {todo.description && expandedTodoId === todo.id && (
-                        <p className="text-sm text-muted-foreground mt-1">{todo.description}</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
-                        {todo.issue_id && (
-                          <Badge variant="outline" className="h-5 text-xs">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            {getIssueTitle(todo.issue_id)}
-                          </Badge>
-                        )}
-                        <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
-                          <SelectTrigger className="h-5 w-[6.5rem] text-xs capitalize">
-                            <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                                Low
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="medium">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                                Medium
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="high">
-                              <span className="flex items-center gap-2">
-                                <span className="h-2 w-2 rounded-full bg-red-500" />
-                                High
-                              </span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <span>{getAssignedName(todo.assigned_to)}</span>
-                        {todo.due_date && (
-                          <span>Due: {format(new Date(todo.due_date), "MMM d")}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <TodoManagementDialog
-                        departmentId={departmentId}
-                        profiles={profilesList}
-                        onTodoAdded={loadTodos}
-                        onDialogOpen={loadProfiles}
-                        todo={todo}
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        }
+                todos.map((todo) => {
+                  const isTodoExpanded = expandAllTodos || expandedTodoId === todo.id;
+                  return (
+                    <div
+                      key={todo.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(todo.severity)}`}
+                    >
+                      <Checkbox
+                        checked={todo.status === "completed"}
+                        onCheckedChange={() => handleToggleTodoStatus(todo.id, todo.status)}
+                        className="mt-1"
                       />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteTodoId(todo.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex-1 min-w-0">
+                        <div
+                          className="flex items-center gap-1 cursor-pointer"
+                          onClick={() => setExpandedTodoId(expandedTodoId === todo.id ? null : todo.id)}
+                        >
+                          <h4 className={`font-medium flex-1 ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                            {todo.title}
+                          </h4>
+                          {(todo.description || expandAllTodos) && (
+                            isTodoExpanded
+                              ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          )}
+                        </div>
+                        {isTodoExpanded && (
+                          <Textarea
+                            value={editingTodoNotes[todo.id] ?? todo.description ?? ""}
+                            placeholder="Add notes..."
+                            rows={2}
+                            className="mt-1 text-sm resize-none"
+                            onChange={(e) => setEditingTodoNotes(prev => ({ ...prev, [todo.id]: e.target.value }))}
+                            onBlur={(e) => saveTodoNotes(todo.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          {todo.issue_id && (
+                            <Badge variant="outline" className="h-5 text-xs">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              {getIssueTitle(todo.issue_id)}
+                            </Badge>
+                          )}
+                          <Select value={todo.severity} onValueChange={(value) => handleUpdateTodoSeverity(todo.id, value)}>
+                            <SelectTrigger className="h-5 w-[6.5rem] text-xs capitalize">
+                              <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(todo.severity)}`} />
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">
+                                <span className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                  Low
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="medium">
+                                <span className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                  Medium
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="high">
+                                <span className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-red-500" />
+                                  High
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <span>{getAssignedName(todo.assigned_to)}</span>
+                          {todo.due_date && (
+                            <span>Due: {format(new Date(todo.due_date), "MMM d")}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <TodoManagementDialog
+                          departmentId={departmentId}
+                          profiles={profilesList}
+                          onTodoAdded={loadTodos}
+                          onDialogOpen={loadProfiles}
+                          todo={todo}
+                          trigger={
+                            <Button variant="ghost" size="sm">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteTodoId(todo.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </Card>
