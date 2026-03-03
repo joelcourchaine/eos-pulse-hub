@@ -61,11 +61,19 @@ const handler = async (req: Request): Promise<Response> => {
     // Fetch all todos (both pending and completed)
     const { data: todos } = await supabaseClient
       .from("todos")
-      .select("id, title, description, status, severity, due_date, assigned_to")
+      .select("id, title, description, status, severity, due_date, assigned_to, issue_id")
       .eq("department_id", departmentId)
       .in("status", ["pending", "in_progress", "completed"])
       .order("status", { ascending: true }) // pending first
       .order("severity", { ascending: true });
+
+    // Fetch issues for the department
+    const { data: issues } = await supabaseClient
+      .from("issues")
+      .select("id, title")
+      .eq("department_id", departmentId);
+    const issueMap: Record<string, string> = {};
+    (issues || []).forEach(i => { issueMap[i.id] = i.title; });
 
     // Fetch profiles for assigned_to
     const assignedIds = [...new Set((todos || []).map(t => t.assigned_to).filter(Boolean))];
@@ -97,6 +105,7 @@ const handler = async (req: Request): Promise<Response> => {
       const sev = severityConfig[todo.severity] || severityConfig.low;
       const stat = statusConfig[todo.status] || statusConfig.pending;
       const assignee = todo.assigned_to ? profileMap[todo.assigned_to] : null;
+      const issueName = todo.issue_id ? issueMap[todo.issue_id] : null;
       let dueDate: string | null = null;
       if (todo.due_date) {
         const [year, month, day] = todo.due_date.split("-").map(Number);
@@ -121,7 +130,7 @@ const handler = async (req: Request): Promise<Response> => {
                     margin-right: 6px;
                     vertical-align: middle;
                   "></span>
-                  <span style="font-size: 14px; font-weight: 600; color: ${isCompleted ? '#94a3b8' : '#1e293b'}; ${isCompleted ? 'text-decoration: line-through;' : ''}">${escapeHtml(todo.title)}</span>
+                  <span style="font-size: 14px; font-weight: 600; color: ${isCompleted ? '#94a3b8' : '#1e293b'}; ${isCompleted ? 'text-decoration: line-through;' : ''}">${escapeHtml(todo.title)}</span>${issueName ? `<span style="display:inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; background: #eff6ff; color: #3b82f6; margin-left: 6px; vertical-align: middle;">↳ ${escapeHtml(issueName)}</span>` : ""}
                 </div>
                 ${todo.description ? `<div style="font-size: 13px; color: #64748b; margin-left: 22px; margin-top: 4px; line-height: 1.5;">${escapeHtml(todo.description)}</div>` : ""}
               </td>
