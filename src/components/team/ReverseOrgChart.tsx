@@ -62,7 +62,7 @@ const POSITION_LABELS: Record<string, string> = {
   fixed_ops_manager: "Fixed Ops Manager",
   service_manager: "Service Manager",
   assistant_service_manager: "Assistant Service Manager",
-  foreman: "Foreman / Shop Foreman",
+  foreman: "Shop Foreman",
   dispatcher: "Dispatcher",
   advisor: "Advisor",
   express_advisor: "Express / Quick Lane Advisor",
