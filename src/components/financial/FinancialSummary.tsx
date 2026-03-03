@@ -5335,7 +5335,29 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 const pKey2 = `sub:${percentParentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
                                 const pVal2 = getForecastTarget(pKey2, monthId);
                                 if (pVal2 !== null) return pVal2;
-                                // Don't fall back to dollar key for percentage metrics
+
+                                // Synthesis fallback for gp_percent: derive percentage from gp_net sub-metric
+                                // forecast divided by total_sales parent forecast. This handles brands (e.g. Ford)
+                                // where the forecast engine stores sub-metric entries under the dollar key
+                                // (sub:gp_net:...) rather than a dedicated percentage key.
+                                if (metric.key === "gp_percent") {
+                                  const gpNetEntry = allSubMetrics.find(
+                                    (sm) => sm.parentMetricKey === "gp_net" && sm.name === subMetricName,
+                                  );
+                                  if (gpNetEntry) {
+                                    const gpNetOrderStr = String(gpNetEntry.orderIndex).padStart(3, "0");
+                                    const gpNetKey = `sub:gp_net:${gpNetOrderStr}:${subMetricName}`;
+                                    const gpNetVal =
+                                      getForecastTarget(gpNetKey, monthId) ??
+                                      getForecastTarget(`sub:gp_net:${gpNetEntry.orderIndex}:${subMetricName}`, monthId);
+                                    const totalSalesVal = getForecastTarget("total_sales", monthId);
+                                    if (gpNetVal !== null && totalSalesVal !== null && totalSalesVal !== 0) {
+                                      return (gpNetVal / totalSalesVal) * 100;
+                                    }
+                                  }
+                                }
+
+                                // Don't fall back to dollar key for other percentage metrics
                                 return null;
                               }
 
