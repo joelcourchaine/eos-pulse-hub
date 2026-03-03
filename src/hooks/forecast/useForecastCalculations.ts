@@ -2049,8 +2049,8 @@ export function useForecastCalculations({
     
     if (baselineTotalSalesAnnual > 0 && adjustedTotalSalesAnnual > 0) {
       const raw = ((adjustedTotalSalesAnnual / baselineTotalSalesAnnual) - 1) * 100;
-      // Clamp to prevent extreme values from near-zero baselines (e.g. Parts Nissan)
-      return Math.max(-99, Math.min(9900, raw));
+      // Clamp to slider range (±25%) to prevent near-zero baselines from locking the slider
+      return Math.max(-25, Math.min(25, raw));
     }
     return undefined; // removed `growth` fallback to break circular dependency
   }, [annualValues, annualBaseline]); // removed `growth` from deps
