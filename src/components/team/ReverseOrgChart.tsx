@@ -578,8 +578,8 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
         const parentEl = nodeRefs.current.get(m.reports_to);
         if (!parentEl) return;
         const pRect = parentEl.getBoundingClientRect();
-        const parentX = pRect.left + pRect.width / 2 - chartRect.left;
-        const parentY = pRect.top - chartRect.top;
+        const parentX = (pRect.left + pRect.width / 2 - chartRect.left) / zoom;
+        const parentY = (pRect.top - chartRect.top) / zoom;
 
         // Is this member part of a cluster?
         const clusterId = memberClusterIndex.get(m.id);
@@ -593,8 +593,8 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
           newLines.push({
             x1: parentX,
             y1: parentY,
-            x2: cRect.left + cRect.width / 2 - chartRect.left,
-            y2: cRect.bottom - chartRect.top,
+            x2: (cRect.left + cRect.width / 2 - chartRect.left) / zoom,
+            y2: (cRect.bottom - chartRect.top) / zoom,
           });
         } else {
           // Individual leaf or non-leaf
@@ -604,8 +604,8 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
           newLines.push({
             x1: parentX,
             y1: parentY,
-            x2: cRect.left + cRect.width / 2 - chartRect.left,
-            y2: cRect.bottom - chartRect.top,
+            x2: (cRect.left + cRect.width / 2 - chartRect.left) / zoom,
+            y2: (cRect.bottom - chartRect.top) / zoom,
           });
         }
       });
