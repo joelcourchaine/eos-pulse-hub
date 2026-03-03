@@ -5824,11 +5824,11 @@ const ScorecardGrid = ({
                                   if (row.type === "avail") {
                                     const total = previousYearMonths.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
                                     const hasData = previousYearMonths.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
-                                    qValue = hasData ? total : null;
-                                  } else if (row.type === "sold") {
-                                    const total = previousYearMonths.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
-                                    const hasData = previousYearMonths.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
-                                    qValue = hasData ? total : null;
+                                    qValue = hasData ? total / previousYearMonths.length : null;
+                                   } else if (row.type === "sold") {
+                                     const total = previousYearMonths.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                     const hasData = previousYearMonths.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                     qValue = hasData ? total / previousYearMonths.length : null;
                                   } else {
                                     const totalAvail = previousYearMonths.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
                                     const totalSold = previousYearMonths.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
@@ -5885,11 +5885,11 @@ const ScorecardGrid = ({
                                   if (row.type === "avail") {
                                     const total = months.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
                                     const hasData = months.some(m => availIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
-                                    qValue = hasData ? total : null;
-                                  } else if (row.type === "sold") {
-                                    const total = months.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
-                                    const hasData = months.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
-                                    qValue = hasData ? total : null;
+                                    qValue = hasData ? total / months.length : null;
+                                   } else if (row.type === "sold") {
+                                     const total = months.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
+                                     const hasData = months.some(m => soldIds.some(id => (monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value != null));
+                                     qValue = hasData ? total / months.length : null;
                                   } else {
                                     const totalAvail = months.reduce((acc, m) => acc + availIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
                                     const totalSold = months.reduce((acc, m) => acc + soldIds.reduce((a, id) => a + ((monthlyViewEntries[`${id}-month-${m.identifier}`] ?? entries[`${id}-month-${m.identifier}`])?.actual_value ?? 0), 0), 0);
