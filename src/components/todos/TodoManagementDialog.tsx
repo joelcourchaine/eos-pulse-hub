@@ -33,6 +33,7 @@ interface TodoManagementDialogProps {
   linkedIssueId?: string;
   linkedIssueTitle?: string;
   linkedIssueSeverity?: string;
+  initialDescription?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
@@ -47,6 +48,7 @@ export function TodoManagementDialog({
   linkedIssueId,
   linkedIssueTitle,
   linkedIssueSeverity,
+  initialDescription,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
 }: TodoManagementDialogProps) {
@@ -72,7 +74,7 @@ export function TodoManagementDialog({
       setSeverity(todo.severity || "medium");
     } else if (!open) {
       setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
-      setDescription("");
+      setDescription(initialDescription || "");
       setAssignedTo("");
       setDueDate("");
       setSeverity(linkedIssueSeverity || "medium");
