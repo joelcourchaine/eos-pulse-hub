@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, GripVertical, Trash2, Pencil, CheckSquare, ChevronDown, ChevronUp, NotebookPen } from "lucide-react";
+import { AlertCircle, GripVertical, Trash2, Pencil, CheckSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -49,9 +49,10 @@ interface Profile {
 interface IssuesAndTodosPanelProps {
   departmentId: string;
   userId?: string;
+  expandAllNotes?: boolean;
 }
 
-export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPanelProps) {
+export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = false }: IssuesAndTodosPanelProps) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
@@ -61,8 +62,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
   const [selectedIssueForTodo, setSelectedIssueForTodo] = useState<Issue | null>(null);
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
-  const [expandAllIssues, setExpandAllIssues] = useState(false);
-  const [expandAllTodos, setExpandAllTodos] = useState(false);
   const [editingIssueNotes, setEditingIssueNotes] = useState<{ [id: string]: string }>({});
   const [editingTodoNotes, setEditingTodoNotes] = useState<{ [id: string]: string }>({});
   const { toast } = useToast();
@@ -369,15 +368,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setExpandAllIssues(v => !v)}
-                    className="gap-1 text-xs"
-                  >
-                    <NotebookPen className="h-3.5 w-3.5" />
-                    {expandAllIssues ? "Collapse Notes" : "Expand Notes"}
-                  </Button>
                   <IssueManagementDialog
                     departmentId={departmentId}
                     onIssueAdded={loadIssues}
@@ -394,7 +384,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
               ) : (
                 issues.map((issue) => {
                   const isInMotion = issueHasLinkedTodo(issue.id);
-                  const isExpanded = expandAllIssues || expandedIssueId === issue.id;
+                  const isExpanded = expandAllNotes || expandedIssueId === issue.id;
                   return (
                     <ContextMenu key={issue.id}>
                       <ContextMenuTrigger>
@@ -415,7 +405,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                               }}
                             >
                               <h4 className="font-medium flex-1">{issue.title}</h4>
-                              {(issue.description || expandAllIssues) && (
+                              {(issue.description || expandAllNotes) && (
                                 isExpanded
                                   ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                                   : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
@@ -517,15 +507,6 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setExpandAllTodos(v => !v)}
-                    className="gap-1 text-xs"
-                  >
-                    <NotebookPen className="h-3.5 w-3.5" />
-                    {expandAllTodos ? "Collapse Notes" : "Expand Notes"}
-                  </Button>
                   <TodoManagementDialog
                     departmentId={departmentId}
                     profiles={profilesList}
@@ -543,7 +524,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                 </div>
               ) : (
                 todos.map((todo) => {
-                  const isTodoExpanded = expandAllTodos || expandedTodoId === todo.id;
+                  const isTodoExpanded = expandAllNotes || expandedTodoId === todo.id;
                   return (
                     <div
                       key={todo.id}
@@ -562,7 +543,7 @@ export function IssuesAndTodosPanel({ departmentId, userId }: IssuesAndTodosPane
                           <h4 className={`font-medium flex-1 ${todo.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
                             {todo.title}
                           </h4>
-                          {(todo.description || expandAllTodos) && (
+                          {(todo.description || expandAllNotes) && (
                             isTodoExpanded
                               ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                               : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
