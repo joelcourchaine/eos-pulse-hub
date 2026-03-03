@@ -97,9 +97,12 @@ const handler = async (req: Request): Promise<Response> => {
       const sev = severityConfig[todo.severity] || severityConfig.low;
       const stat = statusConfig[todo.status] || statusConfig.pending;
       const assignee = todo.assigned_to ? profileMap[todo.assigned_to] : null;
-      const dueDate = todo.due_date
-        ? new Date(todo.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-        : null;
+      let dueDate: string | null = null;
+      if (todo.due_date) {
+        const [year, month, day] = todo.due_date.split("-").map(Number);
+        const d = new Date(year, month - 1, day);
+        dueDate = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      }
       const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
       const isCompleted = todo.status === "completed";
 
