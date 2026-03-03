@@ -13,7 +13,7 @@ import type { TeamMember } from "./ReverseOrgChart";
 const POSITION_OPTIONS = [
   { value: "service_manager", label: "Service Manager" },
   { value: "assistant_service_manager", label: "Assistant Service Manager" },
-  { value: "foreman", label: "Foreman / Shop Foreman" },
+  { value: "foreman", label: "Shop Foreman" },
   { value: "dispatcher", label: "Dispatcher" },
   { value: "advisor", label: "Advisor" },
   { value: "express_advisor", label: "Express / Quick Lane Advisor" },
