@@ -183,7 +183,8 @@ export const PrintView = ({ year, quarter, mode, departmentId }: PrintViewProps)
     return value.toString();
   };
 
-  const formatTarget = (value: number, type: string, kpiName?: string) => {
+  const formatTarget = (value: number | null, type: string, kpiName?: string) => {
+    if (value === null || value === undefined) return "—";
     // Total Hours should show whole numbers
     if (kpiName === "Total Hours") {
       return Math.round(value).toLocaleString();
