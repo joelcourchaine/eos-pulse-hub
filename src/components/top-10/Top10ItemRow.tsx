@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Trash2, CalendarIcon } from "lucide-react";
@@ -138,6 +139,14 @@ export function Top10ItemRow({
   const [isHovered, setIsHovered] = useState(false);
   const [todoDialogOpen, setTodoDialogOpen] = useState(false);
   const [todoNotes, setTodoNotes] = useState("");
+  const [profiles, setProfiles] = useState<{ id: string; full_name: string }[]>([]);
+
+  const loadProfiles = useCallback(async () => {
+    const { data: profileData } = await supabase.rpc("get_profiles_basic");
+    if (profileData) {
+      setProfiles(profileData.map((p: any) => ({ id: p.id, full_name: p.full_name })));
+    }
+  }, []);
   const [isDeleting, setIsDeleting] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -256,6 +265,7 @@ export function Top10ItemRow({
 
   const handleCreateTodo = () => {
     setTodoNotes(buildTodoNotes());
+    loadProfiles();
     setTodoDialogOpen(true);
   };
 
@@ -389,7 +399,7 @@ export function Top10ItemRow({
       )}
       <TodoManagementDialog
         departmentId={departmentId}
-        profiles={[]}
+        profiles={profiles}
         onTodoAdded={handleTodoAdded}
         linkedIssueTitle={listTitle}
         initialDescription={todoNotes}
