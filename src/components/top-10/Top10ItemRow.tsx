@@ -9,7 +9,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { IssueManagementDialog } from "@/components/issues/IssueManagementDialog";
+import { TodoManagementDialog } from "@/components/todos/TodoManagementDialog";
 import { MiniConfetti } from "@/components/ui/mini-confetti";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -136,8 +136,8 @@ export function Top10ItemRow({
 }: Top10ItemRowProps) {
   const [localData, setLocalData] = useState<Record<string, string>>(data);
   const [isHovered, setIsHovered] = useState(false);
-  const [issueDialogOpen, setIssueDialogOpen] = useState(false);
-  const [selectedCellContent, setSelectedCellContent] = useState("");
+  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
+  const [todoNotes, setTodoNotes] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -237,13 +237,30 @@ export function Top10ItemRow({
     };
   }, []);
 
-  const handleCreateIssue = (cellContent: string) => {
-    setSelectedCellContent(cellContent);
-    setIssueDialogOpen(true);
+  // Build a rich notes string from all non-empty row columns
+  const buildTodoNotes = () => {
+    const lines = columns
+      .filter(col => localData[col.key])
+      .map(col => {
+        let val = localData[col.key];
+        if (isDateColumn(col.key)) {
+          const d = parseStoredDate(val);
+          val = d ? format(d, "MMM d, yyyy") : val;
+        } else if (isCurrencyColumn(col)) {
+          val = formatAsCurrency(val);
+        }
+        return `${col.label}: ${val}`;
+      });
+    return `From Top 10 List: ${listTitle}\n\n${lines.join("\n")}`;
   };
 
-  const handleIssueAdded = () => {
-    setIssueDialogOpen(false);
+  const handleCreateTodo = () => {
+    setTodoNotes(buildTodoNotes());
+    setTodoDialogOpen(true);
+  };
+
+  const handleTodoAdded = () => {
+    setTodoDialogOpen(false);
     onIssueCreated?.();
   };
 
@@ -342,10 +359,8 @@ export function Top10ItemRow({
             </TableCell>
           </ContextMenuTrigger>
           <ContextMenuContent>
-            <ContextMenuItem
-              onClick={() => handleCreateIssue(localData[col.key] || getRowSummary())}
-            >
-              Create Issue from this
+            <ContextMenuItem onClick={handleCreateTodo}>
+              Create To-Do from this
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -370,29 +385,18 @@ export function Top10ItemRow({
               <MiniConfetti onComplete={handleConfettiComplete} />
             )}
           </div>
-          {/* Portal the dialog outside of table structure */}
-          <IssueManagementDialog
-            departmentId={departmentId}
-            onIssueAdded={handleIssueAdded}
-            initialTitle={selectedCellContent}
-            initialDescription={`From Top 10 List: ${listTitle}`}
-            open={issueDialogOpen}
-            onOpenChange={setIssueDialogOpen}
-            trigger={<span className="hidden" />}
-          />
         </TableCell>
       )}
-      {!canEdit && (
-        <IssueManagementDialog
-          departmentId={departmentId}
-          onIssueAdded={handleIssueAdded}
-          initialTitle={selectedCellContent}
-          initialDescription={`From Top 10 List: ${listTitle}`}
-          open={issueDialogOpen}
-          onOpenChange={setIssueDialogOpen}
-          trigger={<span className="hidden" />}
-        />
-      )}
+      <TodoManagementDialog
+        departmentId={departmentId}
+        profiles={[]}
+        onTodoAdded={handleTodoAdded}
+        linkedIssueTitle={listTitle}
+        initialDescription={todoNotes}
+        open={todoDialogOpen}
+        onOpenChange={setTodoDialogOpen}
+        trigger={<span className="hidden" />}
+      />
     </TableRow>
   );
 }
