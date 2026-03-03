@@ -550,7 +550,7 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       if (refsVersionTimer.current) clearTimeout(refsVersionTimer.current);
       refsVersionTimer.current = setTimeout(() => {
         setRefsVersion((v) => v + 1);
-      }, 16);
+      }, 50);
     } else {
       nodeRefs.current.delete(id);
     }
@@ -619,7 +619,9 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       setLines(newLines);
     };
 
-    const timer = setTimeout(calcLines, 150);
+    // Run immediately, then again after a short delay to catch any layout shifts (e.g. zoom settling)
+    calcLines();
+    const timer = setTimeout(calcLines, 250);
     return () => clearTimeout(timer);
   }, [members, zoom, showNames, headcountOnly, memberClusterIndex, clusterMap, refsVersion]);
 
