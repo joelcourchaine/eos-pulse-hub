@@ -1,10 +1,6 @@
 
-## Change: Rename "Foreman / Shop Foreman" to "Shop Foreman"
+## Add "Shuttle Driver" position
 
-Update the label in all three files:
+Add `{ value: "shuttle_driver", label: "Shuttle Driver" }` to `POSITION_OPTIONS` in both dialog files and `POSITION_LABELS`/`POSITION_COLORS` in `ReverseOrgChart.tsx`.
 
-- `src/components/team/AddTeamMemberDialog.tsx` — `POSITION_OPTIONS` entry for `foreman`
-- `src/components/team/TeamMemberDetailPanel.tsx` — `POSITION_OPTIONS` entry for `foreman`
-- `src/components/team/ReverseOrgChart.tsx` — `POSITION_LABELS` entry for `foreman`
-
-No logic changes, just label text.
+Placed after "Porter" as it's a similar support role.
