@@ -73,8 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
       .from("issues")
       .select("id, title, description, status, severity")
       .eq("department_id", departmentId)
-      .neq("status", "resolved")
-      .neq("status", "in_progress")
+    .neq("status", "resolved")
       .order("display_order", { ascending: true });
 
     // Build issueMap for todo → issue title lookup
@@ -103,7 +102,11 @@ const handler = async (req: Request): Promise<Response> => {
     // Split todos
     const pending = (todos || []).filter(t => t.status !== "completed");
     const completed = (todos || []).filter(t => t.status === "completed");
-    const openIssues = issues || [];
+    // Exclude issues that have linked todos (those show as "in progress" in the UI)
+    const linkedIssueIds = new Set(
+      (todos || []).map((t: any) => t.issue_id).filter(Boolean)
+    );
+    const openIssues = (issues || []).filter((i: any) => !linkedIssueIds.has(i.id));
 
     const now = new Date();
     const dateStr = clientDate || now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
