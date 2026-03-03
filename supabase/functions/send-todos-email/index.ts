@@ -26,6 +26,7 @@ const statusConfig: Record<string, { label: string; bg: string; color: string }>
   pending:    { label: "Pending",    bg: "#f1f5f9", color: "#475569" },
   completed:  { label: "Completed",  bg: "#f0fdf4", color: "#16a34a" },
   in_progress:{ label: "In Progress",bg: "#eff6ff", color: "#2563eb" },
+  open:       { label: "Open",       bg: "#fef2f2", color: "#dc2626" },
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -64,14 +65,18 @@ const handler = async (req: Request): Promise<Response> => {
       .select("id, title, description, status, severity, due_date, assigned_to, issue_id")
       .eq("department_id", departmentId)
       .in("status", ["pending", "in_progress", "completed"])
-      .order("status", { ascending: true }) // pending first
+      .order("status", { ascending: true })
       .order("severity", { ascending: true });
 
-    // Fetch issues for the department
+    // Fetch open issues for the department (non-resolved)
     const { data: issues } = await supabaseClient
       .from("issues")
-      .select("id, title")
-      .eq("department_id", departmentId);
+      .select("id, title, description, status, severity")
+      .eq("department_id", departmentId)
+      .neq("status", "resolved")
+      .order("display_order", { ascending: true });
+
+    // Build issueMap for todo → issue title lookup
     const issueMap: Record<string, string> = {};
     (issues || []).forEach(i => { issueMap[i.id] = i.title; });
 
@@ -97,9 +102,62 @@ const handler = async (req: Request): Promise<Response> => {
     // Split todos
     const pending = (todos || []).filter(t => t.status !== "completed");
     const completed = (todos || []).filter(t => t.status === "completed");
+    const openIssues = issues || [];
 
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+    function buildIssueRow(issue: any, idx: number): string {
+      const sev = severityConfig[issue.severity] || severityConfig.low;
+      const stat = statusConfig[issue.status] || statusConfig.open;
+      const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
+
+      return `
+      <tr>
+        <td style="padding: 14px 16px; border-bottom: 1px solid #e2e8f0; background: ${rowBg}; vertical-align: top;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <div style="margin-bottom: 4px;">
+                  <span style="
+                    display: inline-block;
+                    width: 8px; height: 8px;
+                    border-radius: 50%;
+                    background: ${sev.dot};
+                    margin-right: 6px;
+                    vertical-align: middle;
+                  "></span>
+                  <span style="font-size: 14px; font-weight: 600; color: #1e293b;">${escapeHtml(issue.title)}</span>
+                </div>
+                ${issue.description ? `<div style="font-size: 13px; color: #64748b; margin-left: 22px; margin-top: 4px; line-height: 1.5;">${escapeHtml(issue.description)}</div>` : ""}
+              </td>
+              <td align="right" style="vertical-align: top; white-space: nowrap; padding-left: 12px;">
+                <span style="
+                  display: inline-block;
+                  padding: 3px 10px;
+                  border-radius: 12px;
+                  font-size: 11px;
+                  font-weight: 600;
+                  background: ${sev.bg};
+                  color: ${sev.color};
+                  margin-bottom: 4px;
+                ">${sev.label}</span>
+                <br>
+                <span style="
+                  display: inline-block;
+                  padding: 3px 10px;
+                  border-radius: 12px;
+                  font-size: 11px;
+                  font-weight: 500;
+                  background: ${stat.bg};
+                  color: ${stat.color};
+                ">${stat.label}</span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>`;
+    }
 
     function buildTodoRow(todo: any, idx: number): string {
       const sev = severityConfig[todo.severity] || severityConfig.low;
@@ -173,9 +231,9 @@ const handler = async (req: Request): Promise<Response> => {
       </tr>`;
     }
 
-    function buildSection(title: string, items: any[], iconEmoji: string, accentColor: string): string {
+    function buildSection(title: string, items: any[], iconEmoji: string, accentColor: string, rowBuilder: (item: any, idx: number) => string): string {
       if (!items.length) return "";
-      const rows = items.map((t, i) => buildTodoRow(t, i)).join("");
+      const rows = items.map((t, i) => rowBuilder(t, i)).join("");
       return `
         <!-- Section: ${title} -->
         <tr>
@@ -199,11 +257,12 @@ const handler = async (req: Request): Promise<Response> => {
         </tr>`;
     }
 
-    const pendingSection = buildSection("Open To-Dos", pending, "📋", "#f59e0b");
-    const completedSection = buildSection("Completed To-Dos", completed, "✅", "#22c55e");
+    const issuesSection = buildSection("Open Issues", openIssues, "🔥", "#ef4444", buildIssueRow);
+    const pendingSection = buildSection("Open To-Dos", pending, "📋", "#f59e0b", buildTodoRow);
+    const completedSection = buildSection("Completed To-Dos", completed, "✅", "#22c55e", buildTodoRow);
 
-    const noTodosMsg = (!pending.length && !completed.length)
-      ? `<tr><td style="padding: 32px; text-align: center; color: #94a3b8; font-size: 14px;">No to-dos found for this department.</td></tr>`
+    const noContentMsg = (!openIssues.length && !pending.length && !completed.length)
+      ? `<tr><td style="padding: 32px; text-align: center; color: #94a3b8; font-size: 14px;">No issues or to-dos found for this department.</td></tr>`
       : "";
 
     const html = `
@@ -218,7 +277,7 @@ const handler = async (req: Request): Promise<Response> => {
         <!-- Header -->
         <tr>
           <td style="background: #0f172a; padding: 28px 32px;">
-            <h1 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">To-Do Summary</h1>
+            <h1 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px;">Issues & To-Do Summary</h1>
             <div style="font-size: 14px; color: #94a3b8;">${escapeHtml(storeName)}${deptName ? ` &bull; ${escapeHtml(deptName)}` : ""}</div>
           </td>
         </tr>
@@ -241,8 +300,13 @@ const handler = async (req: Request): Promise<Response> => {
             <table cellpadding="0" cellspacing="0">
               <tr>
                 <td style="padding-right: 8px;">
+                  <span style="display: inline-block; padding: 4px 12px; border-radius: 20px; background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: 600;">
+                    🔥 ${openIssues.length} Issue${openIssues.length !== 1 ? "s" : ""}
+                  </span>
+                </td>
+                <td style="padding-right: 8px;">
                   <span style="display: inline-block; padding: 4px 12px; border-radius: 20px; background: #fef3c7; color: #92400e; font-size: 12px; font-weight: 600;">
-                    📋 ${pending.length} Open
+                    📋 ${pending.length} Open To-Do${pending.length !== 1 ? "s" : ""}
                   </span>
                 </td>
                 <td>
@@ -255,7 +319,8 @@ const handler = async (req: Request): Promise<Response> => {
           </td>
         </tr>
 
-        ${noTodosMsg}
+        ${noContentMsg}
+        ${issuesSection}
         ${pendingSection}
         ${completedSection}
 
@@ -286,7 +351,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Growth Scorecard <reports@dealergrowth.solutions>",
         to: recipientEmails,
-        subject: `To-Do Summary — ${storeName}${deptName ? ` · ${deptName}` : ""}`,
+        subject: `Issues & To-Do Summary — ${storeName}${deptName ? ` · ${deptName}` : ""}`,
         html,
       }),
     });
