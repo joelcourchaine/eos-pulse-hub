@@ -44,7 +44,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: { user } } = await supabaseClient.auth.getUser();
     if (!user) throw new Error("Unauthorized");
 
-    const { departmentId, recipientEmails } = await req.json();
+    const { departmentId, recipientEmails, clientDate } = await req.json();
     if (!departmentId || !recipientEmails?.length) {
       throw new Error("departmentId and recipientEmails are required");
     }
@@ -74,6 +74,7 @@ const handler = async (req: Request): Promise<Response> => {
       .select("id, title, description, status, severity")
       .eq("department_id", departmentId)
       .neq("status", "resolved")
+      .neq("status", "in_progress")
       .order("display_order", { ascending: true });
 
     // Build issueMap for todo → issue title lookup
@@ -105,7 +106,7 @@ const handler = async (req: Request): Promise<Response> => {
     const openIssues = issues || [];
 
     const now = new Date();
-    const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const dateStr = clientDate || now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
     function buildIssueRow(issue: any, idx: number): string {
       const sev = severityConfig[issue.severity] || severityConfig.low;

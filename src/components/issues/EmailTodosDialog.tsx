@@ -155,7 +155,7 @@ export function EmailTodosDialog({ departmentId, departmentName }: EmailTodosDia
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-todos-email", {
-        body: { departmentId, recipientEmails: allRecipients },
+        body: { departmentId, recipientEmails: allRecipients, clientDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
