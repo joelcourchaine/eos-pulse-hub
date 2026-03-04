@@ -4223,12 +4223,13 @@ const ScorecardGrid = ({
                                       boxShadow: "2px 0 4px rgba(0,0,0,0.1)",
                                     }}
                                   />
-                                  {weeks.map((week) => (
-                                    <TableCell
-                                      key={`owner-curr-week-${week.label}`}
-                                      className="bg-muted/50 py-0 min-w-[90px]"
-                                    />
-                                  ))}
+                                   {weeks.map((week) => (
+                                     <TableCell
+                                       key={`owner-curr-week-${week.label}`}
+                                       className="bg-muted/50 py-0 min-w-[90px]"
+                                     />
+                                   ))}
+                                   <TableCell className="bg-muted/50 py-0 min-w-[80px]" />
                                 </>
                               )}
                               {/* For non-weekly views, use colspan as before */}
