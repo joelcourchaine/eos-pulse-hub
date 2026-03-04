@@ -358,9 +358,13 @@ const LeafPill = ({ member, showNames, onSelect, size = 36 }: LeafPillProps) => 
   const initials = getInitials(member.name);
   const firstName = member.name.split(" ")[0].slice(0, 8);
 
-  const bgStyle = isDual
+  const bgStyle = isVacant
+    ? "hsl(45 20% 88%)"
+    : isDual
     ? `linear-gradient(135deg, ${primaryColors.bg} 50%, ${secondaryColors!.bg} 50%)`
     : primaryColors.bg;
+
+  const textColor = isVacant ? "hsl(38 60% 30%)" : primaryColors.text;
 
   return (
     <Tooltip>
@@ -369,17 +373,18 @@ const LeafPill = ({ member, showNames, onSelect, size = 36 }: LeafPillProps) => 
           className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none flex-shrink-0"
           style={{
             background: bgStyle,
-            color: primaryColors.text,
+            color: textColor,
             width: size,
             height: size,
-            fontSize: 11,
+            fontSize: isVacant ? 14 : 11,
             fontWeight: 700,
-            border: isVacant ? `2px dashed ${primaryColors.border}` : `1px solid ${primaryColors.border}`,
-            opacity: isVacant ? 0.7 : 1,
+            border: isVacant ? `2px dashed hsl(38 92% 50%)` : `1px solid ${primaryColors.border}`,
           }}
           onClick={() => onSelect(member)}
         >
-          {showNames ? (
+          {isVacant ? (
+            <span style={{ fontSize: 14, fontWeight: 800, color: "hsl(38 92% 45%)" }}>?</span>
+          ) : showNames ? (
             <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
           ) : (
             initials
@@ -389,7 +394,7 @@ const LeafPill = ({ member, showNames, onSelect, size = 36 }: LeafPillProps) => 
       <TooltipContent side="top" className="text-xs" sideOffset={8}>
         <p className="font-semibold">{member.name}</p>
         <p className="opacity-75">{POSITION_LABELS[member.position] || member.position}</p>
-        {isVacant && <p className="italic opacity-60">Vacant</p>}
+        {isVacant && <p className="font-semibold" style={{ color: "hsl(38 92% 45%)" }}>Vacant</p>}
       </TooltipContent>
     </Tooltip>
   );
@@ -449,9 +454,13 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
   const isVacant = node.member.status === "vacant";
   const isDual = !!secondaryColors;
 
-  const bgStyle = isDual
+  const bgStyle = isVacant
+    ? "hsl(45 15% 92%)"
+    : isDual
     ? `linear-gradient(135deg, ${primaryColors.bg} 50%, ${secondaryColors!.bg} 50%)`
     : primaryColors.bg;
+
+  const nodeTextColor = isVacant ? "hsl(38 40% 30%)" : primaryColors.text;
 
   if (isLeaf && !headcountOnly) {
     return <LeafPill member={node.member} showNames={showNames} onSelect={onSelect} />;
@@ -461,7 +470,7 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
     return (
       <div
         className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-transform hover:scale-105"
-        style={{ background: bgStyle, color: primaryColors.text, minWidth: 70, padding: "8px 12px", fontSize: 12 }}
+        style={{ background: bgStyle, color: nodeTextColor, minWidth: 70, padding: "8px 12px", fontSize: 12 }}
         onClick={() => onSelect(node.member)}
       >
         <span>{POSITION_LABELS[node.member.position] || node.member.position}</span>
@@ -479,13 +488,13 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
       className="flex flex-col items-center justify-center rounded-lg font-medium cursor-pointer transition-all hover:scale-105 hover:shadow-md"
       style={{
         background: bgStyle,
-        color: primaryColors.text,
+        color: nodeTextColor,
         borderWidth: isVacant ? 2 : spanWarning.color !== "transparent" ? 3 : 1,
         borderStyle: isVacant ? "dashed" : "solid",
-        borderColor: isVacant ? primaryColors.border : spanWarning.color !== "transparent" ? spanWarning.color : primaryColors.border,
+        borderColor: isVacant ? "hsl(38 92% 50%)" : spanWarning.color !== "transparent" ? spanWarning.color : primaryColors.border,
         minWidth: 110,
         padding: "10px 14px",
-        boxShadow: spanWarning.color !== "transparent" ? `0 0 8px ${spanWarning.color}` : undefined,
+        boxShadow: isVacant ? "0 0 0 1px hsl(38 92% 75%)" : spanWarning.color !== "transparent" ? `0 0 8px ${spanWarning.color}` : undefined,
       }}
       onClick={() => onSelect(node.member)}
     >
@@ -494,13 +503,26 @@ const OrgNode = ({ node, showNames, headcountOnly, onSelect }: OrgNodeProps) => 
           {node.member.name}
         </span>
       )}
-      <span className="opacity-80 mt-0.5" style={{ fontSize: 10 }}>
+      <span style={{ fontSize: 10, opacity: 0.7 }} className="mt-0.5">
         {POSITION_LABELS[node.member.position] || node.member.position}
         {isDual && ` / ${POSITION_LABELS[node.member.position_secondary!] || node.member.position_secondary}`}
       </span>
-      {isVacant && <span className="opacity-70 italic mt-0.5" style={{ fontSize: 9 }}>Vacant</span>}
+      {isVacant && (
+        <span
+          className="mt-1 rounded-full font-bold"
+          style={{
+            fontSize: 9,
+            background: "hsl(38 92% 50%)",
+            color: "hsl(38 80% 15%)",
+            padding: "1px 7px",
+            letterSpacing: "0.04em",
+          }}
+        >
+          VACANT
+        </span>
+      )}
       {spanWarning.message && (
-        <span className="mt-1 text-center leading-tight" style={{ fontSize: 9, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : primaryColors.text }}>
+        <span className="mt-1 text-center leading-tight" style={{ fontSize: 9, color: spanWarning.color === "hsl(0 84% 60%)" ? "hsl(0 0% 100%)" : nodeTextColor }}>
           ⚠ {directReports} reports
         </span>
       )}
