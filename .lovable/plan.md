@@ -1,24 +1,22 @@
 
-## Make KPI rows match the compact height of the Totals rows
+## Fix: Yearly view owner header rows still too tall
 
-**Root cause of height difference:**
+**Root cause found:**
 
-1. **Owner header rows** (line 4206): the `Avatar` is `h-6 w-6` (24px) which stretches the row. The Totals header uses no avatar — just a `text-sm` label with `py-1`. Reducing the avatar to `h-5 w-5` and font to `text-xs` will compress it.
+The owner header row has two cells that weren't updated in the previous pass:
 
-2. **Owner name text** (line 4214): `text-sm` vs Totals which uses `text-sm` too — but avatar is the main culprit.
+1. **Line 4221** — Weekly view owner header sticky (target placeholder) cell: `py-1` → should be `py-0`
+2. **Line 4251** — Non-weekly views (yearly, monthly, quarterly, trend) owner header colspan cell: `py-1` → should be `py-0`
 
-3. **KPI data cells** across all view modes: already `py-0.5` on the name cell, and most data cells also use `py-0.5`. Totals data cells use `py-0` — changing KPI cells to `py-0` will tighten them.
+These `py-1` values are what force the owner header row to be taller than Totals rows, which then makes every KPI row under that owner appear taller due to visual grouping.
 
-**Changes — `src/components/scorecard/ScorecardGrid.tsx` only:**
+The data cells for yearly KPI rows (`py-0` at lines 4323, 4358, 4466, 4524) are already correct — the height is coming purely from the header rows.
 
-| Location | Current | Change |
+**Single file change — `src/components/scorecard/ScorecardGrid.tsx`:**
+
+| Line | Current | Fix |
 |---|---|---|
-| Owner header avatar (line 4206) | `h-6 w-6` | `h-5 w-5` |
-| Avatar fallback text (line 4209) | `text-xs` | keep |
-| Owner name text (line 4214) | `text-sm` | `text-xs` |
-| Owner header cell py (line 4203) | `py-0.5` | `py-0` |
-| KPI name cell (line 4259) | `py-0.5` | `py-0` |
-| KPI weekly target cell (line 4279) | `py-0.5` | `py-0` |
-| KPI data cells (all view branches, ~lines 4430–5450) | `py-0.5` → `py-0` where present |
+| 4221 | `py-1` (weekly owner header sticky cell) | `py-0` |
+| 4251 | `py-1` (yearly/monthly/quarterly owner header colspan) | `py-0` |
 
-This makes all regular KPI rows visually identical in height to the Totals section rows shown in the screenshot.
+That's it — two `py-1` → `py-0` swaps on the owner header filler cells.
