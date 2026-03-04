@@ -1,34 +1,23 @@
 
-## Make Vacant Positions More Visually Obvious
+## Show name above the LeafPill for vacant positions with a name
 
-Currently, vacant positions have:
-- A dashed border
-- 0.7 opacity
-- A small "Vacant" italic label (only on larger nodes, very subtle)
+**What:** When a vacant position has a non-default name (i.e. not "Vacant"), display that name as a small label just above the pill circle, similar to how `showNames` works for active members but positioned outside/above the circle rather than inside it.
 
-**Proposed improvements:**
+**Where:** `LeafPill` component in `src/components/team/ReverseOrgChart.tsx`, lines 369–401.
 
-### OrgNode (larger cards)
-- Add a yellow/amber warning stripe or tint overlay
-- Replace the subtle italic "Vacant" text with a more prominent amber badge
-- Use a stronger amber dashed border instead of the position color
+**How:** Wrap the existing `<Tooltip>` in a `<div className="flex flex-col items-center">`. When `isVacant` and `member.name !== "Vacant"`, render a small text label above the pill:
 
-### LeafPill (small circles)
-- Add a `?` or `—` character instead of initials to indicate no person assigned
-- Use a desaturated/greyed background with amber dashed border instead of the position color
-- Remove the name-based initials so it's clearly "no one here"
+```text
+  ┌─────────────────────────┐
+  │  [name label, 9px]      │  ← new, only when vacant + has name
+  │  [? pill circle]        │
+  └─────────────────────────┘
+```
 
-### Specific changes to `ReverseOrgChart.tsx`:
+The label should be:
+- ~9px font, amber color `hsl(38 70% 35%)`, truncated at ~8 chars, `whitespace-nowrap`
+- Positioned using `flex-col items-center gap-0.5`
 
-**LeafPill** (~line 377-386):
-- When `isVacant`: use a grey/washed-out background (`hsl(45 20% 88%)` light or `hsl(45 15% 25%)` dark)
-- Border: amber dashed `2px dashed hsl(38 92% 50%)`
-- Show `?` instead of initials
-- Opacity stays at 1 (not dimmed) since the amber signals it clearly enough
+The outer wrapper div needs `flex-col items-center` so the pill + label stack vertically without affecting the pill's own dimensions (the connector line refs point to the pill div, not the wrapper).
 
-**OrgNode** (~line 477-508):
-- When `isVacant`: amber dashed border `2px dashed hsl(38 92% 50%)`
-- Background: washed grey instead of position color
-- The "Vacant" label: render as a small amber pill/badge (`bg amber, text dark, rounded-full px-1.5`) rather than grey italic text
-
-No database or schema changes needed. Single file edit: `src/components/team/ReverseOrgChart.tsx`.
+**Single file change:** `src/components/team/ReverseOrgChart.tsx`, ~lines 369–401.
