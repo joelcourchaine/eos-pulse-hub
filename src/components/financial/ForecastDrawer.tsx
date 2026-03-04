@@ -1760,7 +1760,59 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               calculatedWeights={calculatedWeights}
               onUpdateWeight={(monthNumber, adjustedWeight, isLocked) => {
                 markDirty();
-                updateWeight.mutate({ monthNumber, adjustedWeight, isLocked });
+                // If updating a weight value (not just lock), redistribute across unlocked months
+                if (adjustedWeight !== undefined && weights && weights.length > 0) {
+                  const { redistributeWeights } = (() => {
+                    // Build merged weights with lock state for redistribution
+                    const merged = calculatedWeights.map((cw) => {
+                      const saved = weights.find((w) => w.month_number === cw.month_number);
+                      return {
+                        month_number: cw.month_number,
+                        weight: saved?.adjusted_weight ?? cw.weight,
+                        is_locked: saved?.is_locked ?? false,
+                      };
+                    });
+                    const redistribute = (
+                      currentWeights: { month_number: number; weight: number; is_locked: boolean }[],
+                      changedMonth: number,
+                      newWeight: number
+                    ) => {
+                      const lockedMonths = currentWeights.filter(w => w.is_locked || w.month_number === changedMonth);
+                      const unlockedMonths = currentWeights.filter(w => !w.is_locked && w.month_number !== changedMonth);
+                      const lockedTotal = lockedMonths
+                        .filter(w => w.month_number !== changedMonth)
+                        .reduce((sum, w) => sum + w.weight, 0);
+                      const remainingWeight = 100 - newWeight - lockedTotal;
+                      if (unlockedMonths.length === 0) {
+                        return currentWeights.map(w =>
+                          w.month_number === changedMonth
+                            ? { month_number: w.month_number, weight: newWeight }
+                            : { month_number: w.month_number, weight: w.weight }
+                        );
+                      }
+                      const unlockedTotal = unlockedMonths.reduce((sum, w) => sum + w.weight, 0);
+                      return currentWeights.map(w => {
+                        if (w.month_number === changedMonth) return { month_number: w.month_number, weight: newWeight };
+                        if (w.is_locked) return { month_number: w.month_number, weight: w.weight };
+                        const proportion = unlockedTotal > 0 ? w.weight / unlockedTotal : 1 / unlockedMonths.length;
+                        return { month_number: w.month_number, weight: Math.round(remainingWeight * proportion * 100) / 100 };
+                      });
+                    };
+                    return { redistributeWeights: redistribute.bind(null, merged) };
+                  })();
+
+                  const redistributed = redistributeWeights(monthNumber, adjustedWeight);
+                  // Save all months that changed
+                  redistributed.forEach(({ month_number, weight }) => {
+                    const existing = weights.find(w => w.month_number === month_number);
+                    const existingValue = existing?.adjusted_weight ?? calculatedWeights.find(c => c.month_number === month_number)?.weight ?? 0;
+                    if (Math.abs(weight - existingValue) > 0.001) {
+                      updateWeight.mutate({ monthNumber: month_number, adjustedWeight: weight });
+                    }
+                  });
+                } else {
+                  updateWeight.mutate({ monthNumber, adjustedWeight, isLocked });
+                }
               }}
               onResetWeights={() => {
                 markDirty();
