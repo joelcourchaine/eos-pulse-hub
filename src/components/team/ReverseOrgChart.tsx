@@ -366,37 +366,49 @@ const LeafPill = ({ member, showNames, onSelect, size = 36 }: LeafPillProps) => 
 
   const textColor = isVacant ? "hsl(38 60% 30%)" : primaryColors.text;
 
+  const vacantHasName = isVacant && member.name !== "Vacant";
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none flex-shrink-0"
-          style={{
-            background: bgStyle,
-            color: textColor,
-            width: size,
-            height: size,
-            fontSize: isVacant ? 14 : 11,
-            fontWeight: 700,
-            border: isVacant ? `2px dashed hsl(38 92% 50%)` : `1px solid ${primaryColors.border}`,
-          }}
-          onClick={() => onSelect(member)}
+    <div className="flex flex-col items-center gap-0.5">
+      {vacantHasName && (
+        <span
+          className="whitespace-nowrap font-semibold"
+          style={{ fontSize: 9, color: "hsl(38 70% 35%)", maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis" }}
         >
-          {isVacant ? (
-            <span style={{ fontSize: 14, fontWeight: 800, color: "hsl(38 92% 45%)" }}>?</span>
-          ) : showNames ? (
-            <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
-          ) : (
-            initials
-          )}
-        </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs" sideOffset={8}>
-        <p className="font-semibold">{member.name}</p>
-        <p className="opacity-75">{POSITION_LABELS[member.position] || member.position}</p>
-        {isVacant && <p className="font-semibold" style={{ color: "hsl(38 92% 45%)" }}>Vacant</p>}
-      </TooltipContent>
-    </Tooltip>
+          {member.name}
+        </span>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="flex items-center justify-center rounded-full cursor-pointer transition-transform hover:scale-110 hover:shadow-md select-none flex-shrink-0"
+            style={{
+              background: bgStyle,
+              color: textColor,
+              width: size,
+              height: size,
+              fontSize: isVacant ? 14 : 11,
+              fontWeight: 700,
+              border: isVacant ? `2px dashed hsl(38 92% 50%)` : `1px solid ${primaryColors.border}`,
+            }}
+            onClick={() => onSelect(member)}
+          >
+            {isVacant ? (
+              <span style={{ fontSize: 14, fontWeight: 800, color: "hsl(38 92% 45%)" }}>?</span>
+            ) : showNames ? (
+              <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: "nowrap", padding: "0 4px" }}>{firstName}</span>
+            ) : (
+              initials
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs" sideOffset={8}>
+          <p className="font-semibold">{member.name}</p>
+          <p className="opacity-75">{POSITION_LABELS[member.position] || member.position}</p>
+          {isVacant && <p className="font-semibold" style={{ color: "hsl(38 92% 45%)" }}>Vacant</p>}
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 };
 
