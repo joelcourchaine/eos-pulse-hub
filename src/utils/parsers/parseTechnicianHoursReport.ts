@@ -126,9 +126,23 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           if (!row) continue;
           const normed = row.map(normCol);
           const dIdx = normed.findIndex(c => c === "date" || c.startsWith("date "));
-          const sIdx = normed.findIndex(c => c.includes("sold hrs") || c.includes("sold hours") || c.includes("clsd hrs") || c.includes("closed hrs"));
-          // "Clocked In Hrs" is the available hours column used for the scorecard
-          const cIdx = normed.findIndex(c => c.includes("clocked in hrs") || c.includes("clocked in hours") || c === "clocked in");
+          // Sold hrs: Nissan + RAM/Stellantis variants
+          const sIdx = normed.findIndex(c =>
+            c.includes("sold hrs") || c.includes("sold hours") ||
+            c.includes("clsd hrs") || c.includes("closed hrs") ||
+            c.includes("flat rate hrs") || c.includes("flat rate hours") ||
+            c.includes("labour sold") || c.includes("labor sold") ||
+            c.includes("flagged hrs") || c === "f r hrs" || c.includes("f r hrs") ||
+            c.includes("labor sold hrs") || c.includes("labour sold hrs")
+          );
+          // Available/clocked-in hrs: Nissan + RAM/Stellantis variants
+          const cIdx = normed.findIndex(c =>
+            c.includes("clocked in hrs") || c.includes("clocked in hours") || c === "clocked in" ||
+            c.includes("actual hrs") || c.includes("actual hours") ||
+            c === "clock hrs" || c.includes("clock hours") ||
+            c.includes("available hrs") || c.includes("available hours") ||
+            c === "total hrs" || c === "total hours"
+          );
           if (dIdx !== -1 && sIdx !== -1 && cIdx !== -1) {
             headerRowIndex = ri;
             dateColIdx = dIdx;
@@ -138,15 +152,32 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           }
         }
 
-        // Fallback: use fixed column positions from known Nissan format
-          // Col 2 = Date, Col 4 = Sold Hrs, Col 6 = Clocked In Hrs (Available Hours)
-          if (headerRowIndex === -1) {
-            console.warn("[TechParse] Could not find header row dynamically, using fixed column positions (2,4,6)");
+        // Fallback: scan first data rows to detect layout (Nissan col-2 vs RAM col-0 dates)
+        if (headerRowIndex === -1) {
+          // Check if dates appear in col 0 (RAM/Stellantis) or col 2 (Nissan)
+          let col0DateCount = 0;
+          let col2DateCount = 0;
+          for (let ri = 0; ri < Math.min(60, rows.length); ri++) {
+            const row = rows[ri];
+            if (!row) continue;
+            if (toISODate(row[0]) !== null) col0DateCount++;
+            if (toISODate(row[2]) !== null) col2DateCount++;
+          }
+          if (col0DateCount > col2DateCount) {
+            // RAM/Stellantis layout: date in col 0, sold in col 2, clock in col 4 (best guess)
+            console.warn("[TechParse] Detected col-A date layout (RAM/Stellantis), using fallback (0,2,4)");
+            dateColIdx = 0;
+            soldColIdx = 2;
+            clockColIdx = 4;
+          } else {
+            // Nissan layout fallback: col 2 = Date, col 4 = Sold Hrs, col 6 = Clocked In Hrs
+            console.warn("[TechParse] Could not find header row, using Nissan fallback (2,4,6)");
             dateColIdx = 2;
             soldColIdx = 4;
-            clockColIdx = 6; // Clocked In Hrs = Available Hours
-            headerRowIndex = 0;
+            clockColIdx = 6;
           }
+          headerRowIndex = 0;
+        }
 
         console.log("[TechParse] Header row:", headerRowIndex, "date:", dateColIdx, "sold:", soldColIdx, "clock:", clockColIdx);
 
@@ -198,9 +229,11 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
 
           if (!current) continue;
 
-          // Data row: col A is blank, dateColIdx has a date
-          if (!colA && dateVal != null) {
-            const iso = toISODate(dateVal);
+          // Data row: col A is blank + dateColIdx has a date (Nissan layout)
+          // OR col A itself is a date (RAM/Stellantis layout)
+          const colADate = toISODate(row[0]);
+          if ((!colA && dateVal != null) || (colADate !== null)) {
+            const iso = colADate ?? toISODate(dateVal);
             if (iso) {
               const sold = parseNumeric(row[soldColIdx]);
               const clock = parseNumeric(row[clockColIdx]);
