@@ -702,15 +702,6 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
           <Switch id="show-names" checked={showNames} onCheckedChange={setShowNames} />
           <Label htmlFor="show-names" className="text-xs">Show Names</Label>
         </div>
-        <div className="flex items-center gap-2">
-          <Switch id="headcount-only" checked={headcountOnly} onCheckedChange={setHeadcountOnly} />
-          <Label htmlFor="headcount-only" className="text-xs">Headcount Only</Label>
-          {headcountOnly && (
-            <span className="text-xs font-semibold bg-primary text-primary-foreground rounded px-2 py-0.5 ml-1">
-              {members.length} total
-            </span>
-          )}
-        </div>
         <span className="text-xs text-muted-foreground">Tip: hover over circles to see names</span>
       </div>
 
@@ -734,10 +725,12 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
               .filter(([key]) => usedPositions.has(key))
               .map(([key, label]) => {
                 const c = POSITION_COLORS[key];
+                const count = members.filter(m => m.position === key || m.position_secondary === key).length;
                 return (
-                  <Badge key={key} variant="outline" className="text-[10px] gap-1 py-0.5">
-                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: c.bg }} />
+                  <Badge key={key} variant="outline" className="text-xs gap-1.5 px-2.5 py-1">
+                    <span className="w-3 h-3 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: c.bg }} />
                     {label}
+                    <span className="font-bold ml-0.5">{count}</span>
                   </Badge>
                 );
               })}
