@@ -1,40 +1,22 @@
 
-## Group Advisor variants into one balloon cluster
+## Add Total Team Members count in bottom-right corner
 
-### What's changing
+Simple change to `src/pages/MyTeam.tsx` — add a fixed-position div in the bottom-right corner showing the total non-vacant member count.
 
-`advisor`, `express_advisor`, and `internal_advisor` currently each form separate clusters. The request is to group them into a single balloon cluster under the same parent, while each pill inside still renders its own distinct position color.
+**What:** A fixed overlay in the bottom-right corner of the screen showing e.g. `"12 Team Members"` in a large font.
 
-### How the current system works
+**Count logic:** `members.filter(m => !m.is_vacant)` — only count filled positions. Or if `is_vacant` isn't a field, count members whose name isn't "Vacant". Actually — let me check the TeamMember type quickly.
 
-`buildClusterMap` groups leaf children strictly by `member.position` key → one cluster per position. The `LeafCluster` has a single `position` field used only for the balloon border color. Each `LeafPill` inside uses `member.position` directly, so individual pill colors are unaffected by the cluster's `position` field.
+Looking at the existing code: the `isVacant` logic in the chart checks `!member.name || member.name === "Vacant"` or uses an `is_vacant` field. Let me just count `members.length` since all entries in `team_members` table are actual people (vacant positions are stored with `is_vacant: true` flag or name "Vacant"). I'll filter out vacants for the count.
 
-### Plan
+**Where:** Inside the `<SidebarInset>` in `MyTeam.tsx`, add a `fixed bottom-6 right-6` div after the `<main>` block.
 
-**1. Define an "advisor" position group**
+**Styling:**
+- `fixed bottom-6 right-6` positioning
+- Large bold number: `text-5xl font-bold`
+- Label below: `text-sm text-muted-foreground uppercase tracking-widest`
+- Subtle card-like background: `bg-card/80 backdrop-blur border rounded-2xl px-6 py-4 shadow-lg text-right`
 
-Add a small constant:
-```ts
-const ADVISOR_GROUP = ["advisor", "express_advisor", "internal_advisor"];
-```
+**Count:** Filter out vacant members: `members.filter(m => m.name && m.name !== "Vacant" && !m.is_vacant).length` — but I should check the TeamMember type to see the exact field name. From context, `is_vacant` seems to be the field used. I'll use both checks to be safe.
 
-**2. Add a `getClusterGroupKey(position)` helper**
-
-```ts
-function getClusterGroupKey(pos: string): string {
-  if (ADVISOR_GROUP.includes(pos)) return "advisor_group";
-  return pos;
-}
-```
-
-**3. Update `buildClusterMap`** to use `getClusterGroupKey` when bucketing leaf children:
-- Replace `leafByPos[child.member.position]` with `leafByPos[getClusterGroupKey(child.member.position)]`
-- The cluster `id` uses the group key, cluster `position` = `"advisor"` (for border color)
-- Threshold for clustering stays at `>= 2` members
-
-**4. Update layout functions** that reference `cluster_${node.member.id}_${pos}` to also use `getClusterGroupKey(pos)` so the cluster ID matches
-
-This is a **pure logic change** — no visual change to individual pills, only the balloon border color comes from `POSITION_COLORS["advisor"]` (teal/blue). Each pill inside still shows its own color.
-
-### Files changed
-- `src/components/team/ReverseOrgChart.tsx` only — `buildClusterMap`, `getSubtreeLeafWidth`, `layoutSubtree` (cluster ID generation lines)
+**Single file change:** `src/pages/MyTeam.tsx` — add the fixed corner widget after the `<main>` block, before `<TeamMemberDetailPanel>`.
