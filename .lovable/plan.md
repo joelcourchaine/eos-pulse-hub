@@ -1,26 +1,27 @@
 
-## Filter vacant positions to only those used by active members
+## Filter legend to only show positions used by this team
 
-**The issue:** `vacantPositions` currently shows all unique positions across vacant members. But if someone added a vacant "Porter" to a team that has no other Porters, it still shows. The user wants the vacant position labels to only reflect positions that are "part of this department" — i.e., positions that also have at least one filled (active) member.
+**The issue:** Line 726 in `ReverseOrgChart.tsx` renders a legend badge for *every* entry in `POSITION_LABELS` regardless of whether the team has anyone in that role.
 
-**Fix:** Before building `vacantPositions`, collect the set of positions used by active members. Then filter vacant members to only those whose `position` exists in that active set.
+**Fix:** Before rendering the legend, compute a `Set` of positions actually present in `members` (using both `position` and `position_secondary`), then filter `Object.entries(POSITION_LABELS)` to only those keys.
 
 ```ts
-const activePositions = new Set(
-  members
-    .filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant")
-    .map(m => m.position)
-);
-
-const vacantPositions = [
-  ...new Set(
-    vacantMembers
-      .filter(m => activePositions.has(m.position))
-      .map(m => POSITION_LABEL[m.position] || m.position)
-  )
-];
+// Line 724-735 replacement
+const usedPositions = useMemo(() => {
+  const set = new Set<string>();
+  members.forEach(m => {
+    if (m.position) set.add(m.position);
+    if (m.position_secondary) set.add(m.position_secondary);
+  });
+  return set;
+}, [members]);
 ```
 
-This means: if this store has active Advisors and Technicians, vacant slots for those roles will show. A vacant "Porter" slot won't appear unless there's also an active Porter on the team.
+Then in the legend JSX:
+```tsx
+{Object.entries(POSITION_LABELS)
+  .filter(([key]) => usedPositions.has(key))
+  .map(([key, label]) => { ... })}
+```
 
-**Single line change** in `src/pages/MyTeam.tsx`, replace line 169.
+`useMemo` is already imported. Single file change: `src/components/team/ReverseOrgChart.tsx`, lines 725–735.
