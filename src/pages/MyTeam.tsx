@@ -166,7 +166,8 @@ const MyTeam = () => {
             };
             const total = members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").length;
             const vacantMembers = members.filter(m => !m.name || m.name === "Vacant" || (m as any).status === "vacant");
-            const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
+            const activePositions = new Set(members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").map(m => m.position));
+            const vacantPositions = [...new Set(vacantMembers.filter(m => activePositions.has(m.position)).map(m => POSITION_LABEL[m.position] || m.position))];
             if (total === 0 && vacantMembers.length === 0) return null;
             return (
               <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-stretch bg-card/90 backdrop-blur border rounded-2xl shadow-xl z-50 overflow-hidden">
