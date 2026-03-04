@@ -3825,9 +3825,6 @@ const ScorecardGrid = ({
                     )}
                     {(isMonthlyTrendMode || isYearlyView) ? (
                       <>
-                        <TableHead className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-muted sticky top-0 left-[170px] z-20 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-                          Trend
-                        </TableHead>
                         {/* Latest quarter target column only */}
                         {(() => {
                           const latestQuarter = Array.from(
@@ -3847,7 +3844,7 @@ const ScorecardGrid = ({
                           return (
                             <TableHead
                               key={`target-${latestQuarter}`}
-                              className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 left-[250px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                              className="text-center min-w-[80px] max-w-[80px] font-bold py-[7.2px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky top-0 left-[170px] z-20 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                             >
                               <div className="flex flex-col items-center">
                                 <div className="text-xs">Q{q} Target</div>
@@ -4239,9 +4236,9 @@ const ScorecardGrid = ({
                                 <TableCell
                                   colSpan={
                                     isYearlyView
-                                      ? 2 + yearlyPeriods.length
+                                      ? 1 + yearlyPeriods.length
                                       : isMonthlyTrendMode
-                                        ? 2 + monthlyTrendPeriods.length
+                                        ? 1 + monthlyTrendPeriods.length
                                         : isQuarterTrendMode
                                           ? quarterTrendPeriods.length
                                           : viewMode === "quarterly"
@@ -4319,43 +4316,33 @@ const ScorecardGrid = ({
                               </>
                             )}
                             {(isMonthlyTrendMode || isYearlyView) ? (
-                              <>
-                                <TableCell className="px-1 py-0 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
-                                  <Sparkline
-                                    data={activeYearlyPeriods
-                                      .filter((p) => p.type === "month" && p.year === year)
-                                      .map((month) => {
-                                        const mKey = `${kpi.id}-M${month.month + 1}-${month.year}`;
-                                        return isYearlyView ? yearlyViewPrecedingData[mKey] : precedingQuartersData[mKey];
-                                      })}
-                                  />
-                                </TableCell>
-                                {/* Latest quarter target cell - editable */}
-                                {(() => {
-                                  const latestQuarter = Array.from(
-                                    new Set(
-                                      activeYearlyPeriods
-                                        .filter((m) => m.type === "month")
-                                        .map((m) => `Q${Math.floor(m.month / 3) + 1}-${m.year}`),
-                                    ),
-                                  ).sort((a, b) => {
-                                    const [qA, yA] = a.replace("Q", "").split("-").map(Number);
-                                    const [qB, yB] = b.replace("Q", "").split("-").map(Number);
-                                    if (yB !== yA) return yB - yA;
-                                    return qB - qA;
-                                  })[0];
-                                  if (!latestQuarter) return null;
-                                  const [q, y] = latestQuarter.replace("Q", "").split("-");
-                                  const targetQuarter = parseInt(q);
-                                  const targetYear = parseInt(y);
-                                  const targetKey = `${kpi.id}-Q${q}-${y}`;
-                                  const targetValue = (isYearlyView ? yearlyViewTrendTargets[targetKey] : trendTargets[targetKey]) ?? kpi.target_value;
-                                  const isEditing = editingTrendTarget === targetKey;
+                               <>
+                                 {/* Latest quarter target cell - editable */}
+                                 {(() => {
+                                   const latestQuarter = Array.from(
+                                     new Set(
+                                       activeYearlyPeriods
+                                         .filter((m) => m.type === "month")
+                                         .map((m) => `Q${Math.floor(m.month / 3) + 1}-${m.year}`),
+                                     ),
+                                   ).sort((a, b) => {
+                                     const [qA, yA] = a.replace("Q", "").split("-").map(Number);
+                                     const [qB, yB] = b.replace("Q", "").split("-").map(Number);
+                                     if (yB !== yA) return yB - yA;
+                                     return qB - qA;
+                                   })[0];
+                                   if (!latestQuarter) return null;
+                                   const [q, y] = latestQuarter.replace("Q", "").split("-");
+                                   const targetQuarter = parseInt(q);
+                                   const targetYear = parseInt(y);
+                                   const targetKey = `${kpi.id}-Q${q}-${y}`;
+                                   const targetValue = (isYearlyView ? yearlyViewTrendTargets[targetKey] : trendTargets[targetKey]) ?? kpi.target_value;
+                                   const isEditing = editingTrendTarget === targetKey;
 
-                                  return (
-                                    <TableCell
-                                      key={`target-${latestQuarter}`}
-                                      className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                                   return (
+                                     <TableCell
+                                       key={`target-${latestQuarter}`}
+                                       className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[170px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                                     >
                                       {canEditTargets() && isEditing ? (
                                         <div className="flex items-center justify-center gap-1">
@@ -5603,13 +5590,11 @@ const ScorecardGrid = ({
                               </>
                             )}
 
-                            {/* Monthly trend / Yearly view */}
+                             {/* Monthly trend / Yearly view */}
                             {(isMonthlyTrendMode || isYearlyView) && (
                               <>
-                                {/* Sparkline placeholder */}
-                                <TableCell className="px-1 py-0 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]" />
                                 {/* Target placeholder */}
-                                <TableCell className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 text-xs">
+                                <TableCell className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[170px] z-10 text-xs">
                                   {row.type === "productive" && productiveTarget !== null
                                     ? `${parseFloat(productiveTarget.toFixed(2))}%`
                                     : "-"}
