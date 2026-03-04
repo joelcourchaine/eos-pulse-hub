@@ -167,22 +167,22 @@ const MyTeam = () => {
             const total = members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").length;
             const vacantMembers = members.filter(m => !m.name || m.name === "Vacant" || (m as any).status === "vacant");
             const activePositions = new Set(members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").map(m => m.position));
-            const vacantPositions = [...new Set(vacantMembers.filter(m => activePositions.has(m.position)).map(m => POSITION_LABEL[m.position] || m.position))];
+            const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
             if (total === 0 && vacantMembers.length === 0) return null;
             return (
-              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-stretch bg-card/90 backdrop-blur border rounded-2xl shadow-xl z-50 overflow-hidden">
-                <div className="px-8 py-4 text-center">
-                  <div className="text-5xl font-bold tabular-nums">{total}</div>
+              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-wrap items-stretch bg-card/90 backdrop-blur border rounded-xl shadow-lg z-50 max-w-[90vw] overflow-hidden">
+                <div className="px-4 py-3 text-center">
+                  <div className="text-3xl font-bold tabular-nums">{total}</div>
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
                 </div>
                 {vacantMembers.length > 0 && (
                   <>
-                    <div className="w-px bg-border my-3" />
-                    <div className="px-8 py-4">
-                      <div className="text-5xl font-bold tabular-nums text-amber-500">{vacantMembers.length}</div>
-                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Vacant</div>
+                    <div className="w-px bg-border my-2" />
+                    <div className="px-4 py-3">
+                      <div className="text-3xl font-bold tabular-nums text-amber-500">{vacantMembers.length}</div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Hiring</div>
                       {vacantPositions.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5">
+                        <ul className="mt-1 space-y-0.5">
                           {vacantPositions.map(p => (
                             <li key={p} className="text-xs italic text-amber-500/80">{p}</li>
                           ))}
