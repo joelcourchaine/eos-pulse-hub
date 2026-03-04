@@ -4229,7 +4229,7 @@ const ScorecardGrid = ({
                                   {weeks.map((week) => (
                                     <TableCell
                                       key={`owner-curr-week-${week.label}`}
-                                      className="bg-muted/50 py-0.5 min-w-[90px]"
+                                      className="bg-muted/50 py-0 min-w-[90px]"
                                     />
                                   ))}
                                 </>
@@ -4320,7 +4320,7 @@ const ScorecardGrid = ({
                             )}
                             {(isMonthlyTrendMode || isYearlyView) ? (
                               <>
-                                <TableCell className="px-1 py-0.5 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
+                                <TableCell className="px-1 py-0 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]">
                                   <Sparkline
                                     data={activeYearlyPeriods
                                       .filter((p) => p.type === "month" && p.year === year)
@@ -4355,7 +4355,7 @@ const ScorecardGrid = ({
                                   return (
                                     <TableCell
                                       key={`target-${latestQuarter}`}
-                                      className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
+                                      className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                                     >
                                       {canEditTargets() && isEditing ? (
                                         <div className="flex items-center justify-center gap-1">
@@ -5492,7 +5492,7 @@ const ScorecardGrid = ({
                         {/* Totals KPI rows */}
                         {totalRows.map((row) => (
                           <TableRow key={`totals-${row.type}`} className="hover:bg-muted/20">
-                            <TableCell className="sticky left-0 bg-background z-10 w-[170px] min-w-[170px] max-w-[170px] font-medium pl-8 py-0.5 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs">
+                            <TableCell className="sticky left-0 bg-background z-10 w-[170px] min-w-[170px] max-w-[170px] font-medium pl-8 py-0 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)] text-xs">
                               {row.label}
                             </TableCell>
 
@@ -5500,7 +5500,7 @@ const ScorecardGrid = ({
                               <>
                                 {/* Target cell (placeholder) */}
                                 <TableCell
-                                  className="text-center py-0.5 min-w-[80px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-primary-foreground text-xs"
+                                  className="text-center py-0 min-w-[80px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-primary-foreground text-xs"
                                   style={{ position: "sticky", left: 170, zIndex: 9 }}
                                 >
                                   {row.type === "productive" && productiveTarget !== null
@@ -5607,9 +5607,9 @@ const ScorecardGrid = ({
                             {(isMonthlyTrendMode || isYearlyView) && (
                               <>
                                 {/* Sparkline placeholder */}
-                                <TableCell className="px-1 py-0.5 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]" />
+                                <TableCell className="px-1 py-0 min-w-[80px] max-w-[80px] bg-background sticky left-[170px] z-10 border-r shadow-[2px_0_4px_rgba(0,0,0,0.05)]" />
                                 {/* Target placeholder */}
-                                <TableCell className="px-1 py-0.5 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 text-xs">
+                                <TableCell className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[250px] z-10 text-xs">
                                   {row.type === "productive" && productiveTarget !== null
                                     ? `${parseFloat(productiveTarget.toFixed(2))}%`
                                     : "-"}
@@ -5655,7 +5655,7 @@ const ScorecardGrid = ({
                                     }
                                     return (
                                       <TableCell key={month.identifier} className={cn(
-                                        "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] font-medium text-xs",
+                                        "px-1 py-0 text-center min-w-[90px] max-w-[90px] font-medium text-xs",
                                         month.type === "year-avg" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-l-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                                         month.type === "year-total" && "bg-[hsl(var(--scorecard-navy)/0.1)] border-r-2 border-[hsl(var(--scorecard-navy)/0.3)]",
                                         status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
@@ -5704,7 +5704,7 @@ const ScorecardGrid = ({
 
                                   return (
                                     <TableCell key={month.identifier} className={cn(
-                                      "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                       "px-1 py-0 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
                                       status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
                                       status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
                                       status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
@@ -5793,7 +5793,7 @@ const ScorecardGrid = ({
                             {viewMode === "monthly" && !isMonthlyTrendMode && !isYearlyView && (
                               <>
                                 {/* Prev year target placeholder */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] text-muted-foreground bg-muted/70 border-x-2 border-muted-foreground/30 text-xs">-</TableCell>
+                                <TableCell className="text-center py-0 min-w-[80px] max-w-[80px] text-muted-foreground bg-muted/70 border-x-2 border-muted-foreground/30 text-xs">-</TableCell>
                                 {/* Prev year months */}
                                 {previousYearMonths.map((month) => {
                                   const mi = month.identifier;
@@ -5813,7 +5813,7 @@ const ScorecardGrid = ({
                                     value = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
                                   }
                                   return (
-                                    <TableCell key={mi} className="px-1 py-0.5 text-center min-w-[90px] max-w-[90px] bg-muted/20 text-muted-foreground text-xs">
+                                    <TableCell key={mi} className="px-1 py-0 text-center min-w-[90px] max-w-[90px] bg-muted/20 text-muted-foreground text-xs">
                                       {value !== null ? (row.type === "productive" ? `${parseFloat(value.toFixed(2))}%` : parseFloat(value.toFixed(2)).toString()) : "-"}
                                     </TableCell>
                                   );
@@ -5836,13 +5836,13 @@ const ScorecardGrid = ({
                                     qValue = hasData && totalAvail > 0 ? (totalSold / totalAvail) * 100 : null;
                                   }
                                   return (
-                                    <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-muted/50 border-x-2 border-muted-foreground/30 text-muted-foreground text-xs">
+                                    <TableCell className="text-center py-0 min-w-[80px] max-w-[80px] bg-muted/50 border-x-2 border-muted-foreground/30 text-muted-foreground text-xs">
                                       {qValue !== null ? (row.type === "productive" ? `${parseFloat(qValue.toFixed(2))}%` : parseFloat(qValue.toFixed(2)).toString()) : "-"}
                                     </TableCell>
                                   );
                                 })()}
                                 {/* Target placeholder */}
-                                <TableCell className="text-center py-0.5 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
+                                <TableCell className="text-center py-0 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
                                   {row.type === "productive" && productiveTarget !== null ? `${parseFloat(productiveTarget.toFixed(2))}%` : "-"}
                                 </TableCell>
                                 {/* Current months */}
@@ -5867,7 +5867,7 @@ const ScorecardGrid = ({
                                   }
                                   return (
                                     <TableCell key={mi} className={cn(
-                                      "px-1 py-0.5 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
+                                      "px-1 py-0 text-center min-w-[90px] max-w-[90px] text-xs font-medium",
                                       status === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
                                       status === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
                                       status === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
@@ -5899,7 +5899,7 @@ const ScorecardGrid = ({
                                   }
                                   return (
                                     <TableCell className={cn(
-                                      "text-center py-0.5 min-w-[80px] max-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-xs font-medium",
+                                      "text-center py-0 min-w-[80px] max-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-xs font-medium",
                                       qStatus === "success" && "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200",
                                       qStatus === "warning" && "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200",
                                       qStatus === "destructive" && "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200",
