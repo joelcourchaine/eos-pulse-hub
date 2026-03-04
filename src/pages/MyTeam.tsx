@@ -150,6 +150,17 @@ const MyTeam = () => {
             <ReverseOrgChart members={members} onSelectMember={handleSelectMember} />
           </main>
 
+          {/* Total Team Members Badge */}
+          {(() => {
+            const total = members.filter(m => m.name && m.name !== "Vacant" && !(m as any).is_vacant).length;
+            return total > 0 ? (
+              <div className="fixed bottom-6 right-6 bg-card/90 backdrop-blur border rounded-2xl px-6 py-4 shadow-lg text-right z-50">
+                <div className="text-5xl font-bold tabular-nums">{total}</div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
+              </div>
+            ) : null;
+          })()}
+
           {/* Detail Panel */}
           <TeamMemberDetailPanel
             member={selectedMember}
