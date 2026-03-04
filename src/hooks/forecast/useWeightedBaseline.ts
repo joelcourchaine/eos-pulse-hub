@@ -150,16 +150,14 @@ export function useWeightedBaseline(departmentId: string | undefined, baselineYe
     // Calculate weight for each month (only months with data)
     const monthsWithData = Array.from(salesByMonth.keys());
     
-    return MONTH_NAMES.map((name, index) => {
+    const rawWeights = MONTH_NAMES.map((name, index) => {
       const monthNum = index + 1;
       const salesValue = salesByMonth.get(monthNum) || 0;
       
-      // If this month has no data but others do, distribute equally among missing months
       let weight: number;
       if (salesValue > 0) {
         weight = (salesValue / totalSales) * 100;
       } else if (monthsWithData.length < 12 && monthsWithData.length > 0) {
-        // For months without data, we'll assign 0 weight and normalize later
         weight = 0;
       } else {
         weight = 100 / 12;
@@ -169,9 +167,30 @@ export function useWeightedBaseline(departmentId: string | undefined, baselineYe
         month_number: monthNum,
         month_name: name,
         sales_value: salesValue,
-        weight: Math.round(weight * 100) / 100, // Round to 2 decimals
+        weight,
       };
     });
+
+    // Normalize so weights always sum to exactly 100%
+    const rawSum = rawWeights.reduce((s, w) => s + w.weight, 0);
+    if (rawSum === 0) {
+      return rawWeights.map(w => ({ ...w, weight: Math.round((100 / 12) * 100) / 100 }));
+    }
+
+    const scaled = rawWeights.map(w => ({
+      ...w,
+      weight: Math.round((w.weight / rawSum) * 10000) / 100,
+    }));
+
+    // Fix rounding remainder by adjusting the largest-weight month
+    const scaledSum = scaled.reduce((s, w) => s + w.weight, 0);
+    const remainder = Math.round((100 - scaledSum) * 100) / 100;
+    if (remainder !== 0) {
+      const maxIdx = scaled.reduce((best, w, i) => w.weight > scaled[best].weight ? i : best, 0);
+      scaled[maxIdx] = { ...scaled[maxIdx], weight: Math.round((scaled[maxIdx].weight + remainder) * 100) / 100 };
+    }
+
+    return scaled;
   }, [baselineYearSales]);
 
   // Calculate weighted baseline for a given annual target
