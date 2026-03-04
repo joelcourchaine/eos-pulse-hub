@@ -1,23 +1,40 @@
 
-## Show name above the LeafPill for vacant positions with a name
+## Group Advisor variants into one balloon cluster
 
-**What:** When a vacant position has a non-default name (i.e. not "Vacant"), display that name as a small label just above the pill circle, similar to how `showNames` works for active members but positioned outside/above the circle rather than inside it.
+### What's changing
 
-**Where:** `LeafPill` component in `src/components/team/ReverseOrgChart.tsx`, lines 369–401.
+`advisor`, `express_advisor`, and `internal_advisor` currently each form separate clusters. The request is to group them into a single balloon cluster under the same parent, while each pill inside still renders its own distinct position color.
 
-**How:** Wrap the existing `<Tooltip>` in a `<div className="flex flex-col items-center">`. When `isVacant` and `member.name !== "Vacant"`, render a small text label above the pill:
+### How the current system works
 
-```text
-  ┌─────────────────────────┐
-  │  [name label, 9px]      │  ← new, only when vacant + has name
-  │  [? pill circle]        │
-  └─────────────────────────┘
+`buildClusterMap` groups leaf children strictly by `member.position` key → one cluster per position. The `LeafCluster` has a single `position` field used only for the balloon border color. Each `LeafPill` inside uses `member.position` directly, so individual pill colors are unaffected by the cluster's `position` field.
+
+### Plan
+
+**1. Define an "advisor" position group**
+
+Add a small constant:
+```ts
+const ADVISOR_GROUP = ["advisor", "express_advisor", "internal_advisor"];
 ```
 
-The label should be:
-- ~9px font, amber color `hsl(38 70% 35%)`, truncated at ~8 chars, `whitespace-nowrap`
-- Positioned using `flex-col items-center gap-0.5`
+**2. Add a `getClusterGroupKey(position)` helper**
 
-The outer wrapper div needs `flex-col items-center` so the pill + label stack vertically without affecting the pill's own dimensions (the connector line refs point to the pill div, not the wrapper).
+```ts
+function getClusterGroupKey(pos: string): string {
+  if (ADVISOR_GROUP.includes(pos)) return "advisor_group";
+  return pos;
+}
+```
 
-**Single file change:** `src/components/team/ReverseOrgChart.tsx`, ~lines 369–401.
+**3. Update `buildClusterMap`** to use `getClusterGroupKey` when bucketing leaf children:
+- Replace `leafByPos[child.member.position]` with `leafByPos[getClusterGroupKey(child.member.position)]`
+- The cluster `id` uses the group key, cluster `position` = `"advisor"` (for border color)
+- Threshold for clustering stays at `>= 2` members
+
+**4. Update layout functions** that reference `cluster_${node.member.id}_${pos}` to also use `getClusterGroupKey(pos)` so the cluster ID matches
+
+This is a **pure logic change** — no visual change to individual pills, only the balloon border color comes from `POSITION_COLORS["advisor"]` (teal/blue). Each pill inside still shows its own color.
+
+### Files changed
+- `src/components/team/ReverseOrgChart.tsx` only — `buildClusterMap`, `getSubtreeLeafWidth`, `layoutSubtree` (cluster ID generation lines)
