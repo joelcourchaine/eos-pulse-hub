@@ -722,17 +722,28 @@ export const ReverseOrgChart = ({ members, onSelectMember }: ReverseOrgChartProp
       ))}
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(POSITION_LABELS).map(([key, label]) => {
-          const c = POSITION_COLORS[key];
-          return (
-            <Badge key={key} variant="outline" className="text-[10px] gap-1 py-0.5">
-              <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: c.bg }} />
-              {label}
-            </Badge>
-          );
-        })}
-      </div>
+      {(() => {
+        const usedPositions = new Set<string>();
+        members.forEach(m => {
+          if (m.position) usedPositions.add(m.position);
+          if (m.position_secondary) usedPositions.add(m.position_secondary);
+        });
+        return (
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(POSITION_LABELS)
+              .filter(([key]) => usedPositions.has(key))
+              .map(([key, label]) => {
+                const c = POSITION_COLORS[key];
+                return (
+                  <Badge key={key} variant="outline" className="text-[10px] gap-1 py-0.5">
+                    <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: c.bg }} />
+                    {label}
+                  </Badge>
+                );
+              })}
+          </div>
+        );
+      })()}
 
       {/* Chart container */}
       <div ref={containerRef} className="overflow-auto border rounded-lg bg-background">
