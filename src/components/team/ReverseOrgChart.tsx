@@ -56,6 +56,7 @@ const POSITION_COLORS: Record<string, { bg: string; text: string; border: string
   administrative: { bg: "hsl(215 14% 50%)", text: "hsl(0 0% 100%)", border: "hsl(215 14% 60%)" },
   cashier: { bg: "hsl(340 65% 55%)", text: "hsl(0 0% 100%)", border: "hsl(340 65% 65%)" },
   detail_manager: { bg: "hsl(35 80% 42%)", text: "hsl(0 0% 100%)", border: "hsl(35 80% 52%)" },
+  appointment_coordinator: { bg: "hsl(258 55% 52%)", text: "hsl(0 0% 100%)", border: "hsl(258 55% 62%)" },
 };
 
 const POSITION_LABELS: Record<string, string> = {
@@ -84,6 +85,7 @@ const POSITION_LABELS: Record<string, string> = {
   administrative: "Administrative",
   cashier: "Cashier",
   detail_manager: "Detail Manager",
+  appointment_coordinator: "Appointment Coordinator",
 };
 
 function getInitials(name: string): string {

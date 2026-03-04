@@ -33,6 +33,7 @@ const POSITION_OPTIONS = [
   { value: "administrative", label: "Administrative" },
   { value: "cashier", label: "Cashier" },
   { value: "detail_manager", label: "Detail Manager" },
+  { value: "appointment_coordinator", label: "Appointment Coordinator" },
 ];
 
 interface TeamMemberDetailPanelProps {
