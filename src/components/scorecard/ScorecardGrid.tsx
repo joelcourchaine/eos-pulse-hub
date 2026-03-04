@@ -4218,7 +4218,7 @@ const ScorecardGrid = ({
                               {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
                                 <>
                                   <TableCell
-                                    className="bg-[hsl(var(--scorecard-navy))] py-1 min-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]"
+                                    className="bg-[hsl(var(--scorecard-navy))] py-0 min-w-[80px] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]"
                                     style={{
                                       position: "sticky",
                                        left: 170,
@@ -4248,7 +4248,7 @@ const ScorecardGrid = ({
                                             ? quarterlyViewPeriods.length
                                             : 1 + previousYearMonths.length + 1 + 1 + months.length + 1
                                   }
-                                  className="bg-muted/50 py-1"
+                                  className="bg-muted/50 py-0"
                                 />
                               )}
                             </TableRow>
