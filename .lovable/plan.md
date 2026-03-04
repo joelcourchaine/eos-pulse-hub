@@ -1,30 +1,30 @@
 
-## Remove the "Headcount Only" toggle — show counts inline in the legend
+## Changes to the bottom stats bar
 
-**What changes:**
-1. **Remove** the "Headcount Only" `Switch` + label (lines 705–713) from the toolbar.
-2. **Update the legend** (lines 724–746): each badge now shows a count of members in that position beside the label. Make badges slightly larger (`text-xs` instead of `text-[10px]`, taller padding) so the count + name are comfortably readable.
-3. **Count logic**: for each position key, count `members` where `m.position === key || m.position_secondary === key`.
+**What the user wants:**
+1. Restore vacant position names (remove the `activePositions` filter — show ALL vacant position labels, not just those matching active roles)
+2. Make the card smaller overall
+3. Make it responsive/shrinkable on smaller screens
 
-The `headcountOnly` state and its chart rendering branch (lines 765–792) remain untouched — it's still a useful view mode for existing code paths. We're just removing the toggle from the toolbar UI. Alternatively, we could remove it fully — but the safer/simpler change is just removing the toggle UI and the toolbar span, and updating the legend badges.
+**Current issues:**
+- Line 169–170: `vacantPositions` filters to only show positions where an active member exists in the same role. User wants ALL vacant position labels shown.
+- The card uses `px-8 py-4` and `text-5xl` — too large
+- `fixed bottom-6 left-1/2 -translate-x-1/2` with `overflow-hidden` — no responsive width handling; could overflow on small screens
 
-### Legend badge before:
-```tsx
-<Badge variant="outline" className="text-[10px] gap-1 py-0.5">
-  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.bg }} />
-  {label}
-</Badge>
+**Changes to `src/pages/MyTeam.tsx` lines 169–194:**
+
+1. Line 170: Remove the `activePositions.has(m.position)` filter — show all vacant positions:
+```ts
+const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
 ```
 
-### Legend badge after:
-```tsx
-<Badge variant="outline" className="text-xs gap-1.5 px-2.5 py-1">
-  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c.bg }} />
-  {label}
-  <span className="font-bold ml-0.5">{count}</span>
-</Badge>
-```
+2. Shrink the card:
+- `px-8 py-4` → `px-4 py-3`
+- `text-5xl` → `text-3xl`  
+- `text-xs` labels → keep `text-xs`
+- `rounded-2xl` → `rounded-xl`
+- `shadow-xl` → `shadow-lg`
 
-Count = `members.filter(m => m.position === key || m.position_secondary === key).length`
+3. Responsive: add `max-w-[90vw]` and `flex-wrap` so it shrinks and wraps on small screens. Position with `bottom-4` and keep `left-1/2 -translate-x-1/2`.
 
-**Files changed:** `src/components/team/ReverseOrgChart.tsx` only — two spots (toolbar line ~705, legend line ~724).
+Single file: `src/pages/MyTeam.tsx`, lines 169–194.
