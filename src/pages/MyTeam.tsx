@@ -148,52 +148,50 @@ const MyTeam = () => {
           {/* Content */}
           <main className="p-4 md:p-6">
             <ReverseOrgChart members={members} onSelectMember={handleSelectMember} />
-          </main>
-
-          {/* Bottom Stats Bar */}
-          {(() => {
-            const POSITION_LABEL: Record<string, string> = {
-              service_manager: "Service Manager", assistant_service_manager: "Assistant Service Manager",
-              foreman: "Shop Foreman", dispatcher: "Dispatcher", advisor: "Advisor",
-              express_advisor: "Express / Quick Lane Advisor", junior_advisor: "Junior Advisor",
-              internal_advisor: "Internal Advisor", technician: "Technician",
-              lube_technician: "Lube Technician", apprentice_1: "1st Year Apprentice",
-              apprentice_2: "2nd Year Apprentice", apprentice_3: "3rd Year Apprentice",
-              apprentice_4: "4th Year Apprentice", red_seal_technician: "Red Seal Technician",
-              porter: "Porter", shuttle_driver: "Shuttle Driver", warranty_admin: "Warranty Admin",
-              detailer: "Detailer", administrative: "Administrative", cashier: "Cashier",
-              detail_manager: "Detail Manager", appointment_coordinator: "Appointment Coordinator",
-            };
-            const total = members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").length;
-            const vacantMembers = members.filter(m => !m.name || m.name === "Vacant" || (m as any).status === "vacant");
-            const activePositions = new Set(members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").map(m => m.position));
-            const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
-            if (total === 0 && vacantMembers.length === 0) return null;
-            return (
-              <div className="fixed bottom-4 left-1/2 -translate-x-1/2 flex flex-wrap items-stretch bg-card/90 backdrop-blur border rounded-xl shadow-lg z-50 max-w-[90vw] overflow-hidden">
-                <div className="px-4 py-3 text-center">
-                  <div className="text-3xl font-bold tabular-nums">{total}</div>
-                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
+            {/* Stats Bar inline below chart */}
+            {(() => {
+              const POSITION_LABEL: Record<string, string> = {
+                service_manager: "Service Manager", assistant_service_manager: "Assistant Service Manager",
+                foreman: "Shop Foreman", dispatcher: "Dispatcher", advisor: "Advisor",
+                express_advisor: "Express / Quick Lane Advisor", junior_advisor: "Junior Advisor",
+                internal_advisor: "Internal Advisor", technician: "Technician",
+                lube_technician: "Lube Technician", apprentice_1: "1st Year Apprentice",
+                apprentice_2: "2nd Year Apprentice", apprentice_3: "3rd Year Apprentice",
+                apprentice_4: "4th Year Apprentice", red_seal_technician: "Red Seal Technician",
+                porter: "Porter", shuttle_driver: "Shuttle Driver", warranty_admin: "Warranty Admin",
+                detailer: "Detailer", administrative: "Administrative", cashier: "Cashier",
+                detail_manager: "Detail Manager", appointment_coordinator: "Appointment Coordinator",
+              };
+              const total = members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").length;
+              const vacantMembers = members.filter(m => !m.name || m.name === "Vacant" || (m as any).status === "vacant");
+              const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
+              if (total === 0 && vacantMembers.length === 0) return null;
+              return (
+                <div className="mx-auto mt-6 w-fit flex flex-wrap items-stretch bg-card/90 backdrop-blur border rounded-xl shadow-lg max-w-[90vw] overflow-hidden">
+                  <div className="px-4 py-3 text-center">
+                    <div className="text-3xl font-bold tabular-nums">{total}</div>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
+                  </div>
+                  {vacantMembers.length > 0 && (
+                    <>
+                      <div className="w-px bg-border my-2" />
+                      <div className="px-4 py-3">
+                        <div className="text-3xl font-bold tabular-nums text-amber-500">{vacantMembers.length}</div>
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Hiring</div>
+                        {vacantPositions.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {vacantPositions.map(p => (
+                              <li key={p} className="text-xs italic text-amber-500/80">{p}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
-                {vacantMembers.length > 0 && (
-                  <>
-                    <div className="w-px bg-border my-2" />
-                    <div className="px-4 py-3">
-                      <div className="text-3xl font-bold tabular-nums text-amber-500">{vacantMembers.length}</div>
-                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Hiring</div>
-                      {vacantPositions.length > 0 && (
-                        <ul className="mt-1 space-y-0.5">
-                          {vacantPositions.map(p => (
-                            <li key={p} className="text-xs italic text-amber-500/80">{p}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </main>
 
           {/* Detail Panel */}
           <TeamMemberDetailPanel
