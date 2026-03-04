@@ -150,15 +150,48 @@ const MyTeam = () => {
             <ReverseOrgChart members={members} onSelectMember={handleSelectMember} />
           </main>
 
-          {/* Total Team Members Badge */}
+          {/* Bottom Stats Bar */}
           {(() => {
-            const total = members.filter(m => m.name && m.name !== "Vacant" && !(m as any).is_vacant).length;
-            return total > 0 ? (
-              <div className="fixed bottom-6 right-20 bg-card/90 backdrop-blur border rounded-2xl px-6 py-4 shadow-lg text-right z-50">
-                <div className="text-5xl font-bold tabular-nums">{total}</div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
+            const POSITION_LABEL: Record<string, string> = {
+              service_manager: "Service Manager", assistant_service_manager: "Assistant Service Manager",
+              foreman: "Shop Foreman", dispatcher: "Dispatcher", advisor: "Advisor",
+              express_advisor: "Express / Quick Lane Advisor", junior_advisor: "Junior Advisor",
+              internal_advisor: "Internal Advisor", technician: "Technician",
+              lube_technician: "Lube Technician", apprentice_1: "1st Year Apprentice",
+              apprentice_2: "2nd Year Apprentice", apprentice_3: "3rd Year Apprentice",
+              apprentice_4: "4th Year Apprentice", red_seal_technician: "Red Seal Technician",
+              porter: "Porter", shuttle_driver: "Shuttle Driver", warranty_admin: "Warranty Admin",
+              detailer: "Detailer", administrative: "Administrative", cashier: "Cashier",
+              detail_manager: "Detail Manager", appointment_coordinator: "Appointment Coordinator",
+            };
+            const total = members.filter(m => m.name && m.name !== "Vacant" && (m as any).status !== "vacant").length;
+            const vacantMembers = members.filter(m => !m.name || m.name === "Vacant" || (m as any).status === "vacant");
+            const vacantPositions = [...new Set(vacantMembers.map(m => POSITION_LABEL[m.position] || m.position))];
+            if (total === 0 && vacantMembers.length === 0) return null;
+            return (
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-stretch bg-card/90 backdrop-blur border rounded-2xl shadow-xl z-50 overflow-hidden">
+                <div className="px-8 py-4 text-center">
+                  <div className="text-5xl font-bold tabular-nums">{total}</div>
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Team Members</div>
+                </div>
+                {vacantMembers.length > 0 && (
+                  <>
+                    <div className="w-px bg-border my-3" />
+                    <div className="px-8 py-4">
+                      <div className="text-5xl font-bold tabular-nums text-amber-500">{vacantMembers.length}</div>
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">Vacant</div>
+                      {vacantPositions.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {vacantPositions.map(p => (
+                            <li key={p} className="text-xs italic text-amber-500/80">{p}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
-            ) : null;
+            );
           })()}
 
           {/* Detail Panel */}
