@@ -1,22 +1,15 @@
 
-## Add Total Team Members count in bottom-right corner
+## Fix white-on-white text in routine add input
 
-Simple change to `src/pages/MyTeam.tsx` — add a fixed-position div in the bottom-right corner showing the total non-vacant member count.
+The `AddRoutineItemInline` input sits inside the dark navy `RoutineDrawer`. The default `bg-background` / `text-foreground` CSS variables resolve to the light theme values in that context, making typed text invisible (white on white).
 
-**What:** A fixed overlay in the bottom-right corner of the screen showing e.g. `"12 Team Members"` in a large font.
+**Fix:** Add explicit color overrides to the `Input` className in `AddRoutineItemInline.tsx`:
+- `bg-white/10` — semi-transparent white tint so it reads as a dark field
+- `text-white` — typed text always white
+- `placeholder:text-white/40` — placeholder readable but dimmer
+- `border-white/20` — subtle border
 
-**Count logic:** `members.filter(m => !m.is_vacant)` — only count filled positions. Or if `is_vacant` isn't a field, count members whose name isn't "Vacant". Actually — let me check the TeamMember type quickly.
-
-Looking at the existing code: the `isVacant` logic in the chart checks `!member.name || member.name === "Vacant"` or uses an `is_vacant` field. Let me just count `members.length` since all entries in `team_members` table are actual people (vacant positions are stored with `is_vacant: true` flag or name "Vacant"). I'll filter out vacants for the count.
-
-**Where:** Inside the `<SidebarInset>` in `MyTeam.tsx`, add a `fixed bottom-6 right-6` div after the `<main>` block.
-
-**Styling:**
-- `fixed bottom-6 right-6` positioning
-- Large bold number: `text-5xl font-bold`
-- Label below: `text-sm text-muted-foreground uppercase tracking-widest`
-- Subtle card-like background: `bg-card/80 backdrop-blur border rounded-2xl px-6 py-4 shadow-lg text-right`
-
-**Count:** Filter out vacant members: `members.filter(m => m.name && m.name !== "Vacant" && !m.is_vacant).length` — but I should check the TeamMember type to see the exact field name. From context, `is_vacant` seems to be the field used. I'll use both checks to be safe.
-
-**Single file change:** `src/pages/MyTeam.tsx` — add the fixed corner widget after the `<main>` block, before `<TeamMemberDetailPanel>`.
+Single line change in `src/components/routines/AddRoutineItemInline.tsx`, line 131:
+```
+className="h-8 text-sm bg-white/10 text-white placeholder:text-white/40 border-white/20"
+```
