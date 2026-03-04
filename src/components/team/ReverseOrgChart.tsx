@@ -88,6 +88,13 @@ const POSITION_LABELS: Record<string, string> = {
   appointment_coordinator: "Appointment Coordinator",
 };
 
+const ADVISOR_GROUP = ["advisor", "express_advisor", "internal_advisor", "quick_lane_advisor"];
+
+function getClusterGroupKey(pos: string): string {
+  if (ADVISOR_GROUP.includes(pos)) return "advisor_group";
+  return pos;
+}
+
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -117,20 +124,23 @@ function buildClusterMap(roots: TreeNode[]): Map<string, LeafCluster> {
     const leafByPos: Record<string, TreeNode[]> = {};
     node.children.forEach((child) => {
       if (child.children.length === 0) {
-        if (!leafByPos[child.member.position]) leafByPos[child.member.position] = [];
-        leafByPos[child.member.position].push(child);
+        const key = getClusterGroupKey(child.member.position);
+        if (!leafByPos[key]) leafByPos[key] = [];
+        leafByPos[key].push(child);
       } else {
         walk(child);
       }
     });
 
-    Object.entries(leafByPos).forEach(([pos, group]) => {
+    Object.entries(leafByPos).forEach(([key, group]) => {
       if (group.length >= 2) {
-        const id = `cluster_${node.member.id}_${pos}`;
+        const id = `cluster_${node.member.id}_${key}`;
+        // Use "advisor" as the display position for the advisor group (for border color)
+        const displayPos = key === "advisor_group" ? "advisor" : key;
         clusters.set(id, {
           id,
           parentId: node.member.id,
-          position: pos,
+          position: displayPos,
           members: group.map((n) => n.member),
         });
       }
@@ -191,8 +201,9 @@ function getSubtreeLeafWidth(node: TreeNode, clusterMap: Map<string, LeafCluster
 
   node.children.forEach((child) => {
     if (child.children.length === 0) {
-      if (!leafByPos[child.member.position]) leafByPos[child.member.position] = [];
-      leafByPos[child.member.position].push(child);
+      const key = getClusterGroupKey(child.member.position);
+      if (!leafByPos[key]) leafByPos[key] = [];
+      leafByPos[key].push(child);
     } else {
       nonLeafChildren.push(child);
     }
@@ -228,8 +239,9 @@ function layoutTree(roots: TreeNode[], clusterMap: Map<string, LeafCluster>): {
 
     node.children.forEach((child) => {
       if (child.children.length === 0) {
-        if (!leafByPos[child.member.position]) leafByPos[child.member.position] = [];
-        leafByPos[child.member.position].push(child);
+        const key = getClusterGroupKey(child.member.position);
+        if (!leafByPos[key]) leafByPos[key] = [];
+        leafByPos[key].push(child);
       } else {
         nonLeafChildren.push(child);
       }
@@ -247,10 +259,10 @@ function layoutTree(roots: TreeNode[], clusterMap: Map<string, LeafCluster>): {
     const allSlotCount = sortedPosKeys.length + nonLeafChildren.length;
     let slotIndex = 0;
 
-    sortedPosKeys.forEach((pos) => {
-      const group = leafByPos[pos];
+    sortedPosKeys.forEach((key) => {
+      const group = leafByPos[key];
       if (group.length >= 2) {
-        const clusterId = `cluster_${node.member.id}_${pos}`;
+        const clusterId = `cluster_${node.member.id}_${key}`;
         clusterPos.set(clusterId, offset + CLUSTER_SLOT_WIDTH / 2);
         offset += CLUSTER_SLOT_WIDTH;
       } else {
@@ -275,10 +287,10 @@ function layoutTree(roots: TreeNode[], clusterMap: Map<string, LeafCluster>): {
     // Center the parent over ALL children (clusters + non-leaf)
     const allXPositions: number[] = [];
 
-    sortedPosKeys.forEach((pos) => {
-      const group = leafByPos[pos];
+    sortedPosKeys.forEach((key) => {
+      const group = leafByPos[key];
       if (group.length >= 2) {
-        const clusterId = `cluster_${node.member.id}_${pos}`;
+        const clusterId = `cluster_${node.member.id}_${key}`;
         allXPositions.push(clusterPos.get(clusterId)!);
       } else {
         group.forEach((child) => allXPositions.push(posMap.get(child)!));
