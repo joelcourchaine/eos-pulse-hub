@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, AlertCircle, Loader2, UserPlus, Settings, Copy, CheckCheck } from "lucide-react";
+import { Check, AlertCircle, Loader2, UserPlus, Copy, CheckCheck } from "lucide-react";
 import {
   TechnicianHoursParseResult,
   TechnicianData,
@@ -46,14 +46,7 @@ interface NewUserForm {
   isSubmitting: boolean;
 }
 
-// KPI label options
-const SOLD_HOURS_OPTIONS = [
-  { value: "open_and_closed_hours", label: "Open and Closed Hours" },
-  { value: "closed_hours", label: "Closed Hours" },
-] as const;
-
-const getSoldHrsKpiName = (label: string) =>
-  label === "open_and_closed_hours" ? "Open and Closed Hours" : "Closed Hours";
+const SOLD_HRS_KPI_NAME = "Open and Closed Hours";
 
 export const TechnicianImportPreviewDialog = ({
   open,
@@ -71,29 +64,12 @@ export const TechnicianImportPreviewDialog = ({
   const [mappings, setMappings] = useState<TechMapping[]>([]);
   const mappingsRef = useRef<TechMapping[]>([]);
   useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
-  const [soldHrsLabel, setSoldHrsLabel] = useState<string>("closed_hours");
-  const [labelSaved, setLabelSaved] = useState(false);
   const [debugCopied, setDebugCopied] = useState(false);
   const [newUserForm, setNewUserForm] = useState<NewUserForm>({
     techIndex: null,
     fullName: "",
     email: "",
     isSubmitting: false,
-  });
-
-  // Fetch department to get saved technician_sold_hours_label
-  const { data: department } = useQuery({
-    queryKey: ["department-tech-label", departmentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("departments")
-        .select("id, technician_sold_hours_label")
-        .eq("id", departmentId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: open && !!departmentId,
   });
 
   // Fetch store users (technicians preferred)
@@ -124,14 +100,6 @@ export const TechnicianImportPreviewDialog = ({
     },
     enabled: open && !!storeId,
   });
-
-  // Set sold hours label from saved department preference
-  useEffect(() => {
-    if (department?.technician_sold_hours_label) {
-      setSoldHrsLabel(department.technician_sold_hours_label);
-      setLabelSaved(true);
-    }
-  }, [department]);
 
   const hasInitialized = useRef(false);
 
@@ -176,21 +144,6 @@ export const TechnicianImportPreviewDialog = ({
 
     setMappings(initialMappings);
   }, [open, parseResult.technicians, userAliases]);
-
-  const saveLabelMutation = useMutation({
-    mutationFn: async (label: string) => {
-      const { error } = await supabase
-        .from("departments")
-        .update({ technician_sold_hours_label: label })
-        .eq("id", departmentId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      setLabelSaved(true);
-      queryClient.invalidateQueries({ queryKey: ["department-tech-label", departmentId] });
-      toast({ title: "KPI label preference saved" });
-    },
-  });
 
   const createUserMutation = useMutation({
     mutationFn: async ({ fullName, email }: { fullName: string; email: string }) => {
@@ -263,16 +216,6 @@ export const TechnicianImportPreviewDialog = ({
       const { data: userData } = await supabase.auth.getUser();
       const currentUserId = userData.user?.id;
 
-      const kpiLabel = getSoldHrsKpiName(soldHrsLabel);
-
-      // Save label to department if not saved yet
-      if (!labelSaved) {
-        await supabase
-          .from("departments")
-          .update({ technician_sold_hours_label: soldHrsLabel })
-          .eq("id", departmentId);
-      }
-
       // Upload file
       let reportFilePath: string | null = null;
       if (file) {
@@ -324,7 +267,7 @@ export const TechnicianImportPreviewDialog = ({
             aggregation_type: "sum",
           },
           {
-            name: kpiLabel,
+            name: SOLD_HRS_KPI_NAME,
             metric_type: "unit",
             target_direction: "above",
             aggregation_type: "sum",
@@ -374,7 +317,7 @@ export const TechnicianImportPreviewDialog = ({
         }
 
         const availableId = kpiIdMap["Available Hours"];
-        const soldId = kpiIdMap[kpiLabel];
+        const soldId = kpiIdMap[SOLD_HRS_KPI_NAME];
         const productiveId = kpiIdMap["Productivity"];
 
         // Collect weekly entries for batch upsert
@@ -496,46 +439,6 @@ export const TechnicianImportPreviewDialog = ({
 
         <ScrollArea className="flex-1 min-h-0 pr-2">
           <div className="space-y-5">
-            {/* Sold Hours KPI Label Setting */}
-            <div className="rounded-lg border p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                Sold Hours KPI Name
-                {labelSaved && (
-                  <Badge variant="secondary" className="text-xs ml-auto">
-                    <Check className="h-3 w-3 mr-1" /> Saved for this department
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Select value={soldHrsLabel} onValueChange={(v) => { setSoldHrsLabel(v); setLabelSaved(false); }}>
-                  <SelectTrigger className="w-[260px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOLD_HOURS_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!labelSaved && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => saveLabelMutation.mutate(soldHrsLabel)}
-                    disabled={saveLabelMutation.isPending}
-                  >
-                    {saveLabelMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save preference"}
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                This sets the KPI name used for sold/productive hours. It will be remembered for future imports.
-              </p>
-            </div>
-
             {/* Debug panel — shown only when 0 technicians detected */}
             {parseResult.technicians.length === 0 && parseResult.debugInfo && (() => {
               const d = parseResult.debugInfo!;
@@ -731,7 +634,7 @@ export const TechnicianImportPreviewDialog = ({
                       <tr className="text-muted-foreground border-b">
                         <th className="text-left py-1 pr-3">Week starting</th>
                         <th className="text-right py-1 pr-3">Available Hrs</th>
-                        <th className="text-right py-1 pr-3">{getSoldHrsKpiName(soldHrsLabel)}</th>
+                        <th className="text-right py-1 pr-3">{SOLD_HRS_KPI_NAME}</th>
                         <th className="text-right py-1">Productive %</th>
                       </tr>
                     </thead>
