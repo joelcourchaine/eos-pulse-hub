@@ -23,6 +23,8 @@ import {
   Flag,
   Trash2,
   Upload,
+  Mail,
+  Send,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -447,6 +449,10 @@ const ScorecardGrid = ({
   const [scrollbarRect, setScrollbarRect] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
   const [scrollWidthDebug, setScrollWidthDebug] = useState(0);
   const [scrollClientWidthDebug, setScrollClientWidthDebug] = useState(0);
+  const [emailPopoverOpen, setEmailPopoverOpen] = useState(false);
+  const [emailRoleFilter, setEmailRoleFilter] = useState<string>("service_advisor");
+  const [emailCustomRecipients, setEmailCustomRecipients] = useState<string>("");
+  const [emailSending, setEmailSending] = useState(false);
 
   const currentQuarterInfo = getQuarterInfo(new Date());
   const isQuarterTrendMode = quarter === 0;
@@ -3503,6 +3509,36 @@ const ScorecardGrid = ({
     return { currentWeekNum, weeksWithData, totalGreen, totalYellow, totalRed, totalEntries, progressPct, qStartLabel, qEndLabel };
   })();
 
+  const handleSendEmailFromGrid = async () => {
+    const emails = emailCustomRecipients.split(/[,;]/).map(e => e.trim()).filter(e => e.includes("@"));
+    if (emails.length === 0) {
+      toast({ title: "No valid emails", description: "Enter at least one valid email address", variant: "destructive" });
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.functions.invoke("send-scorecard-email", {
+        body: {
+          departmentId,
+          year,
+          quarter,
+          mode: "weekly",
+          recipientEmails: emails,
+          roleFilter: emailRoleFilter,
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Email sent!", description: `Scorecard emailed to ${emails.length} recipient(s)` });
+      setEmailPopoverOpen(false);
+      setEmailCustomRecipients("");
+    } catch (err: any) {
+      toast({ title: "Failed to send", description: err.message || "An error occurred", variant: "destructive" });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   return (
     <div className="space-y-2">
       {/* Single unified top bar */}
@@ -3713,6 +3749,54 @@ const ScorecardGrid = ({
                     {saving["bulk-recalc"] ? "Recalculating..." : "Recalculate All"}
                   </Button>
                 </>
+              )}
+              {/* Email scorecard button — always visible when in weekly view with KPIs */}
+              {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
+                <Popover open={emailPopoverOpen} onOpenChange={(open) => { setEmailPopoverOpen(open); if (open) { setEmailRoleFilter(selectedRoleFilter); } else { setEmailCustomRecipients(""); } }}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                      <Mail className="h-3.5 w-3.5" />
+                      Email
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 bg-background z-50" align="end">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-semibold text-sm">Email Scorecard</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">Send the 13-week scorecard report</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="email-role-filter" className="text-xs">Role</Label>
+                        <Select value={emailRoleFilter} onValueChange={setEmailRoleFilter}>
+                          <SelectTrigger id="email-role-filter" className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background z-50">
+                            <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                            <SelectItem value="technician">Technician</SelectItem>
+                            <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
+                            <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
+                            <SelectItem value="department_manager">Department Manager</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="email-recipients" className="text-xs">Recipients</Label>
+                        <Input
+                          id="email-recipients"
+                          placeholder="email@example.com, another@example.com"
+                          value={emailCustomRecipients}
+                          onChange={(e) => setEmailCustomRecipients(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                        <p className="text-[10px] text-muted-foreground">Comma-separated email addresses</p>
+                      </div>
+                      <Button size="sm" className="w-full h-8 gap-1.5 text-xs" onClick={handleSendEmailFromGrid} disabled={emailSending || !emailCustomRecipients.trim()}>
+                        {emailSending ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Sending...</> : <><Send className="h-3.5 w-3.5" />Send Report</>}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               )}
             </>
           )}

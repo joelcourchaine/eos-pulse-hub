@@ -13,6 +13,7 @@ interface EmailRequest {
   mode: "weekly" | "monthly" | "yearly" | "quarterly-trend";
   departmentId: string;
   recipientEmails?: string[];
+  roleFilter?: string;
 }
 
 const YEAR_STARTS: Record<number, string> = {
@@ -218,7 +219,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Unauthorized");
     }
 
-    const { year, quarter, mode, departmentId, recipientEmails }: EmailRequest = await req.json();
+    const { year, quarter, mode, departmentId, recipientEmails, roleFilter }: EmailRequest = await req.json();
 
     console.log("Fetching scorecard data for email...", { year, quarter, mode, departmentId, recipientEmails });
     
@@ -564,6 +565,27 @@ const handler = async (req: Request): Promise<Response> => {
       kpisByOwner.get(ownerId)!.push(kpi);
     });
 
+    // Apply roleFilter if provided: fetch user_roles and filter owners by role
+    if (roleFilter && roleFilter !== "all") {
+      const allOwnerIds = Array.from(kpisByOwner.keys()).filter(id => id !== "unassigned");
+      if (allOwnerIds.length > 0) {
+        const { data: userRolesData } = await supabaseClient
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", allOwnerIds);
+        
+        const usersWithRole = new Set(
+          userRolesData?.filter(ur => ur.role === roleFilter).map(ur => ur.user_id) || []
+        );
+        
+        for (const ownerId of Array.from(kpisByOwner.keys())) {
+          if (ownerId !== "unassigned" && !usersWithRole.has(ownerId)) {
+            kpisByOwner.delete(ownerId);
+          }
+        }
+      }
+    }
+
     // Build HTML
     const reportTitle = mode === "yearly" 
       ? `${year} Annual Report`
@@ -572,57 +594,139 @@ const handler = async (req: Request): Promise<Response> => {
       : `Q${quarter} ${year}`;
     const reportType = mode === "weekly" ? "Weekly" : mode === "yearly" ? "Yearly" : mode === "quarterly-trend" ? "Quarterly Trend" : "Monthly";
     
-    // Helper function to convert cell class to inline style (for email forwarding compatibility)
-    const getCellStyle = (cellClass: string, baseFontSize: string): string => {
-      const baseStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
+    // Helper function to convert cell class to inline style
+    const getCellStyle = (cellClass: string, baseFontSize: string, isWeekly = false): string => {
+      const baseStyle = `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize}; font-weight: 600;`;
+      if (isWeekly) {
+        switch (cellClass) {
+          case "green": return `${baseStyle} background-color: #059669; color: #ffffff;`;
+          case "yellow": return `${baseStyle} background-color: #d97706; color: #ffffff;`;
+          case "red": return `${baseStyle} background-color: #dc2626; color: #ffffff;`;
+          default: return `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize}; background-color: #f8fafc; color: #64748b;`;
+        }
+      }
       switch (cellClass) {
-        case "green": return `${baseStyle} background-color: #efe;`;
-        case "yellow": return `${baseStyle} background-color: #ffc;`;
-        case "red": return `${baseStyle} background-color: #fee;`;
-        default: return baseStyle;
+        case "green": return `${baseStyle} background-color: #d1fae5; color: #065f46;`;
+        case "yellow": return `${baseStyle} background-color: #fef3c7; color: #92400e;`;
+        case "red": return `${baseStyle} background-color: #fee2e2; color: #991b1b;`;
+        default: return `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize};`;
       }
     };
     
     const baseFontSize = mode === "yearly" ? "9px" : "11px";
+    const isWeeklyMode = mode === "weekly";
+    
+    // Navy styles for weekly mode  
+    const navyBg = "#1e2d47";
+    const navyHeaderStyle = `background-color: ${navyBg}; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: left; border: 1px solid #2d3f5e; white-space: nowrap;`;
+    const navyTargetStyle = `background-color: ${navyBg}; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #2d3f5e; white-space: nowrap;`;
+    const weekHeaderStyle = `background-color: #e2e8f0; color: #1e293b; padding: 4px 6px; font-size: 10px; font-weight: 700; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;`;
+    const kpiNameStyle = `background-color: #f8fafc; padding: 5px 8px; font-size: ${baseFontSize}; font-weight: 600; text-align: left; border: 1px solid #d1d5db; color: #1e293b; white-space: nowrap; max-width: 160px; overflow: hidden;`;
+    const qtotalHeaderStyle = `background-color: #334155; color: #ffffff; padding: 4px 6px; font-size: 10px; font-weight: 700; text-align: center; border: 1px solid #475569;`;
+    const qtotalCellStyle = `background-color: #f1f5f9; color: #1e293b; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #cbd5e1;`;
+    
     const thStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize}; background-color: #f4f4f4; font-weight: bold;`;
     const tdStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
-    
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head></head>
-      <body style="font-family: Arial, sans-serif; margin: 20px;">
-        <h1 style="color: #333;">${deptData.stores?.name || "Store"} - ${deptData.name} Scorecard</h1>
-        <p><strong>${reportTitle}</strong> | <strong>${reportType} View</strong></p>
-        ${directorNotes ? `
-        <div style="background-color: #f9f9f9; border-left: 4px solid #2563eb; padding: 12px 16px; margin: 20px 0;">
-          <h3 style="margin: 0 0 8px 0; color: #2563eb; font-size: 14px;">Director's Notes</h3>
-          <p style="margin: 0; line-height: 1.6; white-space: pre-wrap;">${directorNotes}</p>
-        </div>
-        ` : ''}
-    `;
+
+    // Compute summary stats for weekly mode header
+    let weeksWithData = 0;
+    let totalCells = 0;
+    let greenCells = 0;
+    if (isWeeklyMode && kpis && entries) {
+      const weekDates = periods.map((p: any) => 'start' in p ? p.start.toISOString().split('T')[0] : null).filter(Boolean);
+      const weeksSet = new Set<string>();
+      for (const entry of entries) {
+        if (entry.week_start_date && entry.actual_value !== null) weeksSet.add(entry.week_start_date);
+      }
+      weeksWithData = weeksSet.size;
+
+      for (const kpi of (kpis || [])) {
+        const targetValue = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+        for (const wDate of weekDates) {
+          const entry = entries.find((e: any) => e.kpi_id === kpi.id && e.week_start_date === wDate);
+          if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue && targetValue !== 0) {
+            totalCells++;
+            const variance = kpi.metric_type === "percentage"
+              ? entry.actual_value - targetValue
+              : ((entry.actual_value - targetValue) / Math.abs(targetValue)) * 100;
+            if (kpi.target_direction === "above" ? variance >= 0 : variance <= 0) greenCells++;
+          }
+        }
+      }
+    }
+    const greenRate = totalCells > 0 ? Math.round((greenCells / totalCells) * 100) : 0;
+
+    const storeName = deptData.stores?.name || "Store";
+    const deptName = deptData.name;
+
+    let html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
+<body style="font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 16px; background-color: #f1f5f9;">
+<div style="max-width: 1200px; margin: 0 auto;">`;
+
+    if (isWeeklyMode) {
+      html += `
+  <!-- Navy header banner -->
+  <div style="background-color: ${navyBg}; color: #ffffff; padding: 20px 24px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
+    <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">${storeName} — ${deptName} Scorecard</div>
+    <div style="margin-top: 10px; display: flex; gap: 24px; flex-wrap: wrap;">
+      <span style="background-color: rgba(255,255,255,0.12); border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600;">${reportTitle} · 13 weeks</span>
+      <span style="background-color: rgba(255,255,255,0.12); border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600;">Weeks Entered: ${weeksWithData}/13</span>
+      <span style="background-color: ${greenRate >= 70 ? '#059669' : greenRate >= 40 ? '#d97706' : '#dc2626'}; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 700;">🎯 ${greenRate}% Green Rate</span>
+    </div>
+  </div>`;
+    } else {
+      html += `
+  <div style="background-color: ${navyBg}; color: #ffffff; padding: 18px 24px; border-radius: 8px 8px 0 0;">
+    <div style="font-size: 18px; font-weight: 800;">${storeName} — ${deptName}</div>
+    <div style="margin-top: 6px; font-size: 13px; color: rgba(255,255,255,0.75);">${reportTitle} · ${reportType} View</div>
+  </div>`;
+    }
+
+    // Director's Notes
+    if (directorNotes) {
+      html += `
+  <div style="background-color: #ffffff; border-left: 4px solid #2563eb; padding: 14px 18px; margin: 16px 0; border-radius: 0 4px 4px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+    <div style="font-size: 12px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Director's Notes</div>
+    <div style="font-size: 13px; line-height: 1.6; color: #374151; white-space: pre-wrap;">${directorNotes}</div>
+  </div>`;
+    }
 
     // Add KPI tables
     Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
       const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
-      html += `<h2 style="color: #666; margin-top: 30px;">${ownerName}</h2><table style="border-collapse: collapse; width: 100%; margin-top: 10px;"><thead><tr><th style="${thStyle}">KPI</th><th style="${thStyle}">Target</th>`;
       
-      periods.forEach(p => {
-        html += `<th style="${thStyle}">${p.label}</th>`;
-      });
-      
-      // Add Avg and Total columns for yearly/monthly/quarterly-trend modes
-      if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
-        html += `<th style="${thStyle} background-color: #e8e8e8;">Avg</th>`;
-        html += `<th style="${thStyle} background-color: #e0e0e0;">Total</th>`;
+      if (isWeeklyMode) {
+        html += `
+  <div style="margin-top: 20px; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">
+    <div style="background-color: #2d3f5e; color: #ffffff; padding: 10px 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.2px;">
+      ${ownerName}
+    </div>
+    <div style="overflow-x: auto;">
+    <table style="border-collapse: collapse; width: 100%; min-width: 900px;"><thead><tr>
+      <th style="${navyHeaderStyle} min-width: 140px;">KPI</th>
+      <th style="${navyTargetStyle} min-width: 60px;">Target</th>`;
+        periods.forEach((p: any, i: number) => {
+          html += `<th style="${weekHeaderStyle} min-width: 55px;">WK ${i + 1}<br/><span style="font-size: 9px; font-weight: 500; color: #64748b;">${p.label}</span></th>`;
+        });
+        html += `<th style="${qtotalHeaderStyle} min-width: 65px;">Q-Total</th></tr></thead><tbody>`;
+      } else {
+        html += `<h2 style="color: #374151; margin-top: 28px; margin-bottom: 4px; font-size: 14px; font-weight: 700;">${ownerName}</h2>`;
+        html += `<table style="border-collapse: collapse; width: 100%; margin-top: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-radius: 4px; overflow: hidden;"><thead><tr><th style="${thStyle}">KPI</th><th style="${thStyle}">Target</th>`;
+        periods.forEach((p: any) => {
+          html += `<th style="${thStyle}">${p.label}</th>`;
+        });
+        if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
+          html += `<th style="${thStyle} background-color: #e8e8e8;">Avg</th>`;
+          html += `<th style="${thStyle} background-color: #e0e0e0;">Total</th>`;
+        }
+        html += `</tr></thead><tbody>`;
       }
-      html += `</tr></thead><tbody>`;
 
-      ownerKpis.forEach(kpi => {
-        // For yearly mode, show all quarterly targets compactly; for other modes, show single target
+      ownerKpis.forEach((kpi: any) => {
         let displayTarget = '';
         if (mode === "yearly") {
-          // Show all quarterly targets horizontally separated by slashes
           const q1 = kpiTargetsByQuarter.get(kpi.id)?.get(1) || kpi.target_value;
           const q2 = kpiTargetsByQuarter.get(kpi.id)?.get(2) || kpi.target_value;
           const q3 = kpiTargetsByQuarter.get(kpi.id)?.get(3) || kpi.target_value;
@@ -632,48 +736,41 @@ const handler = async (req: Request): Promise<Response> => {
           const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
           displayTarget = formatValue(target, kpi.metric_type, kpi.name);
         }
+
+        if (isWeeklyMode) {
+          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 60px;">${displayTarget}</td>`;
+        } else {
+          html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle} font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
+        }
         
-        html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle} font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
-        
-        // Collect values for Avg/Total calculation
         const periodValues: number[] = [];
         
-        periods.forEach(p => {
-          // Handle quarterly-trend mode by aggregating monthly entries for each quarter
+        periods.forEach((p: any) => {
           if (mode === "quarterly-trend" && 'months' in p) {
-            // Aggregate monthly KPI values for this quarter
             const quarterMonths = p.months as string[];
             let quarterSum = 0;
             let monthCount = 0;
-            
             for (const monthId of quarterMonths) {
-              const monthEntry = entries?.find(e => e.kpi_id === kpi.id && e.month === monthId);
+              const monthEntry = entries?.find((e: any) => e.kpi_id === kpi.id && e.month === monthId);
               if (monthEntry?.actual_value !== null && monthEntry?.actual_value !== undefined) {
                 quarterSum += monthEntry.actual_value;
                 monthCount++;
               }
             }
-            
-            // Calculate quarterly value based on aggregation type
             const quarterValue = monthCount > 0 
               ? (kpi.aggregation_type === 'average' ? quarterSum / monthCount : quarterSum)
               : null;
-            
-            // Get target for this quarter
             const qPeriod = p as { year: number; quarter: number };
             let targetValue = kpi.target_value;
             if (kpiTargetsByQuarter.has(kpi.id)) {
               targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(qPeriod.quarter) || kpi.target_value;
             }
-            
-            // Calculate status
             let cellClass = "";
             if (quarterValue !== null && targetValue !== null && targetValue !== 0) {
               const direction = kpi.target_direction;
               const variance = kpi.metric_type === "percentage"
                 ? quarterValue - targetValue
                 : ((quarterValue - targetValue) / Math.abs(targetValue)) * 100;
-              
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
                 else if (variance >= -10) cellClass = "yellow";
@@ -683,54 +780,38 @@ const handler = async (req: Request): Promise<Response> => {
                 else if (variance <= 10) cellClass = "yellow";
                 else cellClass = "red";
               }
-              
               periodValues.push(quarterValue);
             } else if (quarterValue !== null) {
               periodValues.push(quarterValue);
             }
-            
-            html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(quarterValue, kpi.metric_type, kpi.name)}</td>`;
+            html += `<td style="${getCellStyle(cellClass, baseFontSize, false)}">${formatValue(quarterValue, kpi.metric_type, kpi.name)}</td>`;
           } else {
-            // Original logic for weekly/monthly/yearly modes
-            const entry = entries?.find(e => {
+            const entry = entries?.find((e: any) => {
               if (mode === "weekly" && 'start' in p) {
-                return e.kpi_id === kpi.id && 
-                       e.week_start_date === p.start.toISOString().split('T')[0];
+                return e.kpi_id === kpi.id && e.week_start_date === p.start.toISOString().split('T')[0];
               } else if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
                 return e.kpi_id === kpi.id && e.month === p.identifier;
               }
               return false;
             });
-
-            // Determine target value based on mode
             let targetValue = kpi.target_value;
             if (mode === "yearly" && 'identifier' in p) {
-              // Get quarter from month identifier
               const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
               const periodQuarter = Math.ceil((monthIndex + 1) / 3);
-              
               if (kpiTargetsByQuarter.has(kpi.id)) {
                 targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
               }
             } else if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
               targetValue = kpiTargetsMap.get(kpi.id)!;
             }
-
-            // Calculate status if we have an entry with a value
-            // UNIVERSAL LOGIC: target value of 0 means "no target" - no status indicator
             let cellClass = "";
             if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
               const actualValue = entry.actual_value;
               const direction = kpi.target_direction;
-              
-              // Collect for summary
               periodValues.push(actualValue);
-              
-              // UNIVERSAL VARIANCE CALCULATION: percentage types use direct subtraction, others use percentage change
               const variance = kpi.metric_type === "percentage"
                 ? actualValue - targetValue
                 : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
-              
               if (direction === "above") {
                 if (variance >= 0) cellClass = "green";
                 else if (variance >= -10) cellClass = "yellow";
@@ -741,42 +822,41 @@ const handler = async (req: Request): Promise<Response> => {
                 else cellClass = "red";
               }
             } else {
-              // Still collect value if present, even without target
               if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
                 periodValues.push(entry.actual_value);
               }
             }
-            
-            html += `<td style="${getCellStyle(cellClass, baseFontSize)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
+            html += `<td style="${getCellStyle(cellClass, baseFontSize, isWeeklyMode)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
           }
         });
         
-        // Add Avg and Total columns for yearly/monthly/quarterly-trend modes
-        // MUST match UI logic in ScorecardGrid.tsx exactly:
-        // - Avg column always shows average
-        // - Total column: shows average if aggregation_type === 'average', otherwise shows sum
-        if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
+        if (isWeeklyMode) {
+          // Q-Total column
+          const shouldAvg = kpi.aggregation_type === 'average';
+          const qTotal = periodValues.length > 0
+            ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
+            : null;
+          html += `<td style="${qtotalCellStyle}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td>`;
+        } else if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
           const avg = periodValues.length > 0 
             ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
             : null;
-          
-          // Match UI: use aggregation_type to determine Total display
-          // For aggregation_type 'average' (percentages, rates), Total = Avg
-          // For aggregation_type 'sum' (units, dollars), Total = Sum
           const shouldShowAvgAsTotal = kpi.aggregation_type === 'average';
           const total = periodValues.length > 0 
-            ? shouldShowAvgAsTotal
-              ? avg
-              : periodValues.reduce((sum, v) => sum + v, 0)
+            ? shouldShowAvgAsTotal ? avg : periodValues.reduce((sum, v) => sum + v, 0)
             : null;
-          
           html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
           html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
         }
         
         html += `</tr>`;
       });
-      html += `</tbody></table>`;
+
+      if (isWeeklyMode) {
+        html += `</tbody></table></div></div>`;
+      } else {
+        html += `</tbody></table>`;
+      }
     });
 
     // Add financial metrics for monthly, yearly, and quarterly-trend modes
@@ -1247,7 +1327,18 @@ const handler = async (req: Request): Promise<Response> => {
       html += `</tbody></table>`;
     }
 
-    html += `</body></html>`;
+    // Legend footer for weekly mode
+    if (isWeeklyMode) {
+      html += `
+  <div style="margin-top: 24px; padding: 12px 16px; background-color: #ffffff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+    <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Legend:</span>
+    <span style="font-size: 12px; color: #065f46;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #059669; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>At or Above Target</span>
+    <span style="font-size: 12px; color: #92400e;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #d97706; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Within 10% of Target</span>
+    <span style="font-size: 12px; color: #991b1b;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #dc2626; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Below Target (&gt;10%)</span>
+  </div>`;
+    }
+
+    html += `</div></body></html>`;
 
     // Send email using Resend API directly
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
