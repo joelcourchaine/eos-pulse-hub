@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,6 +67,8 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
   const [editingIssueNotes, setEditingIssueNotes] = useState<{ [id: string]: string }>({});
   const [editingTodoNotes, setEditingTodoNotes] = useState<{ [id: string]: string }>({});
   const { toast } = useToast();
+  const draggedIssueRef = useRef<Issue | null>(null);
+  const droppedOnTodosRef = useRef(false);
 
   useEffect(() => {
     if (departmentId) {
@@ -185,19 +187,21 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
   };
 
   const handleDragStart = (issue: Issue) => {
+    draggedIssueRef.current = issue;
     setDraggedIssue(issue);
   };
 
   const handleDragOver = (e: React.DragEvent, targetIssue: Issue) => {
     e.preventDefault();
-    if (!draggedIssue || draggedIssue.id === targetIssue.id) return;
+    const current = draggedIssueRef.current;
+    if (!current || current.id === targetIssue.id) return;
 
     const newIssues = [...issues];
-    const draggedIndex = newIssues.findIndex(i => i.id === draggedIssue.id);
+    const draggedIndex = newIssues.findIndex(i => i.id === current.id);
     const targetIndex = newIssues.findIndex(i => i.id === targetIssue.id);
 
     newIssues.splice(draggedIndex, 1);
-    newIssues.splice(targetIndex, 0, draggedIssue);
+    newIssues.splice(targetIndex, 0, current);
 
     const updatedIssues = newIssues.map((issue, index) => ({
       ...issue,
@@ -208,7 +212,15 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
   };
 
   const handleDragEnd = async () => {
-    if (!draggedIssue) return;
+    // If dropped on the To-Dos panel, that handler already took care of everything
+    if (droppedOnTodosRef.current) {
+      droppedOnTodosRef.current = false;
+      draggedIssueRef.current = null;
+      setDraggedIssue(null);
+      return;
+    }
+
+    if (!draggedIssueRef.current) return;
 
     try {
       const updates = issues.map((issue) => ({
@@ -228,6 +240,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
       toast({ variant: "destructive", title: "Error", description: getUserFriendlyError(error) });
       loadIssues();
     } finally {
+      draggedIssueRef.current = null;
       setDraggedIssue(null);
     }
   };
@@ -528,19 +541,19 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
             </div>
             <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}
               onDragOver={(e) => {
-                if (draggedIssue) {
-                  e.preventDefault();
-                  setIsDragOverTodos(true);
-                }
+                e.preventDefault();
+                setIsDragOverTodos(true);
               }}
               onDragLeave={() => setIsDragOverTodos(false)}
               onDrop={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                const issue = draggedIssueRef.current;
+                droppedOnTodosRef.current = true;
                 setIsDragOverTodos(false);
-                if (draggedIssue) {
+                if (issue) {
                   setIsSelectedIssueFromDrag(true);
-                  setSelectedIssueForTodo(draggedIssue);
+                  setSelectedIssueForTodo(issue);
                   setDraggedIssue(null);
                 }
               }}
