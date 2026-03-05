@@ -2307,6 +2307,7 @@ const ScorecardGrid = ({
   };
 
   const handleTargetSave = async (kpiId: string) => {
+    setEditingTarget(null);
     const trimmedValue = targetEditValue.trim();
 
     // Empty value means DELETE the target
@@ -2466,6 +2467,7 @@ const ScorecardGrid = ({
   };
 
   const handleTrendTargetSave = async (kpiId: string, targetQuarter: number, targetYear: number) => {
+    setEditingTrendTarget(null);
     const trimmedValue = trendTargetEditValue.trim();
 
     if (trimmedValue === "") {
@@ -4310,28 +4312,19 @@ const ScorecardGrid = ({
                                   }}
                                 >
                                   {canEditTargets() && editingTarget === kpi.id ? (
-                                    <div className="flex items-center justify-center gap-1">
-                                      <Input
-                                        type="number"
-                                        step="any"
-                                        value={targetEditValue}
-                                        onChange={(e) => setTargetEditValue(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") handleTargetSave(kpi.id);
-                                          if (e.key === "Escape") setEditingTarget(null);
-                                        }}
-                                        className="w-20 h-7 text-center text-foreground"
-                                        autoFocus
-                                      />
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => handleTargetSave(kpi.id)}
-                                        className="h-7 px-2 text-primary-foreground hover:bg-white/20"
-                                      >
-                                        ✓
-                                      </Button>
-                                    </div>
+                                    <Input
+                                      type="number"
+                                      step="any"
+                                      value={targetEditValue}
+                                      onChange={(e) => setTargetEditValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") { e.preventDefault(); handleTargetSave(kpi.id); }
+                                        if (e.key === "Escape") setEditingTarget(null);
+                                      }}
+                                      onBlur={() => handleTargetSave(kpi.id)}
+                                      className="w-20 h-7 text-center text-foreground"
+                                      autoFocus
+                                    />
                                   ) : (
                                     <span
                                       className={cn(canEditTargets() && "cursor-pointer hover:opacity-80")}
@@ -4378,30 +4371,20 @@ const ScorecardGrid = ({
                                        key={`target-${latestQuarter}`}
                                        className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[170px] z-10 shadow-[2px_0_4px_rgba(0,0,0,0.05)]"
                                     >
-                                      {canEditTargets() && isEditing ? (
-                                        <div className="flex items-center justify-center gap-1">
-                                          <Input
-                                            type="number"
-                                            step="any"
-                                            value={trendTargetEditValue}
-                                            onChange={(e) => setTrendTargetEditValue(e.target.value)}
-                                            onKeyDown={(e) => {
-                                              if (e.key === "Enter")
-                                                handleTrendTargetSave(kpi.id, targetQuarter, targetYear);
-                                              if (e.key === "Escape") setEditingTrendTarget(null);
-                                            }}
-                                            className="w-16 h-7 text-center text-foreground"
-                                            autoFocus
-                                          />
-                                          <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => handleTrendTargetSave(kpi.id, targetQuarter, targetYear)}
-                                            className="h-7 px-1 text-primary-foreground hover:bg-white/20"
-                                          >
-                                            ✓
-                                          </Button>
-                                        </div>
+                                       {canEditTargets() && isEditing ? (
+                                         <Input
+                                           type="number"
+                                           step="any"
+                                           value={trendTargetEditValue}
+                                           onChange={(e) => setTrendTargetEditValue(e.target.value)}
+                                           onKeyDown={(e) => {
+                                             if (e.key === "Enter") { e.preventDefault(); handleTrendTargetSave(kpi.id, targetQuarter, targetYear); }
+                                             if (e.key === "Escape") setEditingTrendTarget(null);
+                                           }}
+                                           onBlur={() => handleTrendTargetSave(kpi.id, targetQuarter, targetYear)}
+                                           className="w-16 h-7 text-center text-foreground"
+                                           autoFocus
+                                         />
                                       ) : (
                                         <Popover>
                                           <PopoverTrigger asChild>
