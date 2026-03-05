@@ -383,23 +383,37 @@ export const TechnicianImportPreviewDialog = ({
         e => !protectedMonthlyKeys.has(`${e.kpi_id}|${e.month}`)
       );
 
+      // Deduplicate weekly entries — keep last value per kpi_id+week_start_date
+      const weeklyMap = new Map<string, typeof filteredWeekly[0]>();
+      for (const e of filteredWeekly) {
+        weeklyMap.set(`${e.kpi_id}|${e.week_start_date}`, e);
+      }
+      const dedupedWeekly = Array.from(weeklyMap.values());
+
+      // Deduplicate monthly entries — keep last value per kpi_id+month+entry_type
+      const monthlyMap = new Map<string, typeof filteredMonthly[0]>();
+      for (const e of filteredMonthly) {
+        monthlyMap.set(`${e.kpi_id}|${e.month}|${e.entry_type}`, e);
+      }
+      const dedupedMonthly = Array.from(monthlyMap.values());
+
       // Batch upsert weekly entries (500 per batch)
       const BATCH = 500;
-      for (let b = 0; b < filteredWeekly.length; b += BATCH) {
+      for (let b = 0; b < dedupedWeekly.length; b += BATCH) {
         await supabase.from("scorecard_entries").upsert(
-          filteredWeekly.slice(b, b + BATCH),
+          dedupedWeekly.slice(b, b + BATCH),
           { onConflict: "kpi_id,week_start_date" }
         );
-        if (b + BATCH < filteredWeekly.length) await new Promise(r => setTimeout(r, 50));
+        if (b + BATCH < dedupedWeekly.length) await new Promise(r => setTimeout(r, 50));
       }
 
       // Batch upsert monthly entries
-      for (let b = 0; b < filteredMonthly.length; b += BATCH) {
+      for (let b = 0; b < dedupedMonthly.length; b += BATCH) {
         await supabase.from("scorecard_entries").upsert(
-          filteredMonthly.slice(b, b + BATCH),
+          dedupedMonthly.slice(b, b + BATCH),
           { onConflict: "kpi_id,month,entry_type" }
         );
-        if (b + BATCH < filteredMonthly.length) await new Promise(r => setTimeout(r, 50));
+        if (b + BATCH < dedupedMonthly.length) await new Promise(r => setTimeout(r, 50));
       }
 
       // Log the import
