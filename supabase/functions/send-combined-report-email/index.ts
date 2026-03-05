@@ -615,6 +615,7 @@ const handler = async (req: Request): Promise<Response> => {
     // (client sends sections in checkbox-check order via a Set, which is non-deterministic)
     const SECTION_ORDER = ["issues-todos", "scorecard", "top10"] as const;
     const orderedSections = SECTION_ORDER.filter(s => sections.includes(s));
+    const sectionBlocks: string[] = [];
 
     for (const section of orderedSections) {
       if (section === "issues-todos") {
