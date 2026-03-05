@@ -565,17 +565,24 @@ const handler = async (req: Request): Promise<Response> => {
       kpisByOwner.get(ownerId)!.push(kpi);
     });
 
-    // Apply roleFilter if provided: fetch user_roles and filter owners by role
+    // Apply roleFilter if provided: fetch user_roles AND profiles.role as fallback, filter owners by role
     if (roleFilter && roleFilter !== "all") {
       const allOwnerIds = Array.from(kpisByOwner.keys()).filter(id => id !== "unassigned");
       if (allOwnerIds.length > 0) {
-        const { data: userRolesData } = await supabaseClient
-          .from("user_roles")
-          .select("user_id, role")
-          .in("user_id", allOwnerIds);
-        
+        const [{ data: userRolesData }, { data: profileRolesData }] = await Promise.all([
+          supabaseClient.from("user_roles").select("user_id, role").in("user_id", allOwnerIds),
+          supabaseClient.from("profiles").select("id, role").in("id", allOwnerIds),
+        ]);
+
+        // Build merged role map: profiles.role as base, user_roles takes precedence
+        const ownerRoleMap = new Map<string, string>();
+        profileRolesData?.forEach(p => { if (p.role) ownerRoleMap.set(p.id, p.role as string); });
+        userRolesData?.forEach(ur => { ownerRoleMap.set(ur.user_id, ur.role as string); });
+
         const usersWithRole = new Set(
-          userRolesData?.filter(ur => ur.role === roleFilter).map(ur => ur.user_id) || []
+          Array.from(ownerRoleMap.entries())
+            .filter(([, role]) => role === roleFilter)
+            .map(([userId]) => userId)
         );
         
         for (const ownerId of Array.from(kpisByOwner.keys())) {
