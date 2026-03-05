@@ -1,44 +1,47 @@
 
-## The Problem
+## Root Cause
 
-The "Failed to load to-dos" error in `TodosPanel.tsx` has two likely causes working together:
+Two bugs are working against each other:
 
-**1. Hardcoded realtime channel name collision**
-`TodosPanel.tsx` always uses `'todos-realtime'` as the Supabase channel name. If the component re-renders (department switch, page navigation), a new subscription is created while the old one isn't fully cleaned up yet. This causes channel conflicts and failed queries.
+**Bug 1 — `handleDragEnd` clears `draggedIssue` before `onDrop` fires**
+`onDragEnd` is on the draggable issue `<div>`. It always fires when any drag operation ends (including drops onto the To-Dos panel). It calls `setDraggedIssue(null)` in the `finally` block. The browser fires events in this order: `drop` → `dragend`. But because `setDraggedIssue(null)` is inside an `async` function with `await` calls, by the time React flushes state the `drop` handler reads `draggedIssue` as `null`. Even if timing were perfect, the `handleDragEnd` function is also saving issue order to the DB unnecessarily when you're dropping to the To-Dos side.
 
-**2. `setTodos([])` before async fetch creates a visible flicker/error loop**
-The code clears todos immediately (`setTodos([])`) before awaiting the fetch. If the fetch then fails (due to a brief auth token refresh or channel conflict), the error toast fires AND todos stay empty — which looks broken.
+**Bug 2 — `handleDragOver` on each issue card only handles intra-list reordering**
+The drag-over handler on issue cards calls `e.preventDefault()` — but only for the issues list. The To-Dos panel `onDragOver` has its own `e.preventDefault()` but only if `draggedIssue` is truthy. Since state can be stale in closures, this may not reliably allow the drop.
 
-**3. Missing auth session check in `loadTodos`**
-The `loadTodos` in `TodosPanel.tsx` makes no check that the user is authenticated before querying. If the Supabase client is mid-token-refresh, the query gets fired without a valid token → RLS rejects it → error toast.
+## Fix
 
-## The Fix
+**1. Use a `ref` for `draggedIssue` instead of (or in addition to) state**
 
-**In `src/components/todos/TodosPanel.tsx`:**
+Add `draggedIssueRef = useRef<Issue | null>(null)` that's set alongside `setDraggedIssue`. The `onDrop` handler reads from the ref synchronously — immune to React's batched state update timing.
 
-1. **Make the channel name unique** using `departmentId` so it doesn't collide across re-renders:
-   ```typescript
-   .channel(`todos-realtime-${departmentId}`)
-   ```
+**2. Guard `handleDragEnd` to NOT process order-saving when dropping on the To-Dos panel**
 
-2. **Add auth guard to `loadTodos`** — check session exists before querying:
-   ```typescript
-   const { data: { session } } = await supabase.auth.getSession();
-   if (!session) return;
-   ```
+Add a `droppedOnTodosRef = useRef(false)`. In `onDrop` on the To-Dos panel, set `droppedOnTodosRef.current = true` before clearing state. In `handleDragEnd`, check this ref and skip the order-save + toast if it's `true`.
 
-3. **Remove `setTodos([])` before the fetch** — only update state on success, keeping the previous data visible while loading. This prevents the jarring empty→error flash.
+```
+onDrop (To-Dos panel):
+  droppedOnTodosRef.current = true
+  setIsDragOverTodos(false)
+  setIsSelectedIssueFromDrag(true)
+  setSelectedIssueForTodo(draggedIssueRef.current)  ← reads ref, not state
+  setDraggedIssue(null)
 
-4. **Add a debounce to the realtime callback** — use a ref-based debounce (100ms) so rapid-fire realtime events don't stack up multiple simultaneous `loadTodos` calls:
-   ```typescript
-   const realtimeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-   // In the channel callback:
-   if (realtimeTimeoutRef.current) clearTimeout(realtimeTimeoutRef.current);
-   realtimeTimeoutRef.current = setTimeout(() => loadTodos(), 100);
-   ```
+handleDragEnd:
+  if (droppedOnTodosRef.current) {
+    droppedOnTodosRef.current = false
+    setDraggedIssue(null)
+    return   ← skip order save
+  }
+  // ... existing order save logic
+```
+
+**3. Ensure `e.preventDefault()` is always called in To-Dos `onDragOver`**
+
+Remove the `if (draggedIssue)` guard — just always call `e.preventDefault()` and `setIsDragOverTodos(true)`, since the visual indicator is harmless and the conditional was the stale-closure trap.
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `src/components/todos/TodosPanel.tsx` | Unique channel name, auth guard, remove premature clear, debounce realtime |
+| `src/components/issues/IssuesAndTodosPanel.tsx` | Add `draggedIssueRef` + `droppedOnTodosRef`, guard `handleDragEnd`, fix `onDrop` to read ref, always preventDefault in To-Dos onDragOver |
