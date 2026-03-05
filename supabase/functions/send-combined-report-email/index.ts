@@ -204,17 +204,59 @@ function getScorecardPeriods(mode: string, year: number, quarter: number) {
   return months;
 }
 
-async function buildScorecardSection(supabase: any, departmentId: string, year: number, quarter: number, mode: string): Promise<string> {
+async function buildScorecardSection(supabase: any, departmentId: string, year: number, quarter: number, mode: string, roleFilter?: string): Promise<string> {
   const periods = getScorecardPeriods(mode, year, quarter);
   const entryType = mode === "weekly" ? "weekly" : "monthly";
 
-  const { data: kpis } = await supabase
+  const { data: allKpis } = await supabase
     .from("kpi_definitions")
-    .select("id, name, metric_type, target_direction")
+    .select("id, name, metric_type, target_direction, assigned_to")
     .eq("department_id", departmentId)
     .order("display_order");
 
-  if (!kpis?.length) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs configured.</p>`;
+  if (!allKpis?.length) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs configured.</p>`;
+
+  // Apply role filter if specified
+  let kpis = allKpis;
+  if (roleFilter && roleFilter !== "all") {
+    // Collect unique assigned_to user IDs
+    const assignedUserIds = [...new Set(allKpis.map((k: any) => k.assigned_to).filter(Boolean))] as string[];
+    if (assignedUserIds.length > 0) {
+      // Fetch roles for these users (check both user_roles table and profiles.role)
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", assignedUserIds);
+
+      const { data: profileRoles } = await supabase
+        .from("profiles")
+        .select("id, role")
+        .in("id", assignedUserIds);
+
+      // Build a map of userId -> roles[]
+      const roleMap = new Map<string, Set<string>>();
+      (userRoles || []).forEach((ur: any) => {
+        if (!roleMap.has(ur.user_id)) roleMap.set(ur.user_id, new Set());
+        roleMap.get(ur.user_id)!.add(ur.role);
+      });
+      (profileRoles || []).forEach((p: any) => {
+        if (p.role) {
+          if (!roleMap.has(p.id)) roleMap.set(p.id, new Set());
+          roleMap.get(p.id)!.add(p.role);
+        }
+      });
+
+      kpis = allKpis.filter((k: any) => {
+        if (!k.assigned_to) return false;
+        const roles = roleMap.get(k.assigned_to);
+        return roles ? roles.has(roleFilter) : false;
+      });
+    } else {
+      kpis = [];
+    }
+  }
+
+  if (!kpis.length) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs found for the selected role.</p>`;
 
   const kpiIds = kpis.map((k: any) => k.id);
 
@@ -356,6 +398,7 @@ const handler = async (req: Request): Promise<Response> => {
       year = new Date().getFullYear(),
       quarter = Math.ceil((new Date().getMonth() + 1) / 3),
       scorecardMode = "monthly",
+      roleFilter = "all",
       top10ListIds = [],
       clientDate,
     } = body;
@@ -401,7 +444,7 @@ const handler = async (req: Request): Promise<Response> => {
         const html = await buildIssuesTodosSection(supabaseClient, departmentId, profileMap);
         sectionBlocks.push(`<div style="padding: 0 32px;">${html}</div>`);
       } else if (section === "scorecard") {
-        const html = await buildScorecardSection(supabaseClient, departmentId, year, quarter, scorecardMode);
+        const html = await buildScorecardSection(supabaseClient, departmentId, year, quarter, scorecardMode, roleFilter);
         sectionBlocks.push(`<div style="padding: 0 32px;">${html}</div>`);
       } else if (section === "top10") {
         if (top10ListIds.length > 0) {
