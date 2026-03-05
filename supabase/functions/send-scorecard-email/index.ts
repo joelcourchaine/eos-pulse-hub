@@ -677,11 +677,11 @@ const handler = async (req: Request): Promise<Response> => {
   <!-- Navy header banner -->
   <div style="background-color: ${navyBg}; color: #ffffff; padding: 20px 24px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
     <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">${storeName} — ${deptName} Scorecard</div>
-    <div style="margin-top: 10px; display: flex; gap: 24px; flex-wrap: wrap;">
-      <span style="background-color: rgba(255,255,255,0.12); border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600;">${reportTitle} · 13 weeks</span>
-      <span style="background-color: rgba(255,255,255,0.12); border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600;">Weeks Entered: ${weeksWithData}/13</span>
-      <span style="background-color: ${greenRate >= 70 ? '#059669' : greenRate >= 40 ? '#d97706' : '#dc2626'}; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 700;">🎯 ${greenRate}% Green Rate</span>
-    </div>
+    <table style="border-collapse: collapse; margin-top: 10px; width: 100%;"><tr>
+      <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">${reportTitle} · 13 weeks</span></td>
+      <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">Weeks Entered: ${weeksWithData}/13</span></td>
+      <td style="white-space: nowrap;"><span style="background-color: ${greenRate >= 70 ? '#059669' : greenRate >= 40 ? '#d97706' : '#dc2626'}; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #ffffff; display: inline-block;">🎯 ${greenRate}% Green Rate</span></td>
+    </tr></table>
   </div>`;
     } else {
       html += `
