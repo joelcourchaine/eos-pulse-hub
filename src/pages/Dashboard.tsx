@@ -1323,7 +1323,7 @@ const Dashboard = () => {
                         }
                       }}
                     >
-                      <DialogContent className="no-print max-w-xl" aria-describedby="email-description">
+                      <DialogContent className="no-print max-w-xl max-h-[90vh] overflow-y-auto" aria-describedby="email-description">
                         <DialogTitle>Email Scorecard Report</DialogTitle>
                         <div id="email-description" className="sr-only">
                           Send scorecard report via email
