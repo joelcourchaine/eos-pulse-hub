@@ -1,41 +1,35 @@
 
-## Delete Non-Report KPIs from River City Ram Technicians
+## Rename "Closed Hours" → "Open and Closed Hours" Everywhere + Remove Selector UI
 
-Looking at the database, each technician at River City Ram has **6 KPIs**:
-- From the report: `Available Hours`, `Closed Hours`, `Open and Closed Hours`, `Productivity`
-- NOT from the report: `Total Hours`, `Total Labour Sales`
+### What needs to change
 
-The import code only creates/writes to the 3 report-specific KPIs by exact name match — so these extra KPIs don't technically block data from loading. However, cleaning them out is a valid diagnostic step and keeps the scorecard tidy.
+**1. Database — rename existing KPI definitions (data update)**
 
-**The real parsing issue remains** — the parser still isn't finding any technicians in the RAM file. The debug panel we added will confirm the exact layout once the file is re-uploaded.
+There are 27 existing `kpi_definitions` rows named `"Closed Hours"` across 3 stores:
+- 6 at Courtenay Nissan
+- 14 at Steve Marshall Ford
+- 7 at River City Ram
 
----
+These need to be renamed to `"Open and Closed Hours"` via a data UPDATE (not a migration).
 
-### Plan: Remove `Total Hours` and `Total Labour Sales` from technicians at River City Ram
+Also update `departments.technician_sold_hours_label` where it's set to `"closed_hours"` → `"open_and_closed_hours"`.
 
-**No code changes needed** — this is a targeted database cleanup via a migration.
+**2. Code — `src/components/scorecard/TechnicianImportPreviewDialog.tsx`**
 
-**SQL to run:**
+- Remove the `SOLD_HOURS_OPTIONS` array and `getSoldHrsKpiName` function
+- Hardcode `soldHrsLabel` to `"open_and_closed_hours"` (remove `useState` for it)
+- Remove the department query for `technician_sold_hours_label` (no longer needed)
+- Remove the `saveLabelMutation`
+- Remove the entire "Sold Hours KPI Name" UI block (lines 499–537) — the settings panel with the Select dropdown and Save button
+- Replace `getSoldHrsKpiName(soldHrsLabel)` call (line 266) with the hardcoded string `"Open and Closed Hours"`
+- Remove `labelSaved` state
 
-```sql
-DELETE FROM kpi_definitions
-WHERE name IN ('Total Hours', 'Total Labour Sales')
-  AND assigned_to IN (
-    SELECT p.id FROM profiles p
-    JOIN stores s ON s.id = p.store_id
-    WHERE s.name ILIKE '%river city ram%'
-  );
-```
+### Files to change: 1 code + 1 data update
 
-This deletes only those two extra KPI definitions (and their associated `scorecard_entries` will cascade-delete or remain orphaned depending on FK config — I'll check).
-
-I also need to verify whether `scorecard_entries` has a cascade delete on `kpi_id` so no orphan data is left behind.
-
-**After this cleanup:** Re-upload the RAM technician productivity report. The debug panel will show what the parser detected. If 0 technicians still come back, the debug info will tell us the exact column layout of the RAM file so the parser can be fixed precisely.
-
-**Files to change: 0 (DB-only migration)**
-
-| Action | Details |
+| Change | Detail |
 |---|---|
-| Delete KPIs | `Total Hours` and `Total Labour Sales` from all technicians at River City Ram |
-| No code changes | The import flow is unaffected |
+| DB data update | `UPDATE kpi_definitions SET name = 'Open and Closed Hours' WHERE name = 'Closed Hours'` |
+| DB data update | `UPDATE departments SET technician_sold_hours_label = 'open_and_closed_hours' WHERE technician_sold_hours_label = 'closed_hours'` |
+| `TechnicianImportPreviewDialog.tsx` | Remove selector UI, hardcode KPI name to "Open and Closed Hours" |
+
+No migration needed (schema unchanged). No other files reference the KPI name label selection logic.
