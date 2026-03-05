@@ -620,7 +620,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     };
     
-    const baseFontSize = mode === "yearly" ? "9px" : "11px";
+    const baseFontSize = mode === "yearly" || mode === "weekly" ? "9px" : "11px";
     const isWeeklyMode = mode === "weekly";
     
     // Navy styles for weekly mode  
@@ -680,7 +680,6 @@ const handler = async (req: Request): Promise<Response> => {
     <table style="border-collapse: collapse; margin-top: 10px; width: 100%;"><tr>
       <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">${reportTitle} · 13 weeks</span></td>
       <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">Weeks Entered: ${weeksWithData}/13</span></td>
-      <td style="white-space: nowrap;"><span style="background-color: ${greenRate >= 70 ? '#059669' : greenRate >= 40 ? '#d97706' : '#dc2626'}; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: #ffffff; display: inline-block;">🎯 ${greenRate}% Green Rate</span></td>
     </tr></table>
   </div>`;
     } else {
@@ -716,21 +715,21 @@ const handler = async (req: Request): Promise<Response> => {
       });
       html += `<th style="${qtotalHeaderStyle} min-width: 65px;">Q-Total</th></tr></thead><tbody>`;
 
+      // Global totals accumulators across ALL owners
+      const globalWeekTotals: (number | null)[] = periods.map(() => null);
+      const globalWeekCounts: number[] = periods.map(() => 0);
+      let globalQTotalSum = 0;
+      let globalQTotalCount = 0;
+
       Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
         const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
         // Owner separator row
-        html += `<tr><td colspan="${totalCols}" style="background-color: #2d3f5e; color: #ffffff; padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.2px; border: 1px solid #1e2d47;">${ownerName}</td></tr>`;
-
-        // Per-week totals accumulators for Σ Totals row
-        const weekTotals: (number | null)[] = periods.map(() => null);
-        const weekCounts: number[] = periods.map(() => 0);
-        let qTotalSum = 0;
-        let qTotalCount = 0;
+        html += `<tr><td colspan="${totalCols}" style="background-color: #2d3f5e; color: #ffffff; padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.2px; border: 1px solid #1e2d47;">${ownerName}</td></tr>`;
 
         ownerKpis.forEach((kpi: any) => {
           const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
           const displayTarget = formatValue(target, kpi.metric_type, kpi.name);
-          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 60px;">${displayTarget}</td>`;
+          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 55px;">${displayTarget}</td>`;
 
           const periodValues: number[] = [];
 
@@ -745,9 +744,8 @@ const handler = async (req: Request): Promise<Response> => {
             if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
               const actualValue = entry.actual_value;
               periodValues.push(actualValue);
-              // Accumulate for Σ Totals
-              weekTotals[pIdx] = (weekTotals[pIdx] ?? 0) + actualValue;
-              weekCounts[pIdx]++;
+              globalWeekTotals[pIdx] = (globalWeekTotals[pIdx] ?? 0) + actualValue;
+              globalWeekCounts[pIdx]++;
               const variance = kpi.metric_type === "percentage"
                 ? actualValue - targetValue
                 : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
@@ -762,8 +760,8 @@ const handler = async (req: Request): Promise<Response> => {
               }
             } else if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
               periodValues.push(entry.actual_value);
-              weekTotals[pIdx] = (weekTotals[pIdx] ?? 0) + entry.actual_value;
-              weekCounts[pIdx]++;
+              globalWeekTotals[pIdx] = (globalWeekTotals[pIdx] ?? 0) + entry.actual_value;
+              globalWeekCounts[pIdx]++;
             }
             html += `<td style="${getCellStyle(cellClass, baseFontSize, true)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
           });
@@ -773,20 +771,20 @@ const handler = async (req: Request): Promise<Response> => {
           const qTotal = periodValues.length > 0
             ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
             : null;
-          if (qTotal !== null) { qTotalSum += qTotal; qTotalCount++; }
+          if (qTotal !== null) { globalQTotalSum += qTotal; globalQTotalCount++; }
           html += `<td style="${qtotalCellStyle}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td></tr>`;
         });
-
-        // Σ Totals row
-        const totalsRowStyle = `background-color: #1e293b; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #0f172a;`;
-        html += `<tr><td style="${totalsRowStyle} text-align: left; min-width: 140px;">Σ Totals</td><td style="${totalsRowStyle}">—</td>`;
-        weekTotals.forEach((wt, wi) => {
-          const val = wt !== null && weekCounts[wi] > 0 ? wt : null;
-          html += `<td style="${totalsRowStyle}">${val !== null ? Number(val.toFixed(1)).toLocaleString() : '—'}</td>`;
-        });
-        const qGrandTotal = qTotalCount > 0 ? qTotalSum : null;
-        html += `<td style="${totalsRowStyle}">${qGrandTotal !== null ? Number(qGrandTotal.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
       });
+
+      // ONE overall Σ Totals row at the bottom
+      const totalsRowStyle = `background-color: #1e293b; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #0f172a;`;
+      html += `<tr><td style="${totalsRowStyle} text-align: left; min-width: 140px;">Σ Totals</td><td style="${totalsRowStyle}">—</td>`;
+      globalWeekTotals.forEach((wt, wi) => {
+        const val = wt !== null && globalWeekCounts[wi] > 0 ? wt : null;
+        html += `<td style="${totalsRowStyle}">${val !== null ? Number(val.toFixed(1)).toLocaleString() : '—'}</td>`;
+      });
+      const qGrandTotal = globalQTotalCount > 0 ? globalQTotalSum : null;
+      html += `<td style="${totalsRowStyle}">${qGrandTotal !== null ? Number(qGrandTotal.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
 
       html += `</tbody></table></div></div>`;
 
@@ -1386,12 +1384,12 @@ const handler = async (req: Request): Promise<Response> => {
     // Legend footer for weekly mode
     if (isWeeklyMode) {
       html += `
-  <div style="margin-top: 24px; padding: 12px 16px; background-color: #ffffff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
-    <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Legend:</span>
-    <span style="font-size: 12px; color: #065f46;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #059669; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>At or Above Target</span>
-    <span style="font-size: 12px; color: #92400e;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #d97706; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Within 10% of Target</span>
-    <span style="font-size: 12px; color: #991b1b;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #dc2626; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Below Target (&gt;10%)</span>
-  </div>`;
+  <table style="border-collapse: collapse; margin-top: 24px; padding: 0; background-color: #ffffff; border-radius: 6px; width: auto;"><tr>
+    <td style="padding: 10px 16px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;">Legend:</td>
+    <td style="padding: 10px 12px; font-size: 12px; color: #065f46; white-space: nowrap;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #059669; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>At or Above Target</td>
+    <td style="padding: 10px 12px; font-size: 12px; color: #92400e; white-space: nowrap;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #d97706; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Within 10% of Target</td>
+    <td style="padding: 10px 12px; font-size: 12px; color: #991b1b; white-space: nowrap;"><span style="display: inline-block; width: 12px; height: 12px; background-color: #dc2626; border-radius: 2px; vertical-align: middle; margin-right: 4px;"></span>Below Target (&gt;10%)</td>
+  </tr></table>`;
     }
 
     html += `</div></body></html>`;
