@@ -1,59 +1,112 @@
 
-## Drag an Issue onto the To-Dos Panel
+## Multi-Section Combined Email Report
 
-### What it does today
-- Issues are draggable (for reordering) using native HTML5 drag events (`draggable`, `onDragStart`, `onDragOver`, `onDragEnd`)
-- Right-clicking an issue shows a context menu "Create To-Do from Issue" which opens `TodoManagementDialog` pre-filled
-- `TodoManagementDialog` accepts `linkedIssueId`, `linkedIssueTitle`, `linkedIssueSeverity` — all the wiring is already there
+### What the user wants
+A new "Combined Report" option in the Email Report dialog that lets them checkmark individual sections (Issues & To-Dos, Top 10 lists, Scorecard, etc.) and send a single unified email containing all selected sections stitched together.
 
-### What to add
-Extend the existing drag-and-drop to also handle dropping an **issue onto the To-Dos panel**. The To-Dos panel will act as a drop target: when an issue is dropped there, it opens `TodoManagementDialog` pre-filled exactly like the right-click context menu already does.
+### How it fits into the existing architecture
 
-### Changes — `src/components/issues/IssuesAndTodosPanel.tsx` only
+**Current Email Report dialog** (in `Dashboard.tsx` lines 1282–1456) has a `RadioGroup` for format — `gm-overview`, `weekly`, `monthly`, etc. The GM Overview already combines multiple sections into one email via `send-gm-overview-email`. We follow the same pattern but user-driven.
 
-**1. Track drag target context**
-Add a `dragTarget` state: `"reorder" | "todo-panel"`. When the mouse enters the To-Dos panel while dragging an issue, set it to `"todo-panel"`.
+**Strategy**: Add a new edge function `send-combined-report-email` that accepts a `sections` array and assembles the HTML from whichever sections are selected — reusing the same HTML-building logic from existing functions.
 
-**2. To-Dos panel drop zone**
-Add `onDragOver` + `onDrop` handlers to the To-Dos panel `<div>` (line 519):
+---
+
+### Plan
+
+#### 1. New edge function: `supabase/functions/send-combined-report-email/index.ts`
+
+Accepts:
 ```typescript
-onDragOver={(e) => {
-  if (draggedIssue) e.preventDefault(); // allow drop
-}}
-onDrop={(e) => {
-  e.preventDefault();
-  if (draggedIssue) {
-    setSelectedIssueForTodo(draggedIssue); // reuses existing logic
-    setDraggedIssue(null);
-  }
-}}
+{
+  departmentId: string;
+  recipientEmails: string[];
+  sections: Array<"issues-todos" | "scorecard" | "top10">;
+  // Scorecard-specific params (only needed if sections includes "scorecard")
+  year?: number;
+  quarter?: number;
+  scorecardMode?: "weekly" | "monthly" | "quarterly-trend" | "yearly";
+  roleFilter?: string;
+  // Top 10: which lists to include
+  top10ListIds?: string[];
+}
 ```
 
-**3. Prevent reorder-save when drop target is To-Dos panel**
-`handleDragEnd` fires after any drop. Guard it: if `selectedIssueForTodo` was just set (i.e. we dropped on the todo panel), skip the reorder save. The simplest way: check `draggedIssue` is null (already set to null in the drop handler) before saving.
+Logic:
+- Fetches the department name + store name (shared header)
+- For each requested section, runs the same data-fetch + HTML-build logic from the existing individual email functions
+- Stitches sections together with a horizontal rule divider between them
+- Unified navy banner at top: `Store — Department Combined Report`
+- Sends one email with `subject: "Store — Department Combined Report"` via Resend
 
-Actually cleaner: in `onDrop` on the to-dos panel, call `e.stopPropagation()` and set `draggedIssue` to null before `handleDragEnd` fires. Since `handleDragEnd` checks `if (!draggedIssue) return`, the reorder save is skipped automatically. ✓
-
-**4. Visual feedback on the To-Dos panel**
-Add a `isDragOverTodos` state. When dragging an issue and hovering the to-dos panel, highlight it with a dashed border and a "+ Link to Issue" hint label. Remove the highlight on `onDragLeave` or `onDrop`.
-
-```typescript
-const [isDragOverTodos, setIsDragOverTodos] = useState(false);
+The HTML structure:
+```
+[Navy Header Banner: Store — Department Combined Report]
+[Section 1: Issues & To-Dos (if selected)]
+  — horizontal divider —
+[Section 2: Scorecard (if selected)]
+  — horizontal divider —
+[Section 3: Top 10 Lists (if selected, one per list)]
+[Footer]
 ```
 
-Apply to the To-Dos panel wrapper:
-```typescript
-className={`... transition-all ${isDragOverTodos && draggedIssue ? "ring-2 ring-primary ring-dashed bg-primary/5" : ""}`}
+Each section uses a section sub-header (navy label bar, e.g. `Issues & To-Dos`, `Scorecard — Weekly`, `Top 10: Oldest ROs`).
+
+#### 2. UI changes: `src/pages/Dashboard.tsx`
+
+In the Email Report dialog, add a new option in the `RadioGroup`:
+
+```
+○ Custom Report (select sections below)
 ```
 
-**5. Update the subtitle hint on Issues panel**
-Change "Drag to reorder by importance" to "Drag to reorder · Drop onto To-Dos to link" so users discover the feature.
+When `printMode === "custom"` is selected, show a section checklist:
+- [ ] Issues & To-Dos
+- [ ] Scorecard → sub-option for mode (Weekly/Monthly/Trend)
+- [ ] Top 10 Lists → multi-select of available lists (fetched from DB when dialog opens)
 
-### Summary of state additions
-- `isDragOverTodos: boolean` — highlights the drop zone
+State additions:
+- `printMode` gains `"custom"` as a union member
+- `customSections: Set<"issues-todos" | "scorecard" | "top10">` — which boxes are checked
+- `customScorecardMode: "weekly" | "monthly" | "quarterly-trend"` — sub-option for scorecard
+- `customTop10ListIds: string[]` — which lists to include
+- `availableTop10Lists: {id, title}[]` — fetched when dialog opens (alongside recipients)
 
-### No new dependencies
-Pure HTML5 drag-and-drop events, same as what's already used. No library needed.
+`handleEmailScorecard` already dispatches to `send-gm-overview-email` or `send-scorecard-email`. Extend it to also dispatch to `send-combined-report-email` when `printMode === "custom"`.
 
-### File to change
-- `src/components/issues/IssuesAndTodosPanel.tsx` (single file, ~15 lines changed/added)
+#### 3. Exact files changed
+
+| File | Change |
+|---|---|
+| `supabase/functions/send-combined-report-email/index.ts` | New file |
+| `src/pages/Dashboard.tsx` | Add `"custom"` to printMode union, add section checkboxes UI, fetch Top 10 lists on dialog open, call new edge function |
+
+#### 4. Section HTML building (edge function design)
+
+Each section's HTML block is a self-contained function within the new edge function, extracted from the existing individual functions:
+
+- **Issues & To-Dos**: Copies `buildIssueRow` / `buildTodoRow` logic from `send-todos-email/index.ts`
+- **Scorecard**: Copies the weekly/monthly table logic from `send-scorecard-email/index.ts`
+- **Top 10**: Copies the list + items table logic from `send-top10-email/index.ts` — loops over each selected list ID
+
+Section divider HTML:
+```html
+<hr style="border: none; border-top: 2px solid #e2e8f0; margin: 32px 0;">
+```
+
+Each section has a label:
+```html
+<div style="background: #1e293b; color: #fff; padding: 10px 20px; font-size: 14px; font-weight: 700; border-radius: 4px; margin-bottom: 12px;">
+  Issues &amp; To-Dos
+</div>
+```
+
+#### 5. Summary of UI flow
+
+1. User clicks "Email Report"
+2. Clicks "Custom Report" radio
+3. Checkboxes appear: Issues & To-Dos / Scorecard / Top 10 Lists
+4. For Scorecard: weekly/monthly sub-options shown
+5. For Top 10: checkboxes for each list found in the department
+6. User picks recipients and hits Send
+7. Single combined email arrives with all sections in order
