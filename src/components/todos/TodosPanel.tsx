@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUserFriendlyError } from "@/lib/errorMessages";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,6 +42,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
   const [loading, setLoading] = useState(true);
   const [deleteTodoId, setDeleteTodoId] = useState<string | null>(null);
   const { toast } = useToast();
+  const realtimeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (departmentId) {
@@ -55,7 +56,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     if (!departmentId) return;
 
     const channel = supabase
-      .channel('todos-realtime')
+      .channel(`todos-realtime-${departmentId}`)
       .on(
         'postgres_changes',
         {
@@ -65,12 +66,14 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
           filter: `department_id=eq.${departmentId}`
         },
         () => {
-          loadTodos();
+          if (realtimeTimeoutRef.current) clearTimeout(realtimeTimeoutRef.current);
+          realtimeTimeoutRef.current = setTimeout(() => loadTodos(), 100);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeTimeoutRef.current) clearTimeout(realtimeTimeoutRef.current);
       supabase.removeChannel(channel);
     };
   }, [departmentId]);
@@ -97,9 +100,10 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
   const loadTodos = async () => {
     if (!departmentId) return;
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
     setLoading(true);
-    // Clear existing data to prevent stale data from showing
-    setTodos([]);
 
     try {
       const { data, error } = await supabase
