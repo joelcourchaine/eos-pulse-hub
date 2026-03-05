@@ -1,44 +1,39 @@
 
-## Two Fixes in `supabase/functions/send-scorecard-email/index.ts`
+## Root Cause
 
-### Fix 1: Productivity target mismatch
+`productiveTarget` (line 5558–5560) is computed as:
+```typescript
+productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
+```
+This averages all technician-level Productivity KPI targets. It never reads the manually-entered value saved by `handleProductiveTotalTargetSave`.
 
-**Root cause**: Line 724 searches for the Productivity KPI in `allKpisFlat`, which is derived from `kpisByOwner` **after** role filtering. The Productivity KPI is not `assigned_to` any technician — it's a calculated row — so when `roleFilter = "technician"`, `allKpisFlat` contains zero Productivity KPIs, and the code falls back to the hardcoded `115` default.
+`handleProductiveTotalTargetSave` correctly saves the value to `kpi_targets` for the "Productivity" KPI. But `productiveTarget` ignores it, always re-deriving from individual KPI targets.
 
-**Fix**: Move the productivity KPI lookup to use the full `kpis` array (fetched at line 284, before any filtering), not `allKpisFlat`.
+## Fix
+
+Change how `productiveTarget` is derived:
+1. First check if there's a manually saved value in `kpiTargets` for the "Productivity" KPI (the one with `k.name === "Productivity"`)
+2. If yes, use it directly (no averaging)
+3. If no, fall back to the current average calculation
 
 ```typescript
-// Line 724 — change from:
-const productivityKpi = allKpisFlat.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+// Lines 5556–5560 — change from:
+const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productivity");
+const productiveTarget = productiveKpis.length > 0
+  ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
+  : null;
 
 // to:
-const productivityKpi = (kpis || []).find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productivity");
+const productivityKpiWithTarget = productiveKpis.find((k) => kpiTargets[k.id] != null);
+const productiveTarget = productivityKpiWithTarget
+  ? kpiTargets[productivityKpiWithTarget.id]
+  : productiveKpis.length > 0
+    ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
+    : null;
 ```
 
-The `kpiTargetsMap` already contains all targets fetched for the current quarter (line 321-323), so `kpiTargetsMap.get(productivityKpi.id)` will correctly return the manually-entered value.
+This ensures: if any Productivity KPI has a manually entered target in `kpiTargets`, that exact value is displayed — no averaging, no recalculation.
 
-### Fix 2: Add role label to email title
-
-**Current** (line 679):
-```
-${storeName} — ${deptName} Scorecard
-```
-
-**Desired** when `roleFilter` is set and not "all":
-```
-${storeName} — ${deptName} Technician Scorecard
-```
-
-**Fix**: Build a `roleLabel` string from `roleFilter`:
-```typescript
-const roleLabel = roleFilter && roleFilter !== "all"
-  ? ` ${roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}`
-  : "";
-// then in line 679:
-${storeName} — ${deptName}${roleLabel} Scorecard
-```
-
-### Changes summary
-
-- **Line ~679**: Title: `${deptName} Scorecard` → `${deptName}${roleLabel} Scorecard`
-- **Line ~724**: Change `allKpisFlat.find(...)` → `(kpis || []).find(...)` to get the productivity KPI from the full unfiltered list
+## File to Change
+- `src/components/scorecard/ScorecardGrid.tsx` lines 5556–5560 only
