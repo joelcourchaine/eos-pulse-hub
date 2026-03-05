@@ -718,7 +718,8 @@ const handler = async (req: Request): Promise<Response> => {
       // Detect Available / Sold / Productivity KPI IDs by name (same as ScorecardGrid)
       const allKpisFlat: any[] = Array.from(kpisByOwner.values()).flat();
       const availKpiIds = new Set(allKpisFlat.filter((k: any) => k.name.toLowerCase().includes('available')).map((k: any) => k.id));
-      const soldKpiIds = new Set(allKpisFlat.filter((k: any) => k.name.toLowerCase().includes('sold')).map((k: any) => k.id));
+      // Match UI logic: sold KPIs are unit-type KPIs that aren't Available Hours or Productivity
+      const soldKpiIds = new Set(allKpisFlat.filter((k: any) => k.metric_type === 'unit' && k.name !== 'Available Hours' && k.name !== 'Productivity').map((k: any) => k.id));
       // Productivity target: find a % KPI whose name includes 'product'
       const productivityKpi = allKpisFlat.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
       const productivityTarget = productivityKpi
@@ -843,11 +844,11 @@ const handler = async (req: Request): Promise<Response> => {
         const sold = weekSoldTotals[i];
         const pct = avail !== null && sold !== null && avail > 0 ? (sold / avail) * 100 : null;
         const cls = calcProdClass(sold, avail);
-        html += `<td style="${getCellStyle(cls, baseFontSize, true)}">${pct !== null ? pct.toFixed(1) + '%' : '—'}</td>`;
+        html += `<td style="${getCellStyle(cls, baseFontSize, true)}">${pct !== null ? Math.round(pct) + '%' : '—'}</td>`;
       });
       const qProdPct = qAvailSum > 0 ? (qSoldSum / qAvailSum) * 100 : null;
       const qProdClass = qProdPct !== null ? (qProdPct - productivityTarget >= 0 ? "green" : qProdPct - productivityTarget >= -10 ? "yellow" : "red") : "";
-      html += `<td style="${getCellStyle(qProdClass, baseFontSize, true)}">${qProdPct !== null ? qProdPct.toFixed(1) + '%' : '—'}</td></tr>`;
+      html += `<td style="${getCellStyle(qProdClass, baseFontSize, true)}">${qProdPct !== null ? Math.round(qProdPct) + '%' : '—'}</td></tr>`;
 
       html += `</tbody></table></div></div>`;
 

@@ -391,6 +391,8 @@ const ScorecardGrid = ({
   const [userRole, setUserRole] = useState<string | null>(null);
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [targetEditValue, setTargetEditValue] = useState<string>("");
+  const [productiveTotalTargetInput, setProductiveTotalTargetInput] = useState<string>("");
+  const [editingProductiveTotalTarget, setEditingProductiveTotalTarget] = useState(false);
   const [editingTrendTarget, setEditingTrendTarget] = useState<string | null>(null); // Format: ${kpiId}-Q${quarter}-${year}
   const [trendTargetEditValue, setTrendTargetEditValue] = useState<string>("");
   const [selectedUserId, setSelectedUserId] = useState<string>("");
@@ -2401,6 +2403,38 @@ const ScorecardGrid = ({
       title: "Success",
       description: "Target updated and statuses recalculated",
     });
+  };
+
+  const handleProductiveTotalTargetSave = async () => {
+    setEditingProductiveTotalTarget(false);
+    const trimmedValue = productiveTotalTargetInput.trim();
+    const productivityKpi = kpis.find((k) => k.name === "Productivity");
+    if (!productivityKpi) return;
+
+    if (trimmedValue === "") {
+      await supabase
+        .from("kpi_targets")
+        .delete()
+        .eq("kpi_id", productivityKpi.id)
+        .eq("quarter", quarter)
+        .eq("year", year)
+        .eq("entry_type", dbEntryType);
+      setKpiTargets((prev) => { const next = { ...prev }; delete next[productivityKpi.id]; return next; });
+      return;
+    }
+
+    const newValue = parseFloat(trimmedValue);
+    if (isNaN(newValue)) return;
+
+    const { error } = await supabase.from("kpi_targets").upsert(
+      { kpi_id: productivityKpi.id, quarter, year, entry_type: dbEntryType, target_value: newValue },
+      { onConflict: "kpi_id,quarter,year,entry_type" },
+    );
+
+    if (!error) {
+      setKpiTargets((prev) => ({ ...prev, [productivityKpi.id]: newValue }));
+      toast({ title: "Success", description: "Productivity target updated" });
+    }
   };
 
   const handleCopyToQuarters = async (kpiId: string) => {
@@ -5590,14 +5624,35 @@ const ScorecardGrid = ({
 
                             {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
                               <>
-                                {/* Target cell (placeholder) */}
+                                {/* Target cell */}
                                 <TableCell
                                   className="text-center py-0 min-w-[80px] bg-[hsl(var(--scorecard-navy))] border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] text-primary-foreground text-xs"
                                   style={{ position: "sticky", left: 170, zIndex: 9 }}
+                                  onClick={() => {
+                                    if (row.type === "productive" && canEditTargets()) {
+                                      setProductiveTotalTargetInput(productiveTarget !== null ? Math.round(productiveTarget).toString() : "");
+                                      setEditingProductiveTotalTarget(true);
+                                    }
+                                  }}
                                 >
-                                  {row.type === "productive" && productiveTarget !== null
-                                    ? `${parseFloat(productiveTarget.toFixed(2))}%`
-                                    : "-"}
+                                  {row.type === "productive" ? (
+                                    editingProductiveTotalTarget ? (
+                                      <input
+                                        type="number"
+                                        autoFocus
+                                        value={productiveTotalTargetInput}
+                                        onChange={(e) => setProductiveTotalTargetInput(e.target.value)}
+                                        onBlur={handleProductiveTotalTargetSave}
+                                        onKeyDown={(e) => { if (e.key === "Enter") handleProductiveTotalTargetSave(); if (e.key === "Escape") setEditingProductiveTotalTarget(false); }}
+                                        className="w-full text-center bg-transparent text-primary-foreground outline-none border-b border-primary-foreground/50 text-xs"
+                                        style={{ MozAppearance: "textfield" }}
+                                      />
+                                    ) : (
+                                      <span className={canEditTargets() ? "cursor-pointer hover:underline" : ""}>
+                                        {productiveTarget !== null ? `${Math.round(productiveTarget)}%` : <span className="opacity-30">—</span>}
+                                      </span>
+                                    )
+                                  ) : "-"}
                                 </TableCell>
 
                                 {/* Weekly data cells */}
@@ -5632,7 +5687,7 @@ const ScorecardGrid = ({
                                     >
                                       {value !== null
                                         ? row.type === "productive"
-                                          ? `${parseFloat(value.toFixed(2))}%`
+                                          ? `${Math.round(value)}%`
                                           : parseFloat(value.toFixed(2)).toString()
                                         : "-"}
                                     </TableCell>
@@ -5686,7 +5741,7 @@ const ScorecardGrid = ({
                                     )}>
                                       {qValue !== null
                                         ? row.type === "productive"
-                                          ? `${parseFloat(qValue.toFixed(2))}%`
+                                          ? `${Math.round(qValue)}%`
                                           : parseFloat(qValue.toFixed(2)).toString()
                                         : "-"}
                                     </TableCell>
@@ -5699,10 +5754,17 @@ const ScorecardGrid = ({
                             {(isMonthlyTrendMode || isYearlyView) && (
                               <>
                                 {/* Target placeholder */}
-                                <TableCell className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[170px] z-10 text-xs">
-                                  {row.type === "productive" && productiveTarget !== null
-                                    ? `${parseFloat(productiveTarget.toFixed(2))}%`
-                                    : "-"}
+                                <TableCell
+                                  className="px-1 py-0 text-center min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground border-x border-[hsl(var(--scorecard-navy)/0.3)] sticky left-[170px] z-10 text-xs cursor-pointer"
+                                  onClick={() => { if (row.type === "productive" && canEditTargets()) { setProductiveTotalTargetInput(productiveTarget !== null ? Math.round(productiveTarget).toString() : ""); setEditingProductiveTotalTarget(true); } }}
+                                >
+                                  {row.type === "productive" ? (
+                                    editingProductiveTotalTarget ? (
+                                      <input type="number" autoFocus value={productiveTotalTargetInput} onChange={(e) => setProductiveTotalTargetInput(e.target.value)} onBlur={handleProductiveTotalTargetSave} onKeyDown={(e) => { if (e.key === "Enter") handleProductiveTotalTargetSave(); if (e.key === "Escape") setEditingProductiveTotalTarget(false); }} className="w-full text-center bg-transparent text-primary-foreground outline-none border-b border-primary-foreground/50 text-xs" />
+                                    ) : (
+                                      <span className={canEditTargets() ? "hover:underline" : ""}>{productiveTarget !== null ? `${Math.round(productiveTarget)}%` : <span className="opacity-30">—</span>}</span>
+                                    )
+                                  ) : "-"}
                                 </TableCell>
                                 {activeYearlyPeriods.map((month) => {
                                   if (month.type !== "month") {
@@ -5932,8 +5994,11 @@ const ScorecardGrid = ({
                                   );
                                 })()}
                                 {/* Target placeholder */}
-                                <TableCell className="text-center py-0 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)]">
-                                  {row.type === "productive" && productiveTarget !== null ? `${parseFloat(productiveTarget.toFixed(2))}%` : "-"}
+                                <TableCell
+                                  className="text-center py-0 min-w-[80px] max-w-[80px] bg-[hsl(var(--scorecard-navy))] text-primary-foreground text-xs border-x-2 border-[hsl(var(--scorecard-navy)/0.3)] cursor-pointer"
+                                  onClick={() => { if (row.type === "productive" && canEditTargets()) { setProductiveTotalTargetInput(productiveTarget !== null ? Math.round(productiveTarget).toString() : ""); setEditingProductiveTotalTarget(true); } }}
+                                >
+                                  {row.type === "productive" ? (editingProductiveTotalTarget ? (<input type="number" autoFocus value={productiveTotalTargetInput} onChange={(e) => setProductiveTotalTargetInput(e.target.value)} onBlur={handleProductiveTotalTargetSave} onKeyDown={(e) => { if (e.key === "Enter") handleProductiveTotalTargetSave(); if (e.key === "Escape") setEditingProductiveTotalTarget(false); }} className="w-full text-center bg-transparent text-primary-foreground outline-none border-b border-primary-foreground/50 text-xs" />) : (<span className={canEditTargets() ? "hover:underline" : ""}>{productiveTarget !== null ? `${Math.round(productiveTarget)}%` : <span className="opacity-30">—</span>}</span>)) : "-"}
                                 </TableCell>
                                 {/* Current months */}
                                 {months.map((month) => {
