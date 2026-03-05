@@ -36,6 +36,7 @@ interface TodoManagementDialogProps {
   initialDescription?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onIssueLinked?: () => void;
 }
 
 export function TodoManagementDialog({ 
@@ -51,6 +52,7 @@ export function TodoManagementDialog({
   initialDescription,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  onIssueLinked,
 }: TodoManagementDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -134,8 +136,8 @@ export function TodoManagementDialog({
 
         if (error) throw error;
 
-        // If linked to an issue, update issue status to "in progress"
-        if (linkedIssueId) {
+        // If linked to an issue, update issue status to "in progress" (right-click path only)
+        if (linkedIssueId && !onIssueLinked) {
           const { error: issueError } = await supabase
             .from("issues")
             .update({ status: "in progress" })
@@ -160,6 +162,11 @@ export function TodoManagementDialog({
       }
       setOpen(false);
       onTodoAdded();
+
+      // If drag path, call onIssueLinked to delete the source issue
+      if (!isEditMode && linkedIssueId && onIssueLinked) {
+        await onIssueLinked();
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
