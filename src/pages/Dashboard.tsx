@@ -418,6 +418,61 @@ const Dashboard = () => {
     };
   }, [selectedDepartment]);
 
+  // Load email dialog data whenever the dialog opens (useEffect ensures this fires
+  // even when printDialogOpen is set programmatically, not via user interaction)
+  useEffect(() => {
+    if (!printDialogOpen) return;
+
+    const loadData = async () => {
+      // Load recipients
+      const { data: superAdminRoles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "super_admin");
+
+      const superAdminIds = superAdminRoles?.map((r) => r.user_id) || [];
+
+      let groupProfiles: any[] = [];
+      if (profile?.store_group_id) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("store_group_id", profile.store_group_id)
+          .eq("is_system_user", false)
+          .order("full_name");
+        groupProfiles = data || [];
+      }
+
+      const { data: superAdminProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", superAdminIds)
+        .eq("is_system_user", false);
+
+      const allProfiles = [...groupProfiles];
+      superAdminProfiles?.forEach((sa) => {
+        if (!allProfiles.find((p) => p.id === sa.id)) {
+          allProfiles.push(sa);
+        }
+      });
+      allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
+      setEmailRecipients(allProfiles);
+
+      // Load Top 10 lists for custom report selector
+      if (selectedDepartment) {
+        const { data: lists } = await supabase
+          .from("top_10_lists")
+          .select("id, title")
+          .eq("department_id", selectedDepartment)
+          .eq("is_active", true)
+          .order("display_order", { ascending: true });
+        setAvailableTop10Lists(lists || []);
+      }
+    };
+
+    loadData();
+  }, [printDialogOpen, selectedDepartment]);
+
   // Redirect to my-tasks page on mobile when preference is set
   useEffect(() => {
     if (isMobile && showMobileTasksView && user && !loading) {
@@ -1302,55 +1357,6 @@ const Dashboard = () => {
                       open={printDialogOpen}
                       onOpenChange={(open) => {
                         setPrintDialogOpen(open);
-                        if (open) {
-                          const loadData = async () => {
-                            // Load recipients
-                            const { data: superAdminRoles } = await supabase
-                              .from("user_roles")
-                              .select("user_id")
-                              .eq("role", "super_admin");
-
-                            const superAdminIds = superAdminRoles?.map((r) => r.user_id) || [];
-
-                            let groupProfiles: any[] = [];
-                            if (profile?.store_group_id) {
-                              const { data } = await supabase
-                                .from("profiles")
-                                .select("id, full_name, email")
-                                .eq("store_group_id", profile.store_group_id)
-                                .eq("is_system_user", false)
-                                .order("full_name");
-                              groupProfiles = data || [];
-                            }
-
-                            const { data: superAdminProfiles } = await supabase
-                              .from("profiles")
-                              .select("id, full_name, email")
-                              .in("id", superAdminIds)
-                              .eq("is_system_user", false);
-
-                            const allProfiles = [...groupProfiles];
-                            superAdminProfiles?.forEach((sa) => {
-                              if (!allProfiles.find((p) => p.id === sa.id)) {
-                                allProfiles.push(sa);
-                              }
-                            });
-                            allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
-                            setEmailRecipients(allProfiles);
-
-                            // Load Top 10 lists for custom report selector
-                            if (selectedDepartment) {
-                              const { data: lists } = await supabase
-                                .from("top_10_lists")
-                                .select("id, title")
-                                .eq("department_id", selectedDepartment)
-                                .eq("is_active", true)
-                                .order("display_order", { ascending: true });
-                              setAvailableTop10Lists(lists || []);
-                            }
-                          };
-                          loadData();
-                        }
                       }}
                     >
                       <DialogContent className="no-print max-w-xl max-h-[90vh] overflow-y-auto" aria-describedby="email-description">
@@ -1433,6 +1439,7 @@ const Dashboard = () => {
                                               <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
                                               <SelectItem value="department_manager">Department Manager</SelectItem>
                                               <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                                              <SelectItem value="technician">Technician</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
