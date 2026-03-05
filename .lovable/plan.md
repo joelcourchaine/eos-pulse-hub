@@ -1,47 +1,60 @@
 
-## Root Cause
+## Two fixes needed in `src/pages/Dashboard.tsx` and `supabase/functions/send-combined-report-email/index.ts`
 
-Two bugs are working against each other:
+---
 
-**Bug 1 — `handleDragEnd` clears `draggedIssue` before `onDrop` fires**
-`onDragEnd` is on the draggable issue `<div>`. It always fires when any drag operation ends (including drops onto the To-Dos panel). It calls `setDraggedIssue(null)` in the `finally` block. The browser fires events in this order: `drop` → `dragend`. But because `setDraggedIssue(null)` is inside an `async` function with `await` calls, by the time React flushes state the `drop` handler reads `draggedIssue` as `null`. Even if timing were perfect, the `handleDragEnd` function is also saving issue order to the DB unnecessarily when you're dropping to the To-Dos side.
+### Fix 1 — Add role selector to Custom Report's Scorecard section
 
-**Bug 2 — `handleDragOver` on each issue card only handles intra-list reordering**
-The drag-over handler on issue cards calls `e.preventDefault()` — but only for the issues list. The To-Dos panel `onDragOver` has its own `e.preventDefault()` but only if `draggedIssue` is truthy. Since state can be stale in closures, this may not reliably allow the drop.
+**The gap**: The standalone "Weekly Scores" email (via `send-scorecard-email`) supports a `roleFilter` param that filters KPIs to only show those assigned to users with that role. The Custom Report's scorecard section uses `send-combined-report-email`, which has `roleFilter` in its TypeScript interface but `buildScorecardSection()` ignores it entirely.
 
-## Fix
+**Changes**:
 
-**1. Use a `ref` for `draggedIssue` instead of (or in addition to) state**
-
-Add `draggedIssueRef = useRef<Issue | null>(null)` that's set alongside `setDraggedIssue`. The `onDrop` handler reads from the ref synchronously — immune to React's batched state update timing.
-
-**2. Guard `handleDragEnd` to NOT process order-saving when dropping on the To-Dos panel**
-
-Add a `droppedOnTodosRef = useRef(false)`. In `onDrop` on the To-Dos panel, set `droppedOnTodosRef.current = true` before clearing state. In `handleDragEnd`, check this ref and skip the order-save + toast if it's `true`.
-
+**`src/pages/Dashboard.tsx`**:
+1. Add state: `const [customScorecardRole, setCustomScorecardRole] = useState<string>("all")`
+2. Inside the Custom Report → Scorecard sub-section (after the Weekly/Monthly/Yearly radio group), add a role dropdown when scorecard is checked:
 ```
-onDrop (To-Dos panel):
-  droppedOnTodosRef.current = true
-  setIsDragOverTodos(false)
-  setIsSelectedIssueFromDrag(true)
-  setSelectedIssueForTodo(draggedIssueRef.current)  ← reads ref, not state
-  setDraggedIssue(null)
+Role: [ All | Store GM | Department Manager | Service Advisor ]
+```
+3. Pass `roleFilter: customScorecardRole` in the `send-combined-report-email` request body (alongside existing `scorecardMode`, `year`, `quarter`).
 
-handleDragEnd:
-  if (droppedOnTodosRef.current) {
-    droppedOnTodosRef.current = false
-    setDraggedIssue(null)
-    return   ← skip order save
-  }
-  // ... existing order save logic
+**`supabase/functions/send-combined-report-email/index.ts`**:
+1. Destructure `roleFilter` from the request body (it's already in the `CombinedReportRequest` interface).
+2. Pass it into `buildScorecardSection()`.
+3. In `buildScorecardSection`, add the same role-filtering logic that `send-scorecard-email` uses — group KPIs by `assigned_to`, fetch `user_roles` + `profiles.role` for those owners, and filter to only include KPI groups whose owner matches the requested role.
+
+---
+
+### Fix 2 — Top 10 lists not being found
+
+**The gap**: The `top_10_lists` query inside `loadData()` (runs when the email dialog opens) is missing `eq("is_active", true)`. The `Top10ListsPanel` uses that filter, so inactive lists are stored but never shown in the panel. When the email dialog queries without this filter, it can return 0 active lists and show "No Top 10 lists found."
+
+More importantly: active lists in the panel might not be returned because the dialog query uses `order("title")` rather than matching the actual active lists visible in the panel.
+
+**Change in `src/pages/Dashboard.tsx`**:
+- Add `.eq("is_active", true)` to the `top_10_lists` query in the `loadData()` callback inside the email dialog's `onOpenChange`.
+
+```typescript
+// Before
+const { data: lists } = await supabase
+  .from("top_10_lists")
+  .select("id, title")
+  .eq("department_id", selectedDepartment)
+  .order("title");
+
+// After
+const { data: lists } = await supabase
+  .from("top_10_lists")
+  .select("id, title")
+  .eq("department_id", selectedDepartment)
+  .eq("is_active", true)
+  .order("display_order", { ascending: true });
 ```
 
-**3. Ensure `e.preventDefault()` is always called in To-Dos `onDragOver`**
+---
 
-Remove the `if (draggedIssue)` guard — just always call `e.preventDefault()` and `setIsDragOverTodos(true)`, since the visual indicator is harmless and the conditional was the stale-closure trap.
-
-## Files Changed
+### Files changed
 
 | File | Change |
 |---|---|
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Add `draggedIssueRef` + `droppedOnTodosRef`, guard `handleDragEnd`, fix `onDrop` to read ref, always preventDefault in To-Dos onDragOver |
+| `src/pages/Dashboard.tsx` | Add `customScorecardRole` state, role selector UI under Scorecard checkbox, pass `roleFilter` in request body, fix Top 10 query with `is_active = true` |
+| `supabase/functions/send-combined-report-email/index.ts` | Destructure `roleFilter` from request, pass to `buildScorecardSection`, implement role filtering logic inside that function |
