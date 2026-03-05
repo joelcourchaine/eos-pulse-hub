@@ -1,82 +1,47 @@
 
-## Problem Summary
+## Root Cause
 
-Three issues in the weekly scorecard email:
+The screenshot shows the **old** template. The new code IS deployed and correct in the file — the problem is twofold:
 
-1. **Department manager KPIs appear in the Technician email** — the `kpisByOwner` filtering excludes owners whose role doesn't match, but `"department_manager"` may be stored as `"fixed_ops_manager"` or similar, and the profiles.role join may not catch all cases. Need to also exclude `"fixed_ops_manager"` when filtering for non-manager roles.
+1. **The user clicked the old Dashboard email button**, not the new "Email" button in the GO Scorecard header. The Dashboard sends no `roleFilter` and the email used the old cached deployment.
 
-2. **The email has a separate table with repeated week headers per owner** — the current code creates a brand new `<table>` block for each owner group, each with its own `<thead>` week headers row. The UI renders ONE table with owner-separator rows inside `<tbody>`.
+2. **Even with the new code, Gmail will break the layout** because:
+   - `display: flex` is stripped by Gmail, Outlook, and most email clients
+   - `rgba()` colors are not supported in many clients
+   - The header stats badges will not render correctly
 
-3. **Visual mismatch** — the email uses pale cell backgrounds for non-weekly cells, while the UI uses saturated green/amber/red everywhere in weekly view.
+## Fix Plan
 
----
+### Edge function — fix Gmail-compatible HTML
 
-## The Fix — Edge Function Only
+Replace `display: flex` with `<table>`-based layout for the header stats row. Replace `rgba()` with solid hex colors. This ensures the navy header renders perfectly in Gmail, Outlook, Apple Mail.
 
-Rewrite the weekly HTML builder in `supabase/functions/send-scorecard-email/index.ts` so that for `mode === "weekly"`:
-
-### Structure change: ONE table, ONE header, owner rows as separators
-
-**Current (broken):**
-```
-[Navy header]
-  [Owner 1 name banner]
-  <table>
-    <thead> KPI | Target | WK1...WK13 | Q-Total </thead>
-    <tbody> kpi rows... </tbody>
-  </table>
-  [Owner 2 name banner]
-  <table>
-    <thead> KPI | Target | WK1...WK13 | Q-Total </thead>   ← REPEATED
-    <tbody> kpi rows... </tbody>
-  </table>
-```
-
-**Fixed (matches UI):**
-```
-[Navy header]
-<table>
-  <thead> KPI | Target | WK1...WK13 | Q-Total </thead>   ← ONCE only
-  <tbody>
-    [owner separator row — full-width navy, owner name]
-    kpi row
-    kpi row
-    [Q-Total row for this owner group]
-    [owner separator row]
-    kpi row
-    ...
-  </tbody>
+**Header fix** (lines 676–685):
+```html
+<!-- Use table layout instead of flex for email client compatibility -->
+<table style="border-collapse: collapse; margin-top: 10px; width: 100%;">
+  <tr>
+    <td style="padding-right: 8px;">
+      <span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">${reportTitle} · 13 weeks</span>
+    </td>
+    <td style="padding-right: 8px;">
+      <span style="background-color: #2d4a6b; ...">Weeks Entered: ${weeksWithData}/13</span>
+    </td>
+    <td>
+      <span style="background-color: #059669 (or amber/red based on rate); ...">🎯 ${greenRate}% Green Rate</span>
+    </td>
+  </tr>
 </table>
 ```
 
-### Role filtering fix
+Also fix `rgba(255,255,255,0.12)` → solid `#2d4a6b` (a lighter navy).
 
-When `roleFilter` is set and is not "all", also exclude `fixed_ops_manager` from the non-manager filtered results. More importantly: ensure that when `roleFilter === "technician"`, the filter correctly drops owners with role `"department_manager"` OR `"fixed_ops_manager"`. The current logic already does this correctly IF the role is stored in `user_roles` or `profiles.role`. 
+### No other changes needed
 
-The real fix is: **also remove the "Department Manager" option from the email popover's role selector in ScorecardGrid.tsx**. There's no reason to email a "department manager" scorecard — that's confusing the user. Remove that SelectItem. If the user wants all roles, they can use the Dashboard email button.
+The single-table structure, navy styles, saturated cell colors, and Σ Totals rows are all correct in the current code and will render properly once the Gmail-incompatible CSS is fixed.
 
-### Q-Total per owner group (totals row)
+### Files to change
 
-After all KPI rows for an owner, add a **"Σ Totals" row** (styled like the UI's totals strip — slate background) showing the Q-Total aggregate per week column. This matches the UI's `Σ Totals` summary section.
+- **`supabase/functions/send-scorecard-email/index.ts`** — replace `display: flex` + `rgba()` in the weekly header (lines 676–685) with table-based layout and solid hex colors. Then redeploy.
 
-### Saturated colors throughout
-
-Ensure all weekly data cells use the saturated palette (`#059669`, `#d97706`, `#dc2626`) not the pale variants. The `getCellStyle` function with `isWeekly=true` already does this — just need to make sure it's called correctly everywhere.
-
----
-
-## Files to change
-
-### 1. `supabase/functions/send-scorecard-email/index.ts`
-
-Rewrite the weekly HTML section (~lines 703–867) to:
-- Build ONE `<table>` with a single `<thead>` 
-- Inside `<tbody>`, for each owner group:
-  - Render a full-width owner separator `<tr>` (navy background, spans all columns)
-  - Render each KPI data row (with saturated color cells and Q-Total)
-  - Render a totals `<tr>` (Σ Totals row) showing per-week aggregate and Q-Total
-- Close the single `</table>` after all owners
-
-### 2. `src/components/scorecard/ScorecardGrid.tsx` (~line 3779)
-
-Remove the `<SelectItem value="department_manager">Department Manager</SelectItem>` from the email popover role selector — there is no use case for emailing only the dept manager's scorecard via this button.
+After this fix, the user should use the **"Email" button in the GO Scorecard header** (not the Dashboard button) for the role-filtered send. The Dashboard button sends all roles as it always did.
