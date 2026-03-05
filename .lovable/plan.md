@@ -1,62 +1,82 @@
 
-## What's Actually Happening
+## Problem Summary
 
-The logs confirm the **new HTML template IS deployed and working**. The email the user received came from the **old Dashboard-level email button** (no `roleFilter` parameter sent → all 37 KPIs included, no filtering). The new Email button inside the GO Scorecard header is working correctly and DOES support role filtering.
+Three issues in the weekly scorecard email:
 
-**Two real problems to fix:**
+1. **Department manager KPIs appear in the Technician email** — the `kpisByOwner` filtering excludes owners whose role doesn't match, but `"department_manager"` may be stored as `"fixed_ops_manager"` or similar, and the profiles.role join may not catch all cases. Need to also exclude `"fixed_ops_manager"` when filtering for non-manager roles.
 
-### Problem 1 — Role filter doesn't exclude dept manager KPIs reliably
-The edge function filters `user_roles` table but many users have their role stored in `profiles.role` as a fallback. If a department manager's role is only in `profiles.role` (not in `user_roles`), the filter won't exclude them.
+2. **The email has a separate table with repeated week headers per owner** — the current code creates a brand new `<table>` block for each owner group, each with its own `<thead>` week headers row. The UI renders ONE table with owner-separator rows inside `<tbody>`.
 
-Fix: Also query `profiles` table to get roles, merged with `user_roles` data.
-
-### Problem 2 — The popover role selector includes "all" option implicitly via `selectedRoleFilter` default  
-When the popover opens it syncs to `selectedRoleFilter` which could be "all" — meaning no filtering is applied. Need to ensure when `emailRoleFilter === "all"`, the behavior is clear.
-
-Also: The **Dashboard email dialog** (`src/pages/Dashboard.tsx`) should be updated or a note added in the popover UI that users should use the GO Scorecard header Email button for role-filtered sends.
+3. **Visual mismatch** — the email uses pale cell backgrounds for non-weekly cells, while the UI uses saturated green/amber/red everywhere in weekly view.
 
 ---
 
-## Fix Plan
+## The Fix — Edge Function Only
 
-### 1. Edge function — make role filter robust (`send-scorecard-email/index.ts`)
+Rewrite the weekly HTML builder in `supabase/functions/send-scorecard-email/index.ts` so that for `mode === "weekly"`:
 
-After the existing `user_roles` query (line ~572), also query `profiles` for users whose role is only stored there:
+### Structure change: ONE table, ONE header, owner rows as separators
 
-```typescript
-// After user_roles query:
-const { data: profileRolesData } = await supabaseClient
-  .from("profiles")
-  .select("id, role")
-  .in("id", allOwnerIds);
-
-// Merge: user_roles takes precedence, profiles.role as fallback
-const ownerRoleMap = new Map<string, string>();
-profileRolesData?.forEach(p => { if (p.role) ownerRoleMap.set(p.id, p.role); });
-userRolesData?.forEach(ur => { ownerRoleMap.set(ur.user_id, ur.role); }); // overwrite with user_roles
-
-const usersWithRole = new Set(
-  Array.from(ownerRoleMap.entries())
-    .filter(([_, role]) => role === roleFilter)
-    .map(([userId]) => userId)
-);
+**Current (broken):**
+```
+[Navy header]
+  [Owner 1 name banner]
+  <table>
+    <thead> KPI | Target | WK1...WK13 | Q-Total </thead>
+    <tbody> kpi rows... </tbody>
+  </table>
+  [Owner 2 name banner]
+  <table>
+    <thead> KPI | Target | WK1...WK13 | Q-Total </thead>   ← REPEATED
+    <tbody> kpi rows... </tbody>
+  </table>
 ```
 
-### 2. ScorecardGrid — ensure "all" roleFilter gets handled + improve UX clarity
-
-When `emailRoleFilter === "all"`, the edge function skips filtering (already correct). But the default should be a real role, not "all", when the popover opens. Currently it syncs to `selectedRoleFilter` which could be "all".
-
-Fix: When the popover opens and `selectedRoleFilter === "all"`, default to `"service_advisor"` instead.
-
-Change line ~3755:
-```tsx
-if (open) { 
-  setEmailRoleFilter(selectedRoleFilter === "all" ? "service_advisor" : selectedRoleFilter); 
-}
+**Fixed (matches UI):**
+```
+[Navy header]
+<table>
+  <thead> KPI | Target | WK1...WK13 | Q-Total </thead>   ← ONCE only
+  <tbody>
+    [owner separator row — full-width navy, owner name]
+    kpi row
+    kpi row
+    [Q-Total row for this owner group]
+    [owner separator row]
+    kpi row
+    ...
+  </tbody>
+</table>
 ```
 
-Also add an "All Roles" option to the Select so the user can explicitly send all if desired.
+### Role filtering fix
 
-### Files to change
-- `supabase/functions/send-scorecard-email/index.ts` (~line 572–587): fix role filter to check `profiles.role` fallback
-- `src/components/scorecard/ScorecardGrid.tsx` (~line 3755): fix default roleFilter when opening popover
+When `roleFilter` is set and is not "all", also exclude `fixed_ops_manager` from the non-manager filtered results. More importantly: ensure that when `roleFilter === "technician"`, the filter correctly drops owners with role `"department_manager"` OR `"fixed_ops_manager"`. The current logic already does this correctly IF the role is stored in `user_roles` or `profiles.role`. 
+
+The real fix is: **also remove the "Department Manager" option from the email popover's role selector in ScorecardGrid.tsx**. There's no reason to email a "department manager" scorecard — that's confusing the user. Remove that SelectItem. If the user wants all roles, they can use the Dashboard email button.
+
+### Q-Total per owner group (totals row)
+
+After all KPI rows for an owner, add a **"Σ Totals" row** (styled like the UI's totals strip — slate background) showing the Q-Total aggregate per week column. This matches the UI's `Σ Totals` summary section.
+
+### Saturated colors throughout
+
+Ensure all weekly data cells use the saturated palette (`#059669`, `#d97706`, `#dc2626`) not the pale variants. The `getCellStyle` function with `isWeekly=true` already does this — just need to make sure it's called correctly everywhere.
+
+---
+
+## Files to change
+
+### 1. `supabase/functions/send-scorecard-email/index.ts`
+
+Rewrite the weekly HTML section (~lines 703–867) to:
+- Build ONE `<table>` with a single `<thead>` 
+- Inside `<tbody>`, for each owner group:
+  - Render a full-width owner separator `<tr>` (navy background, spans all columns)
+  - Render each KPI data row (with saturated color cells and Q-Total)
+  - Render a totals `<tr>` (Σ Totals row) showing per-week aggregate and Q-Total
+- Close the single `</table>` after all owners
+
+### 2. `src/components/scorecard/ScorecardGrid.tsx` (~line 3779)
+
+Remove the `<SelectItem value="department_manager">Department Manager</SelectItem>` from the email popover role selector — there is no use case for emailing only the dept manager's scorecard via this button.
