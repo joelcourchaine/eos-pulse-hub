@@ -1,38 +1,65 @@
 
-## Problem
+## Two fixes: Target delete + target column visual polish
 
-In the weekly view, cell colors (green/amber/red) come from `entry?.status` stored in the database — a value computed at import/save time. If no target is set (or a target was deleted), the stored `status` might still be "green"/"red" from a previous import, causing misleading colors on cells that have no target to compare against.
+### Fix 1 — Deleting a target doesn't work (line 2309-2317)
 
-In monthly/quarterly/yearly views, `trendStatus`/`qStatus` are computed live by comparing the value to a `targetValue`. If `targetValue` is null/0, the status is already `null` and no color shows — these views are **already correct**.
+**Current behavior**: When the user clears the input and saves (Enter/blur), `handleTargetSave` checks `trimmedValue === ""` and just closes the edit mode without touching the DB. The old value stays in `kpi_targets` and `kpiTargets` state.
 
-The problem is specifically the **weekly view** data cells and the **weekly Q-Total column**, where color comes from the stored `entry.status` regardless of whether a target currently exists.
+**Fix**: When `trimmedValue === ""`, delete the row from `kpi_targets` instead of doing nothing, then remove the key from `kpiTargets` state so the cell immediately shows `—`.
 
-## Fix
-
-### 1. Weekly data cells (line ~4787)
-Currently:
 ```typescript
-const status = getStatus(entry?.status || null);
-const targetValue = kpiTargets[kpi.id] || kpi.target_value;
+// handleTargetSave - empty means DELETE
+if (trimmedValue === "") {
+  await supabase
+    .from("kpi_targets")
+    .delete()
+    .eq("kpi_id", kpiId)
+    .eq("quarter", quarter)
+    .eq("year", year)
+    .eq("entry_type", dbEntryType);
+
+  setKpiTargets(prev => {
+    const next = { ...prev };
+    delete next[kpiId];
+    return next;
+  });
+  setEditingTarget(null);
+  setTargetEditValue("");
+  return;
+}
 ```
-Add a `hasTarget` guard so `status` is suppressed when no target exists:
-```typescript
-const targetValue = kpiTargets[kpi.id] ?? kpi.target_value;
-const hasTarget = targetValue !== null && targetValue !== undefined && targetValue !== 0;
-const status = hasTarget ? getStatus(entry?.status || null) : "default";
+
+Same fix applies to `handleTrendTargetSave` for monthly/yearly views.
+
+### Fix 2 — Target column visual polish
+
+**Current issues from the screenshot**:
+- The navy `bg-[hsl(var(--scorecard-navy))]` header and cells look stark/heavy when most rows just show `—`
+- The `—` dash in navy cells is hard to read
+- No visual affordance that cells are clickable/editable
+
+**Proposed improvements**:
+
+**Header**: Keep navy background but add a subtle "pencil/edit" icon hint and soften with slightly lighter text opacity on year sub-label. Already reasonable — minor tweak only.
+
+**Data cells (line ~4276-4316)**: When value is `—` (no target), render the dash with reduced opacity (`opacity-40`) so it's clearly "empty" vs a real value. When a target exists, show the value in bold with a subtle edit affordance (pencil icon on hover via `group-hover`).
+
+```tsx
+// Target cell — no target set
+<span className="opacity-40 text-sm">—</span>
+
+// Target cell — target exists
+<span className="font-semibold text-sm cursor-pointer group-hover:underline">
+  {formatTarget(...)}
+</span>
 ```
 
-### 2. Weekly Q-Total cell (line ~4963-4989)
-The Q-Total is computed live from `qTarget`. Already only sets `qStatus` when `qTarget !== null && qTarget !== 0` — this is already correct. No change needed here.
+**Also for the monthly/quarterly target cell** (line ~5119-5180): same treatment — the current design uses `text-muted-foreground` which looks washed out against the light background; change to normal foreground with the same empty/present distinction.
 
-### 3. Also: Target column display
-Currently the target column shows `formatTarget()` which returns `"—"` for null values, so no change needed there.
+### Files to change
 
-### 4. Text color classes in weekly cells (lines ~4815-4825)
-The text color classes (`text-emerald-800`, `text-amber-800`, `text-red-800`) that appear inside the display value div also need the same guard — they key off `status`, so fixing `status` at the source (step 1) automatically fixes the text color too.
-
-## Files to change
-
-- **`src/components/scorecard/ScorecardGrid.tsx`**: ~line 4787 (weekly view per-cell status derivation) — derive `hasTarget` from `kpiTargets[kpi.id] ?? kpi.target_value` and set `status = hasTarget ? getStatus(entry?.status || null) : "default"`.
-
-That's a single, targeted, safe change. Monthly/quarterly/yearly views already guard on `targetValue !== null` before computing their status, so no changes needed there.
+- `src/components/scorecard/ScorecardGrid.tsx`:
+  - `handleTargetSave` (~line 2312): add DB delete + state cleanup for empty input
+  - `handleTrendTargetSave` (similar function): same empty-input delete logic
+  - Weekly target cell display (~line 4308-4315): differentiate empty vs set target visually
+  - Monthly/quarterly target cell display (~line 5145-5158): same visual treatment
