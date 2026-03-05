@@ -57,6 +57,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
   const [todos, setTodos] = useState<Todo[]>([]);
   const [profiles, setProfiles] = useState<{ [key: string]: Profile }>({});
   const [draggedIssue, setDraggedIssue] = useState<Issue | null>(null);
+  const [isDragOverTodos, setIsDragOverTodos] = useState(false);
   const [deleteIssueId, setDeleteIssueId] = useState<string | null>(null);
   const [deleteTodoId, setDeleteTodoId] = useState<string | null>(null);
   const [selectedIssueForTodo, setSelectedIssueForTodo] = useState<Issue | null>(null);
@@ -364,7 +365,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                     Issues List
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Drag to reorder by importance
+                    Drag to reorder · Drop onto To-Dos to link
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -494,7 +495,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
 
         {/* To-Dos Panel */}
         <ResizablePanel defaultSize={50} minSize={30}>
-          <Card className="h-full border-0 rounded-none">
+          <Card className={`h-full border-0 rounded-none transition-all ${isDragOverTodos && draggedIssue ? "ring-2 ring-inset ring-primary bg-primary/5" : ""}`}>
             <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <div>
@@ -516,8 +517,30 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                 </div>
               </div>
             </div>
-            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}>
-              {todos.length === 0 ? (
+            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}
+              onDragOver={(e) => {
+                if (draggedIssue) {
+                  e.preventDefault();
+                  setIsDragOverTodos(true);
+                }
+              }}
+              onDragLeave={() => setIsDragOverTodos(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragOverTodos(false);
+                if (draggedIssue) {
+                  setSelectedIssueForTodo(draggedIssue);
+                  setDraggedIssue(null);
+                }
+              }}
+            >
+              {isDragOverTodos && draggedIssue ? (
+                <div className="text-center py-8 text-primary">
+                  <CheckSquare className="h-12 w-12 mx-auto mb-2" />
+                  <p className="font-medium">Drop to link issue as a to-do</p>
+                </div>
+              ) : todos.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <CheckSquare className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>No to-dos yet</p>
