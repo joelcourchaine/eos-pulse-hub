@@ -1,72 +1,30 @@
 
 ## Problem Analysis
 
-The email's current single `Σ Totals` row doesn't match the UI's 4-row totals section:
+Three distinct issues to fix:
 
-**UI structure at the bottom:**
-```
-Row 1: [Σ Totals] [empty] [empty x 13] [empty]   ← navy separator
-Row 2: [Available Hours] [target] [sum/wk x 13] [Q-Total sum]
-Row 3: [Sold Hours] [target] [sum/wk x 13] [Q-Total sum]
-Row 4: [Productivity] [target%] [sold/avail% x 13] [Q-Total%] ← color-coded
-```
+### 1. Wrong Sold Hours data in email totals
+The email identifies "Sold Hours" KPIs by `name.includes('sold')`, but the actual KPI is named **"Open and Closed Hours"** (standardized per the codebase memory). This means `weekSoldTotals` is always `null`, making the Sold Hours row and Productivity row show `—` everywhere.
 
-**Email currently has:**
-```
-Row 1: [Σ Totals] [—] [naive sum of all KPIs x 13] [grand total]
-```
+**Fix**: Match the UI logic — sold KPIs are those where `name !== "Available Hours" && name !== "Productivity" && metric_type === "unit"` (same logic as `ScorecardGrid.tsx` line 5491–5494).
 
-Three fixes needed:
+### 2. Productivity row — no decimal places
+Email renders productivity as `pct.toFixed(1) + '%'`. User wants zero decimals (`Math.round(pct) + '%'`). This applies to all weekly cells AND the Q-Total cell.
 
-### 1. Fix the Totals section (4 rows matching UI)
+### 3. Productivity target cell — manual entry in the UI
+Currently the target cell for the Productivity totals row is a read-only display of `productiveTarget` (average of all technicians' productivity targets). The user wants it to be **manually editable inline** — same as the per-KPI target cells already are.
 
-The email needs to:
-- Identify which KPIs are "Available Hours" type vs "Sold Hours" type by checking `kpi.name` (same logic as UI — `availIds` = kpis containing "available", `soldIds` = kpis containing "sold")
-- Render a **navy separator** row with "Σ Totals"
-- Render **Available Hours row** — per-week sums across all owners, Q-Total = sum
-- Render **Sold Hours row** — per-week sums across all owners, Q-Total = sum
-- Render **Productivity row** — per-week = (totalSold / totalAvail * 100), Q-Total = (sumSold / sumAvail * 100), with green/amber/red color cells (using the same thresholds as UI)
-
-### 2. Add color indicators to Q-Total column
-
-The current `qtotalCellStyle` is plain gray. For each KPI row's Q-Total, compute the variance vs target and apply the same green/amber/red background as weekly cells. The Productivity row's Q-Total specifically needs the `calcProductiveStatus` logic.
-
-### 3. Shrink font size further
-
-Reduce `baseFontSize` for weekly from `"9px"` to `"8px"` and tighten `padding` in cell styles from `5px 6px` to `3px 4px` to make the table more compact overall.
+This requires adding an inline input to the Productivity row's Target cell in `ScorecardGrid.tsx`. The value should be stored in component state, and persisted to `kpi_targets` (linked to one of the productivity KPI IDs) when the user presses Enter or blurs.
 
 ---
 
-## Changes to `supabase/functions/send-scorecard-email/index.ts`
+## Files to Change
 
-### A. Shrink font/padding (~lines 623, 628-633)
-- `baseFontSize` weekly: `"9px"` → `"8px"`
-- `navyHeaderStyle`, `navyTargetStyle` padding: `5px 6px` → `3px 4px`
-- `kpiNameStyle` padding: `5px 8px` → `3px 5px`
+### A. `supabase/functions/send-scorecard-email/index.ts`
+- **Lines 720–721**: Replace `includes('sold')` with UI-matching logic: `k.name !== "Available Hours" && k.name !== "Productivity" && k.metric_type === "unit"`
+- **Lines 846, 850**: Change `pct.toFixed(1)` → `Math.round(pct).toString()` for productivity cells (no decimals, no `.0`)
 
-### B. Color Q-Total cells for KPI rows (~line 775)
-Change the Q-Total cell from always using `qtotalCellStyle` (plain gray) to computing color based on variance, same as weekly cells but calling `getCellStyle(qCellClass, baseFontSize, true)`.
-
-### C. Replace the single Σ Totals row with the 4-row UI-matching section (~lines 779-787)
-
-**New logic:**
-```typescript
-// Before the forEach loop, also track per-week sums for avail/sold KPIs
-// Detect avail/sold KPI IDs by name matching (same as ScorecardGrid)
-const allKpis = Array.from(kpisByOwner.values()).flat();
-const availKpiIds = allKpis.filter(k => k.name.toLowerCase().includes('available')).map(k => k.id);
-const soldKpiIds = allKpis.filter(k => k.name.toLowerCase().includes('sold')).map(k => k.id);
-
-// Accumulate per-week totals separately for avail and sold
-const weekAvailTotals: (number|null)[] = periods.map(() => null);
-const weekSoldTotals: (number|null)[] = periods.map(() => null);
-// ... fill during the KPI loop (check if kpi.id in availKpiIds/soldKpiIds)
-
-// After the owner forEach loop, render 4-row totals:
-// Row 1: navy "Σ Totals" separator
-// Row 2: Available Hours — per-week sums, Q-Total sum, no color (or green if above target)
-// Row 3: Sold Hours — per-week sums, Q-Total sum
-// Row 4: Productivity — (sold/avail*100) per week, color-coded
-```
-
-The productive target comes from the existing `productiveTarget` value found in `kpis` — find a KPI with `metric_type === 'percentage'` and name containing 'product' to get its target.
+### B. `src/components/scorecard/ScorecardGrid.tsx`
+- Add a `productiveTotalTarget` state (initialized from `productiveTarget`)
+- In the Productivity row's Target cell (line ~5594–5600): replace the static display with an inline `<Input>` that auto-saves on blur/Enter (same pattern as existing per-KPI inline targets)
+- On save, upsert to `kpi_targets` using the first productivity KPI's ID
