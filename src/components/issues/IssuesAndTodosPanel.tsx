@@ -711,6 +711,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
           linkedIssueId={selectedIssueForTodo.id}
           linkedIssueTitle={selectedIssueForTodo.title}
           linkedIssueSeverity={selectedIssueForTodo.severity}
+          initialDescription={selectedIssueForTodo.description || ""}
           open={true}
           onOpenChange={(open) => {
             if (!open) {
