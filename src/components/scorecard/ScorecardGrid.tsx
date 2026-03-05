@@ -5553,11 +5553,14 @@ const ScorecardGrid = ({
                     const availIds = availKpis.map((k) => k.id);
                     const soldIds = effectiveSoldKpis.map((k) => k.id);
 
-                    // Productive target: average of productive KPIs' targets (if any), otherwise null
+                    // Productive target: use manually saved target if present, otherwise average
                     const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productivity");
-                    const productiveTarget = productiveKpis.length > 0
-                      ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
-                      : null;
+                    const productivityKpiWithTarget = productiveKpis.find((k) => kpiTargets[k.id] != null);
+                    const productiveTarget = productivityKpiWithTarget
+                      ? kpiTargets[productivityKpiWithTarget.id]
+                      : productiveKpis.length > 0
+                        ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
+                        : null;
 
                     const calcProductiveStatus = (sold: number, avail: number): "success" | "warning" | "destructive" | null => {
                       if (avail === 0 || productiveTarget === null || productiveTarget === 0) return null;
