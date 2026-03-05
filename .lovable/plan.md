@@ -1,48 +1,39 @@
 
-## Root Cause — The `entry_type` filter is silently discarded
+## Problem
 
-The Supabase JS query builder is **immutable** — every chained method returns a new object. In the edge function:
+Lines 5555–5562 of `ScorecardGrid.tsx` compute `productiveTarget` using a two-step fallback:
 
-```ts
-const kpiTargetsQuery = supabase
-  .from("kpi_targets")
-  .select("kpi_id, target_value")
-  .eq("year", year)
-  .eq("quarter", quarter)
-  .in("kpi_id", kpiIds);
+1. **First priority**: a manually saved target for the first Productivity KPI that has one in `kpiTargets`
+2. **Fallback**: average of all individual technician productivity targets (from `kpiTargets` or `kpi.target_value`)
 
-if (isWeeklyMode) kpiTargetsQuery.eq("entry_type", "weekly"); // ← BUG: result is thrown away
-const { data: kpiTargets } = await kpiTargetsQuery; // ← runs WITHOUT the entry_type filter
-```
+The user wants step 2 eliminated entirely. If no manual Totals-level productivity target has been explicitly saved by the user, the target should be `null` — meaning no coloring applied to the totals Productivity row.
 
-Because `kpiTargetsQuery.eq(...)` returns a **new** builder (which is discarded), `kpiTargetsQuery` is still the original unfiltered query. So monthly targets (e.g. 40 hrs for Available Hours) are always included in the map — even in weekly mode — and cells that should be uncolored get colored red.
-
-The fix is one line: reassign the result of `.eq("entry_type", "weekly")`:
+## Root Cause
 
 ```ts
-if (isWeeklyMode) kpiTargetsQuery = kpiTargetsQuery.eq("entry_type", "weekly");
+// Lines 5555-5562 — current (bad) fallback
+const productiveTarget = productivityKpiWithTarget
+  ? kpiTargets[productivityKpiWithTarget.id]
+  : productiveKpis.length > 0
+    ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length  // ← calculated, unwanted
+    : null;
 ```
 
-This requires changing `const` → `let`.
+## Fix — `src/components/scorecard/ScorecardGrid.tsx` lines 5555–5562
 
-## Fix — `supabase/functions/send-combined-report-email/index.ts`
-
-**Lines ~257-267:** Change `const kpiTargetsQuery` to `let kpiTargetsQuery` and reassign the chained result:
+Remove the calculated average fallback. The target should only come from a manually saved `kpi_targets` row — if none exists, it's `null`:
 
 ```ts
-let kpiTargetsQuery = supabase
-  .from("kpi_targets")
-  .select("kpi_id, target_value")
-  .eq("year", year)
-  .eq("quarter", quarter)
-  .in("kpi_id", kpiIds);
-// Must reassign — Supabase query builder is immutable; chained calls return a new object
-if (isWeeklyMode) kpiTargetsQuery = kpiTargetsQuery.eq("entry_type", "weekly");
-const { data: kpiTargets } = await kpiTargetsQuery;
+// Lines 5555-5562 — after fix
+const productiveTarget = productivityKpiWithTarget
+  ? kpiTargets[productivityKpiWithTarget.id]
+  : null; // No fallback to calculated average — must be explicitly set by user
 ```
 
-Also, the UI's `hasTarget` check uses `targetValue !== 0` — cells with a target of exactly `0` are treated as having no target and show no color. The email already handles this correctly via `if (targetValue !== null && targetValue !== 0)`, so no additional change needed there.
+This means:
+- When no explicit Totals productivity target has been set → target is `null` → `calcProductiveStatus` returns `null` → no color on any cell → just shows the raw percentage
+- When the user clicks the target cell and types a value → saves to `kpi_targets` → colors activate normally
 
 ## Scope
 
-Single targeted fix: `supabase/functions/send-combined-report-email/index.ts` lines ~257-266 (change `const` to `let`, reassign the `.eq()` result).
+Single 3-line change in `ScorecardGrid.tsx` at lines 5558–5562. No database changes needed.
