@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { z } from "zod";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
@@ -117,6 +118,22 @@ const Dashboard = () => {
   const [meetingViewMode, setMeetingViewMode] = useState<MeetingViewMode>("view-all");
   const [emailRecipients, setEmailRecipients] = useState<{ id: string; full_name: string; email: string }[]>([]);
   const [selectedEmailRecipients, setSelectedEmailRecipients] = useState<string[]>([]);
+  const [customEmailInput, setCustomEmailInput] = useState("");
+  const { validEmails: validatedCustomEmails, invalidEntries: customEmailInvalidEntries } = useMemo(() => {
+    if (!customEmailInput.trim()) return { validEmails: [] as string[], invalidEntries: [] as string[] };
+    const parts = customEmailInput.split(/[,;]/).map((e) => e.trim()).filter(Boolean);
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    parts.forEach((part) => {
+      if (z.string().email().safeParse(part).success) {
+        if (!selectedEmailRecipients.includes(part) && !valid.includes(part)) valid.push(part);
+      } else {
+        invalid.push(part);
+      }
+    });
+    return { validEmails: valid, invalidEntries: invalid };
+  }, [customEmailInput, selectedEmailRecipients]);
+
   // Routine drawer removed - now using persistent RoutineSidebar
 
   // Handler to toggle mobile tasks view
@@ -957,7 +974,7 @@ const Dashboard = () => {
       return;
     }
 
-    if (selectedEmailRecipients.length === 0) {
+    if (selectedEmailRecipients.length + validatedCustomEmails.length === 0) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -993,7 +1010,7 @@ const Dashboard = () => {
               ? "monthly"
               : (printMode as "weekly" | "monthly" | "yearly" | "quarterly-trend"),
           departmentId: selectedDepartment,
-          recipientEmails: selectedEmailRecipients,
+          recipientEmails: [...selectedEmailRecipients, ...validatedCustomEmails],
           gmOverviewPeriod: printMode === "gm-overview" ? gmOverviewPeriod : undefined,
         }),
       });
@@ -1006,12 +1023,14 @@ const Dashboard = () => {
       const result = await response.json();
       console.log("Email sent:", result);
 
+      const totalCount = selectedEmailRecipients.length + validatedCustomEmails.length;
       toast({
         title: "Email Sent",
-        description: `The ${printMode === "gm-overview" ? "GM Overview" : "scorecard"} report has been emailed to ${selectedEmailRecipients.length} recipient(s) successfully.`,
+        description: `The ${printMode === "gm-overview" ? "GM Overview" : "scorecard"} report has been emailed to ${totalCount} recipient(s) successfully.`,
       });
       setPrintDialogOpen(false);
       setSelectedEmailRecipients([]);
+      setCustomEmailInput("");
     } catch (error: any) {
       console.error("Error sending email:", error);
       toast({
@@ -1405,13 +1424,29 @@ const Dashboard = () => {
                             ))}
                           </div>
                         </div>
+                        {/* Additional / custom emails */}
+                        <div className="mb-4 space-y-1">
+                          <Label className="text-sm font-semibold">
+                            Additional emails{" "}
+                            <span className="font-normal text-muted-foreground">(comma-separated)</span>
+                          </Label>
+                          <input
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            placeholder="email@example.com, another@example.com"
+                            value={customEmailInput}
+                            onChange={(e) => setCustomEmailInput(e.target.value)}
+                          />
+                          {customEmailInvalidEntries.length > 0 && (
+                            <p className="text-xs text-destructive">Invalid: {customEmailInvalidEntries.join(", ")}</p>
+                          )}
+                        </div>
                         <div className="flex justify-end gap-2 mt-4">
-                          <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+                          <Button variant="outline" onClick={() => { setPrintDialogOpen(false); setCustomEmailInput(""); }}>
                             Cancel
                           </Button>
                           <Button
                             onClick={handleEmailScorecard}
-                            disabled={isEmailLoading || selectedEmailRecipients.length === 0}
+                            disabled={isEmailLoading || (selectedEmailRecipients.length + validatedCustomEmails.length === 0)}
                           >
                             <Mail className="h-4 w-4 mr-2" />
                             {isEmailLoading ? "Sending..." : "Send Email"}
