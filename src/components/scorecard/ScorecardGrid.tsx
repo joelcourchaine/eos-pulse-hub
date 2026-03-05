@@ -3776,7 +3776,6 @@ const ScorecardGrid = ({
                             <SelectItem value="technician">Technician</SelectItem>
                             <SelectItem value="sales_advisor">Sales Advisor</SelectItem>
                             <SelectItem value="parts_advisor">Parts Advisor</SelectItem>
-                            <SelectItem value="department_manager">Department Manager</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

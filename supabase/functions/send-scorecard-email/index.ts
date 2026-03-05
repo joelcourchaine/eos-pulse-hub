@@ -701,24 +701,99 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Add KPI tables
-    Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
-      const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
-      
-      if (isWeeklyMode) {
-        html += `
-  <div style="margin-top: 20px; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">
-    <div style="background-color: #2d3f5e; color: #ffffff; padding: 10px 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.2px;">
-      ${ownerName}
-    </div>
-    <div style="overflow-x: auto;">
-    <table style="border-collapse: collapse; width: 100%; min-width: 900px;"><thead><tr>
+    if (isWeeklyMode) {
+      // ONE table, ONE header, owner separator rows inside tbody
+      const totalCols = 2 + periods.length + 1; // KPI + Target + weeks + Q-Total
+      html += `
+  <div style="margin-top: 8px; border-radius: 0 0 6px 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">
+  <div style="overflow-x: auto;">
+  <table style="border-collapse: collapse; width: 100%; min-width: 900px;">
+    <thead><tr>
       <th style="${navyHeaderStyle} min-width: 140px;">KPI</th>
       <th style="${navyTargetStyle} min-width: 60px;">Target</th>`;
-        periods.forEach((p: any, i: number) => {
-          html += `<th style="${weekHeaderStyle} min-width: 55px;">WK ${i + 1}<br/><span style="font-size: 9px; font-weight: 500; color: #64748b;">${p.label}</span></th>`;
+      periods.forEach((p: any, i: number) => {
+        html += `<th style="${weekHeaderStyle} min-width: 55px;">WK ${i + 1}<br/><span style="font-size: 9px; font-weight: 500; color: #64748b;">${p.label}</span></th>`;
+      });
+      html += `<th style="${qtotalHeaderStyle} min-width: 65px;">Q-Total</th></tr></thead><tbody>`;
+
+      Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
+        const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
+        // Owner separator row
+        html += `<tr><td colspan="${totalCols}" style="background-color: #2d3f5e; color: #ffffff; padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.2px; border: 1px solid #1e2d47;">${ownerName}</td></tr>`;
+
+        // Per-week totals accumulators for Σ Totals row
+        const weekTotals: (number | null)[] = periods.map(() => null);
+        const weekCounts: number[] = periods.map(() => 0);
+        let qTotalSum = 0;
+        let qTotalCount = 0;
+
+        ownerKpis.forEach((kpi: any) => {
+          const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+          const displayTarget = formatValue(target, kpi.metric_type, kpi.name);
+          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 60px;">${displayTarget}</td>`;
+
+          const periodValues: number[] = [];
+
+          periods.forEach((p: any, pIdx: number) => {
+            const entry = entries?.find((e: any) =>
+              'start' in p
+                ? e.kpi_id === kpi.id && e.week_start_date === p.start.toISOString().split('T')[0]
+                : false
+            );
+            let targetValue = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+            let cellClass = "";
+            if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
+              const actualValue = entry.actual_value;
+              periodValues.push(actualValue);
+              // Accumulate for Σ Totals
+              weekTotals[pIdx] = (weekTotals[pIdx] ?? 0) + actualValue;
+              weekCounts[pIdx]++;
+              const variance = kpi.metric_type === "percentage"
+                ? actualValue - targetValue
+                : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
+              if (kpi.target_direction === "above") {
+                if (variance >= 0) cellClass = "green";
+                else if (variance >= -10) cellClass = "yellow";
+                else cellClass = "red";
+              } else {
+                if (variance <= 0) cellClass = "green";
+                else if (variance <= 10) cellClass = "yellow";
+                else cellClass = "red";
+              }
+            } else if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+              periodValues.push(entry.actual_value);
+              weekTotals[pIdx] = (weekTotals[pIdx] ?? 0) + entry.actual_value;
+              weekCounts[pIdx]++;
+            }
+            html += `<td style="${getCellStyle(cellClass, baseFontSize, true)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
+          });
+
+          // Q-Total column for this KPI
+          const shouldAvg = kpi.aggregation_type === 'average';
+          const qTotal = periodValues.length > 0
+            ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
+            : null;
+          if (qTotal !== null) { qTotalSum += qTotal; qTotalCount++; }
+          html += `<td style="${qtotalCellStyle}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td></tr>`;
         });
-        html += `<th style="${qtotalHeaderStyle} min-width: 65px;">Q-Total</th></tr></thead><tbody>`;
-      } else {
+
+        // Σ Totals row
+        const totalsRowStyle = `background-color: #1e293b; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #0f172a;`;
+        html += `<tr><td style="${totalsRowStyle} text-align: left; min-width: 140px;">Σ Totals</td><td style="${totalsRowStyle}">—</td>`;
+        weekTotals.forEach((wt, wi) => {
+          const val = wt !== null && weekCounts[wi] > 0 ? wt : null;
+          html += `<td style="${totalsRowStyle}">${val !== null ? Number(val.toFixed(1)).toLocaleString() : '—'}</td>`;
+        });
+        const qGrandTotal = qTotalCount > 0 ? qTotalSum : null;
+        html += `<td style="${totalsRowStyle}">${qGrandTotal !== null ? Number(qGrandTotal.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+      });
+
+      html += `</tbody></table></div></div>`;
+
+    } else {
+      // Non-weekly modes: separate table per owner (unchanged)
+      Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
+        const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
         html += `<h2 style="color: #374151; margin-top: 28px; margin-bottom: 4px; font-size: 14px; font-weight: 700;">${ownerName}</h2>`;
         html += `<table style="border-collapse: collapse; width: 100%; margin-top: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-radius: 4px; overflow: hidden;"><thead><tr><th style="${thStyle}">KPI</th><th style="${thStyle}">Target</th>`;
         periods.forEach((p: any) => {
@@ -729,142 +804,116 @@ const handler = async (req: Request): Promise<Response> => {
           html += `<th style="${thStyle} background-color: #e0e0e0;">Total</th>`;
         }
         html += `</tr></thead><tbody>`;
-      }
 
-      ownerKpis.forEach((kpi: any) => {
-        let displayTarget = '';
-        if (mode === "yearly") {
-          const q1 = kpiTargetsByQuarter.get(kpi.id)?.get(1) || kpi.target_value;
-          const q2 = kpiTargetsByQuarter.get(kpi.id)?.get(2) || kpi.target_value;
-          const q3 = kpiTargetsByQuarter.get(kpi.id)?.get(3) || kpi.target_value;
-          const q4 = kpiTargetsByQuarter.get(kpi.id)?.get(4) || kpi.target_value;
-          displayTarget = `${formatValue(q1, kpi.metric_type, kpi.name)}/${formatValue(q2, kpi.metric_type, kpi.name)}/${formatValue(q3, kpi.metric_type, kpi.name)}/${formatValue(q4, kpi.metric_type, kpi.name)}`;
-        } else {
-          const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
-          displayTarget = formatValue(target, kpi.metric_type, kpi.name);
-        }
-
-        if (isWeeklyMode) {
-          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 60px;">${displayTarget}</td>`;
-        } else {
-          html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle} font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
-        }
-        
-        const periodValues: number[] = [];
-        
-        periods.forEach((p: any) => {
-          if (mode === "quarterly-trend" && 'months' in p) {
-            const quarterMonths = p.months as string[];
-            let quarterSum = 0;
-            let monthCount = 0;
-            for (const monthId of quarterMonths) {
-              const monthEntry = entries?.find((e: any) => e.kpi_id === kpi.id && e.month === monthId);
-              if (monthEntry?.actual_value !== null && monthEntry?.actual_value !== undefined) {
-                quarterSum += monthEntry.actual_value;
-                monthCount++;
-              }
-            }
-            const quarterValue = monthCount > 0 
-              ? (kpi.aggregation_type === 'average' ? quarterSum / monthCount : quarterSum)
-              : null;
-            const qPeriod = p as { year: number; quarter: number };
-            let targetValue = kpi.target_value;
-            if (kpiTargetsByQuarter.has(kpi.id)) {
-              targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(qPeriod.quarter) || kpi.target_value;
-            }
-            let cellClass = "";
-            if (quarterValue !== null && targetValue !== null && targetValue !== 0) {
-              const direction = kpi.target_direction;
-              const variance = kpi.metric_type === "percentage"
-                ? quarterValue - targetValue
-                : ((quarterValue - targetValue) / Math.abs(targetValue)) * 100;
-              if (direction === "above") {
-                if (variance >= 0) cellClass = "green";
-                else if (variance >= -10) cellClass = "yellow";
-                else cellClass = "red";
-              } else {
-                if (variance <= 0) cellClass = "green";
-                else if (variance <= 10) cellClass = "yellow";
-                else cellClass = "red";
-              }
-              periodValues.push(quarterValue);
-            } else if (quarterValue !== null) {
-              periodValues.push(quarterValue);
-            }
-            html += `<td style="${getCellStyle(cellClass, baseFontSize, false)}">${formatValue(quarterValue, kpi.metric_type, kpi.name)}</td>`;
+        ownerKpis.forEach((kpi: any) => {
+          let displayTarget = '';
+          if (mode === "yearly") {
+            const q1 = kpiTargetsByQuarter.get(kpi.id)?.get(1) || kpi.target_value;
+            const q2 = kpiTargetsByQuarter.get(kpi.id)?.get(2) || kpi.target_value;
+            const q3 = kpiTargetsByQuarter.get(kpi.id)?.get(3) || kpi.target_value;
+            const q4 = kpiTargetsByQuarter.get(kpi.id)?.get(4) || kpi.target_value;
+            displayTarget = `${formatValue(q1, kpi.metric_type, kpi.name)}/${formatValue(q2, kpi.metric_type, kpi.name)}/${formatValue(q3, kpi.metric_type, kpi.name)}/${formatValue(q4, kpi.metric_type, kpi.name)}`;
           } else {
-            const entry = entries?.find((e: any) => {
-              if (mode === "weekly" && 'start' in p) {
-                return e.kpi_id === kpi.id && e.week_start_date === p.start.toISOString().split('T')[0];
-              } else if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
-                return e.kpi_id === kpi.id && e.month === p.identifier;
+            const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+            displayTarget = formatValue(target, kpi.metric_type, kpi.name);
+          }
+          html += `<tr><td style="${tdStyle}">${kpi.name}</td><td style="${tdStyle} font-size: 8px; white-space: nowrap;">${displayTarget}</td>`;
+
+          const periodValues: number[] = [];
+          periods.forEach((p: any) => {
+            if (mode === "quarterly-trend" && 'months' in p) {
+              const quarterMonths = p.months as string[];
+              let quarterSum = 0;
+              let monthCount = 0;
+              for (const monthId of quarterMonths) {
+                const monthEntry = entries?.find((e: any) => e.kpi_id === kpi.id && e.month === monthId);
+                if (monthEntry?.actual_value !== null && monthEntry?.actual_value !== undefined) {
+                  quarterSum += monthEntry.actual_value;
+                  monthCount++;
+                }
               }
-              return false;
-            });
-            let targetValue = kpi.target_value;
-            if (mode === "yearly" && 'identifier' in p) {
-              const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
-              const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+              const quarterValue = monthCount > 0
+                ? (kpi.aggregation_type === 'average' ? quarterSum / monthCount : quarterSum)
+                : null;
+              const qPeriod = p as { year: number; quarter: number };
+              let targetValue = kpi.target_value;
               if (kpiTargetsByQuarter.has(kpi.id)) {
-                targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
+                targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(qPeriod.quarter) || kpi.target_value;
               }
-            } else if (mode !== "yearly" && kpiTargetsMap.has(kpi.id)) {
-              targetValue = kpiTargetsMap.get(kpi.id)!;
-            }
-            let cellClass = "";
-            if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
-              const actualValue = entry.actual_value;
-              const direction = kpi.target_direction;
-              periodValues.push(actualValue);
-              const variance = kpi.metric_type === "percentage"
-                ? actualValue - targetValue
-                : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
-              if (direction === "above") {
-                if (variance >= 0) cellClass = "green";
-                else if (variance >= -10) cellClass = "yellow";
-                else cellClass = "red";
-              } else {
-                if (variance <= 0) cellClass = "green";
-                else if (variance <= 10) cellClass = "yellow";
-                else cellClass = "red";
+              let cellClass = "";
+              if (quarterValue !== null && targetValue !== null && targetValue !== 0) {
+                const variance = kpi.metric_type === "percentage"
+                  ? quarterValue - targetValue
+                  : ((quarterValue - targetValue) / Math.abs(targetValue)) * 100;
+                if (kpi.target_direction === "above") {
+                  if (variance >= 0) cellClass = "green";
+                  else if (variance >= -10) cellClass = "yellow";
+                  else cellClass = "red";
+                } else {
+                  if (variance <= 0) cellClass = "green";
+                  else if (variance <= 10) cellClass = "yellow";
+                  else cellClass = "red";
+                }
+                periodValues.push(quarterValue);
+              } else if (quarterValue !== null) {
+                periodValues.push(quarterValue);
               }
+              html += `<td style="${getCellStyle(cellClass, baseFontSize, false)}">${formatValue(quarterValue, kpi.metric_type, kpi.name)}</td>`;
             } else {
-              if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+              const entry = entries?.find((e: any) => {
+                if ((mode === "monthly" || mode === "yearly") && 'identifier' in p) {
+                  return e.kpi_id === kpi.id && e.month === p.identifier;
+                }
+                return false;
+              });
+              let targetValue = kpi.target_value;
+              if (mode === "yearly" && 'identifier' in p) {
+                const monthIndex = parseInt(p.identifier.split('-')[1]) - 1;
+                const periodQuarter = Math.ceil((monthIndex + 1) / 3);
+                if (kpiTargetsByQuarter.has(kpi.id)) {
+                  targetValue = kpiTargetsByQuarter.get(kpi.id)!.get(periodQuarter) || kpi.target_value;
+                }
+              } else if (kpiTargetsMap.has(kpi.id)) {
+                targetValue = kpiTargetsMap.get(kpi.id)!;
+              }
+              let cellClass = "";
+              if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
+                const actualValue = entry.actual_value;
+                periodValues.push(actualValue);
+                const variance = kpi.metric_type === "percentage"
+                  ? actualValue - targetValue
+                  : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
+                if (kpi.target_direction === "above") {
+                  if (variance >= 0) cellClass = "green";
+                  else if (variance >= -10) cellClass = "yellow";
+                  else cellClass = "red";
+                } else {
+                  if (variance <= 0) cellClass = "green";
+                  else if (variance <= 10) cellClass = "yellow";
+                  else cellClass = "red";
+                }
+              } else if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
                 periodValues.push(entry.actual_value);
               }
+              html += `<td style="${getCellStyle(cellClass, baseFontSize, false)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
             }
-            html += `<td style="${getCellStyle(cellClass, baseFontSize, isWeeklyMode)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
-          }
-        });
-        
-        if (isWeeklyMode) {
-          // Q-Total column
-          const shouldAvg = kpi.aggregation_type === 'average';
-          const qTotal = periodValues.length > 0
-            ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
-            : null;
-          html += `<td style="${qtotalCellStyle}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td>`;
-        } else if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
-          const avg = periodValues.length > 0 
-            ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length 
-            : null;
-          const shouldShowAvgAsTotal = kpi.aggregation_type === 'average';
-          const total = periodValues.length > 0 
-            ? shouldShowAvgAsTotal ? avg : periodValues.reduce((sum, v) => sum + v, 0)
-            : null;
-          html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
-          html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
-        }
-        
-        html += `</tr>`;
-      });
+          });
 
-      if (isWeeklyMode) {
-        html += `</tbody></table></div></div>`;
-      } else {
+          if (mode === "yearly" || mode === "monthly" || mode === "quarterly-trend") {
+            const avg = periodValues.length > 0
+              ? periodValues.reduce((sum, v) => sum + v, 0) / periodValues.length
+              : null;
+            const total = periodValues.length > 0
+              ? kpi.aggregation_type === 'average' ? avg : periodValues.reduce((sum, v) => sum + v, 0)
+              : null;
+            html += `<td style="${tdStyle} font-weight: bold; background-color: #f5f5f5;">${formatValue(avg, kpi.metric_type, kpi.name)}</td>`;
+            html += `<td style="${tdStyle} font-weight: bold; background-color: #f0f0f0;">${formatValue(total, kpi.metric_type, kpi.name)}</td>`;
+          }
+          html += `</tr>`;
+        });
         html += `</tbody></table>`;
-      }
-    });
+      });
+    }
 
     // Add financial metrics for monthly, yearly, and quarterly-trend modes
     if (mode === "monthly" || mode === "yearly" || mode === "quarterly-trend") {
