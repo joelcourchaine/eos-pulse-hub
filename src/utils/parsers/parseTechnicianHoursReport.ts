@@ -33,6 +33,17 @@ export interface TechnicianHoursParseResult {
   month: string;
   technicians: TechnicianData[];
   detectedNames: string[];
+  debugInfo?: {
+    sheetName: string;
+    totalRows: number;
+    headerRowIndex: number;
+    dateColIdx: number;
+    soldColIdx: number;
+    clockColIdx: number;
+    detectedLayout: string;
+    headerRowContent: string[];
+    first10DataRows: string[][];
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +301,29 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           }
         }
 
-        resolve({ storeName, month: dominantMonth, technicians, detectedNames: technicians.map(t => t.rawName) });
+        // Build debugInfo — always capture metadata, only include raw rows when 0 technicians
+        let detectedLayout = "header-detected";
+        if (headerRowIndex === 0) {
+          detectedLayout = dateColIdx === 0 ? "RAM fallback (0,2,4)" : "Nissan fallback (2,4,6)";
+        }
+        const headerRowContent = (rows[headerRowIndex] ?? []).map(c => String(c ?? ""));
+        const first10DataRows = technicians.length === 0
+          ? rows.slice(headerRowIndex + 1, headerRowIndex + 11).map(r => (r ?? []).map(c => String(c ?? "")))
+          : [];
+
+        const debugInfo = {
+          sheetName,
+          totalRows: rows.length,
+          headerRowIndex,
+          dateColIdx,
+          soldColIdx,
+          clockColIdx,
+          detectedLayout,
+          headerRowContent,
+          first10DataRows,
+        };
+
+        resolve({ storeName, month: dominantMonth, technicians, detectedNames: technicians.map(t => t.rawName), debugInfo });
 
       } catch (err: any) {
         console.error("[TechParse] Error:", err);

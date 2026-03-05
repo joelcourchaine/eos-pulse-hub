@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Check, AlertCircle, Loader2, UserPlus, Settings } from "lucide-react";
+import { Check, AlertCircle, Loader2, UserPlus, Settings, Copy, CheckCheck } from "lucide-react";
 import {
   TechnicianHoursParseResult,
   TechnicianData,
@@ -73,6 +73,7 @@ export const TechnicianImportPreviewDialog = ({
   useEffect(() => { mappingsRef.current = mappings; }, [mappings]);
   const [soldHrsLabel, setSoldHrsLabel] = useState<string>("closed_hours");
   const [labelSaved, setLabelSaved] = useState(false);
+  const [debugCopied, setDebugCopied] = useState(false);
   const [newUserForm, setNewUserForm] = useState<NewUserForm>({
     techIndex: null,
     fullName: "",
@@ -535,8 +536,57 @@ export const TechnicianImportPreviewDialog = ({
               </p>
             </div>
 
+            {/* Debug panel — shown only when 0 technicians detected */}
+            {parseResult.technicians.length === 0 && parseResult.debugInfo && (() => {
+              const d = parseResult.debugInfo!;
+              const debugText = [
+                `Sheet: "${d.sheetName}"   Total rows: ${d.totalRows}`,
+                `Header row: ${d.headerRowIndex}   Layout: "${d.detectedLayout}"`,
+                `Date col: ${d.dateColIdx}   Sold col: ${d.soldColIdx}   Clock col: ${d.clockColIdx}`,
+                ``,
+                `Header row content:`,
+                `  [${d.headerRowContent.map(c => c || "—").join("] [")}]`,
+                ``,
+                `First 10 data rows (after header):`,
+                ...d.first10DataRows.map((r, i) =>
+                  `  Row ${d.headerRowIndex + 1 + i}: [${r.map(c => c || "—").join("] [")}]`
+                ),
+              ].join("\n");
+
+              return (
+                <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    No technicians detected in this file
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The parser could not find any technician blocks. The debug info below shows what was actually detected — share this with support to help fix the parser for this report format.
+                  </p>
+                  <div className="relative">
+                    <pre className="text-xs bg-muted rounded p-3 overflow-x-auto whitespace-pre font-mono leading-5">
+                      {debugText}
+                    </pre>
+                    <button
+                      className="absolute top-2 right-2 p-1 rounded hover:bg-muted-foreground/20 transition-colors"
+                      onClick={() => {
+                        navigator.clipboard.writeText(debugText);
+                        setDebugCopied(true);
+                        setTimeout(() => setDebugCopied(false), 2000);
+                      }}
+                      title="Copy debug info"
+                    >
+                      {debugCopied
+                        ? <CheckCheck className="h-3.5 w-3.5 text-primary" />
+                        : <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                      }
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Technician Mappings */}
-            <div className="space-y-2">
+            {parseResult.technicians.length > 0 && <div className="space-y-2">
               <div className="text-sm font-medium">
                 Map technicians to users ({mappedCount}/{mappings.length} mapped)
               </div>
@@ -669,7 +719,7 @@ export const TechnicianImportPreviewDialog = ({
                   )}
                 </div>
               ))}
-            </div>
+            </div>}
 
             {/* Weekly totals preview */}
             {mappings.length > 0 && (
