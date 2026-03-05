@@ -5552,14 +5552,12 @@ const ScorecardGrid = ({
                     const availIds = availKpis.map((k) => k.id);
                     const soldIds = effectiveSoldKpis.map((k) => k.id);
 
-                    // Productive target: use manually saved target if present, otherwise average
+                    // Productive target: only use manually saved target — no calculated fallback
                     const productiveKpis = roleFilteredKpis.filter((k) => k.name === "Productivity");
                     const productivityKpiWithTarget = productiveKpis.find((k) => kpiTargets[k.id] != null);
                     const productiveTarget = productivityKpiWithTarget
                       ? kpiTargets[productivityKpiWithTarget.id]
-                      : productiveKpis.length > 0
-                        ? productiveKpis.reduce((acc, k) => acc + (kpiTargets[k.id] || k.target_value || 0), 0) / productiveKpis.length
-                        : null;
+                      : null; // No fallback to calculated average — must be explicitly set by user
 
                     const calcProductiveStatus = (sold: number, avail: number): "success" | "warning" | "destructive" | null => {
                       if (avail === 0 || productiveTarget === null || productiveTarget === 0) return null;
