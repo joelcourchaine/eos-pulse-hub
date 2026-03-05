@@ -1,67 +1,41 @@
 
-## The KPIs are Not the Problem
+## Delete Non-Report KPIs from River City Ram Technicians
 
-Existing KPIs attached to technicians have zero effect on the import preview. The preview dialog builds its technician list entirely from `parseResult.technicians` — if that array is empty, nothing shows. The database isn't consulted until after you click Import.
+Looking at the database, each technician at River City Ram has **6 KPIs**:
+- From the report: `Available Hours`, `Closed Hours`, `Open and Closed Hours`, `Productivity`
+- NOT from the report: `Total Hours`, `Total Labour Sales`
 
-**The real issue remains the parser failing to detect technicians from the River City Ram file.** Without seeing the actual file structure, we're guessing at column positions and label names. The most efficient fix is to add debug output to the parser that surfaces directly in the preview dialog when 0 technicians are found — this will tell us exactly what the RAM file looks like.
+The import code only creates/writes to the 3 report-specific KPIs by exact name match — so these extra KPIs don't technically block data from loading. However, cleaning them out is a valid diagnostic step and keeps the scorecard tidy.
 
----
-
-## Plan: Add Parse Debug Info When 0 Technicians Detected
-
-### Change 1 — `src/utils/parsers/parseTechnicianHoursReport.ts`
-
-Extend `TechnicianHoursParseResult` with an optional `debugInfo` field:
-
-```typescript
-debugInfo?: {
-  sheetName: string;
-  totalRows: number;
-  headerRowIndex: number;
-  dateColIdx: number;
-  soldColIdx: number;
-  clockColIdx: number;
-  detectedLayout: string;
-  first10DataRows: string[][];   // first 10 rows after header as raw strings
-  headerRowContent: string[];     // the actual header row cell values
-}
-```
-
-Populate this always but only include `first10DataRows` when technicians.length === 0 so there's no performance cost in the normal case.
-
-### Change 2 — `src/components/scorecard/TechnicianImportPreviewDialog.tsx`
-
-When `parseResult.technicians.length === 0`, instead of showing an empty list, show a debug panel:
-
-```
-No technicians detected in this file.
-
-Parse debug info:
-  Sheet: "Sheet1"   Total rows: 142
-  Header row: 12    Layout: "RAM fallback (0,2,4)"
-  Date col: 0   Sold col: 2   Clock col: 4
-
-  Header row content:
-    [Date] [??] [Flat Rate Hrs] [??] [Available Hrs] ...
-
-  First 10 data rows (after header):
-    Row 13: ["1/2/2025", "", "8.5", "", "7.0", ...]
-    Row 14: ["John Smith", "", "", "", "", ...]
-    ...
-```
-
-This panel shows inline in the dialog — no new UI needed beyond a `pre`/`code` block with a copy button. It will immediately reveal:
-- Whether dates are in the right column
-- What the actual column header names are
-- Whether technician names are on separate rows or inline
+**The real parsing issue remains** — the parser still isn't finding any technicians in the RAM file. The debug panel we added will confirm the exact layout once the file is re-uploaded.
 
 ---
 
-### Files to change: 2
+### Plan: Remove `Total Hours` and `Total Labour Sales` from technicians at River City Ram
 
-| File | Change |
+**No code changes needed** — this is a targeted database cleanup via a migration.
+
+**SQL to run:**
+
+```sql
+DELETE FROM kpi_definitions
+WHERE name IN ('Total Hours', 'Total Labour Sales')
+  AND assigned_to IN (
+    SELECT p.id FROM profiles p
+    JOIN stores s ON s.id = p.store_id
+    WHERE s.name ILIKE '%river city ram%'
+  );
+```
+
+This deletes only those two extra KPI definitions (and their associated `scorecard_entries` will cascade-delete or remain orphaned depending on FK config — I'll check).
+
+I also need to verify whether `scorecard_entries` has a cascade delete on `kpi_id` so no orphan data is left behind.
+
+**After this cleanup:** Re-upload the RAM technician productivity report. The debug panel will show what the parser detected. If 0 technicians still come back, the debug info will tell us the exact column layout of the RAM file so the parser can be fixed precisely.
+
+**Files to change: 0 (DB-only migration)**
+
+| Action | Details |
 |---|---|
-| `src/utils/parsers/parseTechnicianHoursReport.ts` | Add `debugInfo` to result type + populate it |
-| `src/components/scorecard/TechnicianImportPreviewDialog.tsx` | Show debug panel when 0 technicians parsed |
-
-No DB changes. No migration. This gives us the information needed to fix the parser correctly for the RAM format on the next pass.
+| Delete KPIs | `Total Hours` and `Total Labour Sales` from all technicians at River City Ram |
+| No code changes | The import flow is unaffected |
