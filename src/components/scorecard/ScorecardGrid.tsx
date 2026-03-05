@@ -2309,8 +2309,21 @@ const ScorecardGrid = ({
   const handleTargetSave = async (kpiId: string) => {
     const trimmedValue = targetEditValue.trim();
 
-    // Allow empty values - this clears/removes the target
+    // Empty value means DELETE the target
     if (trimmedValue === "") {
+      await supabase
+        .from("kpi_targets")
+        .delete()
+        .eq("kpi_id", kpiId)
+        .eq("quarter", quarter)
+        .eq("year", year)
+        .eq("entry_type", dbEntryType);
+
+      setKpiTargets((prev) => {
+        const next = { ...prev };
+        delete next[kpiId];
+        return next;
+      });
       setEditingTarget(null);
       setTargetEditValue("");
       return;
@@ -2456,6 +2469,20 @@ const ScorecardGrid = ({
     const trimmedValue = trendTargetEditValue.trim();
 
     if (trimmedValue === "") {
+      await supabase
+        .from("kpi_targets")
+        .delete()
+        .eq("kpi_id", kpiId)
+        .eq("quarter", targetQuarter)
+        .eq("year", targetYear)
+        .eq("entry_type", "monthly");
+
+      const targetKey = `${kpiId}-Q${targetQuarter}-${targetYear}`;
+      setTrendTargets((prev) => {
+        const next = { ...prev };
+        delete next[targetKey];
+        return next;
+      });
       setEditingTrendTarget(null);
       setTrendTargetEditValue("");
       return;
@@ -4310,7 +4337,13 @@ const ScorecardGrid = ({
                                       className={cn(canEditTargets() && "cursor-pointer hover:opacity-80")}
                                       onClick={() => canEditTargets() && handleTargetEdit(kpi.id)}
                                     >
-                                      {formatTarget(kpiTargets[kpi.id] || kpi.target_value, kpi.metric_type, kpi.name)}
+                                      {(kpiTargets[kpi.id] != null || kpi.target_value != null) ? (
+                                        <span className="font-semibold text-xs">
+                                          {formatTarget(kpiTargets[kpi.id] ?? kpi.target_value, kpi.metric_type, kpi.name)}
+                                        </span>
+                                      ) : (
+                                        <span className="opacity-30 text-xs">—</span>
+                                      )}
                                     </span>
                                   )}
                                 </TableCell>
@@ -4372,10 +4405,14 @@ const ScorecardGrid = ({
                                       ) : (
                                         <Popover>
                                           <PopoverTrigger asChild>
-                                            <span className={cn(canEditTargets() && "cursor-pointer hover:underline")}>
-                                              {targetValue !== null && targetValue !== undefined
-                                                ? formatTarget(targetValue, kpi.metric_type, kpi.name)
-                                                : "-"}
+                                           <span className={cn(canEditTargets() && "cursor-pointer hover:opacity-80")}>
+                                              {targetValue !== null && targetValue !== undefined ? (
+                                                <span className="font-semibold text-xs">
+                                                  {formatTarget(targetValue, kpi.metric_type, kpi.name)}
+                                                </span>
+                                              ) : (
+                                                <span className="opacity-30 text-xs">—</span>
+                                              )}
                                             </span>
                                           </PopoverTrigger>
                                           {canEditTargets() && (
