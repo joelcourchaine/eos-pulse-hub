@@ -1,47 +1,29 @@
 
-## Root Cause
+## What Needs to Change
 
-The screenshot shows the **old** template. The new code IS deployed and correct in the file — the problem is twofold:
+Looking at the screenshot and user requests:
 
-1. **The user clicked the old Dashboard email button**, not the new "Email" button in the GO Scorecard header. The Dashboard sends no `roleFilter` and the email used the old cached deployment.
+1. **Remove per-owner Σ Totals rows** — delete the per-owner "Σ Totals" row that appears after each technician's KPI group
+2. **Add ONE overall weekly totals row at the bottom** — a single `Σ Totals` row after ALL owners, showing the sum of all values per week column + Q-Total (matching the UI's bottom totals strip)
+3. **Remove the 30% Green Rate badge** from the navy header — just keep store/dept name, period, weeks entered
+4. **Shrink the table** — reduce font size (9px from 11px), reduce cell padding to be more compact so more columns fit and the Q-Total column with technician names is visible
+5. **Fix the legend** — replace `display: flex` with a table-based layout (email client incompatible), so the legend renders on one row without overlapping
 
-2. **Even with the new code, Gmail will break the layout** because:
-   - `display: flex` is stripped by Gmail, Outlook, and most email clients
-   - `rgba()` colors are not supported in many clients
-   - The header stats badges will not render correctly
+### Specific Changes in `supabase/functions/send-scorecard-email/index.ts`
 
-## Fix Plan
+**Line 623** — `baseFontSize`: Change weekly mode font from `11px` to `9px` to shrink the table
 
-### Edge function — fix Gmail-compatible HTML
+**Lines 680-684** — Header badges: Remove the green rate `<td>` cell, keep only store/title and weeks entered
 
-Replace `display: flex` with `<table>`-based layout for the header stats row. Replace `rgba()` with solid hex colors. This ensures the navy header renders perfectly in Gmail, Outlook, Apple Mail.
+**Lines 719-788** — Weekly tbody loop:
+- Remove the per-owner Σ Totals row block (lines 780-788)
+- Instead accumulate into **global** week totals across all owners
+- After the `forEach` loop closes (`Array.from(kpisByOwner.entries()).forEach`), add ONE overall Σ Totals row
 
-**Header fix** (lines 676–685):
-```html
-<!-- Use table layout instead of flex for email client compatibility -->
-<table style="border-collapse: collapse; margin-top: 10px; width: 100%;">
-  <tr>
-    <td style="padding-right: 8px;">
-      <span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">${reportTitle} · 13 weeks</span>
-    </td>
-    <td style="padding-right: 8px;">
-      <span style="background-color: #2d4a6b; ...">Weeks Entered: ${weeksWithData}/13</span>
-    </td>
-    <td>
-      <span style="background-color: #059669 (or amber/red based on rate); ...">🎯 ${greenRate}% Green Rate</span>
-    </td>
-  </tr>
-</table>
-```
+**Lines 1386-1394** — Legend footer: Replace `display: flex` container with a `<table>` layout using inline cells
 
-Also fix `rgba(255,255,255,0.12)` → solid `#2d4a6b` (a lighter navy).
-
-### No other changes needed
-
-The single-table structure, navy styles, saturated cell colors, and Σ Totals rows are all correct in the current code and will render properly once the Gmail-incompatible CSS is fixed.
-
-### Files to change
-
-- **`supabase/functions/send-scorecard-email/index.ts`** — replace `display: flex` + `rgba()` in the weekly header (lines 676–685) with table-based layout and solid hex colors. Then redeploy.
-
-After this fix, the user should use the **"Email" button in the GO Scorecard header** (not the Dashboard button) for the role-filtered send. The Dashboard button sends all roles as it always did.
+### Change summary
+- `baseFontSize` for weekly: `"11px"` → `"9px"`
+- Header: remove the green rate `<td>` (3rd column)
+- tbody: accumulate global totals across all owners, remove per-owner totals, add single overall totals row at bottom
+- Legend: fix with table layout
