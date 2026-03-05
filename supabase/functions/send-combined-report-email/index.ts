@@ -254,12 +254,16 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
   const kpiIds = allKpis.map((k: any) => k.id);
   const kpiTargetsMap = new Map<string, number>();
   if (quarter) {
-    const { data: kpiTargets } = await supabase
+    const kpiTargetsQuery = supabase
       .from("kpi_targets")
       .select("kpi_id, target_value")
       .eq("year", year)
       .eq("quarter", quarter)
       .in("kpi_id", kpiIds);
+    // Weekly mode must only use weekly targets — monthly targets (e.g. Available Hours = 40)
+    // must not colour weekly cells or the cells turn red incorrectly.
+    if (isWeeklyMode) kpiTargetsQuery.eq("entry_type", "weekly");
+    const { data: kpiTargets } = await kpiTargetsQuery;
     (kpiTargets || []).forEach((t: any) => { if (t.target_value != null) kpiTargetsMap.set(t.kpi_id, t.target_value); });
   }
 
@@ -609,8 +613,19 @@ const handler = async (req: Request): Promise<Response> => {
         const html = await buildScorecardSection(supabaseClient, departmentId, year, quarter, scorecardMode, roleFilter);
         sectionBlocks.push(`<div style="padding: 0 32px;">${html}</div>`);
       } else if (section === "top10") {
-        if (top10ListIds.length > 0) {
-          const html = await buildTop10Section(supabaseClient, top10ListIds);
+        let listIds = top10ListIds;
+        // If the section was checked but no specific lists were selected, fall back to all active lists
+        if (!listIds.length) {
+          const { data: allLists } = await supabaseClient
+            .from("top_10_lists")
+            .select("id")
+            .eq("department_id", departmentId)
+            .eq("is_active", true)
+            .order("display_order");
+          listIds = (allLists || []).map((l: any) => l.id);
+        }
+        if (listIds.length > 0) {
+          const html = await buildTop10Section(supabaseClient, listIds);
           sectionBlocks.push(`<div style="padding: 0 32px;">${html}</div>`);
         }
       }
