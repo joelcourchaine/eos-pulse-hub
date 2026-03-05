@@ -1,22 +1,44 @@
 
-## Carry Over Issue Description When Dragging to To-Do
+## The Problem
 
-### The gap
-When an issue is dragged to the To-Dos panel, `IssuesAndTodosPanel.tsx` already passes `linkedIssueTitle` and `linkedIssueSeverity` to `TodoManagementDialog`. But the issue's **description** is never passed — so the description field in the dialog opens blank.
+The "Failed to load to-dos" error in `TodosPanel.tsx` has two likely causes working together:
 
-`TodoManagementDialog` already has an `initialDescription` prop that wires directly into the description field (line 79 of the dialog). It just isn't being used from the drag path.
+**1. Hardcoded realtime channel name collision**
+`TodosPanel.tsx` always uses `'todos-realtime'` as the Supabase channel name. If the component re-renders (department switch, page navigation), a new subscription is created while the old one isn't fully cleaned up yet. This causes channel conflicts and failed queries.
 
-### Fix — one line change in `IssuesAndTodosPanel.tsx`
+**2. `setTodos([])` before async fetch creates a visible flicker/error loop**
+The code clears todos immediately (`setTodos([])`) before awaiting the fetch. If the fetch then fails (due to a brief auth token refresh or channel conflict), the error toast fires AND todos stay empty — which looks broken.
 
-At line 713 (the `TodoManagementDialog` rendered for the drag/right-click path), add:
+**3. Missing auth session check in `loadTodos`**
+The `loadTodos` in `TodosPanel.tsx` makes no check that the user is authenticated before querying. If the Supabase client is mid-token-refresh, the query gets fired without a valid token → RLS rejects it → error toast.
 
-```typescript
-initialDescription={selectedIssueForTodo.description || ""}
-```
+## The Fix
 
-That's the only change needed. The dialog's `useEffect` already reads `initialDescription` and sets the description field when `open` transitions to true.
+**In `src/components/todos/TodosPanel.tsx`:**
 
-### Files changed
+1. **Make the channel name unique** using `departmentId` so it doesn't collide across re-renders:
+   ```typescript
+   .channel(`todos-realtime-${departmentId}`)
+   ```
+
+2. **Add auth guard to `loadTodos`** — check session exists before querying:
+   ```typescript
+   const { data: { session } } = await supabase.auth.getSession();
+   if (!session) return;
+   ```
+
+3. **Remove `setTodos([])` before the fetch** — only update state on success, keeping the previous data visible while loading. This prevents the jarring empty→error flash.
+
+4. **Add a debounce to the realtime callback** — use a ref-based debounce (100ms) so rapid-fire realtime events don't stack up multiple simultaneous `loadTodos` calls:
+   ```typescript
+   const realtimeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+   // In the channel callback:
+   if (realtimeTimeoutRef.current) clearTimeout(realtimeTimeoutRef.current);
+   realtimeTimeoutRef.current = setTimeout(() => loadTodos(), 100);
+   ```
+
+## Files Changed
+
 | File | Change |
 |---|---|
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Add `initialDescription` prop to the "Create To-Do from Issue" `TodoManagementDialog` |
+| `src/components/todos/TodosPanel.tsx` | Unique channel name, auth guard, remove premature clear, debounce realtime |
