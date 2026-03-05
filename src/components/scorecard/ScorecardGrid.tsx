@@ -4151,8 +4151,7 @@ const ScorecardGrid = ({
                       {/* Phase 5: Q TOTAL header */}
                       <TableHead className="text-center min-w-[80px] max-w-[80px] text-xs py-1 bg-muted/70 border-l-2 border-border font-bold sticky top-0 z-10">
                         <div className="flex flex-col items-center">
-                          <div className="text-xs font-bold">Q{quarter}</div>
-                          <div className="text-[10px] text-muted-foreground">TOTAL</div>
+                          <div className="text-xs font-bold">Q{quarter} Totals</div>
                         </div>
                       </TableHead>
                     </>
@@ -5588,7 +5587,7 @@ const ScorecardGrid = ({
                         <TableRow className="bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)]">
                           <TableCell className="sticky left-0 z-10 bg-[hsl(222,47%,18%)] dark:bg-[hsl(222,47%,22%)] py-1 w-[170px] min-w-[170px] max-w-[170px] border-r border-white/10 shadow-[2px_0_4px_rgba(0,0,0,0.2)]">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-white">Σ Totals</span>
+                              <span className="font-bold text-sm text-white">Totals</span>
                             </div>
                           </TableCell>
                           {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
@@ -5745,7 +5744,7 @@ const ScorecardGrid = ({
                                       {qValue !== null
                                         ? row.type === "productive"
                                           ? `${Math.round(qValue)}%`
-                                          : parseFloat(qValue.toFixed(2)).toString()
+                                          : Number.isFinite(qValue) ? parseFloat(qValue.toFixed(2)).toString() : "-"
                                         : "-"}
                                     </TableCell>
                                   );
