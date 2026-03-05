@@ -603,34 +603,34 @@ const handler = async (req: Request): Promise<Response> => {
     
     // Helper function to convert cell class to inline style
     const getCellStyle = (cellClass: string, baseFontSize: string, isWeekly = false): string => {
-      const baseStyle = `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize}; font-weight: 600;`;
+      const baseStyle = `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize}; font-weight: 600;`;
       if (isWeekly) {
         switch (cellClass) {
           case "green": return `${baseStyle} background-color: #059669; color: #ffffff;`;
           case "yellow": return `${baseStyle} background-color: #d97706; color: #ffffff;`;
           case "red": return `${baseStyle} background-color: #dc2626; color: #ffffff;`;
-          default: return `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize}; background-color: #f8fafc; color: #64748b;`;
+          default: return `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize}; background-color: #f8fafc; color: #64748b;`;
         }
       }
       switch (cellClass) {
         case "green": return `${baseStyle} background-color: #d1fae5; color: #065f46;`;
         case "yellow": return `${baseStyle} background-color: #fef3c7; color: #92400e;`;
         case "red": return `${baseStyle} background-color: #fee2e2; color: #991b1b;`;
-        default: return `border: 1px solid #d1d5db; padding: 5px 6px; text-align: center; font-size: ${baseFontSize};`;
+        default: return `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize};`;
       }
     };
     
-    const baseFontSize = mode === "yearly" || mode === "weekly" ? "9px" : "11px";
+    const baseFontSize = mode === "yearly" || mode === "weekly" ? "8px" : "11px";
     const isWeeklyMode = mode === "weekly";
     
     // Navy styles for weekly mode  
     const navyBg = "#1e2d47";
-    const navyHeaderStyle = `background-color: ${navyBg}; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: left; border: 1px solid #2d3f5e; white-space: nowrap;`;
-    const navyTargetStyle = `background-color: ${navyBg}; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #2d3f5e; white-space: nowrap;`;
-    const weekHeaderStyle = `background-color: #e2e8f0; color: #1e293b; padding: 4px 6px; font-size: 10px; font-weight: 700; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;`;
-    const kpiNameStyle = `background-color: #f8fafc; padding: 5px 8px; font-size: ${baseFontSize}; font-weight: 600; text-align: left; border: 1px solid #d1d5db; color: #1e293b; white-space: nowrap; max-width: 160px; overflow: hidden;`;
-    const qtotalHeaderStyle = `background-color: #334155; color: #ffffff; padding: 4px 6px; font-size: 10px; font-weight: 700; text-align: center; border: 1px solid #475569;`;
-    const qtotalCellStyle = `background-color: #f1f5f9; color: #1e293b; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #cbd5e1;`;
+    const navyHeaderStyle = `background-color: ${navyBg}; color: #ffffff; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: left; border: 1px solid #2d3f5e; white-space: nowrap;`;
+    const navyTargetStyle = `background-color: ${navyBg}; color: #ffffff; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #2d3f5e; white-space: nowrap;`;
+    const weekHeaderStyle = `background-color: #e2e8f0; color: #1e293b; padding: 3px 4px; font-size: 9px; font-weight: 700; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;`;
+    const kpiNameStyle = `background-color: #f8fafc; padding: 3px 5px; font-size: ${baseFontSize}; font-weight: 600; text-align: left; border: 1px solid #d1d5db; color: #1e293b; white-space: nowrap; max-width: 140px; overflow: hidden;`;
+    const qtotalHeaderStyle = `background-color: #334155; color: #ffffff; padding: 3px 4px; font-size: 9px; font-weight: 700; text-align: center; border: 1px solid #475569;`;
+    const qtotalCellStyle = `background-color: #f1f5f9; color: #1e293b; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #cbd5e1;`;
     
     const thStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize}; background-color: #f4f4f4; font-weight: bold;`;
     const tdStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
@@ -715,21 +715,29 @@ const handler = async (req: Request): Promise<Response> => {
       });
       html += `<th style="${qtotalHeaderStyle} min-width: 65px;">Q-Total</th></tr></thead><tbody>`;
 
-      // Global totals accumulators across ALL owners
-      const globalWeekTotals: (number | null)[] = periods.map(() => null);
-      const globalWeekCounts: number[] = periods.map(() => 0);
-      let globalQTotalSum = 0;
-      let globalQTotalCount = 0;
+      // Detect Available / Sold / Productivity KPI IDs by name (same as ScorecardGrid)
+      const allKpisFlat: any[] = Array.from(kpisByOwner.values()).flat();
+      const availKpiIds = new Set(allKpisFlat.filter((k: any) => k.name.toLowerCase().includes('available')).map((k: any) => k.id));
+      const soldKpiIds = new Set(allKpisFlat.filter((k: any) => k.name.toLowerCase().includes('sold')).map((k: any) => k.id));
+      // Productivity target: find a % KPI whose name includes 'product'
+      const productivityKpi = allKpisFlat.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+      const productivityTarget = productivityKpi
+        ? (kpiTargetsMap.has(productivityKpi.id) ? kpiTargetsMap.get(productivityKpi.id)! : productivityKpi.target_value) ?? 115
+        : 115;
+
+      // Per-week avail/sold totals (for bottom totals section)
+      const weekAvailTotals: (number | null)[] = periods.map(() => null);
+      const weekSoldTotals: (number | null)[] = periods.map(() => null);
 
       Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
         const ownerName = ownerId === "unassigned" ? "Unassigned" : profilesMap.get(ownerId)?.full_name || "Unknown";
         // Owner separator row
-        html += `<tr><td colspan="${totalCols}" style="background-color: #2d3f5e; color: #ffffff; padding: 6px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.2px; border: 1px solid #1e2d47;">${ownerName}</td></tr>`;
+        html += `<tr><td colspan="${totalCols}" style="background-color: #2d3f5e; color: #ffffff; padding: 4px 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.2px; border: 1px solid #1e2d47;">${ownerName}</td></tr>`;
 
         ownerKpis.forEach((kpi: any) => {
           const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
           const displayTarget = formatValue(target, kpi.metric_type, kpi.name);
-          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 55px;">${displayTarget}</td>`;
+          html += `<tr><td style="${kpiNameStyle}">${kpi.name}</td><td style="${navyTargetStyle} min-width: 50px;">${displayTarget}</td>`;
 
           const periodValues: number[] = [];
 
@@ -744,8 +752,9 @@ const handler = async (req: Request): Promise<Response> => {
             if (entry?.actual_value !== null && entry?.actual_value !== undefined && targetValue !== null && targetValue !== 0) {
               const actualValue = entry.actual_value;
               periodValues.push(actualValue);
-              globalWeekTotals[pIdx] = (globalWeekTotals[pIdx] ?? 0) + actualValue;
-              globalWeekCounts[pIdx]++;
+              // Accumulate avail/sold per-week totals
+              if (availKpiIds.has(kpi.id)) weekAvailTotals[pIdx] = (weekAvailTotals[pIdx] ?? 0) + actualValue;
+              if (soldKpiIds.has(kpi.id)) weekSoldTotals[pIdx] = (weekSoldTotals[pIdx] ?? 0) + actualValue;
               const variance = kpi.metric_type === "percentage"
                 ? actualValue - targetValue
                 : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
@@ -760,31 +769,85 @@ const handler = async (req: Request): Promise<Response> => {
               }
             } else if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
               periodValues.push(entry.actual_value);
-              globalWeekTotals[pIdx] = (globalWeekTotals[pIdx] ?? 0) + entry.actual_value;
-              globalWeekCounts[pIdx]++;
+              if (availKpiIds.has(kpi.id)) weekAvailTotals[pIdx] = (weekAvailTotals[pIdx] ?? 0) + entry.actual_value;
+              if (soldKpiIds.has(kpi.id)) weekSoldTotals[pIdx] = (weekSoldTotals[pIdx] ?? 0) + entry.actual_value;
             }
             html += `<td style="${getCellStyle(cellClass, baseFontSize, true)}">${formatValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
           });
 
-          // Q-Total column for this KPI
+          // Q-Total for this KPI row — color-coded like weekly cells
           const shouldAvg = kpi.aggregation_type === 'average';
           const qTotal = periodValues.length > 0
             ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
             : null;
-          if (qTotal !== null) { globalQTotalSum += qTotal; globalQTotalCount++; }
-          html += `<td style="${qtotalCellStyle}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td></tr>`;
+          let qCellClass = "";
+          if (qTotal !== null && target !== null && target !== 0) {
+            const qVariance = kpi.metric_type === "percentage"
+              ? qTotal - target
+              : ((qTotal - target) / Math.abs(target)) * 100;
+            if (kpi.target_direction === "above") {
+              if (qVariance >= 0) qCellClass = "green";
+              else if (qVariance >= -10) qCellClass = "yellow";
+              else qCellClass = "red";
+            } else {
+              if (qVariance <= 0) qCellClass = "green";
+              else if (qVariance <= 10) qCellClass = "yellow";
+              else qCellClass = "red";
+            }
+          }
+          html += `<td style="${getCellStyle(qCellClass, baseFontSize, true)}">${formatValue(qTotal, kpi.metric_type, kpi.name)}</td></tr>`;
         });
       });
 
-      // ONE overall Σ Totals row at the bottom
-      const totalsRowStyle = `background-color: #1e293b; color: #ffffff; padding: 5px 6px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #0f172a;`;
-      html += `<tr><td style="${totalsRowStyle} text-align: left; min-width: 140px;">Σ Totals</td><td style="${totalsRowStyle}">—</td>`;
-      globalWeekTotals.forEach((wt, wi) => {
-        const val = wt !== null && globalWeekCounts[wi] > 0 ? wt : null;
-        html += `<td style="${totalsRowStyle}">${val !== null ? Number(val.toFixed(1)).toLocaleString() : '—'}</td>`;
+      // ── 4-row totals section matching UI ──────────────────────────────────
+      const totalsNavy = `background-color: #1e293b; color: #ffffff; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #0f172a;`;
+      const totalsPlain = `background-color: #e2e8f0; color: #1e293b; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #cbd5e1;`;
+
+      // Row 1: navy separator
+      html += `<tr><td colspan="${totalCols}" style="${totalsNavy} text-align: left;">Σ Totals</td></tr>`;
+
+      // Compute Q-level sums for avail/sold
+      const qAvailSum = weekAvailTotals.reduce<number>((s, v) => s + (v ?? 0), 0);
+      const qSoldSum = weekSoldTotals.reduce<number>((s, v) => s + (v ?? 0), 0);
+
+      // Row 2: Available Hours
+      const availKpiForTarget = allKpisFlat.find((k: any) => availKpiIds.has(k.id));
+      const availTarget = availKpiForTarget ? (kpiTargetsMap.has(availKpiForTarget.id) ? kpiTargetsMap.get(availKpiForTarget.id)! : availKpiForTarget.target_value) : null;
+      html += `<tr><td style="${kpiNameStyle}">Available Hours</td><td style="${navyTargetStyle} min-width: 50px;">${availTarget !== null ? Number(availTarget).toLocaleString() : '—'}</td>`;
+      weekAvailTotals.forEach(v => {
+        html += `<td style="${totalsPlain}">${v !== null ? Number(v.toFixed(1)).toLocaleString() : '—'}</td>`;
       });
-      const qGrandTotal = globalQTotalCount > 0 ? globalQTotalSum : null;
-      html += `<td style="${totalsRowStyle}">${qGrandTotal !== null ? Number(qGrandTotal.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+      html += `<td style="${totalsPlain} font-weight: 700;">${qAvailSum > 0 ? Number(qAvailSum.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+
+      // Row 3: Sold Hours
+      const soldKpiForTarget = allKpisFlat.find((k: any) => soldKpiIds.has(k.id));
+      const soldTarget = soldKpiForTarget ? (kpiTargetsMap.has(soldKpiForTarget.id) ? kpiTargetsMap.get(soldKpiForTarget.id)! : soldKpiForTarget.target_value) : null;
+      html += `<tr><td style="${kpiNameStyle}">Sold Hours</td><td style="${navyTargetStyle} min-width: 50px;">${soldTarget !== null ? Number(soldTarget).toLocaleString() : '—'}</td>`;
+      weekSoldTotals.forEach(v => {
+        html += `<td style="${totalsPlain}">${v !== null ? Number(v.toFixed(1)).toLocaleString() : '—'}</td>`;
+      });
+      html += `<td style="${totalsPlain} font-weight: 700;">${qSoldSum > 0 ? Number(qSoldSum.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+
+      // Row 4: Productivity (color-coded)
+      const prodTargetDisplay = `${productivityTarget}%`;
+      const calcProdClass = (sold: number | null, avail: number | null): string => {
+        if (sold === null || avail === null || avail === 0) return "";
+        const pct = (sold / avail) * 100;
+        const variance = pct - productivityTarget;
+        if (variance >= 0) return "green";
+        if (variance >= -10) return "yellow";
+        return "red";
+      };
+      html += `<tr><td style="${kpiNameStyle}">Productivity</td><td style="${navyTargetStyle} min-width: 50px;">${prodTargetDisplay}</td>`;
+      weekAvailTotals.forEach((avail, i) => {
+        const sold = weekSoldTotals[i];
+        const pct = avail !== null && sold !== null && avail > 0 ? (sold / avail) * 100 : null;
+        const cls = calcProdClass(sold, avail);
+        html += `<td style="${getCellStyle(cls, baseFontSize, true)}">${pct !== null ? pct.toFixed(1) + '%' : '—'}</td>`;
+      });
+      const qProdPct = qAvailSum > 0 ? (qSoldSum / qAvailSum) * 100 : null;
+      const qProdClass = qProdPct !== null ? (qProdPct - productivityTarget >= 0 ? "green" : qProdPct - productivityTarget >= -10 ? "yellow" : "red") : "";
+      html += `<td style="${getCellStyle(qProdClass, baseFontSize, true)}">${qProdPct !== null ? qProdPct.toFixed(1) + '%' : '—'}</td></tr>`;
 
       html += `</tbody></table></div></div>`;
 
