@@ -137,22 +137,11 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           if (!row) continue;
           const normed = row.map(normCol);
           const dIdx = normed.findIndex(c => c === "date" || c.startsWith("date "));
-          // Sold hrs: Nissan + RAM/Stellantis variants
-          const sIdx = normed.findIndex(c =>
-            c.includes("sold hrs") || c.includes("sold hours") ||
-            c.includes("clsd hrs") || c.includes("closed hrs") ||
-            c.includes("flat rate hrs") || c.includes("flat rate hours") ||
-            c.includes("labour sold") || c.includes("labor sold") ||
-            c.includes("flagged hrs") || c === "f r hrs" || c.includes("f r hrs") ||
-            c.includes("labor sold hrs") || c.includes("labour sold hrs")
-          );
-          // Available/clocked-in hrs: Nissan + RAM/Stellantis variants
+          // Sold hrs — exact match only
+          const sIdx = normed.findIndex(c => c === "sold hrs" || c === "sold hours");
+          // Clocked In Hrs — exact match only
           const cIdx = normed.findIndex(c =>
-            c.includes("clocked in hrs") || c.includes("clocked in hours") || c === "clocked in" ||
-            c.includes("actual hrs") || c.includes("actual hours") ||
-            c === "clock hrs" || c.includes("clock hours") ||
-            c.includes("available hrs") || c.includes("available hours") ||
-            c === "total hrs" || c === "total hours"
+            c === "clocked in hrs" || c === "clocked in hours" || c === "clocked in"
           );
           if (dIdx !== -1 && sIdx !== -1 && cIdx !== -1) {
             headerRowIndex = ri;
