@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.send-todos-email]
 verify_jwt = true
+
+[functions.send-combined-report-email]
+verify_jwt = true

@@ -98,9 +98,13 @@ const Dashboard = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedQuarter, setSelectedQuarter] = useState(() => Math.floor(new Date().getMonth() / 3) + 1);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview">(
+  const [printMode, setPrintMode] = useState<"weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview" | "custom">(
     "monthly",
   );
+  const [customSections, setCustomSections] = useState<Set<"issues-todos" | "scorecard" | "top10">>(new Set());
+  const [customScorecardMode, setCustomScorecardMode] = useState<"weekly" | "monthly" | "yearly">("weekly");
+  const [customTop10ListIds, setCustomTop10ListIds] = useState<string[]>([]);
+  const [availableTop10Lists, setAvailableTop10Lists] = useState<{ id: string; title: string }[]>([]);
   const [gmOverviewPeriod, setGmOverviewPeriod] = useState<"quarterly" | "yearly">("quarterly");
   const [kpiStatusCounts, setKpiStatusCounts] = useState({ green: 0, yellow: 0, red: 0, missing: 0 });
   const [activeRocksCount, setActiveRocksCount] = useState(0);
@@ -966,20 +970,15 @@ const Dashboard = () => {
 
   const handleEmailScorecard = async () => {
     if (!selectedDepartment) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select a department first",
-      });
+      toast({ variant: "destructive", title: "Error", description: "Please select a department first" });
       return;
     }
-
     if (selectedEmailRecipients.length + validatedCustomEmails.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Please select at least one recipient",
-      });
+      toast({ variant: "destructive", title: "Error", description: "Please select at least one recipient" });
+      return;
+    }
+    if (printMode === "custom" && customSections.size === 0) {
+      toast({ variant: "destructive", title: "Error", description: "Please select at least one section" });
       return;
     }
 
@@ -987,13 +986,43 @@ const Dashboard = () => {
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
+      if (!token) throw new Error("No authentication token found");
 
-      if (!token) {
-        throw new Error("No authentication token found");
+      let endpoint: string;
+      let body: Record<string, any>;
+
+      if (printMode === "custom") {
+        endpoint = "send-combined-report-email";
+        body = {
+          departmentId: selectedDepartment,
+          recipientEmails: [...selectedEmailRecipients, ...validatedCustomEmails],
+          sections: Array.from(customSections),
+          year: selectedYear,
+          quarter: selectedQuarter,
+          scorecardMode: customScorecardMode,
+          top10ListIds: customTop10ListIds,
+          clientDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+        };
+      } else if (printMode === "gm-overview") {
+        endpoint = "send-gm-overview-email";
+        body = {
+          year: selectedYear,
+          quarter: selectedQuarter,
+          mode: "monthly",
+          departmentId: selectedDepartment,
+          recipientEmails: [...selectedEmailRecipients, ...validatedCustomEmails],
+          gmOverviewPeriod,
+        };
+      } else {
+        endpoint = "send-scorecard-email";
+        body = {
+          year: selectedYear,
+          quarter: selectedQuarter,
+          mode: printMode as "weekly" | "monthly" | "yearly" | "quarterly-trend",
+          departmentId: selectedDepartment,
+          recipientEmails: [...selectedEmailRecipients, ...validatedCustomEmails],
+        };
       }
-
-      // Use different endpoint for GM Overview
-      const endpoint = printMode === "gm-overview" ? "send-gm-overview-email" : "send-scorecard-email";
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${endpoint}`, {
         method: "POST",
@@ -1002,17 +1031,7 @@ const Dashboard = () => {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({
-          year: selectedYear,
-          quarter: selectedQuarter,
-          mode:
-            printMode === "gm-overview"
-              ? "monthly"
-              : (printMode as "weekly" | "monthly" | "yearly" | "quarterly-trend"),
-          departmentId: selectedDepartment,
-          recipientEmails: [...selectedEmailRecipients, ...validatedCustomEmails],
-          gmOverviewPeriod: printMode === "gm-overview" ? gmOverviewPeriod : undefined,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -1020,13 +1039,11 @@ const Dashboard = () => {
         throw new Error(errorData.error || `HTTP error ${response.status}`);
       }
 
-      const result = await response.json();
-      console.log("Email sent:", result);
-
       const totalCount = selectedEmailRecipients.length + validatedCustomEmails.length;
+      const reportLabel = printMode === "gm-overview" ? "GM Overview" : printMode === "custom" ? "Combined" : "scorecard";
       toast({
         title: "Email Sent",
-        description: `The ${printMode === "gm-overview" ? "GM Overview" : "scorecard"} report has been emailed to ${totalCount} recipient(s) successfully.`,
+        description: `The ${reportLabel} report has been emailed to ${totalCount} recipient(s) successfully.`,
       });
       setPrintDialogOpen(false);
       setSelectedEmailRecipients([]);
@@ -1110,9 +1127,9 @@ const Dashboard = () => {
   return (
     <>
       {/* Hidden Print Content - Only mount when print dialog is open and not GM Overview */}
-      {printDialogOpen && printMode !== "gm-overview" && (
+      {printDialogOpen && printMode !== "gm-overview" && printMode !== "custom" && (
         <div className="print-only-content" style={{ display: "none" }}>
-          <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode} departmentId={selectedDepartment} />
+          <PrintView year={selectedYear} quarter={selectedQuarter} mode={printMode as "weekly" | "monthly" | "yearly" | "quarterly-trend"} departmentId={selectedDepartment} />
         </div>
       )}
 
@@ -1284,7 +1301,8 @@ const Dashboard = () => {
                       onOpenChange={(open) => {
                         setPrintDialogOpen(open);
                         if (open) {
-                          const loadRecipients = async () => {
+                          const loadData = async () => {
+                            // Load recipients
                             const { data: superAdminRoles } = await supabase
                               .from("user_roles")
                               .select("user_id")
@@ -1315,11 +1333,20 @@ const Dashboard = () => {
                                 allProfiles.push(sa);
                               }
                             });
-
                             allProfiles.sort((a, b) => a.full_name.localeCompare(b.full_name));
                             setEmailRecipients(allProfiles);
+
+                            // Load Top 10 lists for custom report selector
+                            if (selectedDepartment) {
+                              const { data: lists } = await supabase
+                                .from("top_10_lists")
+                                .select("id, title")
+                                .eq("department_id", selectedDepartment)
+                                .order("title");
+                              setAvailableTop10Lists(lists || []);
+                            }
                           };
-                          loadRecipients();
+                          loadData();
                         }
                       }}
                     >
@@ -1332,16 +1359,116 @@ const Dashboard = () => {
                           <Label className="text-sm font-semibold mb-3 block">Report Format</Label>
                           <RadioGroup
                             value={printMode}
-                            onValueChange={(
-                              value: "weekly" | "monthly" | "yearly" | "quarterly-trend" | "gm-overview",
-                            ) => setPrintMode(value)}
+                            onValueChange={(value) => setPrintMode(value as typeof printMode)}
                           >
+                            {/* Custom Report */}
+                            <div className="p-2 rounded-lg border border-accent/40 bg-accent/10">
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="custom" id="custom" />
+                                <Label htmlFor="custom" className="cursor-pointer font-normal">
+                                  <span className="font-semibold">Custom Report</span> — select sections below
+                                </Label>
+                              </div>
+                              {printMode === "custom" && (
+                                <div className="mt-3 ml-6 p-3 bg-background/50 rounded-md border space-y-3">
+                                  {/* Section: Issues & To-Dos */}
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id="section-issues"
+                                      checked={customSections.has("issues-todos")}
+                                      onCheckedChange={(checked) => {
+                                        const next = new Set(customSections);
+                                        checked ? next.add("issues-todos") : next.delete("issues-todos");
+                                        setCustomSections(next);
+                                      }}
+                                    />
+                                    <Label htmlFor="section-issues" className="cursor-pointer font-normal text-sm">Issues &amp; To-Dos</Label>
+                                  </div>
+                                  {/* Section: Scorecard */}
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id="section-scorecard"
+                                        checked={customSections.has("scorecard")}
+                                        onCheckedChange={(checked) => {
+                                          const next = new Set(customSections);
+                                          checked ? next.add("scorecard") : next.delete("scorecard");
+                                          setCustomSections(next);
+                                        }}
+                                      />
+                                      <Label htmlFor="section-scorecard" className="cursor-pointer font-normal text-sm">Scorecard</Label>
+                                    </div>
+                                    {customSections.has("scorecard") && (
+                                      <div className="ml-6 mt-2">
+                                        <RadioGroup
+                                          value={customScorecardMode}
+                                          onValueChange={(v) => setCustomScorecardMode(v as "weekly" | "monthly" | "yearly")}
+                                          className="flex gap-3 flex-wrap"
+                                        >
+                                          <div className="flex items-center space-x-1.5">
+                                            <RadioGroupItem value="weekly" id="cs-weekly" />
+                                            <Label htmlFor="cs-weekly" className="cursor-pointer font-normal text-xs">Weekly (Q{selectedQuarter})</Label>
+                                          </div>
+                                          <div className="flex items-center space-x-1.5">
+                                            <RadioGroupItem value="monthly" id="cs-monthly" />
+                                            <Label htmlFor="cs-monthly" className="cursor-pointer font-normal text-xs">Monthly (Q{selectedQuarter})</Label>
+                                          </div>
+                                          <div className="flex items-center space-x-1.5">
+                                            <RadioGroupItem value="yearly" id="cs-yearly" />
+                                            <Label htmlFor="cs-yearly" className="cursor-pointer font-normal text-xs">All 12 months</Label>
+                                          </div>
+                                        </RadioGroup>
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Section: Top 10 Lists */}
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id="section-top10"
+                                        checked={customSections.has("top10")}
+                                        onCheckedChange={(checked) => {
+                                          const next = new Set(customSections);
+                                          checked ? next.add("top10") : next.delete("top10");
+                                          setCustomSections(next);
+                                        }}
+                                      />
+                                      <Label htmlFor="section-top10" className="cursor-pointer font-normal text-sm">Top 10 Lists</Label>
+                                    </div>
+                                    {customSections.has("top10") && availableTop10Lists.length > 0 && (
+                                      <div className="ml-6 mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                                        {availableTop10Lists.map((list) => (
+                                          <div key={list.id} className="flex items-center space-x-2">
+                                            <Checkbox
+                                              id={`top10-${list.id}`}
+                                              checked={customTop10ListIds.includes(list.id)}
+                                              onCheckedChange={(checked) => {
+                                                setCustomTop10ListIds(
+                                                  checked
+                                                    ? [...customTop10ListIds, list.id]
+                                                    : customTop10ListIds.filter((id) => id !== list.id)
+                                                );
+                                              }}
+                                            />
+                                            <Label htmlFor={`top10-${list.id}`} className="cursor-pointer font-normal text-xs">{list.title}</Label>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {customSections.has("top10") && availableTop10Lists.length === 0 && (
+                                      <p className="ml-6 mt-1 text-xs text-muted-foreground">No Top 10 lists found for this department.</p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {/* GM Overview */}
                             <div className="p-2 rounded-lg border border-primary/20 bg-primary/5">
                               <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="gm-overview" id="gm-overview" />
                                 <Label htmlFor="gm-overview" className="cursor-pointer font-normal">
                                   <span className="font-semibold">GM Overview</span> - Issues, To-Dos, Scorecard,
-                                  Financial, Rocks & Celebrations
+                                  Financial, Rocks &amp; Celebrations
                                 </Label>
                               </div>
                               {printMode === "gm-overview" && (
@@ -1391,7 +1518,7 @@ const Dashboard = () => {
                             <div className="flex items-center space-x-2">
                               <RadioGroupItem value="yearly" id="yearly" />
                               <Label htmlFor="yearly" className="cursor-pointer font-normal">
-                                Yearly Report (All 12 months with KPIs & Financial Summary)
+                                Yearly Report (All 12 months with KPIs &amp; Financial Summary)
                               </Label>
                             </div>
                           </RadioGroup>
@@ -1446,7 +1573,11 @@ const Dashboard = () => {
                           </Button>
                           <Button
                             onClick={handleEmailScorecard}
-                            disabled={isEmailLoading || (selectedEmailRecipients.length + validatedCustomEmails.length === 0)}
+                            disabled={
+                              isEmailLoading ||
+                              (selectedEmailRecipients.length + validatedCustomEmails.length === 0) ||
+                              (printMode === "custom" && customSections.size === 0)
+                            }
                           >
                             <Mail className="h-4 w-4 mr-2" />
                             {isEmailLoading ? "Sending..." : "Send Email"}
