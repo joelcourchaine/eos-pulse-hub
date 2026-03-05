@@ -254,7 +254,9 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
   const kpiIds = allKpis.map((k: any) => k.id);
   const kpiTargetsMap = new Map<string, number>();
   if (quarter) {
-    const kpiTargetsQuery = supabase
+    // Must use `let` — Supabase query builder is immutable; .eq() returns a NEW object.
+    // Discarding the return value (as `const` forces) silently drops the filter.
+    let kpiTargetsQuery = supabase
       .from("kpi_targets")
       .select("kpi_id, target_value")
       .eq("year", year)
@@ -262,7 +264,7 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
       .in("kpi_id", kpiIds);
     // Weekly mode must only use weekly targets — monthly targets (e.g. Available Hours = 40)
     // must not colour weekly cells or the cells turn red incorrectly.
-    if (isWeeklyMode) kpiTargetsQuery.eq("entry_type", "weekly");
+    if (isWeeklyMode) kpiTargetsQuery = kpiTargetsQuery.eq("entry_type", "weekly");
     const { data: kpiTargets } = await kpiTargetsQuery;
     (kpiTargets || []).forEach((t: any) => { if (t.target_value != null) kpiTargetsMap.set(t.kpi_id, t.target_value); });
   }
