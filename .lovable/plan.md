@@ -1,37 +1,41 @@
 
-## Delete Duplicate "Open and Closed Hours" KPIs for River City Ram
+## Root Cause Identified: Duplicate Unique Constraints Blocking Monthly Upserts
 
-### What was found
-Every technician at River City Ram has exactly **2** "Open and Closed Hours" KPI definitions — the original one (renamed from "Closed Hours") and a new one (created when the import code ran after the rename). **Neither duplicate has any scorecard entries** — all 14 duplicates have `entry_count: 0` — so we can safely delete one from each technician with zero data loss.
+### What's happening
+The import logs show **success** with 9 technicians and 3 KPIs each — but **zero scorecard entries** were actually written. The import is silently failing on the database upsert step.
 
-### Technicians affected (7 technicians, 7 rows to delete)
-For each technician, we keep the first ID and delete the second. The specific IDs to delete (one per technician):
+**The bug:** There are two conflicting unique constraints on `scorecard_entries` for monthly data:
+- `unique_kpi_month` → `UNIQUE (kpi_id, month)` — **no `entry_type` column**
+- `scorecard_entries_kpi_month_entry_unique` → `UNIQUE (kpi_id, month, entry_type)` — what the code targets
 
-| Technician | ID to DELETE |
-|---|---|
-| Andrew | `51e58c73-1a0e-4642-8441-b13542924fd0` |
-| Gavin | `faa18aa0-a19b-4a6a-b81c-69969fb9cbc8` |
-| Jim E | `81ca84d6-4e91-4da3-ad14-531a20b1cb8a` |
-| Ken | `493728b5-9d16-4860-b045-b4e65debea48` |
-| Kiel | `5dd21542-5ba1-452e-bd54-dc3f07e2a8d3` |
-| Martin | `a09eb444-ae37-4ece-8401-d6584033cd88` |
-| Noah | `85981ba3-4eaa-469b-a47f-68db9244ac9d` |
-
-### SQL (DB-only, no code changes)
-```sql
-DELETE FROM kpi_definitions
-WHERE id IN (
-  '51e58c73-1a0e-4642-8441-b13542924fd0',
-  'faa18aa0-a19b-4a6a-b81c-69969fb9cbc8',
-  '81ca84d6-4e91-4da3-ad14-531a20b1cb8a',
-  '493728b5-9d16-4860-b045-b4e65debea48',
-  '5dd21542-5ba1-452e-bd54-dc3f07e2a8d3',
-  'a09eb444-ae37-4ece-8401-d6584033cd88',
-  '85981ba3-4eaa-469b-a47f-68db9244ac9d'
-);
+The import code runs:
+```typescript
+supabase.from("scorecard_entries").upsert(entries, { onConflict: "kpi_id,month,entry_type" })
 ```
 
-**No code changes. No migration needed. No data lost.** All entries are 0 on both duplicates so any one is safe to remove.
+This tells Postgres: "on conflict on `(kpi_id, month, entry_type)`, do an UPDATE." But when Postgres tries to insert a row that conflicts on the **narrower** `unique_kpi_month` constraint `(kpi_id, month)`, that conflict is **not handled** by the targeted upsert — Postgres throws an error that `supabase-js` swallows silently. The batch returns no error to the client but writes nothing.
 
-### Root cause note
-The duplicates were created because: (1) the original "Closed Hours" KPI was renamed to "Open and Closed Hours" in the DB, then (2) the technician import ran and found no matching "Open and Closed Hours" KPI, so it created a new one — resulting in two. After this cleanup, re-running the import will correctly match against the single remaining KPI by name.
+There's a similar duplication for weekly: `unique_kpi_week` and `scorecard_entries_kpi_id_week_start_date_key` both cover `(kpi_id, week_start_date)`. The weekly upsert targets `"kpi_id,week_start_date"` so it happens to work, but the duplicate is still redundant.
+
+### Fix: Drop the redundant constraints via migration
+
+```sql
+-- Drop redundant narrow monthly constraint (kept: scorecard_entries_kpi_month_entry_unique)
+ALTER TABLE scorecard_entries DROP CONSTRAINT unique_kpi_month;
+
+-- Drop one of the two duplicate weekly constraints (kept: unique_kpi_week)
+ALTER TABLE scorecard_entries DROP CONSTRAINT scorecard_entries_kpi_id_week_start_date_key;
+```
+
+After dropping these, the monthly upsert `onConflict: "kpi_id,month,entry_type"` will work correctly against the remaining `scorecard_entries_kpi_month_entry_unique` constraint.
+
+**No code changes needed** — the import code is correct. The database schema has redundant constraints that conflict with each other.
+
+### After the fix
+The next import run will write data correctly. Since previous imports logged "success" but wrote nothing, we may want to re-import the report file for 2026-02 to populate the data.
+
+| Change | Detail |
+|---|---|
+| DB migration | Drop `unique_kpi_month` constraint |
+| DB migration | Drop `scorecard_entries_kpi_id_week_start_date_key` constraint |
+| No code changes | Import logic is correct |
