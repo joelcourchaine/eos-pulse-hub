@@ -61,6 +61,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
   const [deleteIssueId, setDeleteIssueId] = useState<string | null>(null);
   const [deleteTodoId, setDeleteTodoId] = useState<string | null>(null);
   const [selectedIssueForTodo, setSelectedIssueForTodo] = useState<Issue | null>(null);
+  const [isSelectedIssueFromDrag, setIsSelectedIssueFromDrag] = useState(false);
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
   const [editingIssueNotes, setEditingIssueNotes] = useState<{ [id: string]: string }>({});
@@ -387,103 +388,111 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                   const isInMotion = issueHasLinkedTodo(issue.id);
                   const isExpanded = expandAllNotes || expandedIssueId === issue.id;
                   return (
-                    <ContextMenu key={issue.id}>
-                      <ContextMenuTrigger>
-                        <div
-                          draggable
-                          onDragStart={() => handleDragStart(issue)}
-                          onDragOver={(e) => handleDragOver(e, issue)}
-                          onDragEnd={handleDragEnd}
-                          className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors cursor-move ${getSeverityBorderColor(issue.severity, isInMotion)}`}
-                        >
-                          <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div
-                              className="flex items-center gap-1 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id);
-                              }}
-                            >
-                              <h4 className="font-medium flex-1">{issue.title}</h4>
-                              {(issue.description || expandAllNotes) && (
-                                isExpanded
-                                  ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                                  : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                    <div
+                      key={issue.id}
+                      draggable
+                      onDragStart={() => handleDragStart(issue)}
+                      onDragOver={(e) => handleDragOver(e, issue)}
+                      onDragEnd={handleDragEnd}
+                      className="cursor-move"
+                    >
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(issue.severity, isInMotion)}`}
+                          >
+                            <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div
+                                className="flex items-center gap-1 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedIssueId(expandedIssueId === issue.id ? null : issue.id);
+                                }}
+                              >
+                                <h4 className="font-medium flex-1">{issue.title}</h4>
+                                {(issue.description || expandAllNotes) && (
+                                  isExpanded
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                )}
+                              </div>
+                              {isExpanded && (
+                                <Textarea
+                                  value={editingIssueNotes[issue.id] ?? issue.description ?? ""}
+                                  placeholder="Add notes..."
+                                  rows={2}
+                                  className="mt-1 text-sm resize-none"
+                                  onChange={(e) => setEditingIssueNotes(prev => ({ ...prev, [issue.id]: e.target.value }))}
+                                  onBlur={(e) => saveIssueNotes(issue.id, e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
                               )}
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
+                                  {isInMotion ? "in progress" : issue.status}
+                                </Badge>
+                                <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
+                                  <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
+                                    <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="low">
+                                      <span className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                        Low
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="medium">
+                                      <span className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                        Medium
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="high">
+                                      <span className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                                        High
+                                      </span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
-                            {isExpanded && (
-                              <Textarea
-                                value={editingIssueNotes[issue.id] ?? issue.description ?? ""}
-                                placeholder="Add notes..."
-                                rows={2}
-                                className="mt-1 text-sm resize-none"
-                                onChange={(e) => setEditingIssueNotes(prev => ({ ...prev, [issue.id]: e.target.value }))}
-                                onBlur={(e) => saveIssueNotes(issue.id, e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
+                            <div className="flex gap-1">
+                              <IssueManagementDialog
+                                departmentId={departmentId}
+                                onIssueAdded={loadIssues}
+                                issue={issue}
+                                trigger={
+                                  <Button variant="ghost" size="sm">
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                }
                               />
-                            )}
-                            <div className="flex items-center gap-2 mt-2">
-                              <Badge variant={isInMotion ? "secondary" : issue.status === "open" ? "default" : "secondary"}>
-                                {isInMotion ? "in progress" : issue.status}
-                              </Badge>
-                              <Select value={issue.severity} onValueChange={(value) => handleUpdateIssueSeverity(issue.id, value)}>
-                                <SelectTrigger className="h-6 w-[6.5rem] text-xs capitalize">
-                                  <span className={`h-2 w-2 rounded-full mr-1 ${getSeverityDotColor(issue.severity)}`} />
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="low">
-                                    <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                                      Low
-                                    </span>
-                                  </SelectItem>
-                                  <SelectItem value="medium">
-                                    <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-amber-500" />
-                                      Medium
-                                    </span>
-                                  </SelectItem>
-                                  <SelectItem value="high">
-                                    <span className="flex items-center gap-2">
-                                      <span className="h-2 w-2 rounded-full bg-red-500" />
-                                      High
-                                    </span>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteIssueId(issue.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex gap-1">
-                            <IssueManagementDialog
-                              departmentId={departmentId}
-                              onIssueAdded={loadIssues}
-                              issue={issue}
-                              trigger={
-                                <Button variant="ghost" size="sm">
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              }
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setDeleteIssueId(issue.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent>
-                        <ContextMenuItem onClick={() => setSelectedIssueForTodo(issue)}>
-                          <CheckSquare className="h-4 w-4 mr-2" />
-                          Create To-Do from Issue
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={() => {
+                            setSelectedIssueForTodo(issue);
+                            setIsSelectedIssueFromDrag(false);
+                          }}>
+                            <CheckSquare className="h-4 w-4 mr-2" />
+                            Create To-Do from Issue
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    </div>
                   );
                 })
               )}
@@ -530,6 +539,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                 e.stopPropagation();
                 setIsDragOverTodos(false);
                 if (draggedIssue) {
+                  setIsSelectedIssueFromDrag(true);
                   setSelectedIssueForTodo(draggedIssue);
                   setDraggedIssue(null);
                 }
@@ -703,8 +713,16 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
           linkedIssueSeverity={selectedIssueForTodo.severity}
           open={true}
           onOpenChange={(open) => {
-            if (!open) setSelectedIssueForTodo(null);
+            if (!open) {
+              setSelectedIssueForTodo(null);
+              setIsSelectedIssueFromDrag(false);
+            }
           }}
+          onIssueLinked={isSelectedIssueFromDrag ? async () => {
+            const issueId = selectedIssueForTodo.id;
+            await supabase.from("issues").delete().eq("id", issueId);
+            loadIssues();
+          } : undefined}
         />
       )}
     </>
