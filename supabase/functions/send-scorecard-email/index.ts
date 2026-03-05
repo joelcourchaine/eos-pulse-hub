@@ -676,7 +676,7 @@ const handler = async (req: Request): Promise<Response> => {
       html += `
   <!-- Navy header banner -->
   <div style="background-color: ${navyBg}; color: #ffffff; padding: 20px 24px; border-radius: 8px 8px 0 0; margin-bottom: 0;">
-    <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">${storeName} — ${deptName} Scorecard</div>
+    <div style="font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">${storeName} — ${deptName}${roleFilter && roleFilter !== "all" ? ` ${roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}` : ""} Scorecard</div>
     <table style="border-collapse: collapse; margin-top: 10px; width: 100%;"><tr>
       <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">${reportTitle} · 13 weeks</span></td>
       <td style="padding-right: 12px; white-space: nowrap;"><span style="background-color: #2d4a6b; border-radius: 4px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #ffffff; display: inline-block;">Weeks Entered: ${weeksWithData}/13</span></td>
@@ -721,7 +721,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Match UI logic: sold KPIs are unit-type KPIs that aren't Available Hours or Productivity
       const soldKpiIds = new Set(allKpisFlat.filter((k: any) => k.metric_type === 'unit' && k.name !== 'Available Hours' && k.name !== 'Productivity').map((k: any) => k.id));
       // Productivity target: find a % KPI whose name includes 'product'
-      const productivityKpi = allKpisFlat.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+      const productivityKpi = (kpis || []).find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
       const productivityTarget = productivityKpi
         ? (kpiTargetsMap.has(productivityKpi.id) ? kpiTargetsMap.get(productivityKpi.id)! : productivityKpi.target_value) ?? 115
         : 115;
