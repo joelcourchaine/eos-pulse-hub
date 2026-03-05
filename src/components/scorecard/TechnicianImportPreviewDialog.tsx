@@ -281,6 +281,9 @@ export const TechnicianImportPreviewDialog = ({
         ];
 
         const kpiIdMap: Record<string, string> = {};
+        // Track the base display_order for this technician's KPI block
+        const techBaseOrder = nextDisplayOrder;
+
         for (const spec of kpiSpecs) {
           // Check existing — exact match to prevent duplicates
           const { data: existingList } = await supabase
@@ -314,6 +317,17 @@ export const TechnicianImportPreviewDialog = ({
             if (createErr) throw createErr;
             kpiIdMap[spec.name] = created.id;
           }
+        }
+
+        // Enforce correct display_order sequence: Available=N, O&C=N+1, Productivity=N+2
+        // This fixes ordering even if KPIs already existed with wrong order
+        if (kpiIdMap["Available Hours"] && kpiIdMap[SOLD_HRS_KPI_NAME] && kpiIdMap["Productivity"]) {
+          await Promise.all([
+            supabase.from("kpi_definitions").update({ display_order: techBaseOrder }).eq("id", kpiIdMap["Available Hours"]),
+            supabase.from("kpi_definitions").update({ display_order: techBaseOrder + 1 }).eq("id", kpiIdMap[SOLD_HRS_KPI_NAME]),
+            supabase.from("kpi_definitions").update({ display_order: techBaseOrder + 2 }).eq("id", kpiIdMap["Productivity"]),
+          ]);
+          nextDisplayOrder = techBaseOrder + 3;
         }
 
         const availableId = kpiIdMap["Available Hours"];
