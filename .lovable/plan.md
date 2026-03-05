@@ -1,30 +1,44 @@
 
-## Problem Analysis
+## Two Fixes in `supabase/functions/send-scorecard-email/index.ts`
 
-Three distinct issues to fix:
+### Fix 1: Productivity target mismatch
 
-### 1. Wrong Sold Hours data in email totals
-The email identifies "Sold Hours" KPIs by `name.includes('sold')`, but the actual KPI is named **"Open and Closed Hours"** (standardized per the codebase memory). This means `weekSoldTotals` is always `null`, making the Sold Hours row and Productivity row show `—` everywhere.
+**Root cause**: Line 724 searches for the Productivity KPI in `allKpisFlat`, which is derived from `kpisByOwner` **after** role filtering. The Productivity KPI is not `assigned_to` any technician — it's a calculated row — so when `roleFilter = "technician"`, `allKpisFlat` contains zero Productivity KPIs, and the code falls back to the hardcoded `115` default.
 
-**Fix**: Match the UI logic — sold KPIs are those where `name !== "Available Hours" && name !== "Productivity" && metric_type === "unit"` (same logic as `ScorecardGrid.tsx` line 5491–5494).
+**Fix**: Move the productivity KPI lookup to use the full `kpis` array (fetched at line 284, before any filtering), not `allKpisFlat`.
 
-### 2. Productivity row — no decimal places
-Email renders productivity as `pct.toFixed(1) + '%'`. User wants zero decimals (`Math.round(pct) + '%'`). This applies to all weekly cells AND the Q-Total cell.
+```typescript
+// Line 724 — change from:
+const productivityKpi = allKpisFlat.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
 
-### 3. Productivity target cell — manual entry in the UI
-Currently the target cell for the Productivity totals row is a read-only display of `productiveTarget` (average of all technicians' productivity targets). The user wants it to be **manually editable inline** — same as the per-KPI target cells already are.
+// to:
+const productivityKpi = (kpis || []).find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+```
 
-This requires adding an inline input to the Productivity row's Target cell in `ScorecardGrid.tsx`. The value should be stored in component state, and persisted to `kpi_targets` (linked to one of the productivity KPI IDs) when the user presses Enter or blurs.
+The `kpiTargetsMap` already contains all targets fetched for the current quarter (line 321-323), so `kpiTargetsMap.get(productivityKpi.id)` will correctly return the manually-entered value.
 
----
+### Fix 2: Add role label to email title
 
-## Files to Change
+**Current** (line 679):
+```
+${storeName} — ${deptName} Scorecard
+```
 
-### A. `supabase/functions/send-scorecard-email/index.ts`
-- **Lines 720–721**: Replace `includes('sold')` with UI-matching logic: `k.name !== "Available Hours" && k.name !== "Productivity" && k.metric_type === "unit"`
-- **Lines 846, 850**: Change `pct.toFixed(1)` → `Math.round(pct).toString()` for productivity cells (no decimals, no `.0`)
+**Desired** when `roleFilter` is set and not "all":
+```
+${storeName} — ${deptName} Technician Scorecard
+```
 
-### B. `src/components/scorecard/ScorecardGrid.tsx`
-- Add a `productiveTotalTarget` state (initialized from `productiveTarget`)
-- In the Productivity row's Target cell (line ~5594–5600): replace the static display with an inline `<Input>` that auto-saves on blur/Enter (same pattern as existing per-KPI inline targets)
-- On save, upsert to `kpi_targets` using the first productivity KPI's ID
+**Fix**: Build a `roleLabel` string from `roleFilter`:
+```typescript
+const roleLabel = roleFilter && roleFilter !== "all"
+  ? ` ${roleFilter.charAt(0).toUpperCase() + roleFilter.slice(1)}`
+  : "";
+// then in line 679:
+${storeName} — ${deptName}${roleLabel} Scorecard
+```
+
+### Changes summary
+
+- **Line ~679**: Title: `${deptName} Scorecard` → `${deptName}${roleLabel} Scorecard`
+- **Line ~724**: Change `allKpisFlat.find(...)` → `(kpis || []).find(...)` to get the productivity KPI from the full unfiltered list
