@@ -103,6 +103,7 @@ const Dashboard = () => {
   );
   const [customSections, setCustomSections] = useState<Set<"issues-todos" | "scorecard" | "top10">>(new Set());
   const [customScorecardMode, setCustomScorecardMode] = useState<"weekly" | "monthly" | "yearly">("weekly");
+  const [customScorecardRole, setCustomScorecardRole] = useState<string>("all");
   const [customTop10ListIds, setCustomTop10ListIds] = useState<string[]>([]);
   const [availableTop10Lists, setAvailableTop10Lists] = useState<{ id: string; title: string }[]>([]);
   const [gmOverviewPeriod, setGmOverviewPeriod] = useState<"quarterly" | "yearly">("quarterly");
@@ -1000,6 +1001,7 @@ const Dashboard = () => {
           year: selectedYear,
           quarter: selectedQuarter,
           scorecardMode: customScorecardMode,
+          roleFilter: customScorecardRole,
           top10ListIds: customTop10ListIds,
           clientDate: new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
         };
@@ -1342,7 +1344,8 @@ const Dashboard = () => {
                                 .from("top_10_lists")
                                 .select("id, title")
                                 .eq("department_id", selectedDepartment)
-                                .order("title");
+                                .eq("is_active", true)
+                                .order("display_order", { ascending: true });
                               setAvailableTop10Lists(lists || []);
                             }
                           };
@@ -1399,7 +1402,7 @@ const Dashboard = () => {
                                       <Label htmlFor="section-scorecard" className="cursor-pointer font-normal text-sm">Scorecard</Label>
                                     </div>
                                     {customSections.has("scorecard") && (
-                                      <div className="ml-6 mt-2">
+                                      <div className="ml-6 mt-2 space-y-2">
                                         <RadioGroup
                                           value={customScorecardMode}
                                           onValueChange={(v) => setCustomScorecardMode(v as "weekly" | "monthly" | "yearly")}
@@ -1418,6 +1421,21 @@ const Dashboard = () => {
                                             <Label htmlFor="cs-yearly" className="cursor-pointer font-normal text-xs">All 12 months</Label>
                                           </div>
                                         </RadioGroup>
+                                        <div className="flex items-center gap-2">
+                                          <Label className="text-xs text-muted-foreground shrink-0">Role filter:</Label>
+                                          <Select value={customScorecardRole} onValueChange={setCustomScorecardRole}>
+                                            <SelectTrigger className="h-7 text-xs w-48">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="all">All roles</SelectItem>
+                                              <SelectItem value="store_gm">Store GM</SelectItem>
+                                              <SelectItem value="fixed_ops_manager">Fixed Ops Manager</SelectItem>
+                                              <SelectItem value="department_manager">Department Manager</SelectItem>
+                                              <SelectItem value="service_advisor">Service Advisor</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
