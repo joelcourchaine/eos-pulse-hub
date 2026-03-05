@@ -4784,13 +4784,14 @@ const ScorecardGrid = ({
                                 const weekDate = week.start.toISOString().split("T")[0];
                                 const key = `${kpi.id}-${weekDate}`;
                                 const entry = entries[key];
-                                const status = getStatus(entry?.status || null);
+                                const targetValue = kpiTargets[kpi.id] ?? kpi.target_value;
+                                const hasTarget = targetValue !== null && targetValue !== undefined && targetValue !== 0;
+                                const status = hasTarget ? getStatus(entry?.status || null) : "default";
                                 const displayValue =
                                   localValues[key] !== undefined
                                     ? localValues[key]
                                     : formatValue(entry?.actual_value || null, kpi.metric_type, kpi.name);
                                 const isCurrentWeek = weekDate === currentWeekDate;
-                                const targetValue = kpiTargets[kpi.id] || kpi.target_value;
 
                                 return (
                                   <ContextMenu key={week.label}>
