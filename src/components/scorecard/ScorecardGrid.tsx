@@ -3752,7 +3752,7 @@ const ScorecardGrid = ({
               )}
               {/* Email scorecard button — always visible when in weekly view with KPIs */}
               {viewMode === "weekly" && !isQuarterTrendMode && !isMonthlyTrendMode && (
-                <Popover open={emailPopoverOpen} onOpenChange={(open) => { setEmailPopoverOpen(open); if (open) { setEmailRoleFilter(selectedRoleFilter); } else { setEmailCustomRecipients(""); } }}>
+                <Popover open={emailPopoverOpen} onOpenChange={(open) => { setEmailPopoverOpen(open); if (open) { setEmailRoleFilter(selectedRoleFilter === "all" ? "service_advisor" : selectedRoleFilter); } else { setEmailCustomRecipients(""); } }}>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
                       <Mail className="h-3.5 w-3.5" />
