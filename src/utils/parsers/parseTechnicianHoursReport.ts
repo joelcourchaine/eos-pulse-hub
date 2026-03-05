@@ -352,7 +352,8 @@ function buildTechnicianData(raw: { name: string; soldHrs: Record<string, number
       weekStartDate,
       soldHrs: totals.soldHrs,
       clockedInHrs: totals.clockedInHrs,
-      productive: totals.clockedInHrs > 0 ? totals.soldHrs / totals.clockedInHrs : null,
+      // Only calculate productivity when both values are meaningful (avoids divide-by-near-zero)
+      productive: totals.clockedInHrs >= 1 ? totals.soldHrs / totals.clockedInHrs : null,
     }));
 
   const monthMap: Record<string, { soldHrs: number; clockedInHrs: number }> = {};
@@ -369,7 +370,8 @@ function buildTechnicianData(raw: { name: string; soldHrs: Record<string, number
       month,
       soldHrs: totals.soldHrs,
       clockedInHrs: totals.clockedInHrs,
-      productive: totals.clockedInHrs > 0 ? totals.soldHrs / totals.clockedInHrs : null,
+      // Only calculate productivity when both values are meaningful (avoids divide-by-near-zero)
+      productive: totals.clockedInHrs >= 1 ? totals.soldHrs / totals.clockedInHrs : null,
     }));
 
   return { rawName: raw.name, displayName: raw.name, dailyValues, weeklyTotals, monthlyTotals };
