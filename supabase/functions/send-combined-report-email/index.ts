@@ -358,8 +358,10 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
       html += `<tr><td colspan="${totalCols}" style="background-color:#2d3f5e;color:#ffffff;padding:4px 8px;font-size:10px;font-weight:700;letter-spacing:0.2px;border:1px solid #1e2d47;">${escapeHtml(ownerName)}</td></tr>`;
 
       ownerKpis.forEach((kpi: any) => {
-        const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
-        const displayTarget = formatScorecardValue(target, kpi.metric_type, kpi.name);
+        // colorTarget: only from kpi_targets (matches UI hasTarget logic — no kpi.target_value fallback)
+        const colorTarget = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : null;
+        // displayTarget: fall back to kpi.target_value for the Target column display only
+        const displayTarget = formatScorecardValue(colorTarget ?? kpi.target_value, kpi.metric_type, kpi.name);
         html += `<tr><td style="${kpiNameStyle}">${escapeHtml(kpi.name)}</td><td style="${navyTargetStyle} min-width:50px;">${displayTarget}</td>`;
 
         const periodValues: number[] = [];
@@ -367,7 +369,11 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
           const entry = (entries || []).find((e: any) =>
             e.kpi_id === kpi.id && e.week_start_date === p.start.toISOString().split("T")[0]
           );
-          const targetValue = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+          // Only use kpi_targets quarterly target — NOT kpi.target_value fallback.
+          // The UI (ScorecardGrid.tsx) does the same: hasTarget = kpiTargetsMap has the id.
+          // Using kpi.target_value as a fallback causes cells without a weekly target to
+          // be incorrectly coloured red (e.g. Available Hours gets compared to monthly target).
+          const targetValue = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : null;
           let cellClass = "";
           if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
             const actualValue = entry.actual_value;
@@ -394,10 +400,10 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
           ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
           : null;
         let qCellClass = "";
-        if (qTotal !== null && target !== null && target !== 0) {
+        if (qTotal !== null && colorTarget !== null && colorTarget !== 0) {
           const qVariance = kpi.metric_type === "percentage"
-            ? qTotal - target
-            : ((qTotal - target) / Math.abs(target)) * 100;
+            ? qTotal - colorTarget
+            : ((qTotal - colorTarget) / Math.abs(colorTarget)) * 100;
           if (kpi.target_direction === "above") {
             qCellClass = qVariance >= 0 ? "green" : qVariance >= -10 ? "yellow" : "red";
           } else {
@@ -461,17 +467,18 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
       html += `</tr></thead><tbody>`;
 
       ownerKpis.forEach((kpi: any) => {
-        const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+        const colorTarget = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : null;
+        const target = colorTarget ?? kpi.target_value; // for display only
         html += `<tr><td style="${tdStyle2}">${escapeHtml(kpi.name)}</td><td style="${tdStyle2}">${formatScorecardValue(target, kpi.metric_type, kpi.name)}</td>`;
         periods.forEach((p: any) => {
           const periodKey = (p as any).identifier;
           const entry = (entries || []).find((e: any) => e.kpi_id === kpi.id && e.month === periodKey);
           const val = entry?.actual_value ?? null;
           let cellClass = "";
-          if (val !== null && target !== null && target !== 0) {
+          if (val !== null && colorTarget !== null && colorTarget !== 0) {
             const variance = kpi.metric_type === "percentage"
-              ? val - target
-              : ((val - target) / Math.abs(target)) * 100;
+              ? val - colorTarget
+              : ((val - colorTarget) / Math.abs(colorTarget)) * 100;
             if (kpi.target_direction === "above") cellClass = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
             else cellClass = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
           }
@@ -604,10 +611,12 @@ const handler = async (req: Request): Promise<Response> => {
     const now = new Date();
     const dateStr = clientDate || now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-    // Build each section
-    const sectionBlocks: string[] = [];
+    // Enforce fixed section order: issues-todos → scorecard → top10
+    // (client sends sections in checkbox-check order via a Set, which is non-deterministic)
+    const SECTION_ORDER = ["issues-todos", "scorecard", "top10"] as const;
+    const orderedSections = SECTION_ORDER.filter(s => sections.includes(s));
 
-    for (const section of sections) {
+    for (const section of orderedSections) {
       if (section === "issues-todos") {
         const html = await buildIssuesTodosSection(supabaseClient, departmentId, profileMap);
         sectionBlocks.push(`<div style="padding: 0 32px;">${html}</div>`);
