@@ -1,36 +1,64 @@
 
-## Root Cause: Duplicate Entries Within the Upsert Batch
+## Root Cause: Two Issues Found
 
-The DB logs reveal the real error: **"ON CONFLICT DO UPDATE command cannot affect row a second time"**
+### Issue 1 — Wrong display_order (from the duplicate cleanup)
+When we deleted the duplicate "Open and Closed Hours" KPIs last session, we accidentally kept the **newer** IDs (created at higher display_orders) instead of the original ones. This means for 5 out of 7 technicians, "Open and Closed Hours" now sits **after** Productivity in display order:
 
-This is a Postgres error that occurs when a single `upsert` batch contains **two or more rows with the same conflict key**. Postgres cannot decide which of the two rows to use for the update, so it throws and the entire batch fails silently (supabase-js swallows it).
+| Technician | Available | Open & Closed | Productivity | Status |
+|---|---|---|---|---|
+| Andrew | 10008 | **10017** | 10010 | ❌ O&C after Productivity |
+| Gavin | 9993 | **10012** | 9995 | ❌ |
+| Ken | 9996 | **10013** | 9998 | ❌ |
+| Martin | 10002 | **10015** | 10004 | ❌ |
+| Noah | 10005 | **10016** | 10007 | ❌ |
+| Jim E | 9990 | 9991 | 9992 | ✅ correct |
+| Kiel | 9999 | 10000 | 10001 | ✅ correct |
+| Branden | 10018 | 10019 | 10020 | ✅ correct |
 
-The previous constraint fix was necessary but not sufficient. The actual bug is in `TechnicianImportPreviewDialog.tsx`: the `allMonthlyEntries` and `allWeeklyEntries` arrays are built by pushing entries across multiple technicians, but for **weekly data** a single technician can have the same `week_start_date` span appearing more than once (if the report has page breaks that restart the technician block partway through), and for **monthly data** this compounds if the parser sees data across page boundaries.
+### Issue 2 — Import code doesn't enforce display_order on existing KPIs
+The `kpiSpecs` array is in the correct order `[Available Hours, Open and Closed Hours, Productivity]` and new KPIs get assigned `nextDisplayOrder++`. But when a KPI already exists, `display_order` is never updated — so reshuffled KPIs stay wrong after any future re-import.
 
-### Fix: Deduplicate entries before upserting
+---
 
-After building `allMonthlyEntries` and `allWeeklyEntries` (and after filtering protected entries), deduplicate by composite key — keeping the last value seen:
+### Fix Plan
 
-```typescript
-// Deduplicate weekly entries — keep last value per kpi_id+week_start_date
-const weeklyMap = new Map<string, typeof filteredWeekly[0]>();
-for (const e of filteredWeekly) {
-  weeklyMap.set(`${e.kpi_id}|${e.week_start_date}`, e);
-}
-const dedupedWeekly = Array.from(weeklyMap.values());
+**Part 1 — DB migration**: Fix the 5 technicians with wrong order by setting "Open and Closed Hours" display_order to be `available_order + 1` and "Productivity" to `available_order + 2`, shifting any conflicts out of the way:
 
-// Deduplicate monthly entries — keep last value per kpi_id+month+entry_type
-const monthlyMap = new Map<string, typeof filteredMonthly[0]>();
-for (const e of filteredMonthly) {
-  monthlyMap.set(`${e.kpi_id}|${e.month}|${e.entry_type}`, e);
-}
-const dedupedMonthly = Array.from(monthlyMap.values());
+```sql
+-- Andrew: Available=10008, set O&C=10009, Productivity=10010 → need to shift existing 10009/10010
+UPDATE kpi_definitions SET display_order = display_order + 10 WHERE display_order IN (10009, 10010) AND department_id = (SELECT department_id FROM kpi_definitions WHERE id = '8d04230c-bb16-4ea8-a09f-adf43d5baf3f');
+UPDATE kpi_definitions SET display_order = 10009 WHERE id = '33ff857c-f93d-4cd0-b6de-c60fe8db5edf'; -- Andrew O&C
+UPDATE kpi_definitions SET display_order = 10010 WHERE id = 'ed3b8e84-57b4-4cd6-a1c7-4526158e39aa'; -- Andrew Productivity
+
+-- (same pattern for Gavin, Ken, Martin, Noah)
 ```
 
-Then upsert `dedupedWeekly` and `dedupedMonthly` instead of `filteredWeekly` and `filteredMonthly`.
+**Part 2 — Code fix in TechnicianImportPreviewDialog.tsx**: After resolving each KPI's ID (whether existing or new), enforce the display_order so that Available=N, Open&Closed=N+1, Productivity=N+2 by doing an `UPDATE` on existing KPIs too:
 
-### File to change
-- `src/components/scorecard/TechnicianImportPreviewDialog.tsx` — add deduplication step between protected-entry filtering and batch upsert loops (~lines 379–400)
+```typescript
+// After kpiIdMap is populated, enforce correct display_order
+const baseOrder = nextDisplayOrder; // or find existing min order for this tech
+await supabase.from("kpi_definitions")
+  .update({ display_order: baseOrder })
+  .eq("id", kpiIdMap["Available Hours"]);
+await supabase.from("kpi_definitions")
+  .update({ display_order: baseOrder + 1 })
+  .eq("id", kpiIdMap[SOLD_HRS_KPI_NAME]);
+await supabase.from("kpi_definitions")
+  .update({ display_order: baseOrder + 2 })
+  .eq("id", kpiIdMap["Productivity"]);
+```
 
-### No DB changes needed
-The constraints are now correct. The issue is purely client-side duplicate rows in the batch payload.
+### Column mapping confirmation
+After carefully reading the uploaded report, the column mapping is **correct**:
+- "Clocked In Hrs" (col 6) → `clockedInHrs` → **Available Hours** ✅
+- "Sold Hrs" (col 4) → `soldHrs` → **Open and Closed Hours** ✅
+
+No column mapping changes needed.
+
+### Summary of changes
+
+| Change | Detail |
+|---|---|
+| DB migration | Fix display_order for Andrew, Gavin, Ken, Martin, Noah |
+| Code: TechnicianImportPreviewDialog.tsx | After resolving KPI IDs, enforce correct display_order sequence on all 3 KPIs per technician |
