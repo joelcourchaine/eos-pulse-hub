@@ -233,6 +233,8 @@ export const TechnicianImportPreviewDialog = ({
       const metricsImported: Record<string, number> = {};
       const allWeeklyEntries: Array<{ kpi_id: string; week_start_date: string; entry_type: string; actual_value: number; created_by: string | undefined }> = [];
       const allMonthlyEntries: Array<{ kpi_id: string; month: string; entry_type: string; actual_value: number; created_by: string | undefined }> = [];
+      // Productivity is calculated, never manually edited — collect IDs to exclude from protection filter
+      const productivityKpiIdSet = new Set<string>();
 
       // Query current max display_order in this department so we can assign unique values per technician
       const { data: maxOrderRow } = await supabase
@@ -360,9 +362,12 @@ export const TechnicianImportPreviewDialog = ({
 
         // Track KPI count for this technician in the log
         metricsImported[tech.rawName] = Object.keys(kpiIdMap).length;
+        // Collect Productivity KPI ID to exclude it from the manual-edit protection filter
+        if (productiveId) productivityKpiIdSet.add(productiveId);
       }
 
       // Pre-fetch manually-edited entries to protect them from being overwritten
+
       const allKpiIds = [...new Set([
         ...allWeeklyEntries.map(e => e.kpi_id),
         ...allMonthlyEntries.map(e => e.kpi_id),
@@ -383,11 +388,16 @@ export const TechnicianImportPreviewDialog = ({
           .eq("entry_type", "monthly"),
       ]);
 
+      // Exclude Productivity KPI IDs from protection — they are always calculated, never manual
       const protectedWeeklyKeys = new Set(
-        (protectedWeekly ?? []).map(e => `${e.kpi_id}|${e.week_start_date}`)
+        (protectedWeekly ?? [])
+          .filter(e => !productivityKpiIdSet.has(e.kpi_id))
+          .map(e => `${e.kpi_id}|${e.week_start_date}`)
       );
       const protectedMonthlyKeys = new Set(
-        (protectedMonthly ?? []).map(e => `${e.kpi_id}|${e.month}`)
+        (protectedMonthly ?? [])
+          .filter(e => !productivityKpiIdSet.has(e.kpi_id))
+          .map(e => `${e.kpi_id}|${e.month}`)
       );
 
       const filteredWeekly = allWeeklyEntries.filter(
