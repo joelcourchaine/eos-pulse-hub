@@ -160,6 +160,16 @@ async function buildIssuesTodosSection(supabase: any, departmentId: string, prof
 
 function formatScorecardValue(value: number | null, metricType: string, kpiName?: string): string {
   if (value === null || value === undefined) return "-";
+  if (kpiName === "CP Hours Per RO" || kpiName === "Total CP Hours Per RO" || kpiName === "Total ELR" || kpiName === "Total CP ELR" || kpiName === "Warranty ELR") {
+    return Number(value).toFixed(2);
+  }
+  if (kpiName === "Total Labour Sales" || kpiName === "CP Labour Sales Per RO" || kpiName === "Total CP Labour Sales Per RO" || kpiName === "CP ELR" || kpiName === "CP Labour Sales") {
+    return `$${Math.round(value).toLocaleString()}`;
+  }
+  if (kpiName === "Total Hours" || kpiName === "CP Hours" || kpiName === "Customer Pay Hours" || kpiName === "CP RO's" || kpiName === "Total RO's") {
+    return Math.round(value).toLocaleString();
+  }
+  if (kpiName === "Internal ELR") return `$${Number(value).toFixed(2)}`;
   if (metricType === "dollar") return `$${value.toLocaleString()}`;
   if (metricType === "percentage") return `${Math.round(value)}%`;
   const hasDecimals = value % 1 !== 0;
@@ -204,62 +214,88 @@ function getScorecardPeriods(mode: string, year: number, quarter: number) {
   return months;
 }
 
+const getCellStyle = (cellClass: string, baseFontSize: string, isWeekly = false): string => {
+  const baseStyle = `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize}; font-weight: 600;`;
+  if (isWeekly) {
+    switch (cellClass) {
+      case "green": return `${baseStyle} background-color: #059669; color: #ffffff;`;
+      case "yellow": return `${baseStyle} background-color: #d97706; color: #ffffff;`;
+      case "red": return `${baseStyle} background-color: #dc2626; color: #ffffff;`;
+      default: return `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize}; background-color: #f8fafc; color: #64748b;`;
+    }
+  }
+  switch (cellClass) {
+    case "green": return `${baseStyle} background-color: #d1fae5; color: #065f46;`;
+    case "yellow": return `${baseStyle} background-color: #fef3c7; color: #92400e;`;
+    case "red": return `${baseStyle} background-color: #fee2e2; color: #991b1b;`;
+    default: return `border: 1px solid #d1d5db; padding: 3px 4px; text-align: center; font-size: ${baseFontSize};`;
+  }
+};
+
 async function buildScorecardSection(supabase: any, departmentId: string, year: number, quarter: number, mode: string, roleFilter?: string): Promise<string> {
   const periods = getScorecardPeriods(mode, year, quarter);
   const entryType = mode === "weekly" ? "weekly" : "monthly";
+  const baseFontSize = mode === "weekly" ? "8px" : "11px";
+  const isWeeklyMode = mode === "weekly";
 
   const { data: allKpis } = await supabase
     .from("kpi_definitions")
-    .select("id, name, metric_type, target_direction, assigned_to")
+    .select("id, name, metric_type, target_direction, assigned_to, aggregation_type")
     .eq("department_id", departmentId)
     .order("display_order");
 
   if (!allKpis?.length) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs configured.</p>`;
 
-  // Apply role filter if specified
-  let kpis = allKpis;
+  // Fetch profiles to resolve owner names
+  const { data: profilesData } = await supabase.from("profiles").select("id, full_name");
+  const profilesMap = new Map((profilesData || []).map((p: any) => [p.id, p]));
+
+  // Fetch KPI targets for the quarter
+  const kpiIds = allKpis.map((k: any) => k.id);
+  const kpiTargetsMap = new Map<string, number>();
+  if (quarter) {
+    const { data: kpiTargets } = await supabase
+      .from("kpi_targets")
+      .select("kpi_id, target_value")
+      .eq("year", year)
+      .eq("quarter", quarter)
+      .in("kpi_id", kpiIds);
+    (kpiTargets || []).forEach((t: any) => { if (t.target_value != null) kpiTargetsMap.set(t.kpi_id, t.target_value); });
+  }
+
+  // Group KPIs by owner
+  const kpisByOwner = new Map<string, any[]>();
+  allKpis.forEach((kpi: any) => {
+    const ownerId = kpi.assigned_to || "unassigned";
+    if (!kpisByOwner.has(ownerId)) kpisByOwner.set(ownerId, []);
+    kpisByOwner.get(ownerId)!.push(kpi);
+  });
+
+  // Apply role filter
   if (roleFilter && roleFilter !== "all") {
-    // Collect unique assigned_to user IDs
-    const assignedUserIds = [...new Set(allKpis.map((k: any) => k.assigned_to).filter(Boolean))] as string[];
-    if (assignedUserIds.length > 0) {
-      // Fetch roles for these users (check both user_roles table and profiles.role)
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("user_id", assignedUserIds);
-
-      const { data: profileRoles } = await supabase
-        .from("profiles")
-        .select("id, role")
-        .in("id", assignedUserIds);
-
-      // Build a map of userId -> roles[]
-      const roleMap = new Map<string, Set<string>>();
-      (userRoles || []).forEach((ur: any) => {
-        if (!roleMap.has(ur.user_id)) roleMap.set(ur.user_id, new Set());
-        roleMap.get(ur.user_id)!.add(ur.role);
-      });
-      (profileRoles || []).forEach((p: any) => {
-        if (p.role) {
-          if (!roleMap.has(p.id)) roleMap.set(p.id, new Set());
-          roleMap.get(p.id)!.add(p.role);
-        }
-      });
-
-      kpis = allKpis.filter((k: any) => {
-        if (!k.assigned_to) return false;
-        const roles = roleMap.get(k.assigned_to);
-        return roles ? roles.has(roleFilter) : false;
-      });
-    } else {
-      kpis = [];
+    const allOwnerIds = Array.from(kpisByOwner.keys()).filter(id => id !== "unassigned");
+    if (allOwnerIds.length > 0) {
+      const [{ data: userRolesData }, { data: profileRolesData }] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role").in("user_id", allOwnerIds),
+        supabase.from("profiles").select("id, role").in("id", allOwnerIds),
+      ]);
+      const ownerRoleMap = new Map<string, string>();
+      (profileRolesData || []).forEach((p: any) => { if (p.role) ownerRoleMap.set(p.id, p.role); });
+      (userRolesData || []).forEach((ur: any) => { ownerRoleMap.set(ur.user_id, ur.role); });
+      const usersWithRole = new Set(
+        Array.from(ownerRoleMap.entries())
+          .filter(([, role]) => role === roleFilter)
+          .map(([userId]) => userId)
+      );
+      for (const ownerId of Array.from(kpisByOwner.keys())) {
+        if (ownerId !== "unassigned" && !usersWithRole.has(ownerId)) kpisByOwner.delete(ownerId);
+      }
     }
   }
 
-  if (!kpis.length) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs found for the selected role.</p>`;
+  if (kpisByOwner.size === 0) return sectionLabel(`Scorecard — ${mode.charAt(0).toUpperCase() + mode.slice(1)}`) + `<p style="font-size:14px;color:#94a3b8;text-align:center;padding:24px 0;">No KPIs found for the selected role.</p>`;
 
-  const kpiIds = kpis.map((k: any) => k.id);
-
+  // Fetch entries
   let identifiers: string[] = [];
   if (mode === "weekly") {
     identifiers = periods.map((p: any) => p.start.toISOString().split("T")[0]);
@@ -267,53 +303,179 @@ async function buildScorecardSection(supabase: any, departmentId: string, year: 
     identifiers = periods.map((p: any) => (p as any).identifier);
   }
 
+  const filteredKpiIds = Array.from(kpisByOwner.values()).flat().map((k: any) => k.id);
   const { data: entries } = await supabase
     .from("scorecard_entries")
     .select("kpi_id, actual_value, month, week_start_date, status")
-    .in("kpi_id", kpiIds)
+    .in("kpi_id", filteredKpiIds)
     .eq("entry_type", entryType)
     .in(mode === "weekly" ? "week_start_date" : "month", identifiers);
-
-  // Build a map: kpiId -> periodKey -> actual_value
-  const dataMap = new Map<string, Map<string, number | null>>();
-  for (const entry of (entries || [])) {
-    const periodKey = mode === "weekly" ? entry.week_start_date : entry.month;
-    if (!dataMap.has(entry.kpi_id)) dataMap.set(entry.kpi_id, new Map());
-    dataMap.get(entry.kpi_id)!.set(periodKey, entry.actual_value);
-  }
-
-  const statusColors: Record<string, { bg: string; color: string }> = {
-    green:  { bg: "#dcfce7", color: "#166534" },
-    yellow: { bg: "#fef9c3", color: "#854d0e" },
-    red:    { bg: "#fee2e2", color: "#991b1b" },
-  };
 
   const modeName = mode === "weekly" ? `Weekly (Q${quarter} ${year})` : mode === "monthly" ? `Monthly (Q${quarter} ${year})` : `Yearly (${year})`;
   let html = sectionLabel(`Scorecard — ${modeName}`);
 
-  const thStyle = `padding:8px 10px;font-size:11px;font-weight:600;color:#fff;text-align:center;white-space:nowrap;`;
-  let headerCells = `<th style="${thStyle}text-align:left;min-width:140px;">KPI</th>`;
-  for (const p of periods) {
-    headerCells += `<th style="${thStyle}">${escapeHtml(p.label)}</th>`;
-  }
+  // Styles
+  const navyBg = "#1e2d47";
+  const navyHeaderStyle = `background-color: ${navyBg}; color: #ffffff; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: left; border: 1px solid #2d3f5e; white-space: nowrap;`;
+  const navyTargetStyle = `background-color: ${navyBg}; color: #ffffff; padding: 3px 4px; font-size: ${baseFontSize}; font-weight: 700; text-align: center; border: 1px solid #2d3f5e; white-space: nowrap;`;
+  const weekHeaderStyle = `background-color: #e2e8f0; color: #1e293b; padding: 3px 4px; font-size: 9px; font-weight: 700; text-align: center; border: 1px solid #cbd5e1; white-space: nowrap;`;
+  const kpiNameStyle = `background-color: #f8fafc; padding: 3px 5px; font-size: ${baseFontSize}; font-weight: 600; text-align: left; border: 1px solid #d1d5db; color: #1e293b; white-space: nowrap; max-width: 140px; overflow: hidden;`;
+  const qtotalHeaderStyle = `background-color: #334155; color: #ffffff; padding: 3px 4px; font-size: 9px; font-weight: 700; text-align: center; border: 1px solid #475569;`;
+  const thStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize}; background-color: #f4f4f4; font-weight: bold;`;
+  const tdStyle = `border: 1px solid #ddd; padding: 6px 4px; text-align: left; font-size: ${baseFontSize};`;
 
-  let bodyRows = "";
-  for (const kpi of kpis) {
-    const kpiDataMap = dataMap.get(kpi.id) || new Map();
-    let cells = `<td style="padding:8px 10px;font-size:12px;color:#1e293b;font-weight:500;border-bottom:1px solid #e2e8f0;">${escapeHtml(kpi.name)}</td>`;
-    for (const p of periods) {
-      const periodKey = mode === "weekly" ? (p as any).start.toISOString().split("T")[0] : (p as any).identifier;
-      const val = kpiDataMap.get(periodKey) ?? null;
-      const formatted = formatScorecardValue(val, kpi.metric_type, kpi.name);
-      cells += `<td style="padding:8px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e2e8f0;color:${val !== null ? "#1e293b" : "#94a3b8"};">${formatted}</td>`;
-    }
-    bodyRows += `<tr>${cells}</tr>`;
-  }
+  if (isWeeklyMode) {
+    const totalCols = 2 + periods.length + 1; // KPI + Target + weeks + Q-Total
+    html += `<div style="overflow-x:auto;"><table style="border-collapse:collapse;width:100%;min-width:900px;">
+  <thead><tr>
+    <th style="${navyHeaderStyle} min-width:140px;">KPI</th>
+    <th style="${navyTargetStyle} min-width:60px;">Target</th>`;
+    periods.forEach((p: any, i: number) => {
+      html += `<th style="${weekHeaderStyle} min-width:55px;">WK ${i+1}<br/><span style="font-size:9px;font-weight:500;color:#64748b;">${p.label}</span></th>`;
+    });
+    html += `<th style="${qtotalHeaderStyle} min-width:65px;">Q-Total</th></tr></thead><tbody>`;
 
-  html += `<div style="overflow-x:auto;"><table cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;min-width:100%;">
-    <thead><tr style="background:#1e293b;">${headerCells}</tr></thead>
-    <tbody>${bodyRows}</tbody>
-  </table></div>`;
+    // Detect special KPI IDs for totals section
+    const allKpisFlat: any[] = Array.from(kpisByOwner.values()).flat();
+    const availKpiIds = new Set(allKpisFlat.filter((k: any) => k.name.toLowerCase().includes('available')).map((k: any) => k.id));
+    const soldKpiIds = new Set(allKpisFlat.filter((k: any) => k.metric_type === 'unit' && k.name !== 'Available Hours' && k.name !== 'Productivity').map((k: any) => k.id));
+    const productivityKpi = allKpis.find((k: any) => k.metric_type === 'percentage' && k.name.toLowerCase().includes('product'));
+    const productivityTarget = productivityKpi
+      ? (kpiTargetsMap.has(productivityKpi.id) ? kpiTargetsMap.get(productivityKpi.id)! : productivityKpi.target_value) ?? 115
+      : 115;
+
+    const weekAvailTotals: (number | null)[] = periods.map(() => null);
+    const weekSoldTotals: (number | null)[] = periods.map(() => null);
+
+    Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
+      const ownerName = ownerId === "unassigned" ? "Unassigned" : (profilesMap.get(ownerId) as any)?.full_name || "Unknown";
+      html += `<tr><td colspan="${totalCols}" style="background-color:#2d3f5e;color:#ffffff;padding:4px 8px;font-size:10px;font-weight:700;letter-spacing:0.2px;border:1px solid #1e2d47;">${escapeHtml(ownerName)}</td></tr>`;
+
+      ownerKpis.forEach((kpi: any) => {
+        const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+        const displayTarget = formatScorecardValue(target, kpi.metric_type, kpi.name);
+        html += `<tr><td style="${kpiNameStyle}">${escapeHtml(kpi.name)}</td><td style="${navyTargetStyle} min-width:50px;">${displayTarget}</td>`;
+
+        const periodValues: number[] = [];
+        periods.forEach((p: any, pIdx: number) => {
+          const entry = (entries || []).find((e: any) =>
+            e.kpi_id === kpi.id && e.week_start_date === p.start.toISOString().split("T")[0]
+          );
+          const targetValue = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+          let cellClass = "";
+          if (entry?.actual_value !== null && entry?.actual_value !== undefined) {
+            const actualValue = entry.actual_value;
+            periodValues.push(actualValue);
+            if (availKpiIds.has(kpi.id)) weekAvailTotals[pIdx] = (weekAvailTotals[pIdx] ?? 0) + actualValue;
+            if (soldKpiIds.has(kpi.id)) weekSoldTotals[pIdx] = (weekSoldTotals[pIdx] ?? 0) + actualValue;
+            if (targetValue !== null && targetValue !== 0) {
+              const variance = kpi.metric_type === "percentage"
+                ? actualValue - targetValue
+                : ((actualValue - targetValue) / Math.abs(targetValue)) * 100;
+              if (kpi.target_direction === "above") {
+                cellClass = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+              } else {
+                cellClass = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+              }
+            }
+          }
+          html += `<td style="${getCellStyle(cellClass, baseFontSize, true)}">${formatScorecardValue(entry?.actual_value, kpi.metric_type, kpi.name)}</td>`;
+        });
+
+        // Q-Total cell
+        const shouldAvg = kpi.aggregation_type === 'average';
+        const qTotal = periodValues.length > 0
+          ? shouldAvg ? periodValues.reduce((s, v) => s + v, 0) / periodValues.length : periodValues.reduce((s, v) => s + v, 0)
+          : null;
+        let qCellClass = "";
+        if (qTotal !== null && target !== null && target !== 0) {
+          const qVariance = kpi.metric_type === "percentage"
+            ? qTotal - target
+            : ((qTotal - target) / Math.abs(target)) * 100;
+          if (kpi.target_direction === "above") {
+            qCellClass = qVariance >= 0 ? "green" : qVariance >= -10 ? "yellow" : "red";
+          } else {
+            qCellClass = qVariance <= 0 ? "green" : qVariance <= 10 ? "yellow" : "red";
+          }
+        }
+        html += `<td style="${getCellStyle(qCellClass, baseFontSize, true)}">${formatScorecardValue(qTotal, kpi.metric_type, kpi.name)}</td></tr>`;
+      });
+    });
+
+    // Σ Totals section
+    const totalsNavy = `background-color:#1e293b;color:#ffffff;padding:3px 4px;font-size:${baseFontSize};font-weight:700;text-align:center;border:1px solid #0f172a;`;
+    const totalsPlain = `background-color:#e2e8f0;color:#1e293b;padding:3px 4px;font-size:${baseFontSize};font-weight:700;text-align:center;border:1px solid #cbd5e1;`;
+    const qAvailSum = weekAvailTotals.reduce<number>((s, v) => s + (v ?? 0), 0);
+    const qSoldSum = weekSoldTotals.reduce<number>((s, v) => s + (v ?? 0), 0);
+
+    html += `<tr><td colspan="${totalCols}" style="${totalsNavy} text-align:left;">Σ Totals</td></tr>`;
+
+    // Available Hours row
+    const availKpiForTarget = allKpisFlat.find((k: any) => availKpiIds.has(k.id));
+    const availTarget = availKpiForTarget ? (kpiTargetsMap.has(availKpiForTarget.id) ? kpiTargetsMap.get(availKpiForTarget.id)! : availKpiForTarget.target_value) : null;
+    html += `<tr><td style="${kpiNameStyle}">Available Hours</td><td style="${navyTargetStyle} min-width:50px;">${availTarget !== null ? Number(availTarget).toLocaleString() : '—'}</td>`;
+    weekAvailTotals.forEach(v => { html += `<td style="${totalsPlain}">${v !== null ? Number(v.toFixed(1)).toLocaleString() : '—'}</td>`; });
+    html += `<td style="${totalsPlain} font-weight:700;">${qAvailSum > 0 ? Number(qAvailSum.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+
+    // Sold Hours row
+    const soldKpiForTarget = allKpisFlat.find((k: any) => soldKpiIds.has(k.id));
+    const soldTarget = soldKpiForTarget ? (kpiTargetsMap.has(soldKpiForTarget.id) ? kpiTargetsMap.get(soldKpiForTarget.id)! : soldKpiForTarget.target_value) : null;
+    html += `<tr><td style="${kpiNameStyle}">Sold Hours</td><td style="${navyTargetStyle} min-width:50px;">${soldTarget !== null ? Number(soldTarget).toLocaleString() : '—'}</td>`;
+    weekSoldTotals.forEach(v => { html += `<td style="${totalsPlain}">${v !== null ? Number(v.toFixed(1)).toLocaleString() : '—'}</td>`; });
+    html += `<td style="${totalsPlain} font-weight:700;">${qSoldSum > 0 ? Number(qSoldSum.toFixed(1)).toLocaleString() : '—'}</td></tr>`;
+
+    // Productivity row (color-coded)
+    const calcProdClass = (sold: number | null, avail: number | null): string => {
+      if (sold === null || avail === null || avail === 0) return "";
+      const pct = (sold / avail) * 100;
+      const variance = pct - productivityTarget;
+      return variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+    };
+    html += `<tr><td style="${kpiNameStyle}">Productivity</td><td style="${navyTargetStyle} min-width:50px;">${productivityTarget}%</td>`;
+    weekAvailTotals.forEach((avail, i) => {
+      const sold = weekSoldTotals[i];
+      const pct = avail !== null && sold !== null && avail > 0 ? (sold / avail) * 100 : null;
+      html += `<td style="${getCellStyle(calcProdClass(sold, avail), baseFontSize, true)}">${pct !== null ? Math.round(pct) + '%' : '—'}</td>`;
+    });
+    const qProdPct = qAvailSum > 0 ? (qSoldSum / qAvailSum) * 100 : null;
+    const qProdClass = qProdPct !== null ? (qProdPct - productivityTarget >= 0 ? "green" : qProdPct - productivityTarget >= -10 ? "yellow" : "red") : "";
+    html += `<td style="${getCellStyle(qProdClass, baseFontSize, true)}">${qProdPct !== null ? Math.round(qProdPct) + '%' : '—'}</td></tr>`;
+
+    html += `</tbody></table></div>`;
+  } else {
+    // Non-weekly: separate table per owner
+    const thStyle2 = `border:1px solid #ddd;padding:6px 4px;text-align:left;font-size:${baseFontSize};background-color:#f4f4f4;font-weight:bold;`;
+    const tdStyle2 = `border:1px solid #ddd;padding:6px 4px;text-align:left;font-size:${baseFontSize};`;
+
+    Array.from(kpisByOwner.entries()).forEach(([ownerId, ownerKpis]) => {
+      const ownerName = ownerId === "unassigned" ? "Unassigned" : (profilesMap.get(ownerId) as any)?.full_name || "Unknown";
+      html += `<h2 style="color:#374151;margin-top:20px;margin-bottom:4px;font-size:14px;font-weight:700;">${escapeHtml(ownerName)}</h2>`;
+      html += `<table style="border-collapse:collapse;width:100%;margin-top:8px;"><thead><tr><th style="${thStyle2}">KPI</th><th style="${thStyle2}">Target</th>`;
+      periods.forEach((p: any) => { html += `<th style="${thStyle2}">${escapeHtml(p.label)}</th>`; });
+      html += `</tr></thead><tbody>`;
+
+      ownerKpis.forEach((kpi: any) => {
+        const target = kpiTargetsMap.has(kpi.id) ? kpiTargetsMap.get(kpi.id)! : kpi.target_value;
+        html += `<tr><td style="${tdStyle2}">${escapeHtml(kpi.name)}</td><td style="${tdStyle2}">${formatScorecardValue(target, kpi.metric_type, kpi.name)}</td>`;
+        periods.forEach((p: any) => {
+          const periodKey = (p as any).identifier;
+          const entry = (entries || []).find((e: any) => e.kpi_id === kpi.id && e.month === periodKey);
+          const val = entry?.actual_value ?? null;
+          let cellClass = "";
+          if (val !== null && target !== null && target !== 0) {
+            const variance = kpi.metric_type === "percentage"
+              ? val - target
+              : ((val - target) / Math.abs(target)) * 100;
+            if (kpi.target_direction === "above") cellClass = variance >= 0 ? "green" : variance >= -10 ? "yellow" : "red";
+            else cellClass = variance <= 0 ? "green" : variance <= 10 ? "yellow" : "red";
+          }
+          html += `<td style="${getCellStyle(cellClass, baseFontSize, false)}">${formatScorecardValue(val, kpi.metric_type, kpi.name)}</td>`;
+        });
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+    });
+  }
 
   return html;
 }
