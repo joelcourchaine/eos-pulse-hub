@@ -94,8 +94,22 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error('Error updating password:', updateError);
+
+      const isWeakPassword =
+        (updateError as any).code === 'weak_password' ||
+        updateError.name === 'AuthWeakPasswordError' ||
+        updateError.message?.toLowerCase().includes('weak') ||
+        updateError.message?.toLowerCase().includes('pwned');
+
+      if (isWeakPassword) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'This password has appeared in a data breach and cannot be used. Please choose a different password.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to set password' }),
+        JSON.stringify({ success: false, error: 'Failed to set password. Please try again.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
