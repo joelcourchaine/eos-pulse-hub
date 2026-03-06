@@ -899,6 +899,7 @@ export type Database = {
       financial_cell_mappings: {
         Row: {
           brand: string
+          category: string | null
           cell_reference: string
           created_at: string
           department_name: string
@@ -914,6 +915,7 @@ export type Database = {
         }
         Insert: {
           brand: string
+          category?: string | null
           cell_reference: string
           created_at?: string
           department_name: string
@@ -929,6 +931,7 @@ export type Database = {
         }
         Update: {
           brand?: string
+          category?: string | null
           cell_reference?: string
           created_at?: string
           department_name?: string

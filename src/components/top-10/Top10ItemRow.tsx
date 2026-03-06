@@ -47,6 +47,15 @@ const findColumnKey = (columns: ColumnDefinition[], patterns: string[]): string 
   return null;
 };
 
+// Compute days live from RO date — never stale
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
+
 // Helper to check if a column should display as currency
 const isCurrencyColumn = (col: ColumnDefinition): boolean => {
   const label = col.label.toLowerCase();
@@ -164,12 +173,8 @@ export function Top10ItemRow({
       const formatted = date ? format(date, "yyyy-MM-dd") : "";
       let newData = { ...localData, [key]: formatted };
 
-      // Auto-calculate "# of days" when date changes
-      if (key === roDateColKey && daysColKey && date) {
-        const today = new Date();
-        const daysDiff = differenceInDays(today, date);
-        newData[daysColKey] = daysDiff >= 0 ? String(daysDiff) : "";
-      }
+      // Strip days from saved data — it's computed live, not stored
+      if (daysColKey) delete newData[daysColKey];
 
       setLocalData(newData);
 
@@ -184,45 +189,21 @@ export function Top10ItemRow({
     [localData, onUpdate, roDateColKey, daysColKey]
   );
 
-  // Sync local data when props change AND auto-calculate days if missing
+  // Sync local data when props change — days are computed live, never stored
   useEffect(() => {
-    let newData = { ...data };
-    
-    // Auto-calculate "# of Days" if RO Date exists but days is empty
-    if (roDateColKey && daysColKey) {
-      const roDateValue = data[roDateColKey];
-      const daysValue = data[daysColKey];
-      
-      if (roDateValue && (!daysValue || daysValue === "# of Days")) {
-        const roDate = parseDate(roDateValue);
-        if (roDate) {
-          const today = new Date();
-          const daysDiff = differenceInDays(today, roDate);
-          if (daysDiff >= 0) {
-            newData[daysColKey] = String(daysDiff);
-            // Save the calculated value
-            onUpdate(newData);
-          }
-        }
-      }
-    }
-    
+    const newData = { ...data };
+    // Ensure stale stored days value is stripped from local state
+    if (daysColKey) delete newData[daysColKey];
     setLocalData(newData);
-  }, [data, roDateColKey, daysColKey]);
+  }, [data, daysColKey]);
 
   const handleChange = useCallback(
     (key: string, value: string) => {
       let newData = { ...localData, [key]: value };
 
       // Auto-calculate "# of days" when RO Date changes
-      if (key === roDateColKey && daysColKey) {
-        const roDate = parseDate(value);
-        if (roDate) {
-          const today = new Date();
-          const daysDiff = differenceInDays(today, roDate);
-          newData[daysColKey] = daysDiff >= 0 ? String(daysDiff) : "";
-        }
-      }
+      // Strip days — computed live, never stored
+      if (daysColKey) delete newData[daysColKey];
 
       setLocalData(newData);
 
@@ -306,7 +287,12 @@ export function Top10ItemRow({
               className={cn("p-1", !colWidth && isNarrowColumn(col) && "w-[9ch]")}
               style={colWidth ? { width: `${colWidth}px`, minWidth: '40px' } : undefined}
             >
-              {canEdit ? (
+              {col.key === daysColKey ? (
+                // Days is always computed live — never editable
+                <span className="text-sm text-muted-foreground px-2">
+                  {roDateColKey ? getComputedDays(localData[roDateColKey] || "") : "-"}
+                </span>
+              ) : canEdit ? (
                 isDateColumn(col.key) ? (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -339,7 +325,6 @@ export function Top10ItemRow({
                       value={localData[col.key] || ""}
                       onChange={(e) => handleChange(col.key, e.target.value)}
                       onBlur={(e) => {
-                        // Format as number on blur (strip non-numeric chars except decimal)
                         const num = parseFloat(e.target.value.replace(/[^0-9.-]/g, ""));
                         if (!isNaN(num)) {
                           handleChange(col.key, String(num));
