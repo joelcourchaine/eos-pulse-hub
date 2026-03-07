@@ -843,11 +843,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         metrics.forEach((result, metricKey) => {
           const entry = currentEntries.find((e) => e.month === month && e.metric_name === metricKey);
           
-          // Skip only if explicitly locked — locked entries are preserved
-          // Removed: broad "manualEditableMetrics" skip that prevented auto-save from
-          // refreshing stored values when growth sliders/weights change, causing stale
-          // Q1 Target values in Financial Summary vs live Forecast Results Grid.
           if (entry?.is_locked) return;
+
+          // Guard: only overwrite manually-editable computed metrics when the user has
+          // explicitly changed drivers/growth in this session. On initial drawer open the
+          // calculation engine re-runs with the stored drivers, which can produce slightly
+          // different values due to floating-point; without this guard those writes would
+          // overwrite valid stored values and corrupt the yearly view.
+          if (!userChangedDrivers.current) {
+            const manualEditableMetrics = ['sales_expense_percent', 'sales_expense', 'gp_percent', 'gp_net', 'total_sales'];
+            if (manualEditableMetrics.includes(metricKey) && entry && entry.forecast_value !== null && entry.forecast_value !== undefined) {
+              return;
+            }
+          }
 
           const nextForecast = result.value;
           const nextBaseline = result.baseline_value;
