@@ -1,66 +1,56 @@
 
+## Problem
+
+The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+
 ## Root Cause
 
-The Financial Summary Q1 Target for `sales_expense_percent` (and other percentage ratio metrics: `gp_percent`, `semi_fixed_expense_percent`, `total_fixed_expense_percent`, `return_on_gross`) uses the wrong aggregation method.
-
-**What it does now:**
-- `FinancialSummary.tsx` lines 4608–4618: fetches the 3 monthly `forecast_entries` values for the metric and **averages them** (simple arithmetic mean of percentages).
-- This is wrong for ratio metrics — averaging 45.1%, 45.4%, 45.8% gives 45.43% ≈ 45.6%.
-
-**What the Forecast Results Grid does:**
-- `useForecastCalculations.ts` lines 686–692: computes `Q1 sales_expense ÷ Q1 gp_net × 100` — a **weighted ratio** across the quarter.
-- This gives 45.2% because the months with higher GP Net pull the ratio down.
-
-The same "naive average of percentages" bug exists in:
-1. **Parent metric Q1 Target cell** (`FinancialSummary.tsx` ~line 4608–4618) — already confirmed
-2. **SubMetricsRow.tsx** lines 727–733 — same average pattern for sub-metric quarter-target cells
+In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
 
 ## Fix
 
-For `sales_expense_percent`, `gp_percent`, `semi_fixed_expense_percent`, `total_fixed_expense_percent`, and `return_on_gross`, instead of averaging the monthly percentage values, we must fetch their **numerator and denominator** monthly forecast values and compute the ratio from the quarterly sums.
+**Make "# of Days" a pure computed display value — never stored in the database.**
 
-The mapping is:
-| Metric | Numerator key | Denominator key |
-|---|---|---|
-| `sales_expense_percent` | `sales_expense` | `gp_net` |
-| `gp_percent` | `gp_net` | `total_sales` |
-| `semi_fixed_expense_percent` | `semi_fixed_expense` | `gp_net` |
-| `total_fixed_expense_percent` | `total_fixed_expense` | `gp_net` |
-| `return_on_gross` | `department_profit` | `gp_net` |
+### Changes to `src/components/top-10/Top10ItemRow.tsx`
 
-### Change 1 — `FinancialSummary.tsx` (parent metric Q1 Target, ~lines 4608–4618)
+1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
 
-Replace the simple average with a ratio-aware calculation:
+2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
 
-```ts
-// BEFORE:
-const forecastVals = qtrMonths.map((mid) => getForecastTarget(metric.key, mid)).filter(...)
-displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
+3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
 
-// AFTER:
-const RATIO_METRICS: Record<string, { num: string; den: string }> = {
-  sales_expense_percent: { num: 'sales_expense', den: 'gp_net' },
-  gp_percent:            { num: 'gp_net',         den: 'total_sales' },
-  semi_fixed_expense_percent: { num: 'semi_fixed_expense', den: 'gp_net' },
-  total_fixed_expense_percent: { num: 'total_fixed_expense', den: 'gp_net' },
-  return_on_gross:       { num: 'department_profit', den: 'gp_net' },
-};
-const ratioSpec = RATIO_METRICS[metric.key];
-if (ratioSpec) {
-  const numSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.num, mid) ?? 0), 0);
-  const denSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.den, mid) ?? 0), 0);
-  if (denSum > 0) { displayTarget = (numSum / denSum) * 100; isForecastTarget = true; }
-} else {
-  // Non-ratio: simple average (currency/number metrics)
-  const forecastVals = qtrMonths.map(...).filter(...)
-  displayTarget = forecastVals.reduce(...) / forecastVals.length;
-  isForecastTarget = true;
-}
+4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+
+```text
+RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
+# of Days            →  computed live: differenceInDays(today, roDate)
+                         never stored, never stale
 ```
 
-### Change 2 — `SubMetricsRow.tsx` (sub-metric quarter-target, lines 727–733)
+### Key code change sketch
 
-Sub-metrics under percentage parent metrics are dollar amounts (the numerator), so their quarter-target average is correct. No change needed here — the mismatch only affects the **parent metric row** percentage display.
+```ts
+// New helper — pure computation, no side effects
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
+
+// In handleDateSelect / handleChange / useEffect:
+// Remove daysColKey from newData before saving
+if (daysColKey) delete newData[daysColKey];
+onUpdate(newData); // days never written to DB
+
+// In render — for days column:
+const displayValue = col.key === daysColKey && roDateColKey
+  ? getComputedDays(localData[roDateColKey] || "")
+  : localData[col.key] || "";
+// Show as read-only span regardless of canEdit
+```
 
 ### Files to change
-- `src/components/financial/FinancialSummary.tsx` — replace simple average with ratio-aware aggregation in the Q1 Target cell for percentage metrics (~lines 4608–4618)
+
+- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits

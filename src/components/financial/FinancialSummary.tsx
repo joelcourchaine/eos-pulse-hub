@@ -4609,12 +4609,30 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(
                                           (m) => m.identifier,
                                         );
-                                        const forecastVals = qtrMonths
-                                          .map((mid) => getForecastTarget(metric.key, mid))
-                                          .filter((v): v is number => v !== null);
-                                        if (forecastVals.length > 0) {
-                                          displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
-                                          isForecastTarget = true;
+                                        // Ratio metrics must be computed as sum(num)/sum(den) — not averaged
+                                        const RATIO_METRICS: Record<string, { num: string; den: string }> = {
+                                          sales_expense_percent: { num: "sales_expense", den: "gp_net" },
+                                          gp_percent:            { num: "gp_net",         den: "total_sales" },
+                                          semi_fixed_expense_percent: { num: "semi_fixed_expense", den: "gp_net" },
+                                          total_fixed_expense_percent: { num: "total_fixed_expense", den: "gp_net" },
+                                          return_on_gross:       { num: "department_profit", den: "gp_net" },
+                                        };
+                                        const ratioSpec = RATIO_METRICS[metric.key];
+                                        if (ratioSpec) {
+                                          const numSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.num, mid) ?? 0), 0);
+                                          const denSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.den, mid) ?? 0), 0);
+                                          if (denSum > 0) {
+                                            displayTarget = (numSum / denSum) * 100;
+                                            isForecastTarget = true;
+                                          }
+                                        } else {
+                                          const forecastVals = qtrMonths
+                                            .map((mid) => getForecastTarget(metric.key, mid))
+                                            .filter((v): v is number => v !== null);
+                                          if (forecastVals.length > 0) {
+                                            displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
+                                            isForecastTarget = true;
+                                          }
                                         }
                                       }
 
