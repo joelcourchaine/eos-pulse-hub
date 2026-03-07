@@ -4311,16 +4311,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let qtrTargetSource: "manual" | "forecast" | null =
                                 targetValue !== null && targetValue !== 0 ? "manual" : null;
 
-                              // Fallback to quarterly average of forecast entries
+                              // Fallback to ratio-aware forecast aggregation
                               if (!targetValue || targetValue === 0) {
                                 const qtrMonthIds = getQuarterMonthsForCalculation(qtr.quarter, qtr.year).map(
                                   (m) => m.identifier,
                                 );
-                                const forecastValues = qtrMonthIds
-                                  .map((mid) => getForecastTarget(metric.key, mid))
-                                  .filter((v): v is number => v !== null);
-                                if (forecastValues.length > 0) {
-                                  targetValue = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                                const { value: fv } = calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
+                                if (fv !== null) {
+                                  targetValue = fv;
                                   qtrTargetDirection = metric.targetDirection;
                                   qtrTargetSource = "forecast";
                                 }
