@@ -666,26 +666,26 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         ? metrics.filter((m) => !["semi_fixed_expense", "semi_fixed_expense_percent"].includes(m.key))
         : metrics;
 
-    // For Nissan New/Used Vehicles, move total_variable_expenses before sales_expense
+    // For Nissan/GMC New/Used Vehicles, move total_variable_expenses before sales_expense
     // to match the actual financial statement spreadsheet order
     const isNissan = storeBrand?.toLowerCase().includes("nissan") || false;
+    const isGMC = !storeBrand || storeBrand.toLowerCase().includes("gmc") || storeBrand.toLowerCase().includes("chevrolet");
     const isNewOrUsed = departmentName ? ["new", "used"].some((d) => departmentName.toLowerCase().includes(d)) : false;
-    // For Nissan: show total_variable_expenses only for New/Used (reordered before sales_expense),
+    // Show total_variable_expenses only for New/Used vehicles (reordered before sales_expense),
     // hide it completely for Service/Parts/Body Shop
-    const reordered = isNissan
-      ? isNewOrUsed
-        ? (() => {
-            const withoutVar = filtered.filter((m) => m.key !== "total_variable_expenses");
-            const varMetric = filtered.find((m) => m.key === "total_variable_expenses");
-            if (!varMetric) return filtered;
-            const salesIdx = withoutVar.findIndex((m) => m.key === "sales_expense");
-            if (salesIdx === -1) return filtered;
-            const result = [...withoutVar];
-            result.splice(salesIdx, 0, varMetric);
-            return result;
-          })()
-        : filtered.filter((m) => m.key !== "total_variable_expenses")
-      : filtered;
+    const showTotalVariable = (isNissan || isGMC) && isNewOrUsed;
+    const reordered = showTotalVariable
+      ? (() => {
+          const withoutVar = filtered.filter((m) => m.key !== "total_variable_expenses");
+          const varMetric = filtered.find((m) => m.key === "total_variable_expenses");
+          if (!varMetric) return filtered;
+          const salesIdx = withoutVar.findIndex((m) => m.key === "sales_expense");
+          if (salesIdx === -1) return filtered;
+          const result = [...withoutVar];
+          result.splice(salesIdx, 0, varMetric);
+          return result;
+        })()
+      : filtered.filter((m) => m.key !== "total_variable_expenses");
     // For Nissan New/Used Vehicles, department_profit = gp_net - total_fixed_expense
     // (Parts/Service/Body Shop keep the default: gp_net - sales_expense - semi_fixed_expense - total_fixed_expense)
     const withDeptProfit =

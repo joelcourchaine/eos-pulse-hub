@@ -52,11 +52,20 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     },
   },
   {
+    name: "Total Variable Expenses",
+    key: "total_variable_expenses",
+    type: "dollar",
+    description: "Total variable expenses",
+    targetDirection: "below",
+    hasSubMetrics: true,
+  },
+  {
     name: "Sales Expense",
     key: "sales_expense",
     type: "dollar",
     description: "Total sales expenses",
     targetDirection: "below",
+    hasSubMetrics: true,
   },
   {
     name: "Sales Expense %",
@@ -76,6 +85,7 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     type: "dollar",
     description: "Semi-fixed expenses",
     targetDirection: "below",
+    hasSubMetrics: true,
   },
   {
     name: "Semi Fixed Expense %",
@@ -107,6 +117,7 @@ export const GMC_CHEVROLET_METRICS: FinancialMetric[] = [
     type: "dollar",
     description: "Total fixed expenses",
     targetDirection: "below",
+    hasSubMetrics: true,
   },
   {
     name: "Department Profit",
