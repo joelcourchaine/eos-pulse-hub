@@ -4657,25 +4657,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         </span>
                                       );
                                     })()}
-                                    {canEditTargets() && (
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-accent">
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-2" align="center">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleCopyToQuarters(metric.key)}
-                                            className="text-xs"
-                                          >
-                                            Copy to Q1-Q4 {year}
-                                          </Button>
-                                        </PopoverContent>
-                                      </Popover>
-                                    )}
                                   </div>
                                 )}
                               </TableCell>
