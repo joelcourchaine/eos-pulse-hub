@@ -1876,6 +1876,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               growth={growth}
               onGrowthChange={(v) => {
                 markDirty();
+                userChangedDrivers.current = true;
                 setGrowth(v);
               }}
             />
