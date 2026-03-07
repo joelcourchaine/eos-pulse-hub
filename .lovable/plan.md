@@ -1,56 +1,68 @@
 
-## Problem
+## Understanding
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+The user wants every store to automatically have all 5 core departments (Parts Department, Service Department, Body Shop Department, New Vehicles, Used Vehicles) available — both for existing stores that are missing some, and for any new store created going forward. "Executive Rollup" is excluded as it's a special aggregate type.
 
-## Root Cause
+### Current state (from database)
+- Most stores only have 2 departments (Parts + Service)
+- A few have 3-4
+- None have all 5 core types
+- There are 34 stores, many missing Body Shop, New Vehicles, and/or Used Vehicles
+- 1 store (Woldu Select) has zero departments
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+## Two-part fix
 
-## Fix
+### Part 1 — Backfill existing stores (database migration)
+A SQL migration that inserts all 5 core department types for every store that is currently missing any of them:
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
-
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
-
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
+```sql
+INSERT INTO departments (name, store_id, department_type_id)
+SELECT 
+  dt.name,
+  s.id AS store_id,
+  dt.id AS department_type_id
+FROM stores s
+CROSS JOIN department_types dt
+WHERE dt.name NOT IN ('Executive Rollup')
+AND NOT EXISTS (
+  SELECT 1 FROM departments d
+  WHERE d.store_id = s.id AND d.department_type_id = dt.id
+);
 ```
 
-### Key code change sketch
+This is safe — it only inserts missing combinations and skips ones that already exist.
 
-```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
+### Part 2 — Auto-provision for new stores (database trigger)
+Add a trigger on the `stores` table that fires `AFTER INSERT` and creates all 5 core department rows automatically when a new store is created. This mirrors the existing `auto_deploy_customer_journey` trigger pattern already in the codebase.
 
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
+```sql
+CREATE OR REPLACE FUNCTION public.auto_provision_departments()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public' AS $$
+BEGIN
+  INSERT INTO public.departments (name, store_id, department_type_id)
+  SELECT dt.name, NEW.id, dt.id
+  FROM public.department_types dt
+  WHERE dt.name NOT IN ('Executive Rollup');
+  RETURN NEW;
+END;
+$$;
 
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+CREATE TRIGGER auto_provision_departments_on_store_create
+AFTER INSERT ON public.stores
+FOR EACH ROW EXECUTE FUNCTION public.auto_provision_departments();
 ```
 
 ### Files to change
+- **Database migration** — backfill + trigger (no code files changed)
 
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+### What this does NOT touch
+- Existing manager assignments (kept as-is)
+- Executive Rollup department type (intentionally excluded — it's a special aggregate)
+- Any custom departments already created
+- The `DepartmentSelectionDialog` still works as-is for managing assignments
+
+### Result
+- All 34 existing stores get the missing departments filled in immediately
+- Any new store created via "Add Store" automatically gets all 5 departments
+- No UI changes needed — the department selector will simply show all departments since they'll all exist
