@@ -2783,52 +2783,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     });
   };
 
-  const handleCopyToQuarters = async (metricKey: string) => {
-    console.log("Copy to quarters clicked for:", metricKey);
-    const currentTarget = targets[metricKey];
-    console.log("Current target value:", currentTarget);
-    const metric = FINANCIAL_METRICS.find((m) => m.key === metricKey);
-    console.log("Metric found:", metric);
-
-    if (currentTarget === undefined || currentTarget === null || !metric) {
-      console.log("Validation failed - returning early");
-      return;
-    }
-
-    const updates = [1, 2, 3, 4]
-      .filter((q) => q !== quarter)
-      .map((q) => ({
-        department_id: departmentId,
-        metric_name: metricKey,
-        quarter: q,
-        year: year,
-        target_value: currentTarget,
-        target_direction: targetDirections[metricKey] || metric.targetDirection,
-      }));
-
-    console.log("Updates to be sent:", updates);
-
-    const { error } = await supabase.from("financial_targets").upsert(updates, {
-      onConflict: "department_id,metric_name,quarter,year",
-    });
-
-    if (error) {
-      console.error("Copy error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to copy targets",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log("Copy successful");
-    await loadTargets();
-    toast({
-      title: "Success",
-      description: `Target copied to all quarters in ${year}`,
-    });
-  };
 
   const handleOpenNoteDialog = (metricKey: string, monthId: string) => {
     const key = `${metricKey}-${monthId}`;
@@ -4703,25 +4657,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         </span>
                                       );
                                     })()}
-                                    {canEditTargets() && (
-                                      <Popover>
-                                        <PopoverTrigger asChild>
-                                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-accent">
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-2" align="center">
-                                          <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleCopyToQuarters(metric.key)}
-                                            className="text-xs"
-                                          >
-                                            Copy to Q1-Q4 {year}
-                                          </Button>
-                                        </PopoverContent>
-                                      </Popover>
-                                    )}
                                   </div>
                                 )}
                               </TableCell>
