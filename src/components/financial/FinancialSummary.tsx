@@ -4684,7 +4684,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(
                                           (m) => m.identifier,
                                         );
-                                        const { value: fv, isForecast } = calcRatioAwareForecast(metric.key, qtrMonths, getForecastTarget);
+                                        // For dollar metrics with sub-metrics, roll up from sub-metric forecasts
+                                        const useSub = metric.type !== "percentage" && checkHasSubMetrics(metric.key);
+                                        const { value: fv, isForecast } = useSub
+                                          ? calcSubMetricSumForecast(metric.key, qtrMonths, allSubMetrics, getForecastTarget)
+                                          : calcRatioAwareForecast(metric.key, qtrMonths, getForecastTarget);
                                         if (fv !== null) {
                                           displayTarget = fv;
                                           isForecastTarget = isForecast;
