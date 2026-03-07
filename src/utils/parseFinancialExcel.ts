@@ -425,7 +425,7 @@ export const parseFinancialExcel = (
               subMetricsResult[deptName].push({
                 parentMetricKey: mapping.parent_metric_key,
                 name: metricName,
-                value: value,
+                value: value ?? 0,
                 orderIndex,
                 unitValue,
               });
