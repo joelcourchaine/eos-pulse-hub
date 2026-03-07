@@ -4599,31 +4599,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   isDepartmentProfit && "z-10",
                                 )}
                               >
-                                {canEditTargets() && editingTarget === metric.key ? (
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Input
-                                      type="number"
-                                      step="any"
-                                      value={targetEditValue}
-                                      onChange={(e) => setTargetEditValue(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Enter") handleTargetSave(metric.key);
-                                        if (e.key === "Escape") setEditingTarget(null);
-                                      }}
-                                      className="w-20 h-7 text-center"
-                                      autoFocus
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => handleTargetSave(metric.key)}
-                                      className="h-7 px-2"
-                                    >
-                                      ✓
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                                     {(() => {
                                       // Forecast always wins; fall back to manual target only if no forecast exists
                                       let displayTarget = target;
@@ -4646,10 +4622,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         <span
                                           className={cn(
                                             "font-semibold",
-                                            canEditTargets() && "cursor-pointer hover:text-foreground",
                                             isForecastTarget && "text-primary/70",
                                           )}
-                                          onClick={() => canEditTargets() && handleTargetEdit(metric.key)}
                                           title={isForecastTarget ? "From forecast" : undefined}
                                         >
                                           {formatTarget(displayTarget, metric.type)}
@@ -4657,7 +4631,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       );
                                     })()}
                                   </div>
-                                )}
                               </TableCell>
                               {months.map((month, monthIndex) => {
                                 const key = `${metric.key}-${month.identifier}`;

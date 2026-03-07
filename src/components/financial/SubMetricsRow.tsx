@@ -741,29 +741,15 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                     key={period.identifier} 
                     className={cn(
                       "text-center py-1 text-xs text-muted-foreground min-w-[100px] max-w-[100px]",
-                      "bg-primary/5 border-x-2 border-primary/30 cursor-pointer hover:bg-primary/10"
+                      "bg-primary/5 border-x-2 border-primary/30"
                     )}
-                    onClick={() => !isEditing && handleTargetClick(subMetric.name, quarterlyTargetValue)}
                   >
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => handleTargetSave(subMetric.name, orderIndex)}
-                        onKeyDown={(e) => handleTargetKeyDown(e, subMetric.name, orderIndex)}
-                        className="h-6 text-xs text-center w-full"
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span
-                        className={cn(isForecastTarget && "text-primary/70")}
-                        title={isForecastTarget ? "From forecast" : undefined}
-                      >
-                        {displayTarget !== null ? formatValue(displayTarget) : "-"}
-                      </span>
-                    )}
+                    <span
+                      className={cn(isForecastTarget && "text-primary/70")}
+                      title={isForecastTarget ? "From forecast" : undefined}
+                    >
+                      {displayTarget !== null ? formatValue(displayTarget) : "-"}
+                    </span>
                   </TableCell>
                 );
               }
