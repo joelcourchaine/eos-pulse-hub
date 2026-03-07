@@ -169,7 +169,14 @@ export function ForecastResultsGrid({
       return monthlyValues.get(column)?.get(metricKey);
     }
     if (view === 'quarter') {
-      return quarterlyValues[column]?.get(metricKey);
+      const result = quarterlyValues[column]?.get(metricKey);
+      if (result && quarterDisplayMode === 'average') {
+        const metric = metricDefinitions.find(m => m.key === metricKey);
+        if (metric?.type !== 'percent') {
+          return { ...result, value: result.value / 3, baseline_value: result.baseline_value / 3 };
+        }
+      }
+      return result;
     }
     return undefined;
   };
