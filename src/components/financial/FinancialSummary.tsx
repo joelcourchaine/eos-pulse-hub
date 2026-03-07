@@ -5550,6 +5550,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         departmentId={departmentId}
         departmentName={departmentName || "Department"}
         onTargetsPushed={loadTargets}
+        initialYear={year}
       />
 
       {/* Clear Month Data Confirmation Dialog */}

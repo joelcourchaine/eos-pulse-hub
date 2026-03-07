@@ -1,61 +1,56 @@
 
+## Problem
+
+The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+
 ## Root Cause
 
-The `ForecastDrawer` initializes `selectedYear` from **localStorage** (defaulting to `currentYear`). The Financial Summary never tells the drawer which year it's viewing. So if localStorage has `2025` stored, the drawer opens on 2025, the user edits 2025 forecast data, saves it — but `useForecastTargets(departmentId, year)` is fetching for the Financial Summary's `year` prop (2026). The Q1 Target column reads from `getForecastTarget()` which uses the 2026 map, which has stale/no data.
-
-Even if years happen to match, the `refetchForecastTargets()` on close is the only refresh — there's no guarantee the drawer year and the summary year are in sync.
+In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
 
 ## Fix
 
-**1. Add `initialYear` prop to `ForecastDrawer`**
+**Make "# of Days" a pure computed display value — never stored in the database.**
+
+### Changes to `src/components/top-10/Top10ItemRow.tsx`
+
+1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
+
+2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
+
+3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
+
+4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+
+```text
+RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
+# of Days            →  computed live: differenceInDays(today, roDate)
+                         never stored, never stale
+```
+
+### Key code change sketch
 
 ```ts
-interface ForecastDrawerProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  departmentId: string;
-  departmentName: string;
-  onTargetsPushed?: () => void;
-  initialYear?: number;  // ← new
-}
+// New helper — pure computation, no side effects
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
+
+// In handleDateSelect / handleChange / useEffect:
+// Remove daysColKey from newData before saving
+if (daysColKey) delete newData[daysColKey];
+onUpdate(newData); // days never written to DB
+
+// In render — for days column:
+const displayValue = col.key === daysColKey && roDateColKey
+  ? getComputedDays(localData[roDateColKey] || "")
+  : localData[col.key] || "";
+// Show as read-only span regardless of canEdit
 ```
 
-**2. Use `initialYear` to override localStorage when the drawer opens**
+### Files to change
 
-Change the `selectedYear` state initialization to prefer `initialYear` when provided:
-
-```ts
-const [selectedYear, setSelectedYear] = useState<number>(() => {
-  if (initialYear) return initialYear;  // ← use Summary's year
-  const saved = localStorage.getItem(FORECAST_YEAR_KEY);
-  if (saved) { ... }
-  return currentYear;
-});
-
-// Also sync when initialYear changes (drawer opens to a new year)
-useEffect(() => {
-  if (initialYear && open) {
-    setSelectedYear(initialYear);
-  }
-}, [initialYear, open]);
-```
-
-**3. Pass `year` from FinancialSummary to the drawer (~line 5542)**
-
-```tsx
-<ForecastDrawer
-  open={forecastDrawerOpen}
-  onOpenChange={(open) => {
-    setForecastDrawerOpen(open);
-    if (!open) refetchForecastTargets();
-  }}
-  departmentId={departmentId}
-  departmentName={departmentName || "Department"}
-  onTargetsPushed={loadTargets}
-  initialYear={year}   // ← pass the summary's year
-/>
-```
-
-## Files to change
-- `src/components/financial/ForecastDrawer.tsx` — add `initialYear` prop, sync state on open
-- `src/components/financial/FinancialSummary.tsx` — pass `initialYear={year}` to `ForecastDrawer`
+- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits

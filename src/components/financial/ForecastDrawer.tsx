@@ -31,9 +31,10 @@ interface ForecastDrawerProps {
   departmentId: string;
   departmentName: string;
   onTargetsPushed?: () => void;
+  initialYear?: number;
 }
 
-export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName, onTargetsPushed }: ForecastDrawerProps) {
+export function ForecastDrawer({ open, onOpenChange, departmentId, departmentName, onTargetsPushed, initialYear }: ForecastDrawerProps) {
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear, currentYear + 1];
   
@@ -49,8 +50,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     prevOpenRef.current = open;
   }, [open]);
   
-  // Initialize from localStorage or default to current year
+  // Initialize from initialYear prop (Financial Summary's year), falling back to localStorage
   const [selectedYear, setSelectedYear] = useState<number>(() => {
+    if (initialYear && [initialYear, initialYear + 1, initialYear - 1].some(y => y === initialYear)) return initialYear;
     const saved = localStorage.getItem(FORECAST_YEAR_KEY);
     if (saved) {
       const parsed = parseInt(saved, 10);
@@ -58,6 +60,13 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     }
     return currentYear;
   });
+
+  // Sync selectedYear whenever the drawer opens with a new initialYear
+  useEffect(() => {
+    if (initialYear && open) {
+      setSelectedYear(initialYear);
+    }
+  }, [initialYear, open]);
 
   const forecastYear = selectedYear;
   const priorYear = forecastYear - 1;
