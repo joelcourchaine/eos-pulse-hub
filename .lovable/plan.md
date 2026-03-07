@@ -1,56 +1,49 @@
 
-## Problem
+## Feature: Quarter View Toggle — Totals vs Average Month
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+### Context
+- In the Forecast Drawer, when `view === 'quarter'`, Q1/Q2/Q3/Q4 columns show the **sum of 3 months** for dollar metrics and the **ratio-of-sums** for percentage metrics.
+- The user wants a toggle button that switches the quarter display between **"Totals"** (current behavior: 3-month sum) and **"Average Month"** (each quarter divided by 3).
+- Percentage metrics (GP %, Sales Expense %, etc.) already calculate correctly from ratios — dividing by 3 doesn't apply to them; only dollar/number metrics get divided.
 
-## Root Cause
+### What to build
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+**1. New state in `ForecastDrawer.tsx`**
+Add `const [quarterDisplayMode, setQuarterDisplayMode] = useState<'total' | 'average'>('total')` near the existing `view` state.
 
-## Fix
-
-**Make "# of Days" a pure computed display value — never stored in the database.**
-
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
-
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
+**2. Toggle button in `ForecastDrawer.tsx`** (shown only when `view === 'quarter'`)
+Add a small pill toggle next to the view buttons:
+```
+[ Monthly ][ Quarter ][ Annual ]   [ Totals | Avg Month ]
 ```
 
-### Key code change sketch
+**3. Pass `quarterDisplayMode` down to `ForecastResultsGrid`**
+Add a `quarterDisplayMode?: 'total' | 'average'` prop to `ForecastResultsGridProps`.
 
+**4. Apply the divide-by-3 in `ForecastResultsGrid.tsx`**
+In `getValue()`, when `view === 'quarter'` and `quarterDisplayMode === 'average'`, divide the cell value by 3 only for non-percentage metrics:
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
+const getValue = (column: string, metricKey: string) => {
+  if (view === 'quarter') {
+    const result = quarterlyValues[column]?.get(metricKey);
+    if (result && quarterDisplayMode === 'average') {
+      const metric = metricDefinitions.find(m => m.key === metricKey);
+      if (metric?.type !== 'percent') {
+        return { ...result, value: result.value / 3, baseline_value: result.baseline_value / 3 };
+      }
+    }
+    return result;
+  }
+  ...
 };
-
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
 ```
+
+**5. Same treatment for sub-metric quarterly values**
+In the sub-metric rendering block (line ~481), also divide `subMetricData.quarterlyValues.get(col.key)` by 3 when in average mode for non-percentage sub-metrics.
+
+**6. Column header update**
+When `quarterDisplayMode === 'average'`, change the quarter column header labels to show `Q1 Avg`, `Q2 Avg`, etc. (or add a small subtitle under each header).
 
 ### Files to change
-
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+- `src/components/financial/ForecastDrawer.tsx` — add state + toggle button UI
+- `src/components/financial/forecast/ForecastResultsGrid.tsx` — add prop, apply divide-by-3 in getValue + sub-metric cell + header labels
