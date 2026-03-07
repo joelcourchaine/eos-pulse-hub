@@ -62,6 +62,7 @@ import { SubMetricsRow, ExpandableMetricName } from "./SubMetricsRow";
 import { ForecastDrawer } from "./ForecastDrawer";
 import { useRockTargets } from "@/hooks/useRockTargets";
 import { useForecastTargets } from "@/hooks/useForecastTargets";
+import { useSubBrandCategories } from "@/hooks/useSubBrandCategories";
 
 interface FinancialSummaryProps {
   departmentId: string;
@@ -342,6 +343,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [storeBrand, setStoreBrand] = useState<string | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
   const [departmentName, setDepartmentName] = useState<string | null>(null);
+  const [subBrandFilter, setSubBrandFilter] = useState<string | null>(null);
   const [targetYear, setTargetYear] = useState(year);
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
@@ -563,6 +565,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     getCalculatedSubMetricValue,
     saveSubMetricValue,
   } = useSubMetrics(departmentId, allMonthIdentifiers);
+
+  // Sub-brand category filter (GMC only)
+  const { categories: subBrandCategories, getCategory, hasCategories } = useSubBrandCategories(storeBrand, departmentName);
 
   // Fetch sub-metric targets
   const { getSubMetricTarget, saveSubMetricTarget } = useSubMetricTargets(departmentId);
@@ -3473,6 +3478,24 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {hasCategories && (
+                  <Select
+                    value={subBrandFilter || "all"}
+                    onValueChange={(value) => setSubBrandFilter(value === "all" ? null : value)}
+                  >
+                    <SelectTrigger className="w-[140px] h-8 text-xs" onClick={(e) => e.stopPropagation()}>
+                      <SelectValue placeholder="All Brands" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Brands</SelectItem>
+                      {subBrandCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {(userRole === "super_admin" || userRole === "store_gm") && (
                   <>
                     <Button
@@ -3719,7 +3742,17 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                         : metric.key;
                     const metricHasSubMetrics = metric.hasSubMetrics || checkHasSubMetrics(subMetricSourceKey);
                     const isMetricExpanded = expandedMetrics.has(metric.key);
-                    const subMetricNames = metricHasSubMetrics ? getSubMetricNames(subMetricSourceKey) : [];
+                    const allSubMetricNames = metricHasSubMetrics ? getSubMetricNames(subMetricSourceKey) : [];
+                    // Apply sub-brand filter (GMC only) — filter by category from cell mappings
+                    const subMetricNames = subBrandFilter
+                      ? allSubMetricNames.filter((name) => {
+                          const entry = allSubMetrics.find(
+                            (sm) => sm.parentMetricKey === subMetricSourceKey && sm.name === name,
+                          );
+                          if (!entry) return false;
+                          return getCategory(subMetricSourceKey, entry.orderIndex) === subBrandFilter;
+                        })
+                      : allSubMetricNames;
                     const metricHasRock = hasRockForMetric(metric.key);
                     const metricRock = metricHasRock ? getRockForMetric(metric.key) : null;
 

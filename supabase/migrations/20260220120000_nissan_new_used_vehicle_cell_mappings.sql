@@ -1,8 +1,9 @@
 -- Nissan New & Used Vehicle Financial Cell Mappings
 -- ============================================================
 -- Maps Nissan4 (Sales/GP) and Nissan2 (Expenses) sheets
--- 205 total rows: 12 parents + 193 sub-metrics
--- Skipped rows: Nissan4 rows 14, 27-29 (New); Nissan2 row 20 (both)
+-- 197 total rows: 12 parents + 185 sub-metrics
+-- Skipped rows: Nissan4 rows 14, 27-29 (New)
+-- Nissan2: Sales Expense parent=row 20, subs=rows 15-19; Total Direct Expenses subs=rows 21-37
 
 -- ============================================================
 -- PARENT METRICS
@@ -14,7 +15,7 @@ INSERT INTO public.financial_cell_mappings
 VALUES
 ('Nissan', 'New Vehicles', 'total_sales', 'Nissan4', 'C40', false),
 ('Nissan', 'New Vehicles', 'gp_net', 'Nissan4', 'D40', false),
-('Nissan', 'New Vehicles', 'sales_expense', 'Nissan2', 'H13', false),
+('Nissan', 'New Vehicles', 'sales_expense', 'Nissan2', 'H20', false),
 ('Nissan', 'New Vehicles', 'total_direct_expenses', 'Nissan2', 'H38', false),
 ('Nissan', 'New Vehicles', 'total_fixed_expense', 'Nissan2', 'H61', false),
 ('Nissan', 'New Vehicles', 'department_profit', 'Nissan2', 'H64', false);
@@ -25,7 +26,7 @@ INSERT INTO public.financial_cell_mappings
 VALUES
 ('Nissan', 'Used Vehicles', 'total_sales', 'Nissan4', 'C56', false),
 ('Nissan', 'Used Vehicles', 'gp_net', 'Nissan4', 'D56', false),
-('Nissan', 'Used Vehicles', 'sales_expense', 'Nissan2', 'L13', false),
+('Nissan', 'Used Vehicles', 'sales_expense', 'Nissan2', 'L20', false),
 ('Nissan', 'Used Vehicles', 'total_direct_expenses', 'Nissan2', 'L38', false),
 ('Nissan', 'Used Vehicles', 'total_fixed_expense', 'Nissan2', 'L61', false),
 ('Nissan', 'Used Vehicles', 'department_profit', 'Nissan2', 'L64', false);
@@ -208,81 +209,73 @@ VALUES
 ('Nissan', 'Used Vehicles', 'gp_percent_sub_15', 'Nissan4', 'E55', 'G55', 'gp_percent', true);
 
 -- ============================================================
--- NISSAN2: SALES EXPENSE SUB-METRICS (Rows 9-12)
+-- NISSAN2: SALES EXPENSE SUB-METRICS (Rows 15-19, parent row 20)
 -- ============================================================
 
 -- New Vehicle Sales Expense sub-metrics
 INSERT INTO public.financial_cell_mappings
 (brand, department_name, metric_key, sheet_name, cell_reference, name_cell_reference, parent_metric_key, is_sub_metric)
 VALUES
-('Nissan', 'New Vehicles', 'sales_expense_sub_1', 'Nissan2', 'H9', 'B9', 'sales_expense', true),
-('Nissan', 'New Vehicles', 'sales_expense_sub_2', 'Nissan2', 'H10', 'B10', 'sales_expense', true),
-('Nissan', 'New Vehicles', 'sales_expense_sub_3', 'Nissan2', 'H11', 'B11', 'sales_expense', true),
-('Nissan', 'New Vehicles', 'sales_expense_sub_4', 'Nissan2', 'H12', 'B12', 'sales_expense', true);
+('Nissan', 'New Vehicles', 'sales_expense_sub_1', 'Nissan2', 'H15', 'B15', 'sales_expense', true),
+('Nissan', 'New Vehicles', 'sales_expense_sub_2', 'Nissan2', 'H16', 'B16', 'sales_expense', true),
+('Nissan', 'New Vehicles', 'sales_expense_sub_3', 'Nissan2', 'H17', 'B17', 'sales_expense', true),
+('Nissan', 'New Vehicles', 'sales_expense_sub_4', 'Nissan2', 'H18', 'B18', 'sales_expense', true),
+('Nissan', 'New Vehicles', 'sales_expense_sub_5', 'Nissan2', 'H19', 'B19', 'sales_expense', true);
 
 -- Used Vehicle Sales Expense sub-metrics
 INSERT INTO public.financial_cell_mappings
 (brand, department_name, metric_key, sheet_name, cell_reference, name_cell_reference, parent_metric_key, is_sub_metric)
 VALUES
-('Nissan', 'Used Vehicles', 'sales_expense_sub_1', 'Nissan2', 'L9', 'B9', 'sales_expense', true),
-('Nissan', 'Used Vehicles', 'sales_expense_sub_2', 'Nissan2', 'L10', 'B10', 'sales_expense', true),
-('Nissan', 'Used Vehicles', 'sales_expense_sub_3', 'Nissan2', 'L11', 'B11', 'sales_expense', true),
-('Nissan', 'Used Vehicles', 'sales_expense_sub_4', 'Nissan2', 'L12', 'B12', 'sales_expense', true);
+('Nissan', 'Used Vehicles', 'sales_expense_sub_1', 'Nissan2', 'L15', 'B15', 'sales_expense', true),
+('Nissan', 'Used Vehicles', 'sales_expense_sub_2', 'Nissan2', 'L16', 'B16', 'sales_expense', true),
+('Nissan', 'Used Vehicles', 'sales_expense_sub_3', 'Nissan2', 'L17', 'B17', 'sales_expense', true),
+('Nissan', 'Used Vehicles', 'sales_expense_sub_4', 'Nissan2', 'L18', 'B18', 'sales_expense', true),
+('Nissan', 'Used Vehicles', 'sales_expense_sub_5', 'Nissan2', 'L19', 'B19', 'sales_expense', true);
 
 -- ============================================================
--- NISSAN2: TOTAL DIRECT EXPENSES SUB-METRICS (Rows 15-37, skip 20)
+-- NISSAN2: TOTAL DIRECT EXPENSES SUB-METRICS (Rows 21-37)
 -- ============================================================
 
 -- New Vehicle Total Direct Expenses sub-metrics
 INSERT INTO public.financial_cell_mappings
 (brand, department_name, metric_key, sheet_name, cell_reference, name_cell_reference, parent_metric_key, is_sub_metric)
 VALUES
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_1', 'Nissan2', 'H15', 'B15', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_2', 'Nissan2', 'H16', 'B16', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_3', 'Nissan2', 'H17', 'B17', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_4', 'Nissan2', 'H18', 'B18', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_5', 'Nissan2', 'H19', 'B19', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_6', 'Nissan2', 'H21', 'B21', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_7', 'Nissan2', 'H22', 'B22', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_8', 'Nissan2', 'H23', 'B23', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_9', 'Nissan2', 'H24', 'B24', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_10', 'Nissan2', 'H25', 'B25', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_11', 'Nissan2', 'H26', 'B26', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_12', 'Nissan2', 'H27', 'B27', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_13', 'Nissan2', 'H28', 'B28', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_14', 'Nissan2', 'H29', 'B29', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_15', 'Nissan2', 'H30', 'B30', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_16', 'Nissan2', 'H31', 'B31', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_17', 'Nissan2', 'H32', 'B32', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_18', 'Nissan2', 'H33', 'B33', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_19', 'Nissan2', 'H34', 'B34', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_20', 'Nissan2', 'H35', 'B35', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_21', 'Nissan2', 'H36', 'B36', 'total_direct_expenses', true),
-('Nissan', 'New Vehicles', 'total_direct_expenses_sub_22', 'Nissan2', 'H37', 'B37', 'total_direct_expenses', true);
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_1', 'Nissan2', 'H21', 'B21', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_2', 'Nissan2', 'H22', 'B22', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_3', 'Nissan2', 'H23', 'B23', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_4', 'Nissan2', 'H24', 'B24', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_5', 'Nissan2', 'H25', 'B25', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_6', 'Nissan2', 'H26', 'B26', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_7', 'Nissan2', 'H27', 'B27', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_8', 'Nissan2', 'H28', 'B28', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_9', 'Nissan2', 'H29', 'B29', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_10', 'Nissan2', 'H30', 'B30', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_11', 'Nissan2', 'H31', 'B31', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_12', 'Nissan2', 'H32', 'B32', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_13', 'Nissan2', 'H33', 'B33', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_14', 'Nissan2', 'H34', 'B34', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_15', 'Nissan2', 'H35', 'B35', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_16', 'Nissan2', 'H36', 'B36', 'total_direct_expenses', true),
+('Nissan', 'New Vehicles', 'total_direct_expenses_sub_17', 'Nissan2', 'H37', 'B37', 'total_direct_expenses', true);
 
 -- Used Vehicle Total Direct Expenses sub-metrics
 INSERT INTO public.financial_cell_mappings
 (brand, department_name, metric_key, sheet_name, cell_reference, name_cell_reference, parent_metric_key, is_sub_metric)
 VALUES
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_1', 'Nissan2', 'L15', 'B15', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_2', 'Nissan2', 'L16', 'B16', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_3', 'Nissan2', 'L17', 'B17', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_4', 'Nissan2', 'L18', 'B18', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_5', 'Nissan2', 'L19', 'B19', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_6', 'Nissan2', 'L21', 'B21', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_7', 'Nissan2', 'L22', 'B22', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_8', 'Nissan2', 'L23', 'B23', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_9', 'Nissan2', 'L24', 'B24', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_10', 'Nissan2', 'L25', 'B25', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_11', 'Nissan2', 'L26', 'B26', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_12', 'Nissan2', 'L27', 'B27', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_13', 'Nissan2', 'L28', 'B28', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_14', 'Nissan2', 'L29', 'B29', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_15', 'Nissan2', 'L30', 'B30', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_16', 'Nissan2', 'L31', 'B31', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_17', 'Nissan2', 'L32', 'B32', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_18', 'Nissan2', 'L33', 'B33', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_19', 'Nissan2', 'L34', 'B34', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_20', 'Nissan2', 'L35', 'B35', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_21', 'Nissan2', 'L36', 'B36', 'total_direct_expenses', true),
-('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_22', 'Nissan2', 'L37', 'B37', 'total_direct_expenses', true);
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_1', 'Nissan2', 'L21', 'B21', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_2', 'Nissan2', 'L22', 'B22', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_3', 'Nissan2', 'L23', 'B23', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_4', 'Nissan2', 'L24', 'B24', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_5', 'Nissan2', 'L25', 'B25', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_6', 'Nissan2', 'L26', 'B26', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_7', 'Nissan2', 'L27', 'B27', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_8', 'Nissan2', 'L28', 'B28', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_9', 'Nissan2', 'L29', 'B29', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_10', 'Nissan2', 'L30', 'B30', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_11', 'Nissan2', 'L31', 'B31', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_12', 'Nissan2', 'L32', 'B32', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_13', 'Nissan2', 'L33', 'B33', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_14', 'Nissan2', 'L34', 'B34', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_15', 'Nissan2', 'L35', 'B35', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_16', 'Nissan2', 'L36', 'B36', 'total_direct_expenses', true),
+('Nissan', 'Used Vehicles', 'total_direct_expenses_sub_17', 'Nissan2', 'L37', 'B37', 'total_direct_expenses', true);
