@@ -4637,17 +4637,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                           .map((mid) => getForecastTarget(metric.key, mid))
                                           .filter((v): v is number => v !== null);
                                         if (forecastVals.length > 0) {
-                                          if (metric.type === 'percentage' && metric.calculation && 'numerator' in metric.calculation) {
-                                            // Weighted: sum(numerator months) / sum(denominator months) * 100
-                                            const numVals = qtrMonths.map((mid) => getForecastTarget((metric.calculation as { numerator: string; denominator: string }).numerator, mid)).filter((v): v is number => v !== null);
-                                            const denVals = qtrMonths.map((mid) => getForecastTarget((metric.calculation as { numerator: string; denominator: string }).denominator, mid)).filter((v): v is number => v !== null);
-                                            const numSum = numVals.reduce((s, v) => s + v, 0);
-                                            const denSum = denVals.reduce((s, v) => s + v, 0);
-                                            displayTarget = denSum > 0 ? (numSum / denSum) * 100 : forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
-                                          } else {
-                                            // Dollar metric: sum of 3 months
-                                            displayTarget = forecastVals.reduce((s, v) => s + v, 0);
-                                          }
+                                          displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
                                           isForecastTarget = true;
                                         }
                                       }
