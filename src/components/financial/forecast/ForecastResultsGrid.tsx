@@ -45,6 +45,7 @@ interface SubMetricData {
 
 interface ForecastResultsGridProps {
   view: 'monthly' | 'quarter' | 'annual';
+  quarterDisplayMode?: 'total' | 'average';
   monthlyValues: Map<string, Map<string, CalculationResult>>;
   quarterlyValues: Record<string, Map<string, CalculationResult>>;
   annualValues: Map<string, CalculationResult>;

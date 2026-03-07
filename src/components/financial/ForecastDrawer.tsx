@@ -75,6 +75,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     setGrowth(0);
   };
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
+  const [quarterDisplayMode, setQuarterDisplayMode] = useState<'total' | 'average'>('total');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
   const [recentlyLockedMetrics, setRecentlyLockedMetrics] = useState<Set<string>>(new Set());
 
