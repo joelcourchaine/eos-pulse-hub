@@ -5544,6 +5544,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
           setForecastDrawerOpen(open);
           if (!open) {
             refetchForecastTargets();
+            loadTargets();
           }
         }}
         departmentId={departmentId}
