@@ -89,6 +89,7 @@ const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 
 export function ForecastResultsGrid({
   view,
+  quarterDisplayMode = 'total',
   monthlyValues,
   quarterlyValues,
   annualValues,
