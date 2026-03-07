@@ -80,6 +80,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     driversInitialized.current = false;
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
+    userChangedDrivers.current = false;
     setSubMetricOverrides([]);
     setGrowth(0);
   };
@@ -123,6 +124,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const driverSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const overrideSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDirtyRef = useRef(false);
+  // Tracks whether the user has explicitly changed growth/weights/drivers in this session.
+  // When false (initial load), computed metrics with existing stored values are preserved.
+  // When true (user made a change), auto-save re-derives and overwrites them so the
+  // Financial Summary Q1 Target stays in sync with the Forecast Results Grid.
+  const userChangedDrivers = useRef(false);
   const markDirty = () => {
     isDirtyRef.current = true;
   };
@@ -838,11 +844,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         metrics.forEach((result, metricKey) => {
           const entry = currentEntries.find((e) => e.month === month && e.metric_name === metricKey);
           
-          // Skip only if explicitly locked — locked entries are preserved
-          // Removed: broad "manualEditableMetrics" skip that prevented auto-save from
-          // refreshing stored values when growth sliders/weights change, causing stale
-          // Q1 Target values in Financial Summary vs live Forecast Results Grid.
           if (entry?.is_locked) return;
+
+          // Guard: only overwrite manually-editable computed metrics when the user has
+          // explicitly changed drivers/growth in this session. On initial drawer open the
+          // calculation engine re-runs with the stored drivers, which can produce slightly
+          // different values due to floating-point; without this guard those writes would
+          // overwrite valid stored values and corrupt the yearly view.
+          if (!userChangedDrivers.current) {
+            const manualEditableMetrics = ['sales_expense_percent', 'sales_expense', 'gp_percent', 'gp_net', 'total_sales'];
+            if (manualEditableMetrics.includes(metricKey) && entry && entry.forecast_value !== null && entry.forecast_value !== undefined) {
+              return;
+            }
+          }
 
           const nextForecast = result.value;
           const nextBaseline = result.baseline_value;
@@ -1495,6 +1509,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
     driversInitialized.current = false;
+    userChangedDrivers.current = false;
     
     // Delete saved driver settings, sub-metric overrides, and reset all entries from database
     try {
@@ -1794,6 +1809,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               calculatedWeights={calculatedWeights}
               onUpdateWeight={(monthNumber, adjustedWeight, isLocked) => {
                 markDirty();
+                userChangedDrivers.current = true;
                 // If updating a weight value (not just lock), redistribute across unlocked months
                 if (adjustedWeight !== undefined && weights && weights.length > 0) {
                   const { redistributeWeights } = (() => {
@@ -1863,6 +1879,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               growth={growth}
               onGrowthChange={(v) => {
                 markDirty();
+                userChangedDrivers.current = true;
                 setGrowth(v);
               }}
             />
