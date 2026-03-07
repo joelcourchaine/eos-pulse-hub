@@ -2459,13 +2459,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const lyKey = `${metricKey}-Q${qtr}-${qtrYear - 1}`;
     const lyValue = precedingQuartersData[lyKey];
 
-    // Forecast: average of the 3 monthly forecast values for this quarter
+    // Forecast: ratio-aware aggregation for percentage metrics, simple average for others
     const qtrMonthIds = getQuarterMonthsForCalculation(qtr, qtrYear).map((m) => m.identifier);
-    const forecastValues = qtrMonthIds
-      .map((mid) => getForecastTarget(metricKey, mid))
-      .filter((v): v is number => v !== null);
-    const forecastValue =
-      forecastValues.length > 0 ? forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length : null;
+    const { value: forecastValue } = calcRatioAwareForecast(metricKey, qtrMonthIds, getForecastTarget);
 
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
