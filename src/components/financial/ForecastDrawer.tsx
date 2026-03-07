@@ -1866,6 +1866,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             {/* Forecast Results Grid */}
             <ForecastResultsGrid
               view={view}
+              quarterDisplayMode={quarterDisplayMode}
               monthlyValues={monthlyValues}
               quarterlyValues={quarterlyValues}
               annualValues={annualValues}
