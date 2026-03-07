@@ -1,56 +1,59 @@
 
-## Problem
-
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
-
 ## Root Cause
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+The Forecast Results Grid and Financial Summary Q1 Target use different data sources:
+
+- **Forecast Results Grid (Q1 Avg)**: Shows live calculations from the `useForecastCalculations` engine in the drawer — never stale.
+- **Financial Summary Q1 Target**: Reads `forecast_entries` from the database via `useForecastTargets`, averaged across the 3 months.
+
+The mismatch occurs in `ForecastDrawer.tsx` auto-save logic (lines 846–850):
+
+```ts
+const manualEditableMetrics = ['sales_expense_percent', 'sales_expense', 'gp_percent', 'gp_net', 'total_sales'];
+if (manualEditableMetrics.includes(metricKey) && entry && entry.forecast_value !== null && ...) {
+  return; // Preserve manual edits — SKIPS re-saving updated values!
+}
+```
+
+This was designed to prevent auto-save from overwriting user manual edits. But it's too broad: it prevents the auto-save from updating **any** stored value for those key metrics, even when the growth slider or weights change. So the DB retains old monthly values while the drawer shows fresh calculated values.
+
+The Financial Summary then reads the stale stored values, producing a lower/different Q1 Target than the drawer's live Q1 Avg.
 
 ## Fix
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
-
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
-
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+**`src/components/financial/ForecastDrawer.tsx`** — Change the skip condition to only skip when the entry is **explicitly locked** (`is_locked = true`), not just "has a stored value". A stored value that isn't locked should be updated by the auto-save.
 
 ```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
+Before:
+  Skip if: metric is in manualEditableMetrics AND entry has a forecast_value stored
+
+After:
+  Skip if: entry.is_locked === true
+  (Locked entries are already handled by the `if (entry?.is_locked) return;` check on line 843)
 ```
 
-### Key code change sketch
+This means: only entries the user has explicitly locked are preserved. All other entries (including previously auto-saved values for `total_sales`, `gp_net`, etc.) get updated when the calculation engine produces new values.
+
+### Specific change — lines 843–850 in `ForecastDrawer.tsx`
 
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
+// BEFORE:
+if (entry?.is_locked) return;
 
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
+const manualEditableMetrics = ['sales_expense_percent', 'sales_expense', 'gp_percent', 'gp_net', 'total_sales'];
+if (manualEditableMetrics.includes(metricKey) && entry && entry.forecast_value !== null && entry.forecast_value !== undefined) {
+  return; // Preserve manual edits
+}
 
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+// AFTER:
+if (entry?.is_locked) return;
+// Removed: the broad "preserve manual edits" skip.
+// Manual edits are now protected exclusively by locking.
+// This allows auto-save to refresh stored values when drivers/weights change,
+// keeping forecast_entries in sync with the live calculation engine.
 ```
 
 ### Files to change
+- `src/components/financial/ForecastDrawer.tsx` — remove the over-broad `manualEditableMetrics` skip (lines ~846–850), keeping only the `is_locked` guard
 
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+This ensures the DB always reflects the current drawer calculation, so the Financial Summary Q1 Target matches the Forecast Results Q1 Avg exactly.
