@@ -142,6 +142,7 @@ export const parseTechnicianHoursReport = (file: File): Promise<TechnicianHoursP
           // Clocked In Hrs — exact match only
           const cIdx = normed.findIndex(c =>
             c === "clocked in hrs" || c === "clocked in hours" || c === "clocked in"
+            || c === "actual hrs" || c === "actual hours"
           );
           if (dIdx !== -1 && sIdx !== -1 && cIdx !== -1) {
             headerRowIndex = ri;
