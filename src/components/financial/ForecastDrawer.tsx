@@ -80,6 +80,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     driversInitialized.current = false;
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
+    userChangedDrivers.current = false;
     setSubMetricOverrides([]);
     setGrowth(0);
   };
