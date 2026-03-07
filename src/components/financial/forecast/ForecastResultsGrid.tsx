@@ -150,10 +150,10 @@ export function ForecastResultsGrid({
     }
     if (view === 'quarter') {
       return [
-        { key: 'Q1', label: 'Q1' },
-        { key: 'Q2', label: 'Q2' },
-        { key: 'Q3', label: 'Q3' },
-        { key: 'Q4', label: 'Q4' },
+        { key: 'Q1', label: quarterDisplayMode === 'average' ? 'Q1 Avg' : 'Q1' },
+        { key: 'Q2', label: quarterDisplayMode === 'average' ? 'Q2 Avg' : 'Q2' },
+        { key: 'Q3', label: quarterDisplayMode === 'average' ? 'Q3 Avg' : 'Q3' },
+        { key: 'Q4', label: quarterDisplayMode === 'average' ? 'Q4 Avg' : 'Q4' },
       ];
     }
     return [];
