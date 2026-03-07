@@ -1807,6 +1807,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
               calculatedWeights={calculatedWeights}
               onUpdateWeight={(monthNumber, adjustedWeight, isLocked) => {
                 markDirty();
+                userChangedDrivers.current = true;
                 // If updating a weight value (not just lock), redistribute across unlocked months
                 if (adjustedWeight !== undefined && weights && weights.length > 0) {
                   const { redistributeWeights } = (() => {
