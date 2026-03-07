@@ -943,7 +943,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 const qtrMonthIds = getQuarterMonths(qtr.quarter, qtr.year);
                 const forecastValues = qtrMonthIds.map(mid => getForecastTarget(subMetric.name, mid)).filter((v): v is number => v !== null);
                 if (forecastValues.length > 0) {
-                  qtrForecastTarget = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                  qtrForecastTarget = forecastValues.reduce((s, v) => s + v, 0);
                 }
               }
               
