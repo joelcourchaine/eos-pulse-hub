@@ -4362,12 +4362,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let qtrTargetSource: "manual" | "forecast" | null =
                                 targetValue !== null && targetValue !== 0 ? "manual" : null;
 
-                              // Fallback to ratio-aware forecast aggregation
+                              // Fallback to sub-metric rollup (for dollar parents) or ratio-aware forecast
                               if (!targetValue || targetValue === 0) {
                                 const qtrMonthIds = getQuarterMonthsForCalculation(qtr.quarter, qtr.year).map(
                                   (m) => m.identifier,
                                 );
-                                const { value: fv } = calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
+                                // For dollar metrics with sub-metrics, roll up from sub-metric forecasts
+                                const useSub = metric.type !== "percentage" && checkHasSubMetrics(metric.key);
+                                const { value: fv } = useSub
+                                  ? calcSubMetricSumForecast(metric.key, qtrMonthIds, allSubMetrics, getForecastTarget)
+                                  : calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
                                 if (fv !== null) {
                                   targetValue = fv;
                                   qtrTargetDirection = metric.targetDirection;
