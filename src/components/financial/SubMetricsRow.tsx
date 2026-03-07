@@ -282,7 +282,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     if (getForecastTarget && getQuarterMonths) {
       const qtrMonthIds = getQuarterMonths(qtr, qtrYear);
       const fVals = qtrMonthIds.map(mid => getForecastTarget(subMetricName, mid)).filter((v): v is number => v !== null);
-      if (fVals.length > 0) forecastValue = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+      if (fVals.length > 0) forecastValue = fVals.reduce((s, v) => s + v, 0);
     }
     if (lyValue == null && forecastValue == null) return <>{children}</>;
     return (
@@ -730,7 +730,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   const fVals = qtrMonthIds
                     .map((mid) => getForecastTarget(subMetric.name, mid))
                     .filter((v): v is number => v !== null);
-                  if (fVals.length > 0) forecastQuarterAvg = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+                  if (fVals.length > 0) forecastQuarterAvg = fVals.reduce((s, v) => s + v, 0);
                 }
 
                 const displayTarget = quarterlyTargetValue ?? forecastQuarterAvg;
@@ -943,7 +943,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 const qtrMonthIds = getQuarterMonths(qtr.quarter, qtr.year);
                 const forecastValues = qtrMonthIds.map(mid => getForecastTarget(subMetric.name, mid)).filter((v): v is number => v !== null);
                 if (forecastValues.length > 0) {
-                  qtrForecastTarget = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                  qtrForecastTarget = forecastValues.reduce((s, v) => s + v, 0);
                 }
               }
               
