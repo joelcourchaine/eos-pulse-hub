@@ -1,56 +1,29 @@
 
-## Problem
+## What's happening
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+The Financial Summary has two places where targets can be clicked/edited inline:
 
-## Root Cause
+1. **Parent metric rows** (`FinancialSummary.tsx` lines 4596–4660): The Q1 Target cell renders an editable `<Input>` when clicked if `canEditTargets()` is true. The span also has `cursor-pointer hover:text-foreground` and an `onClick` tied to `handleTargetEdit`.
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+2. **Sub-metric rows** (`SubMetricsRow.tsx` lines 722–768): The quarter-target cell has `cursor-pointer hover:bg-primary/10` and an `onClick` calling `handleTargetClick`, which opens an inline `<Input>`.
 
-## Fix
+Since targets are now exclusively managed through the Forecast Drawer, we need to make both cells read-only — no click handler, no inline input, no edit cursor.
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
+## Changes
 
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
+### 1. `FinancialSummary.tsx` — Parent metric Q1 Target cell (lines ~4596–4660)
 
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
+- Remove the `canEditTargets() && editingTarget === metric.key` branch that renders an `<Input>` + save button
+- Remove the `onClick={() => canEditTargets() && handleTargetEdit(metric.key)}` and `cursor-pointer hover:text-foreground` from the span
+- Keep the display logic (forecast vs manual fallback) and the `isForecastTarget` tooltip/styling unchanged
 
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
+### 2. `SubMetricsRow.tsx` — Sub-metric quarter-target cell (lines ~739–768)
 
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
-```
-
-### Key code change sketch
-
-```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
-
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
-```
+- Remove `cursor-pointer hover:bg-primary/10` from the `TableCell` className
+- Remove `onClick={() => !isEditing && handleTargetClick(subMetric.name, quarterlyTargetValue)}` from the `TableCell`
+- Remove the `{isEditing ? <Input ... /> : <span>}` conditional — just always render the `<span>` display
+- Keep the forecast fallback calculation and `isForecastTarget` styling
 
 ### Files to change
-
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+- `src/components/financial/FinancialSummary.tsx` — strip edit UI from Q1 Target cell (~lines 4596–4660)
+- `src/components/financial/SubMetricsRow.tsx` — strip edit UI from quarter-target cell (~lines 739–768)
