@@ -182,7 +182,7 @@ const calcRatioAwareForecast = (
     return { value: null, isForecast: false };
   }
   const vals = qtrMonthIds.map((mid) => getTarget(metricKey, mid)).filter((v): v is number => v !== null);
-  if (vals.length > 0) return { value: vals.reduce((s, v) => s + v, 0) / vals.length, isForecast: true };
+  if (vals.length > 0) return { value: vals.reduce((s, v) => s + v, 0), isForecast: true };
   return { value: null, isForecast: false };
 };
 

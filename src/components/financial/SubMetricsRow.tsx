@@ -282,7 +282,7 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
     if (getForecastTarget && getQuarterMonths) {
       const qtrMonthIds = getQuarterMonths(qtr, qtrYear);
       const fVals = qtrMonthIds.map(mid => getForecastTarget(subMetricName, mid)).filter((v): v is number => v !== null);
-      if (fVals.length > 0) forecastValue = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+      if (fVals.length > 0) forecastValue = fVals.reduce((s, v) => s + v, 0);
     }
     if (lyValue == null && forecastValue == null) return <>{children}</>;
     return (
