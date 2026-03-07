@@ -1509,6 +1509,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     driversLoadedFromDb.current = false;
     overridesLoadedFromDb.current = false;
     driversInitialized.current = false;
+    userChangedDrivers.current = false;
     
     // Delete saved driver settings, sub-metric overrides, and reset all entries from database
     try {
