@@ -123,6 +123,11 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const driverSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const overrideSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDirtyRef = useRef(false);
+  // Tracks whether the user has explicitly changed growth/weights/drivers in this session.
+  // When false (initial load), computed metrics with existing stored values are preserved.
+  // When true (user made a change), auto-save re-derives and overwrites them so the
+  // Financial Summary Q1 Target stays in sync with the Forecast Results Grid.
+  const userChangedDrivers = useRef(false);
   const markDirty = () => {
     isDirtyRef.current = true;
   };
