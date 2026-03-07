@@ -186,6 +186,50 @@ const calcRatioAwareForecast = (
   return { value: null, isForecast: false };
 };
 
+/**
+ * For currency/dollar parent metrics that have sub-metrics, roll up the quarterly forecast
+ * by summing the individual sub-metric forecast values per month, then averaging.
+ * This guarantees the parent's displayed Q1 Target always equals the sum of its sub-metric targets.
+ * Returns null if no sub-metric forecast data is found (caller should fall back to calcRatioAwareForecast).
+ */
+const calcSubMetricSumForecast = (
+  metricKey: string,
+  qtrMonthIds: string[],
+  subEntries: Array<{ parentMetricKey: string; name: string; orderIndex: number }>,
+  getTarget: (key: string, mid: string) => number | null,
+): { value: number | null; isForecast: boolean } => {
+  // Get unique sub-metric names for this parent, preserving insertion order
+  const seen = new Set<string>();
+  const subNames: string[] = [];
+  for (const sm of subEntries) {
+    if (sm.parentMetricKey === metricKey && !seen.has(sm.name)) {
+      seen.add(sm.name);
+      subNames.push(sm.name);
+    }
+  }
+  if (subNames.length === 0) return { value: null, isForecast: false };
+
+  // Sum sub-metric forecasts per month, then average across the quarter
+  const monthlyTotals = qtrMonthIds.map((mid) =>
+    subNames.reduce((sum, subName) => {
+      const subEntry = subEntries.find(
+        (sm) => sm.parentMetricKey === metricKey && sm.name === subName,
+      );
+      if (!subEntry) return sum;
+      const orderStr = String(subEntry.orderIndex).padStart(3, "0");
+      const key = `sub:${metricKey}:${orderStr}:${subName}`;
+      return sum + (getTarget(key, mid) ?? 0);
+    }, 0),
+  );
+
+  const nonZero = monthlyTotals.filter((v) => v > 0);
+  if (nonZero.length === 0) return { value: null, isForecast: false };
+
+  // Use the full quarter length (3) for the denominator so the average is consistent
+  const avg = monthlyTotals.reduce((s, v) => s + v, 0) / qtrMonthIds.length;
+  return { value: avg, isForecast: true };
+};
+
 const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
   const quarters = [];
   let q = currentQuarter;
@@ -2412,7 +2456,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const yr = parseInt(monthIdentifier.split("-")[0], 10);
     const lyKey = `${metricKey}-M${monthNum}-${yr - 1}`;
     const lyValue = precedingQuartersData[lyKey];
-    const forecastValue = getForecastTarget(metricKey, monthIdentifier);
+    // For dollar parent metrics with sub-metrics, sum sub-metric forecasts instead of using parent key directly
+    const forecastValue = (() => {
+      if (metricType !== "percentage" && checkHasSubMetrics(metricKey)) {
+        const { value: subSum } = calcSubMetricSumForecast(metricKey, [monthIdentifier], allSubMetrics, getForecastTarget);
+        if (subSum !== null) return subSum;
+      }
+      return getForecastTarget(metricKey, monthIdentifier);
+    })();
 
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
@@ -4311,12 +4362,16 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let qtrTargetSource: "manual" | "forecast" | null =
                                 targetValue !== null && targetValue !== 0 ? "manual" : null;
 
-                              // Fallback to ratio-aware forecast aggregation
+                              // Fallback to sub-metric rollup (for dollar parents) or ratio-aware forecast
                               if (!targetValue || targetValue === 0) {
                                 const qtrMonthIds = getQuarterMonthsForCalculation(qtr.quarter, qtr.year).map(
                                   (m) => m.identifier,
                                 );
-                                const { value: fv } = calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
+                                // For dollar metrics with sub-metrics, roll up from sub-metric forecasts
+                                const useSub = metric.type !== "percentage" && checkHasSubMetrics(metric.key);
+                                const { value: fv } = useSub
+                                  ? calcSubMetricSumForecast(metric.key, qtrMonthIds, allSubMetrics, getForecastTarget)
+                                  : calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
                                 if (fv !== null) {
                                   targetValue = fv;
                                   qtrTargetDirection = metric.targetDirection;
@@ -4629,7 +4684,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(
                                           (m) => m.identifier,
                                         );
-                                        const { value: fv, isForecast } = calcRatioAwareForecast(metric.key, qtrMonths, getForecastTarget);
+                                        // For dollar metrics with sub-metrics, roll up from sub-metric forecasts
+                                        const useSub = metric.type !== "percentage" && checkHasSubMetrics(metric.key);
+                                        const { value: fv, isForecast } = useSub
+                                          ? calcSubMetricSumForecast(metric.key, qtrMonths, allSubMetrics, getForecastTarget)
+                                          : calcRatioAwareForecast(metric.key, qtrMonths, getForecastTarget);
                                         if (fv !== null) {
                                           displayTarget = fv;
                                           isForecastTarget = isForecast;
