@@ -160,6 +160,32 @@ const getQuarterMonthsForCalculation = (quarter: number, year: number) => {
   return months;
 };
 
+// Ratio-aware forecast aggregation: percentage metrics must be computed as sum(num)/sum(den)
+const RATIO_METRICS: Record<string, { num: string; den: string }> = {
+  sales_expense_percent:       { num: "sales_expense",     den: "gp_net"      },
+  gp_percent:                  { num: "gp_net",            den: "total_sales" },
+  semi_fixed_expense_percent:  { num: "semi_fixed_expense", den: "gp_net"     },
+  total_fixed_expense_percent: { num: "total_fixed_expense", den: "gp_net"   },
+  return_on_gross:             { num: "department_profit", den: "gp_net"      },
+};
+
+const calcRatioAwareForecast = (
+  metricKey: string,
+  qtrMonthIds: string[],
+  getTarget: (key: string, mid: string) => number | null,
+): { value: number | null; isForecast: boolean } => {
+  const ratioSpec = RATIO_METRICS[metricKey];
+  if (ratioSpec) {
+    const numSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.num, mid) ?? 0), 0);
+    const denSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.den, mid) ?? 0), 0);
+    if (denSum > 0) return { value: (numSum / denSum) * 100, isForecast: true };
+    return { value: null, isForecast: false };
+  }
+  const vals = qtrMonthIds.map((mid) => getTarget(metricKey, mid)).filter((v): v is number => v !== null);
+  if (vals.length > 0) return { value: vals.reduce((s, v) => s + v, 0) / vals.length, isForecast: true };
+  return { value: null, isForecast: false };
+};
+
 const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
   const quarters = [];
   let q = currentQuarter;
@@ -2433,13 +2459,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const lyKey = `${metricKey}-Q${qtr}-${qtrYear - 1}`;
     const lyValue = precedingQuartersData[lyKey];
 
-    // Forecast: average of the 3 monthly forecast values for this quarter
+    // Forecast: ratio-aware aggregation for percentage metrics, simple average for others
     const qtrMonthIds = getQuarterMonthsForCalculation(qtr, qtrYear).map((m) => m.identifier);
-    const forecastValues = qtrMonthIds
-      .map((mid) => getForecastTarget(metricKey, mid))
-      .filter((v): v is number => v !== null);
-    const forecastValue =
-      forecastValues.length > 0 ? forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length : null;
+    const { value: forecastValue } = calcRatioAwareForecast(metricKey, qtrMonthIds, getForecastTarget);
 
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
@@ -4289,16 +4311,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               let qtrTargetSource: "manual" | "forecast" | null =
                                 targetValue !== null && targetValue !== 0 ? "manual" : null;
 
-                              // Fallback to quarterly average of forecast entries
+                              // Fallback to ratio-aware forecast aggregation
                               if (!targetValue || targetValue === 0) {
                                 const qtrMonthIds = getQuarterMonthsForCalculation(qtr.quarter, qtr.year).map(
                                   (m) => m.identifier,
                                 );
-                                const forecastValues = qtrMonthIds
-                                  .map((mid) => getForecastTarget(metric.key, mid))
-                                  .filter((v): v is number => v !== null);
-                                if (forecastValues.length > 0) {
-                                  targetValue = forecastValues.reduce((s, v) => s + v, 0) / forecastValues.length;
+                                const { value: fv } = calcRatioAwareForecast(metric.key, qtrMonthIds, getForecastTarget);
+                                if (fv !== null) {
+                                  targetValue = fv;
                                   qtrTargetDirection = metric.targetDirection;
                                   qtrTargetSource = "forecast";
                                 }
@@ -4609,30 +4629,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                         const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(
                                           (m) => m.identifier,
                                         );
-                                        // Ratio metrics must be computed as sum(num)/sum(den) — not averaged
-                                        const RATIO_METRICS: Record<string, { num: string; den: string }> = {
-                                          sales_expense_percent: { num: "sales_expense", den: "gp_net" },
-                                          gp_percent:            { num: "gp_net",         den: "total_sales" },
-                                          semi_fixed_expense_percent: { num: "semi_fixed_expense", den: "gp_net" },
-                                          total_fixed_expense_percent: { num: "total_fixed_expense", den: "gp_net" },
-                                          return_on_gross:       { num: "department_profit", den: "gp_net" },
-                                        };
-                                        const ratioSpec = RATIO_METRICS[metric.key];
-                                        if (ratioSpec) {
-                                          const numSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.num, mid) ?? 0), 0);
-                                          const denSum = qtrMonths.reduce((s, mid) => s + (getForecastTarget(ratioSpec.den, mid) ?? 0), 0);
-                                          if (denSum > 0) {
-                                            displayTarget = (numSum / denSum) * 100;
-                                            isForecastTarget = true;
-                                          }
-                                        } else {
-                                          const forecastVals = qtrMonths
-                                            .map((mid) => getForecastTarget(metric.key, mid))
-                                            .filter((v): v is number => v !== null);
-                                          if (forecastVals.length > 0) {
-                                            displayTarget = forecastVals.reduce((s, v) => s + v, 0) / forecastVals.length;
-                                            isForecastTarget = true;
-                                          }
+                                        const { value: fv, isForecast } = calcRatioAwareForecast(metric.key, qtrMonths, getForecastTarget);
+                                        if (fv !== null) {
+                                          displayTarget = fv;
+                                          isForecastTarget = isForecast;
                                         }
                                       }
 
