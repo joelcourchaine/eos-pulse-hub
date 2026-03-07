@@ -723,6 +723,19 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                 const isEditing = editingTarget === subMetric.name;
                 const orderIndex = subMetric.orderIndex ?? idx;
 
+                // Forecast fallback: average monthly forecast values across the quarter
+                let forecastQuarterAvg: number | null = null;
+                if (getForecastTarget && getQuarterMonths && quarter && currentYear) {
+                  const qtrMonthIds = getQuarterMonths(quarter, currentYear);
+                  const fVals = qtrMonthIds
+                    .map((mid) => getForecastTarget(subMetric.name, mid))
+                    .filter((v): v is number => v !== null);
+                  if (fVals.length > 0) forecastQuarterAvg = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+                }
+
+                const displayTarget = quarterlyTargetValue ?? forecastQuarterAvg;
+                const isForecastTarget = quarterlyTargetValue === null && forecastQuarterAvg !== null;
+
                 return (
                   <TableCell 
                     key={period.identifier} 
@@ -744,7 +757,12 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      quarterlyTargetValue !== null ? formatValue(quarterlyTargetValue) : "-"
+                      <span
+                        className={cn(isForecastTarget && "text-primary/70")}
+                        title={isForecastTarget ? "From forecast" : undefined}
+                      >
+                        {displayTarget !== null ? formatValue(displayTarget) : "-"}
+                      </span>
                     )}
                   </TableCell>
                 );

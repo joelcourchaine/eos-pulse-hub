@@ -1,72 +1,56 @@
 
+## Problem
+
+The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+
 ## Root Cause
 
-In `SubMetricsRow.tsx`, the `quarter-target` period cell (lines 722–750) only displays `quarterlyTargetValue` which comes from `getSubMetricTarget` (manual `financial_targets` DB rows). The `getForecastTarget` prop is passed in but is **never consulted** for the quarter-target column — it's only used for monthly cells and hover tooltips.
+In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
 
-The fix is a one-file change: in the `quarter-target` block, compute a forecast average for the quarter (same pattern as monthly cells) and display it when no manual target exists, mirroring exactly what the parent metric rows do.
+## Fix
 
-## Fix — `SubMetricsRow.tsx` lines 722–750
+**Make "# of Days" a pure computed display value — never stored in the database.**
 
-The `quarter-target` block currently looks like:
+### Changes to `src/components/top-10/Top10ItemRow.tsx`
 
-```ts
-if (period.type === 'quarter-target') {
-  const isEditing = editingTarget === subMetric.name;
-  const orderIndex = subMetric.orderIndex ?? idx;
+1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
 
-  return (
-    <TableCell ... onClick={() => !isEditing && handleTargetClick(subMetric.name, quarterlyTargetValue)}>
-      {isEditing ? (
-        <Input ... />
-      ) : (
-        quarterlyTargetValue !== null ? formatValue(quarterlyTargetValue) : "-"
-      )}
-    </TableCell>
-  );
-}
+2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
+
+3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
+
+4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+
+```text
+RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
+# of Days            →  computed live: differenceInDays(today, roDate)
+                         never stored, never stale
 ```
 
-Change: before rendering, compute a `forecastQuarterAvg` from `getForecastTarget` across the quarter's months (using `getQuarterMonths`), then use it as a fallback when `quarterlyTargetValue` is null:
+### Key code change sketch
 
 ```ts
-if (period.type === 'quarter-target') {
-  const isEditing = editingTarget === subMetric.name;
-  const orderIndex = subMetric.orderIndex ?? idx;
+// New helper — pure computation, no side effects
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
 
-  // Forecast fallback: average monthly forecast across the quarter
-  let forecastQuarterAvg: number | null = null;
-  if (getForecastTarget && getQuarterMonths && quarter && currentYear) {
-    const qtrMonthIds = getQuarterMonths(quarter, currentYear);
-    const fVals = qtrMonthIds
-      .map(mid => getForecastTarget(subMetric.name, mid))
-      .filter((v): v is number => v !== null);
-    if (fVals.length > 0) forecastQuarterAvg = fVals.reduce((s, v) => s + v, 0) / fVals.length;
-  }
+// In handleDateSelect / handleChange / useEffect:
+// Remove daysColKey from newData before saving
+if (daysColKey) delete newData[daysColKey];
+onUpdate(newData); // days never written to DB
 
-  const displayTarget = quarterlyTargetValue ?? forecastQuarterAvg;
-  const isForecastTarget = quarterlyTargetValue === null && forecastQuarterAvg !== null;
-
-  return (
-    <TableCell
-      ...
-      onClick={() => !isEditing && handleTargetClick(subMetric.name, quarterlyTargetValue)}
-    >
-      {isEditing ? (
-        <Input ... />
-      ) : (
-        <span
-          className={cn(isForecastTarget && "text-primary/70")}
-          title={isForecastTarget ? "From forecast" : undefined}
-        >
-          {displayTarget !== null ? formatValue(displayTarget) : "-"}
-        </span>
-      )}
-    </TableCell>
-  );
-}
+// In render — for days column:
+const displayValue = col.key === daysColKey && roDateColKey
+  ? getComputedDays(localData[roDateColKey] || "")
+  : localData[col.key] || "";
+// Show as read-only span regardless of canEdit
 ```
 
-The `getForecastTarget` prop in `SubMetricsRow` already receives the fully-resolved key lookup (with order index padding etc.) via the closure in `FinancialSummary.tsx` lines 5248–5306, so this will Just Work — no changes needed in `FinancialSummary.tsx`.
+### Files to change
 
-## Files to change
-- `src/components/financial/SubMetricsRow.tsx` — add forecast fallback computation and display in the `quarter-target` block (~lines 722–750)
+- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
