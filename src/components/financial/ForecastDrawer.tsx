@@ -75,6 +75,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
     setGrowth(0);
   };
   const [view, setView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
+  const [quarterDisplayMode, setQuarterDisplayMode] = useState<'total' | 'average'>('total');
   const [visibleMonthStart, setVisibleMonthStart] = useState(0);
   const [recentlyLockedMetrics, setRecentlyLockedMetrics] = useState<Set<string>>(new Set());
 
@@ -1693,18 +1694,47 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
           <div className="py-4 space-y-6">
             {/* View Toggle + Lock/Push Actions */}
             <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                {(['monthly', 'quarter', 'annual'] as const).map((v) => (
-                  <Button
-                    key={v}
-                    variant={view === v ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setView(v)}
-                    className="capitalize"
-                  >
-                    {v}
-                  </Button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {(['monthly', 'quarter', 'annual'] as const).map((v) => (
+                    <Button
+                      key={v}
+                      variant={view === v ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setView(v)}
+                      className="capitalize"
+                    >
+                      {v}
+                    </Button>
+                  ))}
+                </div>
+                {/* Quarter display mode toggle — only visible in quarter view */}
+                {view === 'quarter' && (
+                  <div className="flex items-center rounded-md border border-border overflow-hidden">
+                    <button
+                      onClick={() => setQuarterDisplayMode('total')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium transition-colors",
+                        quarterDisplayMode === 'total'
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+                      )}
+                    >
+                      Totals
+                    </button>
+                    <button
+                      onClick={() => setQuarterDisplayMode('average')}
+                      className={cn(
+                        "px-2.5 py-1 text-xs font-medium transition-colors",
+                        quarterDisplayMode === 'average'
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+                      )}
+                    >
+                      Avg Month
+                    </button>
+                  </div>
+                )}
               </div>
               
               <div className="flex items-center gap-2">
@@ -1836,6 +1866,7 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             {/* Forecast Results Grid */}
             <ForecastResultsGrid
               view={view}
+              quarterDisplayMode={quarterDisplayMode}
               monthlyValues={monthlyValues}
               quarterlyValues={quarterlyValues}
               annualValues={annualValues}

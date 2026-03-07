@@ -45,6 +45,7 @@ interface SubMetricData {
 
 interface ForecastResultsGridProps {
   view: 'monthly' | 'quarter' | 'annual';
+  quarterDisplayMode?: 'total' | 'average';
   monthlyValues: Map<string, Map<string, CalculationResult>>;
   quarterlyValues: Record<string, Map<string, CalculationResult>>;
   annualValues: Map<string, CalculationResult>;
@@ -88,6 +89,7 @@ const MONTH_ABBREV = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 
 export function ForecastResultsGrid({
   view,
+  quarterDisplayMode = 'total',
   monthlyValues,
   quarterlyValues,
   annualValues,
@@ -148,10 +150,10 @@ export function ForecastResultsGrid({
     }
     if (view === 'quarter') {
       return [
-        { key: 'Q1', label: 'Q1' },
-        { key: 'Q2', label: 'Q2' },
-        { key: 'Q3', label: 'Q3' },
-        { key: 'Q4', label: 'Q4' },
+        { key: 'Q1', label: quarterDisplayMode === 'average' ? 'Q1 Avg' : 'Q1' },
+        { key: 'Q2', label: quarterDisplayMode === 'average' ? 'Q2 Avg' : 'Q2' },
+        { key: 'Q3', label: quarterDisplayMode === 'average' ? 'Q3 Avg' : 'Q3' },
+        { key: 'Q4', label: quarterDisplayMode === 'average' ? 'Q4 Avg' : 'Q4' },
       ];
     }
     return [];
@@ -167,7 +169,14 @@ export function ForecastResultsGrid({
       return monthlyValues.get(column)?.get(metricKey);
     }
     if (view === 'quarter') {
-      return quarterlyValues[column]?.get(metricKey);
+      const result = quarterlyValues[column]?.get(metricKey);
+      if (result && quarterDisplayMode === 'average') {
+        const metric = metricDefinitions.find(m => m.key === metricKey);
+        if (metric?.type !== 'percent') {
+          return { ...result, value: result.value / 3, baseline_value: result.baseline_value / 3 };
+        }
+      }
+      return result;
     }
     return undefined;
   };
@@ -478,7 +487,12 @@ export function ForecastResultsGrid({
           if (isSubMetric && subMetricData) {
             // Sub-metrics: use quarterly values in quarter view, monthly otherwise
             if (view === 'quarter') {
-              cellValue = subMetricData.quarterlyValues?.get(col.key);
+              const rawVal = subMetricData.quarterlyValues?.get(col.key);
+              if (rawVal !== undefined && quarterDisplayMode === 'average' && metric.type !== 'percent') {
+                cellValue = rawVal / 3;
+              } else {
+                cellValue = rawVal;
+              }
             } else {
               cellValue = subMetricData.monthlyValues.get(col.key);
             }
