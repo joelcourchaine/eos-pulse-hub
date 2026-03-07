@@ -2456,7 +2456,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     const yr = parseInt(monthIdentifier.split("-")[0], 10);
     const lyKey = `${metricKey}-M${monthNum}-${yr - 1}`;
     const lyValue = precedingQuartersData[lyKey];
-    const forecastValue = getForecastTarget(metricKey, monthIdentifier);
+    // For dollar parent metrics with sub-metrics, sum sub-metric forecasts instead of using parent key directly
+    const forecastValue = (() => {
+      if (metricType !== "percentage" && checkHasSubMetrics(metricKey)) {
+        const { value: subSum } = calcSubMetricSumForecast(metricKey, [monthIdentifier], allSubMetrics, getForecastTarget);
+        if (subSum !== null) return subSum;
+      }
+      return getForecastTarget(metricKey, monthIdentifier);
+    })();
 
     if (lyValue == null && forecastValue == null) return <>{children}</>;
 
