@@ -20,7 +20,25 @@ export const useForecastTargets = (departmentId: string, year: number) => {
 
     setLoading(true);
     try {
-      // Single query: join forecast_entries → department_forecasts to avoid serial round-trips
+      // Step 1: look up the forecast_id for this specific dept/year
+      const { data: forecastRow, error: forecastError } = await supabase
+        .from("department_forecasts")
+        .select("id")
+        .eq("department_id", departmentId)
+        .eq("forecast_year", year)
+        .maybeSingle();
+
+      if (forecastError) {
+        console.error("Error fetching department forecast:", forecastError);
+        return;
+      }
+      if (!forecastRow) {
+        // No forecast exists for this dept/year — clear map and return
+        setForecastTargets(new Map());
+        return;
+      }
+
+      // Step 2: paginate forecast_entries filtered directly by forecast_id
       const allRows: { metric_name: string; month: string; forecast_value: number }[] = [];
       let from = 0;
       const pageSize = 1000;
@@ -28,9 +46,8 @@ export const useForecastTargets = (departmentId: string, year: number) => {
       while (true) {
         const { data: page, error: pageError } = await supabase
           .from("forecast_entries")
-          .select("metric_name, month, forecast_value, department_forecasts!inner(department_id, forecast_year)")
-          .eq("department_forecasts.department_id", departmentId)
-          .eq("department_forecasts.forecast_year", year)
+          .select("metric_name, month, forecast_value")
+          .eq("forecast_id", forecastRow.id)
           .not("forecast_value", "is", null)
           .range(from, from + pageSize - 1);
 
