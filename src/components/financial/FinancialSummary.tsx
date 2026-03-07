@@ -4625,12 +4625,11 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 ) : (
                                   <div className="flex items-center justify-center gap-2">
                                     {(() => {
-                                      // Show manual target, or fall back to average forecast for the quarter
-                                      const hasManualTarget = target !== null && target !== undefined && target !== 0;
+                                      // Forecast always wins; fall back to manual target only if no forecast exists
                                       let displayTarget = target;
                                       let isForecastTarget = false;
 
-                                      if (!hasManualTarget && hasForecastTargets) {
+                                      if (hasForecastTargets) {
                                         const qtrMonths = getQuarterMonthsForCalculation(quarter, year).map(
                                           (m) => m.identifier,
                                         );
