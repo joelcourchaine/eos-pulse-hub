@@ -160,6 +160,32 @@ const getQuarterMonthsForCalculation = (quarter: number, year: number) => {
   return months;
 };
 
+// Ratio-aware forecast aggregation: percentage metrics must be computed as sum(num)/sum(den)
+const RATIO_METRICS: Record<string, { num: string; den: string }> = {
+  sales_expense_percent:       { num: "sales_expense",     den: "gp_net"      },
+  gp_percent:                  { num: "gp_net",            den: "total_sales" },
+  semi_fixed_expense_percent:  { num: "semi_fixed_expense", den: "gp_net"     },
+  total_fixed_expense_percent: { num: "total_fixed_expense", den: "gp_net"   },
+  return_on_gross:             { num: "department_profit", den: "gp_net"      },
+};
+
+const calcRatioAwareForecast = (
+  metricKey: string,
+  qtrMonthIds: string[],
+  getTarget: (key: string, mid: string) => number | null,
+): { value: number | null; isForecast: boolean } => {
+  const ratioSpec = RATIO_METRICS[metricKey];
+  if (ratioSpec) {
+    const numSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.num, mid) ?? 0), 0);
+    const denSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.den, mid) ?? 0), 0);
+    if (denSum > 0) return { value: (numSum / denSum) * 100, isForecast: true };
+    return { value: null, isForecast: false };
+  }
+  const vals = qtrMonthIds.map((mid) => getTarget(metricKey, mid)).filter((v): v is number => v !== null);
+  if (vals.length > 0) return { value: vals.reduce((s, v) => s + v, 0) / vals.length, isForecast: true };
+  return { value: null, isForecast: false };
+};
+
 const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
   const quarters = [];
   let q = currentQuarter;
