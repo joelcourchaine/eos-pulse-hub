@@ -730,7 +730,12 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
                   const fVals = qtrMonthIds
                     .map((mid) => getForecastTarget(subMetric.name, mid))
                     .filter((v): v is number => v !== null);
-                  if (fVals.length > 0) forecastQuarterAvg = fVals.reduce((s, v) => s + v, 0) / fVals.length;
+                  if (fVals.length > 0) {
+                    // For percentage parent metrics keep simple average; for dollar metrics use sum
+                    forecastQuarterAvg = isPercentageMetric
+                      ? fVals.reduce((s, v) => s + v, 0) / fVals.length
+                      : fVals.reduce((s, v) => s + v, 0);
+                  }
                 }
 
                 const displayTarget = quarterlyTargetValue ?? forecastQuarterAvg;
