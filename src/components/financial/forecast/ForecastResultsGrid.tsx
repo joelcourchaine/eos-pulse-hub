@@ -487,7 +487,12 @@ export function ForecastResultsGrid({
           if (isSubMetric && subMetricData) {
             // Sub-metrics: use quarterly values in quarter view, monthly otherwise
             if (view === 'quarter') {
-              cellValue = subMetricData.quarterlyValues?.get(col.key);
+              const rawVal = subMetricData.quarterlyValues?.get(col.key);
+              if (rawVal !== undefined && quarterDisplayMode === 'average' && metric.type !== 'percent') {
+                cellValue = rawVal / 3;
+              } else {
+                cellValue = rawVal;
+              }
             } else {
               cellValue = subMetricData.monthlyValues.get(col.key);
             }
