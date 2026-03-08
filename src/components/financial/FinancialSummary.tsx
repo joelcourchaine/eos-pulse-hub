@@ -795,6 +795,36 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
     [entries, getSubMetricSum],
   );
 
+  // When a sub-brand filter is active, sum only the sub-metrics matching that category
+  // for parent metrics like total_sales and gp_net, instead of using the stored parent value.
+  const getBrandFilteredValue = useCallback(
+    (metricKey: string, monthIdentifier: string): number | undefined => {
+      // Only override when a sub-brand filter is active and for summable parent metrics
+      const brandFilterableMetrics = ["total_sales", "gp_net"];
+      if (!subBrandFilter || !brandFilterableMetrics.includes(metricKey)) {
+        return getValueWithSubMetricFallback(metricKey, monthIdentifier);
+      }
+
+      // Sum sub-metrics that match the selected brand category
+      const relevantSubMetrics = allSubMetrics.filter(
+        (sm) =>
+          sm.parentMetricKey === metricKey &&
+          sm.monthIdentifier === monthIdentifier &&
+          getCategory(metricKey, sm.orderIndex) === subBrandFilter,
+      );
+      if (relevantSubMetrics.length === 0) return undefined;
+
+      let sum = 0;
+      for (const sm of relevantSubMetrics) {
+        if (sm.value !== null && sm.value !== undefined) {
+          sum += sm.value;
+        }
+      }
+      return sum;
+    },
+    [subBrandFilter, allSubMetrics, getCategory, getValueWithSubMetricFallback],
+  );
+
   // Calculate the month with highest department profit in current year
   const highestProfitMonth = useMemo(() => {
     // Generate all months for the current year, not just displayed ones
@@ -3922,7 +3952,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const mValue =
                                     isFordServiceDept && fordServiceNoSubMetricSum.includes(metric.key)
                                       ? precedingValue
-                                      : (precedingValue ?? getValueWithSubMetricFallback(metric.key, monthIdentifier));
+                                      : subBrandFilter && ["total_sales", "gp_net"].includes(metric.key)
+                                        ? (getBrandFilteredValue(metric.key, monthIdentifier) ?? precedingValue)
+                                        : (precedingValue ?? getValueWithSubMetricFallback(metric.key, monthIdentifier));
                                   // Check if metric should use calculation for this month (Honda legacy handling)
                                   const isCalculated =
                                     !!metric.calculation && shouldUseCalculationForMonth(metric.key, monthIdentifier);
@@ -4514,7 +4546,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               {previousYearMonths.map((month) => {
                                 const key = `${metric.key}-${month.identifier}`;
                                 // Use sub-metric sum fallback if no manual entry exists
-                                let value = getValueWithSubMetricFallback(metric.key, month.identifier);
+                                let value = getBrandFilteredValue(metric.key, month.identifier);
 
                                 // Helper function to get value for a metric (handles calculated fields + sub-metric fallback)
                                 // Note: For deductions like sales_expense, we MUST allow sub-metric sums because some stores
@@ -4524,10 +4556,10 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   isForCalculation: boolean = false,
                                 ): number | undefined => {
                                   // Always try to get the value with sub-metric fallback for deductions
-                                  const fallbackValue = getValueWithSubMetricFallback(
+                                  // Use brand-filtered value for metrics affected by brand filter
+                                  const fallbackValue = getBrandFilteredValue(
                                     metricKey,
                                     month.identifier,
-                                    false,
                                   );
                                   if (fallbackValue !== null && fallbackValue !== undefined) {
                                     return fallbackValue;
