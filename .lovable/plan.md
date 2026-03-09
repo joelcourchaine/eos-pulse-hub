@@ -1,56 +1,48 @@
 
 ## Problem
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+In `DealerComparison.tsx`, the `prevYearAvgData` query that fetches the comparison quarter data has two bugs introduced by the QvQ changes:
 
-## Root Cause
+1. **Guard clause fails**: The query starts with `if (departmentIds.length === 0 || !selectedMonth) return []` — but in QvQ mode `selectedMonth` is `undefined` (we pass `startMonth`/`endMonth` instead), so it returns empty data immediately.
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+2. **`enabled` condition blocks it**: The query is only enabled when `datePeriodType === "month"` (line 518), but QvQ mode now uses `datePeriodType = "custom_range"`, so the query never fires.
 
-## Fix
+The current data flow:
+- Enterprise sends: `datePeriodType = "custom_range"`, `startMonth = "2026-01"`, `endMonth = "2026-03"`, `selectedComparisonQuarter = 1`, NO `selectedMonth`
+- DealerComparison receives this correctly — the main `financialEntries` query works fine (custom_range is handled)
+- But `prevYearAvgData` bails out because `!selectedMonth` is true and `datePeriodType !== "month"`
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
+## Fix — one file only: `src/pages/DealerComparison.tsx`
 
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
+### Change 1: Fix the `enabled` condition
+```
+// Before (line ~518):
+enabled: ... && datePeriodType === "month",
 
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
+// After:
+enabled: ... && (datePeriodType === "month" || (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")),
 ```
 
-### Key code change sketch
-
+### Change 2: Fix the guard + year derivation inside the query
+When in QvQ mode with `custom_range`, derive `prevYear` from `startMonth` instead of `selectedMonth`:
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
+// Before:
+if (departmentIds.length === 0 || !selectedMonth) return [];
+const currentDate = new Date(selectedMonth + '-15');
+const prevYear = currentDate.getFullYear() - 1;
 
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+// After:
+// For QvQ custom_range, derive the year from startMonth
+const refMonth = selectedMonth || startMonth;
+if (departmentIds.length === 0 || !refMonth) return [];
+const currentDate = new Date(refMonth + '-15');
+const prevYear = currentDate.getFullYear() - 1;
 ```
 
-### Files to change
+The rest of the `prevYearAvgData` logic already handles `prev_year_quarter` correctly — it uses `selectedComparisonQuarter` to determine which 3 months of `prevYear` to fetch. Once `prevYear` is correctly derived from `startMonth` and the query is unblocked, both quarters will load.
 
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+## Files to change
+
+| File | Change |
+|------|--------|
+| `src/pages/DealerComparison.tsx` | Fix `prevYearAvgData` query: (1) derive year from `startMonth` when `selectedMonth` is absent, (2) update `enabled` condition to allow `custom_range` + `prev_year_quarter` |
