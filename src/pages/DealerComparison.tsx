@@ -64,7 +64,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "", selectedComparisonQuarter = 4 } = location.state as {
+  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "", selectedComparisonQuarter = 4, selectedCurrentQuarter = 1 } = location.state as {
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
@@ -81,6 +81,7 @@ export default function DealerComparison() {
     brandDisplayName?: string;
     filterName?: string;
     selectedComparisonQuarter?: number;
+    selectedCurrentQuarter?: number;
   };
 
   // Fetch departments for selected stores
@@ -1923,13 +1924,20 @@ export default function DealerComparison() {
     });
   }
 
-  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months
-  const isThreeColumnMode = (comparisonMode === "year_over_year" || comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && datePeriodType === "month";
-  const yoyCurrentYear = selectedMonth ? parseInt(selectedMonth.split("-")[0]) : new Date().getFullYear();
+  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months or QvQ custom_range
+  const isThreeColumnMode = (comparisonMode === "year_over_year" || comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && (
+    datePeriodType === "month" ||
+    (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")
+  );
+  const refMonthForYear = selectedMonth || startMonth;
+  const yoyCurrentYear = refMonthForYear ? parseInt(refMonthForYear.split("-")[0]) : new Date().getFullYear();
   const yoyPrevYear = yoyCurrentYear - 1;
+  // Labels for the two data columns
+  const isQvQMode = comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range";
+  const currentColumnLabel: string | number = isQvQMode ? `Q${selectedCurrentQuarter} ${yoyCurrentYear}` : yoyCurrentYear;
   const comparisonColumnLabel: string | number = (() => {
     if (comparisonMode === "prev_year_avg") return `${yoyPrevYear} Avg`;
-    if (comparisonMode === "prev_year_quarter") return `${yoyPrevYear} Q${selectedComparisonQuarter} Avg`;
+    if (comparisonMode === "prev_year_quarter") return isQvQMode ? `Q${selectedComparisonQuarter} ${yoyPrevYear}` : `${yoyPrevYear} Q${selectedComparisonQuarter} Avg`;
     return yoyPrevYear;
   })();
 
@@ -2252,7 +2260,7 @@ export default function DealerComparison() {
                       <TableRow>
                         {stores.map(([storeId]) => (
                           <Fragment key={storeId}>
-                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyCurrentYear}</TableHead>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{currentColumnLabel}</TableHead>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{comparisonColumnLabel}</TableHead>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[80px]">Diff</TableHead>
                           </Fragment>

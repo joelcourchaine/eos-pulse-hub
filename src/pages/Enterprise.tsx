@@ -2010,6 +2010,7 @@ export default function Enterprise() {
                               ...dateParams,
                               comparisonMode,
                               selectedComparisonQuarter,
+                              selectedCurrentQuarter,
                               departmentIds,
                               isFixedCombined: selectedDepartmentNames.includes('Fixed Combined'),
                               selectedDepartmentNames,
