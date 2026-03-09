@@ -66,6 +66,8 @@ export default function Enterprise() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [sortByMetric, setSortByMetric] = useState<string>(() => getStoredState('sortByMetric', ''));
   const [selectedComparisonQuarter, setSelectedComparisonQuarter] = useState<number>(() => getStoredState('selectedComparisonQuarter', 4));
+  const currentQuarterDefault = Math.ceil((new Date().getMonth() + 1) / 3);
+  const [selectedCurrentQuarter, setSelectedCurrentQuarter] = useState<number>(() => getStoredState('selectedCurrentQuarter', currentQuarterDefault));
   const [viewMode, setViewMode] = useState<ViewMode>("filters");
   const [trendReportParams, setTrendReportParams] = useState<{
     storeIds: string[];
@@ -122,7 +124,8 @@ export default function Enterprise() {
     sessionStorage.setItem('enterprise_selectedFinancialMetrics', JSON.stringify(selectedFinancialMetrics));
     sessionStorage.setItem('enterprise_showDeptManagerOnly', JSON.stringify(showDeptManagerOnly));
     sessionStorage.setItem('enterprise_selectedComparisonQuarter', JSON.stringify(selectedComparisonQuarter));
-  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly, selectedComparisonQuarter]);
+    sessionStorage.setItem('enterprise_selectedCurrentQuarter', JSON.stringify(selectedCurrentQuarter));
+  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly, selectedComparisonQuarter, selectedCurrentQuarter]);
 
   // Set default 12-month range when switching to monthly_trend mode
   useEffect(() => {
@@ -1264,24 +1267,62 @@ export default function Enterprise() {
                 </div>
               )}
 
+              {/* Quarter-over-Quarter simplified UI */}
               {metricType === "financial" && comparisonMode === "prev_year_quarter" && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Compare Quarter</label>
-                  <Select value={selectedComparisonQuarter.toString()} onValueChange={(v) => setSelectedComparisonQuarter(parseInt(v))}>
-                    <SelectTrigger className="bg-background z-50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="1">Q1 (Jan-Mar)</SelectItem>
-                      <SelectItem value="2">Q2 (Apr-Jun)</SelectItem>
-                      <SelectItem value="3">Q3 (Jul-Sep)</SelectItem>
-                      <SelectItem value="4">Q4 (Oct-Dec)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Current Quarter</label>
+                      <Select value={selectedCurrentQuarter.toString()} onValueChange={(v) => setSelectedCurrentQuarter(parseInt(v))}>
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="1">Q1 (Jan–Mar)</SelectItem>
+                          <SelectItem value="2">Q2 (Apr–Jun)</SelectItem>
+                          <SelectItem value="3">Q3 (Jul–Sep)</SelectItem>
+                          <SelectItem value="4">Q4 (Oct–Dec)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Compare Quarter</label>
+                      <Select value={selectedComparisonQuarter.toString()} onValueChange={(v) => setSelectedComparisonQuarter(parseInt(v))}>
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="1">Q1 (Jan–Mar)</SelectItem>
+                          <SelectItem value="2">Q2 (Apr–Jun)</SelectItem>
+                          <SelectItem value="3">Q3 (Jul–Sep)</SelectItem>
+                          <SelectItem value="4">Q4 (Oct–Dec)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Year</label>
+                    <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                      <SelectTrigger className="bg-background z-50">
+                        <SelectValue>{selectedYear}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const yr = new Date().getFullYear() - i;
+                          return (
+                            <SelectItem key={yr} value={yr.toString()}>{yr}</SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Comparing Q{selectedCurrentQuarter} {selectedYear} vs Q{selectedComparisonQuarter} {selectedYear - 1}
+                  </p>
                 </div>
               )}
 
-              {metricType === "financial" && (
+              {metricType === "financial" && comparisonMode !== "prev_year_quarter" && (
                 <>
                   <div>
                     <label className="text-sm font-medium mb-2 block">Date Period</label>
@@ -1908,7 +1949,16 @@ export default function Enterprise() {
                           datePeriodType,
                         };
                         
-                        if (datePeriodType === "month") {
+                        if (comparisonMode === "prev_year_quarter") {
+                          // For QvQ mode, derive custom range from selected current quarter
+                          const qStartMonths = [0, 3, 6, 9]; // Jan, Apr, Jul, Oct (0-indexed)
+                          const qEndMonths  = [2, 5, 8, 11]; // Mar, Jun, Sep, Dec
+                          const qStart = new Date(selectedYear, qStartMonths[selectedCurrentQuarter - 1], 1);
+                          const qEnd   = new Date(selectedYear, qEndMonths[selectedCurrentQuarter - 1], 1);
+                          dateParams.datePeriodType = "custom_range";
+                          dateParams.startMonth = format(qStart, "yyyy-MM");
+                          dateParams.endMonth   = format(qEnd,   "yyyy-MM");
+                        } else if (datePeriodType === "month") {
                           dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
                         } else if (datePeriodType === "full_year") {
                           dateParams.selectedYear = selectedYear;

@@ -1,51 +1,56 @@
 
 ## Problem
 
-When `comparisonMode = "prev_year_quarter"`, the Date Period dropdown (Single Month / Full Year / Custom Range / 12 Month Trend) is irrelevant and confusing. The only thing that matters is: **which quarter this year** vs **which quarter last year**.
+The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
 
-Currently the user has:
-1. A "Compare Quarter" selector (which prior year Q to compare against) — shown above Date Period
-2. Then a full Date Period selector — all options are nonsensical for QvQ comparison
+## Root Cause
 
-## Solution
+In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
 
-When `comparisonMode === "prev_year_quarter"`:
-- **Hide** the Date Period dropdown entirely
-- **Replace** the "Compare Quarter" selector with **two side-by-side quarter selectors**: "Current Quarter" and "Compare Quarter (Prior Year)"
-- Auto-set `datePeriodType` to `"custom_range"` internally and derive `startMonth`/`endMonth` from the selected current quarter + `selectedYear`
+## Fix
 
-### UI change (what the user sees)
+**Make "# of Days" a pure computed display value — never stored in the database.**
 
+### Changes to `src/components/top-10/Top10ItemRow.tsx`
+
+1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
+
+2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
+
+3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
+
+4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+
+```text
+RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
+# of Days            →  computed live: differenceInDays(today, roDate)
+                         never stored, never stale
 ```
-Compare Against:    [ Previous Year Quarter ▾ ]
 
-Current Quarter:    [ Q1 (Jan-Mar) ▾ ]    Compare Quarter:  [ Q1 (Jan-Mar) ▾ ]
-Current Year:       [ 2026 ▾ ]
+### Key code change sketch
+
+```ts
+// New helper — pure computation, no side effects
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
+
+// In handleDateSelect / handleChange / useEffect:
+// Remove daysColKey from newData before saving
+if (daysColKey) delete newData[daysColKey];
+onUpdate(newData); // days never written to DB
+
+// In render — for days column:
+const displayValue = col.key === daysColKey && roDateColKey
+  ? getComputedDays(localData[roDateColKey] || "")
+  : localData[col.key] || "";
+// Show as read-only span regardless of canEdit
 ```
 
-The "Current Year" selector controls which year the selected current quarter belongs to (defaults to current year). Compare quarter is always from the prior year (current year - 1), shown as a label e.g. "vs Q1 2025".
+### Files to change
 
-### State changes
-
-Add two new state variables:
-- `selectedCurrentQuarter: number` (1–4, default: current quarter) — which quarter of the current year to view
-- `selectedCurrentYear: number` (default: current year) — what year the current quarter is in (already have `selectedYear` — can reuse)
-
-Keep `selectedComparisonQuarter` for the prior year quarter.
-
-### Data flow
-
-When building `dateParams` for the `"prev_year_quarter"` mode:
-- Set `datePeriodType = "custom_range"`
-- `startMonth` = first month of `selectedCurrentQuarter` in `selectedYear` (e.g. Q1 2026 → `2026-01`)
-- `endMonth` = last month of `selectedCurrentQuarter` in `selectedYear` (e.g. Q1 2026 → `2026-03`)
-
-This already works correctly downstream — `DealerComparison.tsx` already handles `prev_year_quarter` + `selectedComparisonQuarter` with a `custom_range` date period.
-
-## Files to change
-
-| File | Change |
-|------|--------|
-| `src/pages/Enterprise.tsx` | 1. Add `selectedCurrentQuarter` state (1-4, default current quarter). 2. Replace the separate "Compare Quarter" + "Date Period" blocks when `comparisonMode === "prev_year_quarter"` with a new simplified two-Q-selector layout. 3. Update `dateParams` logic to derive `custom_range` start/end from `selectedCurrentQuarter + selectedYear`. 4. Persist `selectedCurrentQuarter` to sessionStorage. |
-
-Only one file changes — all downstream logic already handles this correctly.
+- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
