@@ -66,6 +66,8 @@ export default function Enterprise() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [sortByMetric, setSortByMetric] = useState<string>(() => getStoredState('sortByMetric', ''));
   const [selectedComparisonQuarter, setSelectedComparisonQuarter] = useState<number>(() => getStoredState('selectedComparisonQuarter', 4));
+  const currentQuarterDefault = Math.ceil((new Date().getMonth() + 1) / 3);
+  const [selectedCurrentQuarter, setSelectedCurrentQuarter] = useState<number>(() => getStoredState('selectedCurrentQuarter', currentQuarterDefault));
   const [viewMode, setViewMode] = useState<ViewMode>("filters");
   const [trendReportParams, setTrendReportParams] = useState<{
     storeIds: string[];
