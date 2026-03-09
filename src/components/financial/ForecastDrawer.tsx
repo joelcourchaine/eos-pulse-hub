@@ -106,6 +106,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // Needed because markDirty() only sets a ref which doesn't cause re-render
   const [saveTrigger, setSaveTrigger] = useState(0);
 
+  // Growth slider confirmation state
+  const [pendingGrowthValue, setPendingGrowthValue] = useState<number | null>(null);
+
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailView, setEmailView] = useState<'monthly' | 'quarter' | 'annual'>('monthly');
