@@ -2088,6 +2088,34 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         onConfirm={handlePushToTargets}
         isPending={pushToTargets.isPending}
       />
+
+      {/* Growth Slider Confirmation Dialog */}
+      <AlertDialog open={pendingGrowthValue !== null} onOpenChange={(open) => { if (!open) setPendingGrowthValue(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite Manual Forecasts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Moving the growth slider will recalculate all unlocked cells and overwrite any values you've entered manually. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingGrowthValue(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingGrowthValue !== null) {
+                  userChangedDrivers.current = true;
+                  setGrowth(pendingGrowthValue);
+                  markDirty();
+                  setSaveTrigger(c => c + 1);
+                  setPendingGrowthValue(null);
+                }
+              }}
+            >
+              Apply Growth
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
