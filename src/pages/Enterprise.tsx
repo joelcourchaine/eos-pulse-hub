@@ -124,7 +124,8 @@ export default function Enterprise() {
     sessionStorage.setItem('enterprise_selectedFinancialMetrics', JSON.stringify(selectedFinancialMetrics));
     sessionStorage.setItem('enterprise_showDeptManagerOnly', JSON.stringify(showDeptManagerOnly));
     sessionStorage.setItem('enterprise_selectedComparisonQuarter', JSON.stringify(selectedComparisonQuarter));
-  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly, selectedComparisonQuarter]);
+    sessionStorage.setItem('enterprise_selectedCurrentQuarter', JSON.stringify(selectedCurrentQuarter));
+  }, [filterMode, metricType, selectedStoreIds, selectedBrandIds, selectedGroupIds, selectedDepartmentNames, selectedMetrics, selectedMonth, comparisonMode, datePeriodType, selectedYear, startMonth, endMonth, sortByMetric, selectedKpiMetrics, selectedFinancialMetrics, showDeptManagerOnly, selectedComparisonQuarter, selectedCurrentQuarter]);
 
   // Set default 12-month range when switching to monthly_trend mode
   useEffect(() => {
