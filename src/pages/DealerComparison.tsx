@@ -2260,7 +2260,7 @@ export default function DealerComparison() {
                       <TableRow>
                         {stores.map(([storeId]) => (
                           <Fragment key={storeId}>
-                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{yoyCurrentYear}</TableHead>
+                            <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{currentColumnLabel}</TableHead>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[100px]">{comparisonColumnLabel}</TableHead>
                             <TableHead className="text-center text-xs font-semibold border-b-2 px-2 min-w-[80px]">Diff</TableHead>
                           </Fragment>
