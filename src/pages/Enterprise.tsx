@@ -1949,7 +1949,16 @@ export default function Enterprise() {
                           datePeriodType,
                         };
                         
-                        if (datePeriodType === "month") {
+                        if (comparisonMode === "prev_year_quarter") {
+                          // For QvQ mode, derive custom range from selected current quarter
+                          const qStartMonths = [0, 3, 6, 9]; // Jan, Apr, Jul, Oct (0-indexed)
+                          const qEndMonths  = [2, 5, 8, 11]; // Mar, Jun, Sep, Dec
+                          const qStart = new Date(selectedYear, qStartMonths[selectedCurrentQuarter - 1], 1);
+                          const qEnd   = new Date(selectedYear, qEndMonths[selectedCurrentQuarter - 1], 1);
+                          dateParams.datePeriodType = "custom_range";
+                          dateParams.startMonth = format(qStart, "yyyy-MM");
+                          dateParams.endMonth   = format(qEnd,   "yyyy-MM");
+                        } else if (datePeriodType === "month") {
                           dateParams.selectedMonth = format(selectedMonth, "yyyy-MM");
                         } else if (datePeriodType === "full_year") {
                           dateParams.selectedYear = selectedYear;
