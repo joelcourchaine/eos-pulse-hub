@@ -480,11 +480,13 @@ export default function DealerComparison() {
 
   // Fetch previous year average or quarter data for comparison
   const { data: prevYearAvgData } = useQuery({
-    queryKey: ["dealer_comparison_prev_year_avg", departmentIds, selectedMonth, comparisonMode, selectedComparisonQuarter],
+    queryKey: ["dealer_comparison_prev_year_avg", departmentIds, selectedMonth, startMonth, comparisonMode, selectedComparisonQuarter],
     queryFn: async () => {
-      if (departmentIds.length === 0 || !selectedMonth) return [];
+      // For QvQ custom_range mode, derive year from startMonth instead of selectedMonth
+      const refMonth = selectedMonth || startMonth;
+      if (departmentIds.length === 0 || !refMonth) return [];
       
-      const currentDate = new Date(selectedMonth + '-15');
+      const currentDate = new Date(refMonth + '-15');
       const prevYear = currentDate.getFullYear() - 1;
       
       let monthFilter: string[];
@@ -515,7 +517,7 @@ export default function DealerComparison() {
     },
     enabled: departmentIds.length > 0 && metricType === "financial" && 
              (comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") &&
-             datePeriodType === "month",
+             (datePeriodType === "month" || (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")),
   });
 
   // Fetch KPI data for polling
