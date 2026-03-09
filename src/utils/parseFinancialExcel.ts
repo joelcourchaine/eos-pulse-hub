@@ -125,7 +125,14 @@ const extractNumericValue = (
   if (cell.f && typeof cell.f === 'string') {
     const ref = parseFormulaReference(cell.f);
     if (ref) {
-      const refSheet = workbook.Sheets[ref.sheet];
+      let refSheet = workbook.Sheets[ref.sheet];
+      if (!refSheet) {
+        // Try fuzzy match: case-insensitive + spaces/underscores normalized
+        const normalize = (s: string) => s.toLowerCase().replace(/[_ ]/g, "");
+        const target = normalize(ref.sheet);
+        const match = workbook.SheetNames.find((s: string) => normalize(s) === target);
+        if (match) refSheet = workbook.Sheets[match];
+      }
       if (refSheet) {
         const refCell = refSheet[ref.cell] as XLSX.CellObject | undefined;
         if (refCell) {
@@ -261,15 +268,23 @@ export const parseFinancialExcel = (
           result[deptName] = {};
           
           for (const mapping of deptMappings) {
-            // Prefer the mapped sheet name, but fall back to the first sheet (helps with CSV exports)
-            const sheet = workbook.Sheets[mapping.sheet_name] || workbook.Sheets[workbook.SheetNames[0]];
+            // Prefer the mapped sheet name, try fuzzy match (spaces vs underscores, case), then fall back to first sheet
+            let sheet = workbook.Sheets[mapping.sheet_name];
+            if (!sheet) {
+              const normalize = (s: string) => s.toLowerCase().replace(/[_ ]/g, "");
+              const target = normalize(mapping.sheet_name);
+              const match = workbook.SheetNames.find(s => normalize(s) === target);
+              if (match) {
+                sheet = workbook.Sheets[match];
+              } else {
+                sheet = workbook.Sheets[workbook.SheetNames[0]];
+                console.warn(`Sheet "${mapping.sheet_name}" not found; using "${workbook.SheetNames[0]}" instead.`);
+              }
+            }
             if (!sheet) {
               console.warn(`No sheets found in workbook. Available sheets:`, workbook.SheetNames);
               result[deptName][mapping.metric_key] = null;
               continue;
-            }
-            if (!workbook.Sheets[mapping.sheet_name]) {
-              console.warn(`Sheet "${mapping.sheet_name}" not found; using "${workbook.SheetNames[0]}" instead.`);
             }
             
             const cellRef = parseCellReference(mapping.cell_reference);
@@ -346,10 +361,11 @@ export const parseFinancialExcel = (
             let actualSheetName = mapping.sheet_name;
 
             if (!sheet) {
-              // Try case-insensitive match
-              const sheetNameLower = mapping.sheet_name.toLowerCase();
+              // Try fuzzy match: case-insensitive + spaces/underscores normalized
+              const normalize = (s: string) => s.toLowerCase().replace(/[_ ]/g, "");
+              const target = normalize(mapping.sheet_name);
               const foundSheetName = workbook.SheetNames.find(
-                s => s.toLowerCase() === sheetNameLower
+                s => normalize(s) === target
               );
               if (foundSheetName) {
                 sheet = workbook.Sheets[foundSheetName];
