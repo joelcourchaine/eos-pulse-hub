@@ -277,8 +277,10 @@ export const parseFinancialExcel = (
               if (match) {
                 sheet = workbook.Sheets[match];
               } else {
-                sheet = workbook.Sheets[workbook.SheetNames[0]];
-                console.warn(`Sheet "${mapping.sheet_name}" not found; using "${workbook.SheetNames[0]}" instead.`);
+                // Skip this mapping entirely — falling back to an unrelated sheet produces garbage data
+                console.warn(`[Excel Parse] Sheet "${mapping.sheet_name}" not found; skipping metric "${mapping.metric_key}". Available sheets:`, workbook.SheetNames);
+                result[deptName][mapping.metric_key] = null;
+                continue;
               }
             }
             if (!sheet) {
@@ -372,10 +374,9 @@ export const parseFinancialExcel = (
                 actualSheetName = foundSheetName;
                 console.log(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" matched (case-insensitive) to "${foundSheetName}"`);
               } else {
-                // Fall back to first sheet
-                sheet = workbook.Sheets[workbook.SheetNames[0]];
-                actualSheetName = workbook.SheetNames[0];
-                console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found; using "${actualSheetName}" instead. Available sheets:`, workbook.SheetNames);
+                // Skip this mapping entirely — falling back to an unrelated sheet produces garbage data
+                console.warn(`[Excel Parse Sub] Sheet "${mapping.sheet_name}" not found; skipping metric "${mapping.metric_key}". Available sheets:`, workbook.SheetNames);
+                continue;
               }
             }
 
