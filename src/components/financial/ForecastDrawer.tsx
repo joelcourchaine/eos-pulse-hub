@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -104,6 +105,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   // State-based trigger to force auto-save useEffect to run
   // Needed because markDirty() only sets a ref which doesn't cause re-render
   const [saveTrigger, setSaveTrigger] = useState(0);
+
+  // Growth slider confirmation state
+  const [pendingGrowthValue, setPendingGrowthValue] = useState<number | null>(null);
 
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -1877,10 +1881,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             {/* Key Drivers - Growth slider only */}
             <ForecastDriverInputs
               growth={growth}
+              hasManualEdits={hasTotalSalesManualEdits}
+              isPendingConfirm={pendingGrowthValue !== null}
               onGrowthChange={(v) => {
-                markDirty();
-                userChangedDrivers.current = true;
-                setGrowth(v);
+                if (hasTotalSalesManualEdits && !userChangedDrivers.current) {
+                  // Gate behind confirmation dialog — user has manual edits
+                  setPendingGrowthValue(v);
+                } else {
+                  // No manual edits or user already confirmed this session
+                  markDirty();
+                  userChangedDrivers.current = true;
+                  setGrowth(v);
+                  setSaveTrigger(c => c + 1);
+                }
               }}
             />
 
@@ -2075,6 +2088,34 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
         onConfirm={handlePushToTargets}
         isPending={pushToTargets.isPending}
       />
+
+      {/* Growth Slider Confirmation Dialog */}
+      <AlertDialog open={pendingGrowthValue !== null} onOpenChange={(open) => { if (!open) setPendingGrowthValue(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Overwrite Manual Forecasts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Moving the growth slider will recalculate all unlocked cells and overwrite any values you've entered manually. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPendingGrowthValue(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingGrowthValue !== null) {
+                  userChangedDrivers.current = true;
+                  setGrowth(pendingGrowthValue);
+                  markDirty();
+                  setSaveTrigger(c => c + 1);
+                  setPendingGrowthValue(null);
+                }
+              }}
+            >
+              Apply Growth
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }

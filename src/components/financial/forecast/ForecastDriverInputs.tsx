@@ -1,13 +1,18 @@
 import { Slider } from '@/components/ui/slider';
+import { AlertTriangle } from 'lucide-react';
 
 interface ForecastDriverInputsProps {
   growth: number;
   onGrowthChange: (value: number) => void;
+  hasManualEdits?: boolean;
+  isPendingConfirm?: boolean;
 }
 
 export function ForecastDriverInputs({
   growth,
   onGrowthChange,
+  hasManualEdits = false,
+  isPendingConfirm = false,
 }: ForecastDriverInputsProps) {
   return (
     <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
@@ -28,13 +33,20 @@ export function ForecastDriverInputs({
               min={-25}
               max={25}
               step={0.5}
-              className="flex-1"
+              className={isPendingConfirm ? 'flex-1 [&_.slider-thumb]:ring-2 [&_.slider-thumb]:ring-yellow-500' : 'flex-1'}
             />
             <span className="text-xs text-muted-foreground w-8">+25%</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Scales Total Sales and GP Net proportionally (GP% stays constant)
-          </p>
+          {hasManualEdits ? (
+            <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              Moving this slider will overwrite all manually entered forecast cells
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Scales Total Sales and GP Net proportionally (GP% stays constant)
+            </p>
+          )}
         </div>
       </div>
     </div>
