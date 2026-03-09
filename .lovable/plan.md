@@ -1,56 +1,51 @@
 
-## Problem
+## Goal
+When a user moves the growth slider, show a confirmation dialog warning them that it will overwrite all manually-entered forecast cells. Only proceed if they confirm.
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+## How the slider currently works
+- `ForecastDriverInputs` calls `onGrowthChange(v)` on every slider drag value change
+- `ForecastDrawer` handles this inline at line 1880–1884: sets `userChangedDrivers.current = true`, calls `setGrowth(v)`, and calls `markDirty()` which triggers the auto-save effect
+- The auto-save effect (line 854–858) has a guard: if `userChangedDrivers.current = false`, it skips overwriting manual cells. When the user moves the slider, `userChangedDrivers.current = true` and all unlocked cells get recalculated and overwritten.
 
-## Root Cause
+So the "reset" behaviour already exists — the slider genuinely does overwrite everything. The warning just needs to gate the first slider interaction when manual edits already exist.
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+## When to show the warning
+Only when `hasTotalSalesManualEdits` is `true` (i.e. the user previously typed in cell values). If no manual edits exist, the slider should work silently as before.
 
-## Fix
+## Plan
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
+### 1. Add confirmation state to `ForecastDrawer.tsx`
+Add a `pendingGrowthValue` state (`number | null`). When the user touches the slider AND `hasTotalSalesManualEdits` is true, instead of applying the growth immediately, store the value in `pendingGrowthValue` to trigger the dialog.
 
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
+### 2. Add a confirmation `AlertDialog` in `ForecastDrawer.tsx`
+Inside the JSX, add an `AlertDialog` (already imported as a component) that:
+- Opens when `pendingGrowthValue !== null`
+- Title: "Overwrite Manual Forecasts?"
+- Description: "Moving the growth slider will recalculate all unlocked cells and overwrite any values you've entered manually. This cannot be undone."
+- Cancel: sets `pendingGrowthValue = null`, keeps current growth unchanged
+- Confirm ("Apply Growth"): applies `pendingGrowthValue` to `growth`, sets `userChangedDrivers.current = true`, calls `markDirty()`, then clears `pendingGrowthValue`
 
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
-```
-
-### Key code change sketch
-
+### 3. Update the `onGrowthChange` handler in `ForecastDrawer.tsx`
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
-
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+onGrowthChange={(v) => {
+  if (hasTotalSalesManualEdits && !userChangedDrivers.current) {
+    // First time touching slider when manual edits exist — show warning
+    setPendingGrowthValue(v);
+  } else {
+    // No manual edits, or user already confirmed in this session — apply directly
+    markDirty();
+    userChangedDrivers.current = true;
+    setGrowth(v);
+    setSaveTrigger(c => c + 1);
+  }
+}}
 ```
+
+Note: once the user confirms once (`userChangedDrivers.current = true`), subsequent slider drags in the same session apply immediately without re-prompting — the cells have already been wiped.
+
+### 4. Pass `pendingGrowthValue` visual hint back to `ForecastDriverInputs`
+Add an optional `isPendingConfirm` prop to `ForecastDriverInputs` so the slider can visually show a subtle warning state (yellow ring / warning icon) while a confirmation is pending. This is optional polish but worth including.
 
 ### Files to change
-
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+- `src/components/financial/ForecastDrawer.tsx` — add `pendingGrowthValue` state, update `onGrowthChange` handler, add `AlertDialog`
+- `src/components/financial/forecast/ForecastDriverInputs.tsx` — add optional `hasManualEdits` prop to show a small warning hint below the slider ("Moving this slider will overwrite manual entries"), and accept `isPendingConfirm` for visual feedback
