@@ -1881,10 +1881,19 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
             {/* Key Drivers - Growth slider only */}
             <ForecastDriverInputs
               growth={growth}
+              hasManualEdits={hasTotalSalesManualEdits}
+              isPendingConfirm={pendingGrowthValue !== null}
               onGrowthChange={(v) => {
-                markDirty();
-                userChangedDrivers.current = true;
-                setGrowth(v);
+                if (hasTotalSalesManualEdits && !userChangedDrivers.current) {
+                  // Gate behind confirmation dialog — user has manual edits
+                  setPendingGrowthValue(v);
+                } else {
+                  // No manual edits or user already confirmed this session
+                  markDirty();
+                  userChangedDrivers.current = true;
+                  setGrowth(v);
+                  setSaveTrigger(c => c + 1);
+                }
               }}
             />
 
