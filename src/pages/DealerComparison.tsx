@@ -64,7 +64,7 @@ export default function DealerComparison() {
     return null;
   }
 
-  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "", selectedComparisonQuarter = 4 } = location.state as {
+  const { metricType, selectedMetrics, selectedMonth, comparisonMode = "targets", departmentIds: initialDepartmentIds, isFixedCombined = false, selectedDepartmentNames = [], datePeriodType = "month", selectedYear, startMonth, endMonth, sortByMetric = "", storeIds = [], brandDisplayName = "All Brands", filterName = "", selectedComparisonQuarter = 4, selectedCurrentQuarter = 1 } = location.state as {
     metricType: string;
     selectedMetrics: string[];
     selectedMonth?: string;
@@ -81,6 +81,7 @@ export default function DealerComparison() {
     brandDisplayName?: string;
     filterName?: string;
     selectedComparisonQuarter?: number;
+    selectedCurrentQuarter?: number;
   };
 
   // Fetch departments for selected stores
