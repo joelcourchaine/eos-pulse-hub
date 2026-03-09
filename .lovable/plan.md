@@ -1,56 +1,79 @@
 
 ## Problem
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+`isThreeColumnMode` (line 1927, `DealerComparison.tsx`) only activates when `datePeriodType === "month"`:
 
-## Root Cause
+```ts
+const isThreeColumnMode = (comparisonMode === "year_over_year" || ...) && datePeriodType === "month";
+```
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+But QvQ now sends `datePeriodType = "custom_range"`, so this is always `false` — meaning the table collapses to a single value column with no current/comparison/diff split.
+
+Additionally, year labels (`yoyCurrentYear`, `yoyPrevYear`) derive from `selectedMonth`, which is `undefined` in QvQ mode — so they fall back to the current calendar year regardless.
 
 ## Fix
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
-
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
-
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
-```
-
-### Key code change sketch
+### 1. Extend `isThreeColumnMode`
 
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
+// Before:
+const isThreeColumnMode = (...) && datePeriodType === "month";
 
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+// After:
+const isThreeColumnMode = (...) && (
+  datePeriodType === "month" ||
+  (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")
+);
 ```
 
-### Files to change
+### 2. Fix year derivation
 
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+When in QvQ `custom_range` mode, `selectedMonth` is `undefined`. Derive the current year from `startMonth` instead:
+
+```ts
+// Before:
+const yoyCurrentYear = selectedMonth ? parseInt(selectedMonth.split("-")[0]) : new Date().getFullYear();
+
+// After:
+const refMonthForYear = selectedMonth || startMonth;
+const yoyCurrentYear = refMonthForYear ? parseInt(refMonthForYear.split("-")[0]) : new Date().getFullYear();
+```
+
+### 3. Update the column header labels
+
+The sub-header row (line ~2255) currently shows raw `yoyCurrentYear` / `comparisonColumnLabel`. For QvQ `custom_range` mode, we should label them:
+
+- Current column: `Q{selectedCurrentQuarter} {yoyCurrentYear}` (e.g. "Q1 2026")  
+- Comparison column: `Q{selectedComparisonQuarter} {yoyPrevYear}` (e.g. "Q1 2025")
+
+Note: `selectedCurrentQuarter` is already in `location.state` — it needs to be destructured (it's currently not pulled from state, only `selectedComparisonQuarter` is).
+
+### 4. Pass `selectedCurrentQuarter` through navigation
+
+In `Enterprise.tsx`, when navigating to `/dealer-comparison`, add `selectedCurrentQuarter` to the state object (it's currently missing):
+
+```ts
+navigate("/dealer-comparison", {
+  state: {
+    ...
+    selectedComparisonQuarter,
+    selectedCurrentQuarter,   // add this
+    ...
+  }
+});
+```
+
+And destructure it in `DealerComparison.tsx`:
+
+```ts
+const { ..., selectedComparisonQuarter = 4, selectedCurrentQuarter = 1 } = location.state as { ... selectedCurrentQuarter?: number; ... };
+```
+
+## Summary of changes
+
+| File | Change |
+|------|--------|
+| `src/pages/Enterprise.tsx` | Add `selectedCurrentQuarter` to the navigate state object |
+| `src/pages/DealerComparison.tsx` | (1) Destructure `selectedCurrentQuarter` from state. (2) Fix `isThreeColumnMode` to include QvQ `custom_range`. (3) Fix year derivation from `startMonth`. (4) Update column header labels for QvQ mode to show quarter labels. |
+
+Only two files. No data logic changes needed — the aggregation and comparison data already work correctly once the three-column layout is activated.
