@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
     // Get real email and password_set_at from profiles table (auth email may be masked in sandbox)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('email, password_set_at, store_group_id')
+      .select('email, password_set_at, store_group_id, store_id')
       .eq('id', user_id)
       .single();
 
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
     const hasSetPassword = profile.password_set_at != null;
     
     // Determine redirect URL based on user's store group
-    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id);
+    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id, profile.store_id);
 
     // Determine token type and expiry based on whether user has set password
     const tokenType = hasSetPassword ? 'password_reset' : 'invite';

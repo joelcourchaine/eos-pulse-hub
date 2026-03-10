@@ -28,6 +28,24 @@ const Auth = () => {
   });
 
   useEffect(() => {
+    // Check for cross-domain session transfer tokens in URL
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      // Clean the tokens from the URL immediately
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ data: { session } }) => {
+          if (session) {
+            setSession(session);
+            navigate("/dashboard");
+          }
+        });
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
@@ -65,20 +83,27 @@ const Auth = () => {
       if (error) throw error;
 
       // After successful login, check if user should be on a branded domain
-      const { data: { user: signedInUser } } = await supabase.auth.getUser();
+      const { data: { user: signedInUser, session: currentSession } } = await supabase.auth.getUser().then(async (userRes) => {
+        const sessionRes = await supabase.auth.getSession();
+        return { data: { user: userRes.data.user, session: sessionRes.data.session } };
+      });
       if (signedInUser) {
         const { data: profileForDomain } = await supabase
           .from('profiles')
-          .select('store_group_id')
+          .select('store_group_id, store_id')
           .eq('id', signedInUser.id)
           .single();
 
-        const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id);
+        const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id, profileForDomain?.store_id);
         const currentOrigin = window.location.origin;
 
-        if (targetDomain !== currentOrigin) {
+        if (targetDomain !== currentOrigin && currentSession) {
           setRedirecting(true);
-          window.location.href = `${targetDomain}/dashboard`;
+          // Pass session tokens so the branded domain can pick up the session
+          const redirectUrl = new URL("/auth", targetDomain);
+          redirectUrl.searchParams.set("access_token", currentSession.access_token);
+          redirectUrl.searchParams.set("refresh_token", currentSession.refresh_token);
+          window.location.href = redirectUrl.toString();
           return;
         }
       }

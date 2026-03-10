@@ -208,11 +208,11 @@ const SetPassword = () => {
         if (userId) {
           const { data: profileForDomain } = await supabase
             .from('profiles')
-            .select('store_group_id')
+            .select('store_group_id, store_id')
             .eq('id', userId)
             .single();
 
-          const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id);
+          const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id, profileForDomain?.store_id);
           if (targetDomain !== window.location.origin) {
             redirectUrl = `${targetDomain}/auth`;
           }

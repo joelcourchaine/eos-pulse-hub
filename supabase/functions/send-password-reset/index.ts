@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
     // Look up user in profiles table by email
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email, store_group_id')
+      .select('id, email, store_group_id, store_id')
       .eq('email', email.toLowerCase().trim())
       .single();
 
@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     }
 
     // Determine redirect URL based on user's store group
-    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id);
+    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id, profile.store_id);
 
     // Generate password reset link using the real email
     console.log('Generating password reset link for:', profile.email);
