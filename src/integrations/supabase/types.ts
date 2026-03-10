@@ -4131,6 +4131,7 @@ export type Database = {
         | "fixed_ops_manager"
         | "consulting_scheduler"
         | "controller"
+        | "executive"
       resource_category:
         | "training"
         | "templates"
@@ -4290,6 +4291,7 @@ export const Constants = {
         "fixed_ops_manager",
         "consulting_scheduler",
         "controller",
+        "executive",
       ],
       resource_category: [
         "training",
