@@ -74,14 +74,22 @@ export function TodoManagementDialog({
       setAssignedTo(todo.assigned_to || "");
       setDueDate(todo.due_date || "");
       setSeverity(todo.severity || "medium");
-    } else if (!open) {
+    } else if (open && !todo) {
+      // create mode — seed from linked issue props if present (covers both drag and right-click paths)
       setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
       setDescription(initialDescription || "");
       setAssignedTo("");
       setDueDate("");
       setSeverity(linkedIssueSeverity || "medium");
+    } else if (!open) {
+      // reset on close
+      setTitle("");
+      setDescription("");
+      setAssignedTo("");
+      setDueDate("");
+      setSeverity("medium");
     }
-  }, [todo, open, linkedIssueTitle, linkedIssueSeverity]);
+  }, [todo, open, linkedIssueTitle, linkedIssueSeverity, initialDescription]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
