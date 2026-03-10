@@ -1,56 +1,63 @@
 
 ## Problem
 
-The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
+In `TodoManagementDialog.tsx`, the `useEffect` that seeds the form fields only fires in the `else if (!open)` branch (lines 77-83). This seeds the form **when the dialog closes** (resetting it for next time it opens). 
 
-## Root Cause
+The **right-click path** works because:
+1. Dialog starts closed → effect fires `!open` → seeds `title = "Todo: [issue title]"`, `description`, `severity`
+2. Dialog opens → fields already populated ✅
 
-In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+The **drag path** breaks because:
+1. Dialog is rendered with `open={true}` immediately (line 728 in `IssuesAndTodosPanel.tsx`)
+2. Effect runs with `open = true` and `todo = undefined` — neither branch matches
+3. Fields remain empty ❌
 
-## Fix
+## Fix — one file: `src/components/todos/TodoManagementDialog.tsx`
 
-**Make "# of Days" a pure computed display value — never stored in the database.**
-
-### Changes to `src/components/top-10/Top10ItemRow.tsx`
-
-1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
-
-2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
-
-3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
-
-4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
-
-```text
-RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
-# of Days            →  computed live: differenceInDays(today, roDate)
-                         never stored, never stale
-```
-
-### Key code change sketch
+Change the `useEffect` condition so that when `open` is `true` AND there's no `todo` (create mode) AND there's a `linkedIssueTitle`, it seeds the form:
 
 ```ts
-// New helper — pure computation, no side effects
-const getComputedDays = (roDateValue: string): string => {
-  if (!roDateValue) return "";
-  const roDate = parseDate(roDateValue);
-  if (!roDate) return "";
-  const diff = differenceInDays(new Date(), roDate);
-  return diff >= 0 ? String(diff) : "";
-};
+// Before:
+useEffect(() => {
+  if (todo && open) {
+    // edit mode population
+  } else if (!open) {
+    // reset/seed for next open — only fires on close
+    setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
+    ...
+  }
+}, [todo, open, linkedIssueTitle, linkedIssueSeverity]);
 
-// In handleDateSelect / handleChange / useEffect:
-// Remove daysColKey from newData before saving
-if (daysColKey) delete newData[daysColKey];
-onUpdate(newData); // days never written to DB
-
-// In render — for days column:
-const displayValue = col.key === daysColKey && roDateColKey
-  ? getComputedDays(localData[roDateColKey] || "")
-  : localData[col.key] || "";
-// Show as read-only span regardless of canEdit
+// After:
+useEffect(() => {
+  if (todo && open) {
+    // edit mode population (unchanged)
+  } else if (open && !todo) {
+    // create mode — seed from linked issue props if present
+    setTitle(linkedIssueTitle ? `Todo: ${linkedIssueTitle}` : "");
+    setDescription(initialDescription || "");
+    setAssignedTo("");
+    setDueDate("");
+    setSeverity(linkedIssueSeverity || "medium");
+  } else if (!open) {
+    // reset on close
+    setTitle("");
+    setDescription("");
+    setAssignedTo("");
+    setDueDate("");
+    setSeverity("medium");
+  }
+}, [todo, open, linkedIssueTitle, linkedIssueSeverity, initialDescription]);
 ```
 
-### Files to change
+This makes both paths behave identically:
+- Drag drop: dialog opens with `open=true`, effect fires `open && !todo` branch, seeds title/description/severity from the dragged issue
+- Right-click: dialog opens from closed, same branch fires, same result
 
-- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits
+## Files to change
+
+| File | Change |
+|------|--------|
+| `src/components/todos/TodoManagementDialog.tsx` | Fix `useEffect` condition: add `open && !todo` branch to seed fields when opened programmatically (drag path) |
+
+Single-file, single-function fix.
