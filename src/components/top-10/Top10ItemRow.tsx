@@ -157,7 +157,7 @@ export function Top10ItemRow({
     }
   }, []);
   const [isDeleting, setIsDeleting] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   // Find date and days columns for auto-calculation

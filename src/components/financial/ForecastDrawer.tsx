@@ -124,9 +124,9 @@ export function ForecastDrawer({ open, onOpenChange, departmentId, departmentNam
   const driversInitialized = useRef(false);
   const driversLoadedFromDb = useRef(false);
   const overridesLoadedFromDb = useRef(false);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const driverSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const overrideSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const driverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const overrideSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(false);
   // Tracks whether the user has explicitly changed growth/weights/drivers in this session.
   // When false (initial load), computed metrics with existing stored values are preserved.

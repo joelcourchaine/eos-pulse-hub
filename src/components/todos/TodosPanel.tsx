@@ -42,7 +42,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
   const [loading, setLoading] = useState(true);
   const [deleteTodoId, setDeleteTodoId] = useState<string | null>(null);
   const { toast } = useToast();
-  const realtimeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const realtimeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (departmentId) {

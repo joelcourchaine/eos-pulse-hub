@@ -33,7 +33,7 @@ export const DirectorNotes = ({ departmentId, userRole }: DirectorNotesProps) =>
   const [notes, setNotes] = useState("");
   const [existingNoteId, setExistingNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { toast } = useToast();
 
   const canEdit = userRole === "super_admin" || userRole === "store_gm";
