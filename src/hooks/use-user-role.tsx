@@ -43,6 +43,7 @@ export const useUserRole = (userId: string | undefined) => {
 
   const hasRole = (role: string) => roles.includes(role);
   const isSuperAdmin = hasRole("super_admin");
+  const isExecutive = hasRole("executive");
   const isStoreGM = hasRole("store_gm");
   const isController = hasRole("controller");
   const isDepartmentManager = hasRole("department_manager") || hasRole("fixed_ops_manager");
@@ -51,12 +52,15 @@ export const useUserRole = (userId: string | undefined) => {
   const hasElevatedAccess = isSuperAdmin || isConsultingScheduler;
   // Controller has same view access as Store GM but read-only
   const hasStoreViewAccess = isStoreGM || isController;
+  // Executive and super_admin get purple severity by default on issues
+  const usesExecutiveSeverity = isSuperAdmin || isExecutive;
 
   return {
     roles,
     loading,
     hasRole,
     isSuperAdmin,
+    isExecutive,
     isStoreGM,
     isController,
     isDepartmentManager,
@@ -64,5 +68,6 @@ export const useUserRole = (userId: string | undefined) => {
     isConsultingScheduler,
     hasElevatedAccess,
     hasStoreViewAccess,
+    usesExecutiveSeverity,
   };
 };

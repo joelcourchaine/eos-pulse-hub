@@ -1,46 +1,56 @@
 
-## Summary
+## Problem
 
-Add an `executive` role to the system and make issues created by `executive` or `super_admin` users default to a purple severity color (`#7c3aed`).
+The "# of Days" column stores a static number in the database. When a date is saved, the days count is calculated once and written to `data[daysColKey]`. It never updates unless the row is edited again. So a row opened 30 days ago still shows "30" forever.
 
-## What needs to happen
+## Root Cause
 
-### 1. Add `executive` to the `app_role` enum (database migration)
-```sql
-ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'executive';
+In `Top10ItemRow.tsx`, `handleDateSelect`, `handleChange`, and the `useEffect` sync all call `onUpdate(newData)` with the days count baked into the saved data. The days value is persisted to the database as a plain string.
+
+## Fix
+
+**Make "# of Days" a pure computed display value — never stored in the database.**
+
+### Changes to `src/components/top-10/Top10ItemRow.tsx`
+
+1. **Remove days from saved data**: In `handleDateSelect`, `handleChange`, and the sync `useEffect`, strip `daysColKey` from `newData` before calling `onUpdate()`. This stops writing days to the DB.
+
+2. **Compute days at render time**: Add a helper `getComputedDays(roDateValue: string): string` that calculates `differenceInDays(today, roDate)` fresh every render.
+
+3. **Override display for days column**: In the render section, when the column is `daysColKey`, show the computed value instead of `localData[col.key]`.
+
+4. **Make days field read-only**: Since it's derived from the RO Date, show it as a plain read-only `<span>` (not an `<Input>`) even in edit mode — just like the non-edit display, but with a subtle read-only style so users know they can't type in it.
+
+```text
+RO Date (user sets)  →  stored in DB as "yyyy-MM-dd"
+# of Days            →  computed live: differenceInDays(today, roDate)
+                         never stored, never stale
 ```
-This is needed before any code references it, since the types file is auto-generated.
 
-### 2. Fetch the current user's role inside `IssueManagementDialog`
-The dialog currently has no knowledge of who is opening it. We need to check if the current user is `super_admin` or `executive`, then default severity to `"executive"` (a new purple value).
+### Key code change sketch
 
-The cleanest approach: in `IssueManagementDialog.tsx`, call `supabase.auth.getUser()` + `user_roles` query on mount to determine the role, then set the default severity to `"executive"` when the role matches.
+```ts
+// New helper — pure computation, no side effects
+const getComputedDays = (roDateValue: string): string => {
+  if (!roDateValue) return "";
+  const roDate = parseDate(roDateValue);
+  if (!roDate) return "";
+  const diff = differenceInDays(new Date(), roDate);
+  return diff >= 0 ? String(diff) : "";
+};
 
-### 3. Add `"executive"` as a severity option in the issue system
-The severity field currently accepts: `low`, `medium`, `high`. Add `executive` as a fourth value that maps to purple (`#7c3aed`). This means:
+// In handleDateSelect / handleChange / useEffect:
+// Remove daysColKey from newData before saving
+if (daysColKey) delete newData[daysColKey];
+onUpdate(newData); // days never written to DB
 
-- `IssueManagementDialog.tsx`: add `executive` to the severity `<Select>` with a purple dot, and default to it for executive/super_admin users
-- `IssuesAndTodosPanel.tsx`: update `getSeverityBorderColor` and `getSeverityDotColor` to handle `"executive"` → purple classes (`border-purple-400 dark:border-purple-600 bg-purple-100 dark:bg-purple-900/40`)
-- `TodosPanel.tsx`: same update to `getSeverityBorderColor` and `getSeverityDotColor`
+// In render — for days column:
+const displayValue = col.key === daysColKey && roDateColKey
+  ? getComputedDays(localData[roDateColKey] || "")
+  : localData[col.key] || "";
+// Show as read-only span regardless of canEdit
+```
 
-### 4. Update `use-user-role.tsx`
-Add `isExecutive` flag and include `executive` in appropriate role checks.
+### Files to change
 
-## Files to change
-
-| File | Change |
-|------|--------|
-| Database migration | `ALTER TYPE app_role ADD VALUE 'executive'` |
-| `src/hooks/use-user-role.tsx` | Add `isExecutive = hasRole("executive")` |
-| `src/components/issues/IssueManagementDialog.tsx` | Fetch current user role on mount; default severity to `"executive"` for `super_admin`/`executive`; add purple `executive` option to severity select |
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Add `executive` → purple to `getSeverityBorderColor` and `getSeverityDotColor` |
-| `src/components/todos/TodosPanel.tsx` | Add `executive` → purple to `getSeverityBorderColor` and `getSeverityDotColor` |
-
-## Purple color reference
-The exact purple from the enterprise notes column: `#7c3aed` (Tailwind `purple-700`).
-
-For the Tailwind border/bg classes: `border-purple-400 dark:border-purple-600 bg-purple-100 dark:bg-purple-900/40` (matching the existing emerald/amber/red pattern).
-
-## No changes needed
-- No changes to `AdminUsersTab.tsx` badge colors (that's a separate concern)
-- The `executive` severity value is stored as a string in the `issues.severity` column which has no DB constraint on specific values — this is safe to add without a migration
+- `src/components/top-10/Top10ItemRow.tsx` — ~4 targeted edits

@@ -55,6 +55,7 @@ export function IssueManagementDialog({
   const [status, setStatus] = useState("open");
   const [severity, setSeverity] = useState("medium");
   const [loading, setLoading] = useState(false);
+  const [isExecutiveUser, setIsExecutiveUser] = useState(false);
   const { toast } = useToast();
 
   const isControlled = controlledOpen !== undefined;
@@ -62,6 +63,25 @@ export function IssueManagementDialog({
   const setOpen = isControlled ? (controlledOnOpenChange || (() => {})) : setInternalOpen;
 
   const isEditMode = !!issue;
+
+  // Detect if current user is super_admin or executive on mount
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["super_admin", "executive"]);
+        setIsExecutiveUser((data?.length ?? 0) > 0);
+      } catch {
+        // silently fail
+      }
+    };
+    checkRole();
+  }, []);
 
   useEffect(() => {
     if (issue && open) {
@@ -74,14 +94,14 @@ export function IssueManagementDialog({
       setTitle(initialTitle || "");
       setDescription(initialDescription || "");
       setStatus("open");
-      setSeverity(initialSeverity || "medium");
+      setSeverity(initialSeverity || (isExecutiveUser ? "executive" : "medium"));
     } else if (!open) {
       setTitle("");
       setDescription("");
       setStatus("open");
-      setSeverity("medium");
+      setSeverity(isExecutiveUser ? "executive" : "medium");
     }
-  }, [issue, open, initialTitle, initialDescription, initialSeverity]);
+  }, [issue, open, initialTitle, initialDescription, initialSeverity, isExecutiveUser]);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -226,6 +246,12 @@ export function IssueManagementDialog({
                   <span className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-red-500" />
                     High
+                  </span>
+                </SelectItem>
+                <SelectItem value="executive">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-purple-600" />
+                    Executive
                   </span>
                 </SelectItem>
               </SelectContent>
