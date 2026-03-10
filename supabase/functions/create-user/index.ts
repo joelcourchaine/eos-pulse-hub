@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
       "fixed_ops_manager",
       "controller",
       "consulting_scheduler",
+      "executive",
     ];
     if (!validRoles.includes(role)) {
       return new Response(
@@ -266,8 +267,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Only super admins can create super_admin or consulting_scheduler users
-    if ((role === "super_admin" || role === "consulting_scheduler") && callerRole !== "super_admin") {
+    // Only super admins can create super_admin, consulting_scheduler, or executive users
+    if ((role === "super_admin" || role === "consulting_scheduler" || role === "executive") && callerRole !== "super_admin") {
       return new Response(
         JSON.stringify({
           success: false,
