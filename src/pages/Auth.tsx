@@ -61,6 +61,31 @@ const Auth = () => {
 
       if (error) throw error;
 
+      // After successful login, check if user should be on a branded domain
+      const { data: { user: signedInUser } } = await supabase.auth.getUser();
+      if (signedInUser) {
+        const { data: profileForDomain } = await supabase
+          .from('profiles')
+          .select('store_group_id')
+          .eq('id', signedInUser.id)
+          .single();
+
+        const MURRAY_GROUP_ID = "c386eaed-1b72-48a0-8fcd-506ae24ed13f";
+        const SMG_GROUP_ID = "9fc8d816-7659-4b4b-9103-239901e69a25";
+        const domainMap: Record<string, string> = {
+          [MURRAY_GROUP_ID]: "https://murraygrowth.ca",
+          [SMG_GROUP_ID]: "https://smggrowth.ca",
+        };
+        const groupId = profileForDomain?.store_group_id;
+        const targetDomain = (groupId && domainMap[groupId]) || null;
+        const currentOrigin = window.location.origin;
+
+        if (targetDomain && targetDomain !== currentOrigin) {
+          window.location.href = `${targetDomain}/dashboard`;
+          return;
+        }
+      }
+
       toast({
         title: "Welcome back!",
         description: "Successfully signed in.",

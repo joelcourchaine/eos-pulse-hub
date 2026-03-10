@@ -300,7 +300,27 @@ Deno.serve(async (req) => {
     // Get the origin from the referer header for redirect URL
     const referer = req.headers.get("referer") || "";
     const origin = referer ? new URL(referer).origin : "https://dealergrowth.solutions";
-    const appUrl = "https://dealergrowth.solutions";
+
+    // Determine branded domain based on store group
+    const MURRAY_GROUP_ID = "c386eaed-1b72-48a0-8fcd-506ae24ed13f";
+    const SMG_GROUP_ID = "9fc8d816-7659-4b4b-9103-239901e69a25";
+    const domainMap: Record<string, string> = {
+      [MURRAY_GROUP_ID]: "https://murraygrowth.ca",
+      [SMG_GROUP_ID]: "https://smggrowth.ca",
+    };
+
+    // Resolve the effective store group: use provided store_group_id, or look it up from store_id
+    let effectiveGroupId = store_group_id || null;
+    if (!effectiveGroupId && store_id) {
+      const { data: storeForDomain } = await supabaseAdmin
+        .from("stores")
+        .select("group_id")
+        .eq("id", store_id)
+        .single();
+      if (storeForDomain?.group_id) effectiveGroupId = storeForDomain.group_id;
+    }
+
+    const appUrl = (effectiveGroupId && domainMap[effectiveGroupId]) || "https://dealergrowth.solutions";
 
     // Generate the invite link (doesn't send email via Supabase)
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
