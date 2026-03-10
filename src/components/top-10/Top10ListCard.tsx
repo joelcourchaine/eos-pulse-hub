@@ -97,7 +97,7 @@ export function Top10ListCard({
     });
     return widths;
   });
-  const saveWidthsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveWidthsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const maxItems = 10;
   

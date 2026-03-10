@@ -37,7 +37,7 @@ const MeetingFramework = ({ departmentId, onViewModeChange }: MeetingFrameworkPr
   const { toast } = useToast();
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
-  const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: NodeJS.Timeout }>({});
+  const [saveTimeouts, setSaveTimeouts] = useState<{ [key: string]: ReturnType<typeof setTimeout> }>({});
   const [userId, setUserId] = useState<string>();
   const [activeTab, setActiveTab] = useState<string>("view-all");
   

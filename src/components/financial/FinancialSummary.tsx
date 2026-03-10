@@ -386,12 +386,12 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const [clearMonthDialogOpen, setClearMonthDialogOpen] = useState(false);
   const [clearMonthTarget, setClearMonthTarget] = useState<string | null>(null);
   const { toast } = useToast();
-  const saveTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  const saveTimeoutRef = useRef<{ [key: string]: ReturnType<typeof setTimeout> }>({});
   // Request ID tracking to prevent stale async data from overwriting fresh data
   const loadRequestIdRef = useRef(0);
   const precedingDataRequestIdRef = useRef(0);
   // Debounce ref to batch realtime-triggered reloads
-  const precedingDataDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const precedingDataDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Ref to always call the latest version of loadPrecedingQuartersData from realtime handler
   const loadPrecedingQuartersDataRef = useRef<() => void>(() => {});
 
