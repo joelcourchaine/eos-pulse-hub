@@ -465,10 +465,16 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                                         Medium
                                       </span>
                                     </SelectItem>
-                                    <SelectItem value="high">
+                                   <SelectItem value="high">
                                       <span className="flex items-center gap-2">
                                         <span className="h-2 w-2 rounded-full bg-red-500" />
                                         High
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="executive">
+                                      <span className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-purple-600" />
+                                        Executive
                                       </span>
                                     </SelectItem>
                                   </SelectContent>
