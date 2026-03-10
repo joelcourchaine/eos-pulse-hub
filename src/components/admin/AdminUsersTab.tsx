@@ -125,9 +125,10 @@ export const AdminUsersTab = () => {
 
   const roleColors: Record<string, string> = {
     super_admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+    executive: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
     store_gm: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
     department_manager: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-    fixed_ops_manager: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+    fixed_ops_manager: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
     consulting_scheduler: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
     user: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
   };
