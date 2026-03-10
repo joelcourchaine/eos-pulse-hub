@@ -1,37 +1,44 @@
 
-## Problem
+## Where to Add Executive Users
 
-The drag handlers (`onDragOver`, `onDragLeave`, `onDrop`) are only attached to the **inner scrollable content `div`** (the list area). When the to-do list is full, individual todo `div` rows fill that entire space. Hovering over a todo row causes the browser to fire `onDragLeave` on the content div (because you've moved onto a child), killing the drop zone highlight and blocking the drop.
+Here's the current state and what's needed:
 
-```text
-<Card>                          ← no drag handlers
-  <div header>                  ← no drag handlers
-  <div scrollable content>      ← onDragOver / onDragLeave / onDrop
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
+### Where users are created today
+The **Add User** dialog (`AdminUsersTab` → "Add User" button on the Super Admin Dashboard) has the role dropdown. Currently it lists: Super Admin, Store GM, Consulting Scheduler, Controller, Department Manager, Fixed Ops Manager, Read Only, Sales Advisor, Service Advisor, Technician, Parts Advisor.
+
+**`executive` is not in either list** — it was added to the database enum but never added to the role `<SelectItem>` lists in `AddUserDialog.tsx` or `UserManagementDialog.tsx`.
+
+### What needs to change
+
+Two files need `executive` added as a role option, both gated to `isSuperAdmin`:
+
+**`src/components/users/AddUserDialog.tsx`** — line ~297 in the role `<Select>`:
+```tsx
+{isSuperAdmin && <SelectItem value="executive">Executive</SelectItem>}
+```
+Executive users also need a **store group** assigned (not a specific store), since they see the whole group — the existing store group picker already handles this.
+
+**`src/components/users/UserManagementDialog.tsx`** — line ~678 in the role `<Select>` inside the table:
+```tsx
+{isSuperAdmin && <SelectItem value="executive">Executive</SelectItem>}
 ```
 
-## Fix — `src/components/issues/IssuesAndTodosPanel.tsx`
-
-**Two-part change:**
-
-1. **Move drag handlers up to the `Card`** so the entire right panel is the drop target, not just the scrollable content area. The `Card` wraps both the header and the list — dragging anywhere in the right panel will work.
-
-2. **Add `onDragOver={e => e.preventDefault()}` to each individual todo item row** so the browser doesn't fire `onDragLeave` when the cursor crosses from the container into a child element. This is the standard fix for nested drag-drop in HTML5.
-
-```text
-<Card                           ← onDragOver / onDragLeave / onDrop  ✅
-  <div header>                  ← cursor enters here = still works   ✅
-  <div scrollable content>
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
+**`src/components/admin/AdminUsersTab.tsx`** — add a purple badge color for the `executive` role in `roleColors`:
+```ts
+executive: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
 ```
 
-Additionally, when dragging is active over the todos panel, the visual feedback indicator (the "Drop to link issue as a to-do" overlay) should still only show in the content area — that behavior stays the same, just the drop zone is the whole card now.
-
-## Files to change
+### Summary of changes
 
 | File | Change |
 |------|--------|
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Move `onDragOver`/`onDragLeave`/`onDrop` from the content `div` to the `Card`. Add `onDragOver={e => e.preventDefault()}` to each todo item row. |
+| `src/components/users/AddUserDialog.tsx` | Add `executive` `SelectItem` (super admin only) |
+| `src/components/users/UserManagementDialog.tsx` | Add `executive` `SelectItem` (super admin only) |
+| `src/components/admin/AdminUsersTab.tsx` | Add purple badge color for `executive` role |
+
+### How to use it after this change
+1. Go to **Super Admin Dashboard → Users tab**
+2. Click **"Add User"**
+3. Set Role to **"Executive"**
+4. Assign a **Store Group** (the "OR" section under Store Access) — this gives them group-wide access
+5. Send the invite
