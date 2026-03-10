@@ -1,37 +1,50 @@
 
-## Problem
+## Current Behaviour — No Automatic Domain Guiding
 
-The drag handlers (`onDragOver`, `onDragLeave`, `onDrop`) are only attached to the **inner scrollable content `div`** (the list area). When the to-do list is full, individual todo `div` rows fill that entire space. Hovering over a todo row causes the browser to fire `onDragLeave` on the content div (because you've moved onto a child), killing the drop zone highlight and blocking the drop.
+The app does **not** guide users to `smggrowth.ca` or `murraygrowth.ca` based on their store group. Here's exactly how the flow works today:
 
-```text
-<Card>                          ← no drag handlers
-  <div header>                  ← no drag handlers
-  <div scrollable content>      ← onDragOver / onDragLeave / onDrop
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
+### Invitation email
+The `create-user` edge function hardcodes the invite link to:
+```
+https://dealergrowth.solutions/set-password?token=...
+```
+This is the generic URL regardless of which store group the new user belongs to.
+
+### Set Password → redirect to login
+After setting their password, `SetPassword.tsx` always redirects to:
+```
+navigate("/auth")  // i.e. same domain they're already on
 ```
 
-## Fix — `src/components/issues/IssuesAndTodosPanel.tsx`
+### Login page
+`Auth.tsx` always redirects to `/dashboard` after sign-in — no domain-based redirect.
 
-**Two-part change:**
+### The domain filtering that DOES exist
+The `HomeRoute` in `App.tsx` and the `Dashboard` page use `window.location.hostname` to check if you're **already on** `murraygrowth.ca` or `smggrowth.ca`, and shows the branded UI. But this is passive — it only works if the user navigated there themselves.
 
-1. **Move drag handlers up to the `Card`** so the entire right panel is the drop target, not just the scrollable content area. The `Card` wraps both the header and the list — dragging anywhere in the right panel will work.
+---
 
-2. **Add `onDragOver={e => e.preventDefault()}` to each individual todo item row** so the browser doesn't fire `onDragLeave` when the cursor crosses from the container into a child element. This is the standard fix for nested drag-drop in HTML5.
+## What Would Need to Change (if you want this)
 
-```text
-<Card                           ← onDragOver / onDragLeave / onDrop  ✅
-  <div header>                  ← cursor enters here = still works   ✅
-  <div scrollable content>
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
-```
+To guide users to their branded domain, there are two places to update:
 
-Additionally, when dragging is active over the todos panel, the visual feedback indicator (the "Drop to link issue as a to-do" overlay) should still only show in the content area — that behavior stays the same, just the drop zone is the whole card now.
+**1. Invite email link** — `supabase/functions/create-user/index.ts` (line 303/363)
+Currently: `const appUrl = "https://dealergrowth.solutions"`
+Need to: Look up the new user's `store_group_id` and map it to the correct domain:
+- Murray Group (`c386eaed-...`) → `https://murraygrowth.ca`
+- Steve Marshall Group (`9fc8d816-...`) → `https://smggrowth.ca`
+- Everything else → `https://dealergrowth.solutions`
 
-## Files to change
+**2. After password set / after login** — `src/pages/SetPassword.tsx` and `src/pages/Auth.tsx`
+After password is set or login succeeds, redirect to the correct domain based on the user's `store_group_id` from their profile.
 
-| File | Change |
-|------|--------|
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Move `onDragOver`/`onDragLeave`/`onDrop` from the content `div` to the `Card`. Add `onDragOver={e => e.preventDefault()}` to each todo item row. |
+---
+
+## Short Answer
+
+Right now: **No.** A new SMG or Murray user receives an invite link to `dealergrowth.solutions`, sets their password there, logs in there, and sees the generic UI — unless they manually navigate to the branded domain.
+
+Would you like me to implement domain-guided invitations so:
+- SMG users get invite links pointing to `smggrowth.ca`
+- Murray users get invite links pointing to `murraygrowth.ca`
+- After login, users are redirected to their branded domain if they signed in on the wrong one?
