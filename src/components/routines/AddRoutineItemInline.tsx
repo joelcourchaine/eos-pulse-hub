@@ -128,7 +128,7 @@ export const AddRoutineItemInline = ({
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={handleKeyDown}
         disabled={saving}
-        className="h-8 text-sm bg-white/10 text-white placeholder:text-white/40 border-white/20"
+        className="h-8 text-sm"
       />
       <Button
         size="sm"
