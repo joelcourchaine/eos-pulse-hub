@@ -248,6 +248,12 @@ export function IssueManagementDialog({
                     High
                   </span>
                 </SelectItem>
+                <SelectItem value="executive">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-purple-600" />
+                    Executive
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
