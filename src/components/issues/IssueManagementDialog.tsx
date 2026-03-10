@@ -64,6 +64,25 @@ export function IssueManagementDialog({
 
   const isEditMode = !!issue;
 
+  // Detect if current user is super_admin or executive on mount
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["super_admin", "executive"]);
+        setIsExecutiveUser((data?.length ?? 0) > 0);
+      } catch {
+        // silently fail
+      }
+    };
+    checkRole();
+  }, []);
+
   useEffect(() => {
     if (issue && open) {
       setTitle(issue.title);
@@ -75,14 +94,14 @@ export function IssueManagementDialog({
       setTitle(initialTitle || "");
       setDescription(initialDescription || "");
       setStatus("open");
-      setSeverity(initialSeverity || "medium");
+      setSeverity(initialSeverity || (isExecutiveUser ? "executive" : "medium"));
     } else if (!open) {
       setTitle("");
       setDescription("");
       setStatus("open");
-      setSeverity("medium");
+      setSeverity(isExecutiveUser ? "executive" : "medium");
     }
-  }, [issue, open, initialTitle, initialDescription, initialSeverity]);
+  }, [issue, open, initialTitle, initialDescription, initialSeverity, isExecutiveUser]);
 
   const handleSubmit = async () => {
     if (!title.trim()) {
