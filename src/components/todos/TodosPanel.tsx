@@ -185,6 +185,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     switch (severity) {
       case "low": return "border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-emerald-900/40";
       case "high": return "border-red-300 dark:border-red-700 bg-red-100 dark:bg-red-900/40";
+      case "executive": return "border-purple-400 dark:border-purple-600 bg-purple-100 dark:bg-purple-900/40";
       default: return "border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-amber-900/40";
     }
   };
@@ -193,6 +194,7 @@ export function TodosPanel({ departmentId, userId }: TodosPanelProps) {
     switch (severity) {
       case "low": return "bg-emerald-500";
       case "high": return "bg-red-500";
+      case "executive": return "bg-purple-600";
       default: return "bg-amber-500";
     }
   };

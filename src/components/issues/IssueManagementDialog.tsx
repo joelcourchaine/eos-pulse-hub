@@ -55,6 +55,7 @@ export function IssueManagementDialog({
   const [status, setStatus] = useState("open");
   const [severity, setSeverity] = useState("medium");
   const [loading, setLoading] = useState(false);
+  const [isExecutiveUser, setIsExecutiveUser] = useState(false);
   const { toast } = useToast();
 
   const isControlled = controlledOpen !== undefined;
