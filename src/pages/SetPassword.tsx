@@ -202,8 +202,31 @@ const SetPassword = () => {
         setFlowState('success');
         toast.success("Password created successfully!");
         
-        // Redirect to login after a brief delay
-        setTimeout(() => {
+        // Redirect to branded domain login after a brief delay
+        setTimeout(async () => {
+          // Look up user's store group to determine correct login domain
+          if (userId) {
+            const { data: profileForDomain } = await supabase
+              .from('profiles')
+              .select('store_group_id')
+              .eq('id', userId)
+              .single();
+            
+            const MURRAY_GROUP_ID = "c386eaed-1b72-48a0-8fcd-506ae24ed13f";
+            const SMG_GROUP_ID = "9fc8d816-7659-4b4b-9103-239901e69a25";
+            const domainMap: Record<string, string> = {
+              [MURRAY_GROUP_ID]: "https://murraygrowth.ca",
+              [SMG_GROUP_ID]: "https://smggrowth.ca",
+            };
+            const groupId = profileForDomain?.store_group_id;
+            const targetDomain = (groupId && domainMap[groupId]) || null;
+            const currentOrigin = window.location.origin;
+            
+            if (targetDomain && targetDomain !== currentOrigin) {
+              window.location.href = `${targetDomain}/auth`;
+              return;
+            }
+          }
           navigate("/auth");
         }, 2000);
       } else {
