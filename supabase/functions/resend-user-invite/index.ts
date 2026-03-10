@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { getDomainForGroup } from "../_shared/getDomainForGroup.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -260,7 +261,7 @@ Deno.serve(async (req) => {
     // Get real email and password_set_at from profiles table (auth email may be masked in sandbox)
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('email, password_set_at')
+      .select('email, password_set_at, store_group_id')
       .eq('id', user_id)
       .single();
 
@@ -296,8 +297,8 @@ Deno.serve(async (req) => {
     // Check if user has actually set their password (not just confirmed email)
     const hasSetPassword = profile.password_set_at != null;
     
-    // Determine redirect URL for the app
-    const appUrl = 'https://dealergrowth.solutions';
+    // Determine redirect URL based on user's store group
+    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id);
 
     // Determine token type and expiry based on whether user has set password
     const tokenType = hasSetPassword ? 'password_reset' : 'invite';

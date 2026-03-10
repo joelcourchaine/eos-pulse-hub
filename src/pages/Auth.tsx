@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Session } from "@supabase/supabase-js";
 import { z } from "zod";
+import { Loader2 } from "lucide-react";
+import { getDomainForStoreGroup } from "@/utils/getDomainForStoreGroup";
 
 const authSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -18,6 +20,7 @@ const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [formData, setFormData] = useState({
     email: "",
@@ -70,17 +73,11 @@ const Auth = () => {
           .eq('id', signedInUser.id)
           .single();
 
-        const MURRAY_GROUP_ID = "c386eaed-1b72-48a0-8fcd-506ae24ed13f";
-        const SMG_GROUP_ID = "9fc8d816-7659-4b4b-9103-239901e69a25";
-        const domainMap: Record<string, string> = {
-          [MURRAY_GROUP_ID]: "https://murraygrowth.ca",
-          [SMG_GROUP_ID]: "https://smggrowth.ca",
-        };
-        const groupId = profileForDomain?.store_group_id;
-        const targetDomain = (groupId && domainMap[groupId]) || null;
+        const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id);
         const currentOrigin = window.location.origin;
 
-        if (targetDomain && targetDomain !== currentOrigin) {
+        if (targetDomain !== currentOrigin) {
+          setRedirecting(true);
           window.location.href = `${targetDomain}/dashboard`;
           return;
         }
@@ -109,8 +106,15 @@ const Auth = () => {
     }
   };
 
-  if (session) {
-    return null;
+  if (session || redirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Redirecting to your dealership portal...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

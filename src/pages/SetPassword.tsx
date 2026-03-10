@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2, AlertCircle, CheckCircle, Mail, KeyRound } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { getDomainForStoreGroup } from "@/utils/getDomainForStoreGroup";
 
 const passwordSchema = z.object({
   password: z.string()
@@ -201,33 +202,29 @@ const SetPassword = () => {
         console.log('Password set successfully via custom token');
         setFlowState('success');
         toast.success("Password created successfully!");
-        
-        // Redirect to branded domain login after a brief delay
-        setTimeout(async () => {
-          // Look up user's store group to determine correct login domain
-          if (userId) {
-            const { data: profileForDomain } = await supabase
-              .from('profiles')
-              .select('store_group_id')
-              .eq('id', userId)
-              .single();
-            
-            const MURRAY_GROUP_ID = "c386eaed-1b72-48a0-8fcd-506ae24ed13f";
-            const SMG_GROUP_ID = "9fc8d816-7659-4b4b-9103-239901e69a25";
-            const domainMap: Record<string, string> = {
-              [MURRAY_GROUP_ID]: "https://murraygrowth.ca",
-              [SMG_GROUP_ID]: "https://smggrowth.ca",
-            };
-            const groupId = profileForDomain?.store_group_id;
-            const targetDomain = (groupId && domainMap[groupId]) || null;
-            const currentOrigin = window.location.origin;
-            
-            if (targetDomain && targetDomain !== currentOrigin) {
-              window.location.href = `${targetDomain}/auth`;
-              return;
-            }
+
+        // Resolve redirect target BEFORE the delay
+        let redirectUrl = "/auth";
+        if (userId) {
+          const { data: profileForDomain } = await supabase
+            .from('profiles')
+            .select('store_group_id')
+            .eq('id', userId)
+            .single();
+
+          const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id);
+          if (targetDomain !== window.location.origin) {
+            redirectUrl = `${targetDomain}/auth`;
           }
-          navigate("/auth");
+        }
+
+        // Simple non-async redirect after visual delay
+        setTimeout(() => {
+          if (redirectUrl.startsWith("http")) {
+            window.location.href = redirectUrl;
+          } else {
+            navigate(redirectUrl);
+          }
         }, 2000);
       } else {
         // Fallback: If we have an active session (legacy flow), use updateUser

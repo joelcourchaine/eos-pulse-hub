@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
+import { getDomainForGroup } from "../_shared/getDomainForGroup.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -113,7 +114,7 @@ Deno.serve(async (req) => {
     // Look up user in profiles table by email
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('id, email')
+      .select('id, email, store_group_id')
       .eq('email', email.toLowerCase().trim())
       .single();
 
@@ -161,8 +162,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Determine redirect URL for the app
-    const appUrl = 'https://dealergrowth.solutions';
+    // Determine redirect URL based on user's store group
+    const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id);
 
     // Generate password reset link using the real email
     console.log('Generating password reset link for:', profile.email);
