@@ -1,5 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.81.1';
-import { getDomainForGroup } from "../_shared/getDomainForGroup.ts";
+
+const DEFAULT_DOMAIN = "https://dealergrowth.solutions";
+async function getDomainForGroup(client: any, storeGroupId: string | null | undefined, storeId?: string | null): Promise<string> {
+  let groupId = storeGroupId || null;
+  if (!groupId && storeId) {
+    const { data: store } = await client.from("stores").select("group_id").eq("id", storeId).single();
+    if (store?.group_id) groupId = store.group_id;
+  }
+  if (!groupId) return DEFAULT_DOMAIN;
+  const { data } = await client.from("store_groups").select("domain").eq("id", groupId).single();
+  return data?.domain || DEFAULT_DOMAIN;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
