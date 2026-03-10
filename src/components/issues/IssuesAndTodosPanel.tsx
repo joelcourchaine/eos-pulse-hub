@@ -525,7 +525,26 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
 
         {/* To-Dos Panel */}
         <ResizablePanel defaultSize={50} minSize={30}>
-          <Card className={`h-full border-0 rounded-none transition-all ${isDragOverTodos && draggedIssue ? "ring-2 ring-inset ring-primary bg-primary/5" : ""}`}>
+          <Card
+            className={`h-full border-0 rounded-none transition-all ${isDragOverTodos && draggedIssue ? "ring-2 ring-inset ring-primary bg-primary/5" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOverTodos(true);
+            }}
+            onDragLeave={() => setIsDragOverTodos(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const issue = draggedIssueRef.current;
+              droppedOnTodosRef.current = true;
+              setIsDragOverTodos(false);
+              if (issue) {
+                setIsSelectedIssueFromDrag(true);
+                setSelectedIssueForTodo(issue);
+                setDraggedIssue(null);
+              }
+            }}
+          >
             <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <div>
@@ -547,25 +566,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                 </div>
               </div>
             </div>
-            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOverTodos(true);
-              }}
-              onDragLeave={() => setIsDragOverTodos(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const issue = draggedIssueRef.current;
-                droppedOnTodosRef.current = true;
-                setIsDragOverTodos(false);
-                if (issue) {
-                  setIsSelectedIssueFromDrag(true);
-                  setSelectedIssueForTodo(issue);
-                  setDraggedIssue(null);
-                }
-              }}
-            >
+            <div className="p-4 space-y-2 overflow-y-auto" style={{ maxHeight: "calc(100% - 80px)" }}>
               {isDragOverTodos && draggedIssue ? (
                 <div className="text-center py-8 text-primary">
                   <CheckSquare className="h-12 w-12 mx-auto mb-2" />
@@ -582,6 +583,7 @@ export function IssuesAndTodosPanel({ departmentId, userId, expandAllNotes = fal
                   return (
                     <div
                       key={todo.id}
+                      onDragOver={(e) => e.preventDefault()}
                       className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-colors ${getSeverityBorderColor(todo.severity)}`}
                     >
                       <Checkbox
