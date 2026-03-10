@@ -327,7 +327,7 @@ Deno.serve(async (req) => {
       type: "invite",
       email: email,
       options: {
-        redirectTo: `${origin}/set-password`,
+        redirectTo: `${appUrl}/set-password`,
         data: {
           full_name,
           birthday_month,
