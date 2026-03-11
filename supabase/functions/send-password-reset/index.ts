@@ -94,6 +94,7 @@ async function sendEmailViaResend(to: string, subject: string, html: string): Pr
 }
 
 Deno.serve(async (req) => {
+  console.log('send-password-reset v3 - inline domain lookup');
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -174,7 +175,9 @@ Deno.serve(async (req) => {
     }
 
     // Determine redirect URL based on user's store group
+    console.log('Domain lookup inputs - store_group_id:', profile.store_group_id, 'store_id:', profile.store_id);
     const appUrl = await getDomainForGroup(supabaseAdmin, profile.store_group_id, profile.store_id);
+    console.log('Resolved appUrl:', appUrl);
 
     // Generate password reset link using the real email
     console.log('Generating password reset link for:', profile.email);
