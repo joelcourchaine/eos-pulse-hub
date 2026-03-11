@@ -585,6 +585,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const {
     getForecastTarget,
     hasForecastTargets,
+    forecastTargets,
     refetch: refetchForecastTargets,
   } = useForecastTargets(departmentId, year);
 
