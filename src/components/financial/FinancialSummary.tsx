@@ -585,6 +585,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
   const {
     getForecastTarget,
     hasForecastTargets,
+    forecastTargets,
     refetch: refetchForecastTargets,
   } = useForecastTargets(departmentId, year);
 
@@ -5425,6 +5426,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               const fKey2 = `sub:${dollarParentKey}:${subMetricEntry.orderIndex}:${subMetricName}`;
                               const val2 = getForecastTarget(fKey2, monthId);
                               if (val2 !== null) return val2;
+                            } else {
+                              // Sub-metric not found in current-year data (e.g. WARRANTY ADJUSTMENT with no actuals yet)
+                              // Fall back to scanning the forecast map by key pattern: sub:{dollarParentKey}:*:{subMetricName}:{monthId}
+                              const prefix = `sub:${dollarParentKey}:`;
+                              const suffix = `:${subMetricName}:${monthId}`;
+                              for (const [mapKey, val] of forecastTargets) {
+                                if (mapKey.startsWith(prefix) && mapKey.endsWith(suffix)) return val;
+                              }
                             }
                             return null;
                           }}
