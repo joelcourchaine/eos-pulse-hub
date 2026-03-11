@@ -969,7 +969,7 @@ export default function DealerComparison() {
       // Hoisted so percentage sub-metric synthesis can access aggregated raw keys
       type AvgAgg = { sum: number; count: number };
       const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
-      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range";
+      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month";
 
       // For full_year and custom_range, we need to aggregate data first
       if (isMultiMonth) {

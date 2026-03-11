@@ -1330,8 +1330,14 @@ export default function Enterprise() {
                       <SelectTrigger className="bg-background z-50">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
+                       <SelectContent className="bg-background z-50">
                         <SelectItem value="month">Single Month</SelectItem>
+                        {comparisonMode === "year_over_year" && (
+                          <>
+                            <SelectItem value="2_month">2 Months (YoY Totals)</SelectItem>
+                            <SelectItem value="3_month">3 Months (YoY Totals)</SelectItem>
+                          </>
+                        )}
                         <SelectItem value="full_year">Full Year</SelectItem>
                         <SelectItem value="custom_range">Custom Range</SelectItem>
                         <SelectItem value="monthly_trend">12 Month Trend</SelectItem>
