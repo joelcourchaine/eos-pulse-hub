@@ -32,7 +32,8 @@ interface CreateUserRequest {
     | "parts_advisor"
     | "fixed_ops_manager"
     | "controller"
-    | "consulting_scheduler";
+    | "consulting_scheduler"
+    | "executive";
   store_id?: string;
   store_ids?: string[]; // New multi-store support
   store_group_id?: string;
