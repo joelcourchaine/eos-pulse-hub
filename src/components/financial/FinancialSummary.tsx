@@ -5229,6 +5229,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 (metricKey, mId) => getValueWithSubMetricFallback(metricKey, mId) ?? null,
                               );
                             }
+                            // For percentage metrics (e.g. sales_expense_percent), data is stored under
+                            // the numerator key (e.g. sales_expense), not the percentage key itself
+                            if (
+                              metric.type === "percentage" &&
+                              metric.calculation &&
+                              "numerator" in metric.calculation
+                            ) {
+                              return getSubMetricValue(metric.calculation.numerator, subMetricName, monthId);
+                            }
                             return getSubMetricValue(metric.key, subMetricName, monthId);
                           }}
                           periods={
