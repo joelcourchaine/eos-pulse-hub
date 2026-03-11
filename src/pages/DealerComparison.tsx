@@ -1924,9 +1924,11 @@ export default function DealerComparison() {
     });
   }
 
-  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months or QvQ custom_range
+  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months, multi-month YoY, or QvQ custom_range
   const isThreeColumnMode = (comparisonMode === "year_over_year" || comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && (
     datePeriodType === "month" ||
+    datePeriodType === "2_month" ||
+    datePeriodType === "3_month" ||
     (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")
   );
   const refMonthForYear = selectedMonth || startMonth;
@@ -1934,10 +1936,16 @@ export default function DealerComparison() {
   const yoyPrevYear = yoyCurrentYear - 1;
   // Labels for the two data columns
   const isQvQMode = comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range";
-  const currentColumnLabel: string | number = isQvQMode ? `Q${selectedCurrentQuarter} ${yoyCurrentYear}` : yoyCurrentYear;
+  const isMultiMonthYoY = (datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth;
+  const currentColumnLabel: string | number = isQvQMode
+    ? `Q${selectedCurrentQuarter} ${yoyCurrentYear}`
+    : isMultiMonthYoY
+    ? `${format(new Date(startMonth + '-15'), 'MMM')}–${format(new Date(endMonth + '-15'), 'MMM')} ${yoyCurrentYear}`
+    : yoyCurrentYear;
   const comparisonColumnLabel: string | number = (() => {
     if (comparisonMode === "prev_year_avg") return `${yoyPrevYear} Avg`;
     if (comparisonMode === "prev_year_quarter") return isQvQMode ? `Q${selectedComparisonQuarter} ${yoyPrevYear}` : `${yoyPrevYear} Q${selectedComparisonQuarter} Avg`;
+    if (isMultiMonthYoY) return `${format(new Date(startMonth + '-15'), 'MMM')}–${format(new Date(endMonth + '-15'), 'MMM')} ${yoyPrevYear}`;
     return yoyPrevYear;
   })();
 

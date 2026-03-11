@@ -1374,6 +1374,40 @@ export default function Enterprise() {
                         </SelectContent>
                       </Select>
                     </div>
+                  ) : datePeriodType === "2_month" || datePeriodType === "3_month" ? (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Starting Month</label>
+                      <Select 
+                        value={format(selectedMonth, "yyyy-MM")} 
+                        onValueChange={(value) => {
+                          const [year, month] = value.split('-');
+                          setSelectedMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                        }}
+                      >
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue>
+                            {format(selectedMonth, "MMMM yyyy")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50 max-h-[300px]">
+                          {Array.from({ length: 24 }, (_, i) => {
+                            const date = new Date();
+                            date.setMonth(date.getMonth() - i);
+                            const value = format(date, "yyyy-MM");
+                            return (
+                              <SelectItem key={value} value={value}>
+                                {format(date, "MMMM yyyy")}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {datePeriodType === "2_month"
+                          ? `${format(selectedMonth, "MMM")}–${format(addMonths(selectedMonth, 1), "MMM yyyy")}`
+                          : `${format(selectedMonth, "MMM")}–${format(addMonths(selectedMonth, 2), "MMM yyyy")}`}
+                      </p>
+                    </div>
                   ) : datePeriodType === "full_year" ? (
                     <div>
                       <label className="text-sm font-medium mb-2 block">Year</label>
