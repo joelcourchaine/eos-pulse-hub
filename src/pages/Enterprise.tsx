@@ -2005,6 +2005,12 @@ export default function Enterprise() {
                         } else if (datePeriodType === "custom_range") {
                           dateParams.startMonth = format(startMonth, "yyyy-MM");
                           dateParams.endMonth = format(endMonth, "yyyy-MM");
+                        } else if (datePeriodType === "2_month") {
+                          dateParams.startMonth = format(selectedMonth, "yyyy-MM");
+                          dateParams.endMonth = format(addMonths(selectedMonth, 1), "yyyy-MM");
+                        } else if (datePeriodType === "3_month") {
+                          dateParams.startMonth = format(selectedMonth, "yyyy-MM");
+                          dateParams.endMonth = format(addMonths(selectedMonth, 2), "yyyy-MM");
                         }
                         
                         // Determine brand display name

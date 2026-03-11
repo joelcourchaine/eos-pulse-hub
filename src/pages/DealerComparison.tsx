@@ -1967,7 +1967,7 @@ export default function DealerComparison() {
       for (let m = 1; m <= maxMonth; m++) {
         expectedMonths.push(`${year}-${String(m).padStart(2, '0')}`);
       }
-    } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+    } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
       let current = new Date(startMonth + '-01');
       const end = new Date(endMonth + '-01');
       while (current <= end) {
