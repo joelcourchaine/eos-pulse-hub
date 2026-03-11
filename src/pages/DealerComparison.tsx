@@ -84,6 +84,10 @@ export default function DealerComparison() {
     selectedCurrentQuarter?: number;
   };
 
+  /** Returns true for date period types that use startMonth/endMonth range filtering */
+  const isRangeType = (type: string | undefined): boolean =>
+    type === "custom_range" || type === "2_month" || type === "3_month";
+
   // Fetch departments for selected stores
   const { data: departments } = useQuery({
     queryKey: ["dealer_comparison_departments", storeIds],
@@ -167,7 +171,7 @@ export default function DealerComparison() {
           const year = selectedYear || new Date().getFullYear();
           q = q.gte("month", `${year}-01`).lte("month", `${year}-12`);
           console.log("Filtering by full year:", year);
-        } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
+        } else if (isRangeType(datePeriodType) && startMonth && endMonth) {
           q = q.gte("month", startMonth).lte("month", endMonth);
           console.log("Filtering by custom range:", startMonth, "to", endMonth);
         }
@@ -969,7 +973,7 @@ export default function DealerComparison() {
       // Hoisted so percentage sub-metric synthesis can access aggregated raw keys
       type AvgAgg = { sum: number; count: number };
       const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
-      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month";
+      const isMultiMonth = datePeriodType === "full_year" || isRangeType(datePeriodType);
 
       // For full_year and custom_range, we need to aggregate data first
       if (isMultiMonth) {
@@ -1967,7 +1971,7 @@ export default function DealerComparison() {
       for (let m = 1; m <= maxMonth; m++) {
         expectedMonths.push(`${year}-${String(m).padStart(2, '0')}`);
       }
-    } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
+    } else if (isRangeType(datePeriodType) && startMonth && endMonth) {
       let current = new Date(startMonth + '-01');
       const end = new Date(endMonth + '-01');
       while (current <= end) {

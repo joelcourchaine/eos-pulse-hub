@@ -5428,11 +5428,15 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                               if (val2 !== null) return val2;
                             } else {
                               // Sub-metric not found in current-year data (e.g. WARRANTY ADJUSTMENT with no actuals yet)
-                              // Fall back to scanning the forecast map by key pattern: sub:{dollarParentKey}:*:{subMetricName}:{monthId}
+                              // Fall back to scanning the forecast map by key pattern: sub:{dollarParentKey}:{orderIndex}:{subMetricName}:{monthId}
                               const prefix = `sub:${dollarParentKey}:`;
-                              const suffix = `:${subMetricName}:${monthId}`;
+                              const expectedTail = `${subMetricName}:${monthId}`;
                               for (const [mapKey, val] of forecastTargets) {
-                                if (mapKey.startsWith(prefix) && mapKey.endsWith(suffix)) return val;
+                                if (!mapKey.startsWith(prefix)) continue;
+                                const remainder = mapKey.slice(prefix.length);
+                                const firstColon = remainder.indexOf(':');
+                                if (firstColon === -1) continue;
+                                if (remainder.slice(firstColon + 1) === expectedTail) return val;
                               }
                             }
                             return null;

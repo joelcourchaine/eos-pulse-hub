@@ -142,7 +142,7 @@ export default function Enterprise() {
     if (comparisonMode !== "year_over_year" && (datePeriodType === "2_month" || datePeriodType === "3_month")) {
       setDatePeriodType("month");
     }
-  }, [comparisonMode]);
+  }, [comparisonMode, datePeriodType]);
 
 
   const [userId, setUserId] = useState<string | undefined>(undefined);
