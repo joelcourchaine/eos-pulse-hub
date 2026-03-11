@@ -1,37 +1,55 @@
 
-## Problem
+## Root Cause
 
-The drag handlers (`onDragOver`, `onDragLeave`, `onDrop`) are only attached to the **inner scrollable content `div`** (the list area). When the to-do list is full, individual todo `div` rows fill that entire space. Hovering over a todo row causes the browser to fire `onDragLeave` on the content div (because you've moved onto a child), killing the drop zone highlight and blocking the drop.
+For **percentage metrics** like `sales_expense_percent`, sub-metric data is stored in the database under the **numerator key** (`sales_expense`), not under `sales_expense_percent`. The `visibleSubMetrics` filter in `SubMetricsRow.tsx` calls `getSubMetricValue(sm.name, monthId)` to decide whether to show or hide a row. For `sales_expense_percent`, that function is passed as:
 
-```text
-<Card>                          ← no drag handlers
-  <div header>                  ← no drag handlers
-  <div scrollable content>      ← onDragOver / onDragLeave / onDrop
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
-    <div todo row>              ← no drag handlers → blocks events ❌
+```ts
+// FinancialSummary.tsx line 5232
+return getSubMetricValue(metric.key, subMetricName, monthId);
+//                        ^^^^^^^^^^^^^^^^^^^
+//                        "sales_expense_percent" — no data stored here
 ```
 
-## Fix — `src/components/issues/IssuesAndTodosPanel.tsx`
+So every sub-metric row returns `null` → all get hidden, even though the dollar values exist under `sales_expense`.
 
-**Two-part change:**
+The `gp_percent` case already has a special workaround (lines 5224–5231). `sales_expense_percent` (and any other percentage metric where data lives in the numerator) needs the same fix.
 
-1. **Move drag handlers up to the `Card`** so the entire right panel is the drop target, not just the scrollable content area. The `Card` wraps both the header and the list — dragging anywhere in the right panel will work.
+## Fix
 
-2. **Add `onDragOver={e => e.preventDefault()}` to each individual todo item row** so the browser doesn't fire `onDragLeave` when the cursor crosses from the container into a child element. This is the standard fix for nested drag-drop in HTML5.
+**`src/components/financial/FinancialSummary.tsx`** — one change in the `getSubMetricValue` callback passed to `<SubMetricsRow>` (around line 5222):
 
-```text
-<Card                           ← onDragOver / onDragLeave / onDrop  ✅
-  <div header>                  ← cursor enters here = still works   ✅
-  <div scrollable content>
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
-    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
+```tsx
+// Before: only handles gp_percent
+getSubMetricValue={(subMetricName, monthId) => {
+  if (metric.key === "gp_percent") {
+    return getCalculatedSubMetricValue(...);
+  }
+  return getSubMetricValue(metric.key, subMetricName, monthId);
+}}
+
+// After: all percentage metrics with a numerator/denominator calculation
+// fall back to the numerator key when no data exists under the percentage key
+getSubMetricValue={(subMetricName, monthId) => {
+  if (metric.key === "gp_percent") {
+    return getCalculatedSubMetricValue(...);
+  }
+  // For percentage metrics, data is stored under the numerator key (e.g. sales_expense),
+  // not under the percentage key (e.g. sales_expense_percent)
+  if (
+    metric.type === "percentage" &&
+    metric.calculation &&
+    "numerator" in metric.calculation
+  ) {
+    return getSubMetricValue(metric.calculation.numerator, subMetricName, monthId);
+  }
+  return getSubMetricValue(metric.key, subMetricName, monthId);
+}}
 ```
 
-Additionally, when dragging is active over the todos panel, the visual feedback indicator (the "Drop to link issue as a to-do" overlay) should still only show in the content area — that behavior stays the same, just the drop zone is the whole card now.
+This ensures:
+- The **visibility filter** in `SubMetricsRow` correctly sees the real dollar values and shows the rows
+- The **cell rendering** for display values (`isPercentageMetric` path) continues to calculate the proper percentage via `getSubMetricValueForParent` — that logic is already correct
+- `gp_percent` retains its dedicated handler unchanged
+- Dollar metrics are unaffected
 
-## Files to change
-
-| File | Change |
-|------|--------|
-| `src/components/issues/IssuesAndTodosPanel.tsx` | Move `onDragOver`/`onDragLeave`/`onDrop` from the content `div` to the `Card`. Add `onDragOver={e => e.preventDefault()}` to each todo item row. |
+One file, one small code block change.
