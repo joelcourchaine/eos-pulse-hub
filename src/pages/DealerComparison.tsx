@@ -167,7 +167,7 @@ export default function DealerComparison() {
           const year = selectedYear || new Date().getFullYear();
           q = q.gte("month", `${year}-01`).lte("month", `${year}-12`);
           console.log("Filtering by full year:", year);
-        } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+        } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
           q = q.gte("month", startMonth).lte("month", endMonth);
           console.log("Filtering by custom range:", startMonth, "to", endMonth);
         }
