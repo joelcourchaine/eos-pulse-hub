@@ -12,7 +12,7 @@ import { getMetricsForBrand } from "@/config/financialMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -25,7 +25,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "prev_year_avg" | "prev_year_quarter";
-type DatePeriodType = "month" | "full_year" | "custom_range" | "monthly_trend";
+type DatePeriodType = "month" | "2_month" | "3_month" | "full_year" | "custom_range" | "monthly_trend";
 type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
 // Helper to get initial state from sessionStorage
@@ -136,6 +136,13 @@ export default function Enterprise() {
       setEndMonth(today);
     }
   }, [datePeriodType]);
+
+  // Reset multi-month YoY types when comparison mode changes away from year_over_year
+  useEffect(() => {
+    if (comparisonMode !== "year_over_year" && (datePeriodType === "2_month" || datePeriodType === "3_month")) {
+      setDatePeriodType("month");
+    }
+  }, [comparisonMode]);
 
 
   const [userId, setUserId] = useState<string | undefined>(undefined);
@@ -1330,8 +1337,14 @@ export default function Enterprise() {
                       <SelectTrigger className="bg-background z-50">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
+                       <SelectContent className="bg-background z-50">
                         <SelectItem value="month">Single Month</SelectItem>
+                        {comparisonMode === "year_over_year" && (
+                          <>
+                            <SelectItem value="2_month">2 Months (YoY Totals)</SelectItem>
+                            <SelectItem value="3_month">3 Months (YoY Totals)</SelectItem>
+                          </>
+                        )}
                         <SelectItem value="full_year">Full Year</SelectItem>
                         <SelectItem value="custom_range">Custom Range</SelectItem>
                         <SelectItem value="monthly_trend">12 Month Trend</SelectItem>
@@ -1367,6 +1380,40 @@ export default function Enterprise() {
                           })}
                         </SelectContent>
                       </Select>
+                    </div>
+                  ) : datePeriodType === "2_month" || datePeriodType === "3_month" ? (
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Starting Month</label>
+                      <Select 
+                        value={format(selectedMonth, "yyyy-MM")} 
+                        onValueChange={(value) => {
+                          const [year, month] = value.split('-');
+                          setSelectedMonth(new Date(parseInt(year), parseInt(month) - 1, 1));
+                        }}
+                      >
+                        <SelectTrigger className="bg-background z-50">
+                          <SelectValue>
+                            {format(selectedMonth, "MMMM yyyy")}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50 max-h-[300px]">
+                          {Array.from({ length: 24 }, (_, i) => {
+                            const date = new Date();
+                            date.setMonth(date.getMonth() - i);
+                            const value = format(date, "yyyy-MM");
+                            return (
+                              <SelectItem key={value} value={value}>
+                                {format(date, "MMMM yyyy")}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {datePeriodType === "2_month"
+                          ? `${format(selectedMonth, "MMM")}–${format(addMonths(selectedMonth, 1), "MMM yyyy")}`
+                          : `${format(selectedMonth, "MMM")}–${format(addMonths(selectedMonth, 2), "MMM yyyy")}`}
+                      </p>
                     </div>
                   ) : datePeriodType === "full_year" ? (
                     <div>
@@ -1965,6 +2012,12 @@ export default function Enterprise() {
                         } else if (datePeriodType === "custom_range") {
                           dateParams.startMonth = format(startMonth, "yyyy-MM");
                           dateParams.endMonth = format(endMonth, "yyyy-MM");
+                        } else if (datePeriodType === "2_month") {
+                          dateParams.startMonth = format(selectedMonth, "yyyy-MM");
+                          dateParams.endMonth = format(addMonths(selectedMonth, 1), "yyyy-MM");
+                        } else if (datePeriodType === "3_month") {
+                          dateParams.startMonth = format(selectedMonth, "yyyy-MM");
+                          dateParams.endMonth = format(addMonths(selectedMonth, 2), "yyyy-MM");
                         }
                         
                         // Determine brand display name

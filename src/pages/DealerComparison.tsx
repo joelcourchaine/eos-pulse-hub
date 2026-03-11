@@ -167,7 +167,7 @@ export default function DealerComparison() {
           const year = selectedYear || new Date().getFullYear();
           q = q.gte("month", `${year}-01`).lte("month", `${year}-12`);
           console.log("Filtering by full year:", year);
-        } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+        } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
           q = q.gte("month", startMonth).lte("month", endMonth);
           console.log("Filtering by custom range:", startMonth, "to", endMonth);
         }
@@ -969,7 +969,7 @@ export default function DealerComparison() {
       // Hoisted so percentage sub-metric synthesis can access aggregated raw keys
       type AvgAgg = { sum: number; count: number };
       const aggregatedByStoreDept = new Map<string, Map<string, number | AvgAgg>>();
-      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range";
+      const isMultiMonth = datePeriodType === "full_year" || datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month";
 
       // For full_year and custom_range, we need to aggregate data first
       if (isMultiMonth) {
@@ -1924,9 +1924,11 @@ export default function DealerComparison() {
     });
   }
 
-  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months or QvQ custom_range
+  // Three-column comparison mode (YOY, Prev Year Avg, Prev Year Quarter) for single months, multi-month YoY, or QvQ custom_range
   const isThreeColumnMode = (comparisonMode === "year_over_year" || comparisonMode === "prev_year_avg" || comparisonMode === "prev_year_quarter") && (
     datePeriodType === "month" ||
+    datePeriodType === "2_month" ||
+    datePeriodType === "3_month" ||
     (comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range")
   );
   const refMonthForYear = selectedMonth || startMonth;
@@ -1934,10 +1936,16 @@ export default function DealerComparison() {
   const yoyPrevYear = yoyCurrentYear - 1;
   // Labels for the two data columns
   const isQvQMode = comparisonMode === "prev_year_quarter" && datePeriodType === "custom_range";
-  const currentColumnLabel: string | number = isQvQMode ? `Q${selectedCurrentQuarter} ${yoyCurrentYear}` : yoyCurrentYear;
+  const isMultiMonthYoY = (datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth;
+  const currentColumnLabel: string | number = isQvQMode
+    ? `Q${selectedCurrentQuarter} ${yoyCurrentYear}`
+    : isMultiMonthYoY
+    ? `${format(new Date(startMonth + '-15'), 'MMM')}–${format(new Date(endMonth + '-15'), 'MMM')} ${yoyCurrentYear}`
+    : yoyCurrentYear;
   const comparisonColumnLabel: string | number = (() => {
     if (comparisonMode === "prev_year_avg") return `${yoyPrevYear} Avg`;
     if (comparisonMode === "prev_year_quarter") return isQvQMode ? `Q${selectedComparisonQuarter} ${yoyPrevYear}` : `${yoyPrevYear} Q${selectedComparisonQuarter} Avg`;
+    if (isMultiMonthYoY) return `${format(new Date(startMonth + '-15'), 'MMM')}–${format(new Date(endMonth + '-15'), 'MMM')} ${yoyPrevYear}`;
     return yoyPrevYear;
   })();
 
@@ -1959,7 +1967,7 @@ export default function DealerComparison() {
       for (let m = 1; m <= maxMonth; m++) {
         expectedMonths.push(`${year}-${String(m).padStart(2, '0')}`);
       }
-    } else if (datePeriodType === "custom_range" && startMonth && endMonth) {
+    } else if ((datePeriodType === "custom_range" || datePeriodType === "2_month" || datePeriodType === "3_month") && startMonth && endMonth) {
       let current = new Date(startMonth + '-01');
       const end = new Date(endMonth + '-01');
       while (current <= end) {

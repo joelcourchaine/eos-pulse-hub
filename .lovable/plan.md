@@ -1,19 +1,37 @@
 
-## Final Confirmed Plan — Ready to Implement
+## Problem
 
-**2 files, no DB changes, no new components.**
+The drag handlers (`onDragOver`, `onDragLeave`, `onDrop`) are only attached to the **inner scrollable content `div`** (the list area). When the to-do list is full, individual todo `div` rows fill that entire space. Hovering over a todo row causes the browser to fire `onDragLeave` on the content div (because you've moved onto a child), killing the drop zone highlight and blocking the drop.
 
-### `src/pages/Enterprise.tsx`
-1. Add `"2_month" | "3_month"` to `DatePeriodType` union (line 28)
-2. Add `addMonths` to date-fns import (line 15)
-3. Add two new `<SelectItem>` values to the Date Period select, visible only when `comparisonMode === "year_over_year"` (~line 1334)
-4. Add a Starting Month picker UI branch for `2_month`/`3_month` with preview label (~line 1342)
-5. Add `dateParams.startMonth`/`endMonth` derivation in the "View Dashboard" onClick for the two new types (~line 1947)
-6. Add a `useEffect` to reset `datePeriodType` to `"month"` if the comparison mode changes away from `year_over_year`
+```text
+<Card>                          ← no drag handlers
+  <div header>                  ← no drag handlers
+  <div scrollable content>      ← onDragOver / onDragLeave / onDrop
+    <div todo row>              ← no drag handlers → blocks events ❌
+    <div todo row>              ← no drag handlers → blocks events ❌
+    <div todo row>              ← no drag handlers → blocks events ❌
+```
 
-### `src/pages/DealerComparison.tsx`
-1. Extend `financialEntries` range filter to include `2_month`/`3_month` (~line 170)
-2. Update `isMultiMonth` to include `2_month`/`3_month` (line 972)
-3. Update `isThreeColumnMode` to include `2_month`/`3_month` (~line 1928)
-4. Add range label formatting for `currentColumnLabel`/`comparisonColumnLabel` (~line 1937)
-5. Extend `storeDataCompleteness` range filter to include `2_month`/`3_month` (~line 1962)
+## Fix — `src/components/issues/IssuesAndTodosPanel.tsx`
+
+**Two-part change:**
+
+1. **Move drag handlers up to the `Card`** so the entire right panel is the drop target, not just the scrollable content area. The `Card` wraps both the header and the list — dragging anywhere in the right panel will work.
+
+2. **Add `onDragOver={e => e.preventDefault()}` to each individual todo item row** so the browser doesn't fire `onDragLeave` when the cursor crosses from the container into a child element. This is the standard fix for nested drag-drop in HTML5.
+
+```text
+<Card                           ← onDragOver / onDragLeave / onDrop  ✅
+  <div header>                  ← cursor enters here = still works   ✅
+  <div scrollable content>
+    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
+    <div todo row               ← onDragOver={e=>e.preventDefault()} ✅
+```
+
+Additionally, when dragging is active over the todos panel, the visual feedback indicator (the "Drop to link issue as a to-do" overlay) should still only show in the content area — that behavior stays the same, just the drop zone is the whole card now.
+
+## Files to change
+
+| File | Change |
+|------|--------|
+| `src/components/issues/IssuesAndTodosPanel.tsx` | Move `onDragOver`/`onDragLeave`/`onDrop` from the content `div` to the `Card`. Add `onDragOver={e => e.preventDefault()}` to each todo item row. |
