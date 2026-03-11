@@ -137,6 +137,13 @@ export default function Enterprise() {
     }
   }, [datePeriodType]);
 
+  // Reset multi-month YoY types when comparison mode changes away from year_over_year
+  useEffect(() => {
+    if (comparisonMode !== "year_over_year" && (datePeriodType === "2_month" || datePeriodType === "3_month")) {
+      setDatePeriodType("month");
+    }
+  }, [comparisonMode]);
+
 
   const [userId, setUserId] = useState<string | undefined>(undefined);
   
