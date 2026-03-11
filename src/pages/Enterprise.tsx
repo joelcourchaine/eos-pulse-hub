@@ -25,7 +25,7 @@ import { useUserRole } from "@/hooks/use-user-role";
 type FilterMode = "brand" | "group" | "custom";
 type MetricType = "weekly" | "monthly" | "financial" | "dept_info" | "monthly_combined";
 type ComparisonMode = "none" | "targets" | "year_over_year" | "prev_year_avg" | "prev_year_quarter";
-type DatePeriodType = "month" | "full_year" | "custom_range" | "monthly_trend";
+type DatePeriodType = "month" | "2_month" | "3_month" | "full_year" | "custom_range" | "monthly_trend";
 type ViewMode = "filters" | "trend" | "kpi_trend" | "combined_trend";
 
 // Helper to get initial state from sessionStorage
