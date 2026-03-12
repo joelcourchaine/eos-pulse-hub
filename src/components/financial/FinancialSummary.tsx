@@ -63,257 +63,29 @@ import { ForecastDrawer } from "./ForecastDrawer";
 import { useRockTargets } from "@/hooks/useRockTargets";
 import { useForecastTargets } from "@/hooks/useForecastTargets";
 import { useSubBrandCategories } from "@/hooks/useSubBrandCategories";
+import { MONTH_NAMES_FULL, MONTH_NAMES_SHORT } from "./financialConstants";
+import {
+  getMonthsForQuarter,
+  getPreviousYearMonthsForQuarter,
+  getQuarterMonthsForCalculation,
+  getPrecedingQuarters,
+  getQuarterTrendPeriods,
+  getMonthlyTrendPeriods,
+  type MonthlyTrendPeriod,
+} from "./financialDateUtils";
+import {
+  RATIO_METRICS,
+  calcRatioAwareForecast,
+  calcSubMetricSumForecast,
+  calcVariance,
+  getVarianceStatus,
+} from "./financialCalcUtils";
 
 interface FinancialSummaryProps {
   departmentId: string;
   year: number;
   quarter: number;
 }
-
-const getMonthsForQuarter = (quarter: number, year: number) => {
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
-  const months = [];
-
-  // Always show only the 3 months for the selected quarter
-  for (let i = 0; i < 3; i++) {
-    const monthIndex = (quarter - 1) * 3 + i;
-    months.push({
-      label: monthNames[monthIndex],
-      identifier: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
-    });
-  }
-
-  return months;
-};
-
-const getPreviousYearMonthsForQuarter = (quarter: number, year: number) => {
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
-  const months = [];
-  const previousYear = year - 1;
-
-  // Show the 3 months for the same quarter in the previous year
-  for (let i = 0; i < 3; i++) {
-    const monthIndex = (quarter - 1) * 3 + i;
-    months.push({
-      label: `${monthNames[monthIndex]} ${previousYear}`,
-      identifier: `${previousYear}-${String(monthIndex + 1).padStart(2, "0")}`,
-    });
-  }
-
-  return months;
-};
-
-// Helper function to get only the 3 months for a quarter (for average calculations)
-const getQuarterMonthsForCalculation = (quarter: number, year: number) => {
-  const monthNames = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
-  const months = [];
-  // Always return exactly 3 months for the quarter
-  for (let i = 0; i < 3; i++) {
-    const monthIndex = (quarter - 1) * 3 + i;
-    months.push({
-      label: monthNames[monthIndex],
-      identifier: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
-    });
-  }
-
-  return months;
-};
-
-// Ratio-aware forecast aggregation: percentage metrics must be computed as sum(num)/sum(den)
-const RATIO_METRICS: Record<string, { num: string; den: string }> = {
-  sales_expense_percent:       { num: "sales_expense",     den: "gp_net"      },
-  gp_percent:                  { num: "gp_net",            den: "total_sales" },
-  semi_fixed_expense_percent:  { num: "semi_fixed_expense", den: "gp_net"     },
-  total_fixed_expense_percent: { num: "total_fixed_expense", den: "gp_net"   },
-  return_on_gross:             { num: "department_profit", den: "gp_net"      },
-};
-
-const calcRatioAwareForecast = (
-  metricKey: string,
-  qtrMonthIds: string[],
-  getTarget: (key: string, mid: string) => number | null,
-): { value: number | null; isForecast: boolean } => {
-  const ratioSpec = RATIO_METRICS[metricKey];
-  if (ratioSpec) {
-    const numSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.num, mid) ?? 0), 0);
-    const denSum = qtrMonthIds.reduce((s, mid) => s + (getTarget(ratioSpec.den, mid) ?? 0), 0);
-    if (denSum > 0) return { value: (numSum / denSum) * 100, isForecast: true };
-    return { value: null, isForecast: false };
-  }
-  const vals = qtrMonthIds.map((mid) => getTarget(metricKey, mid)).filter((v): v is number => v !== null);
-  if (vals.length > 0) return { value: vals.reduce((s, v) => s + v, 0) / vals.length, isForecast: true };
-  return { value: null, isForecast: false };
-};
-
-/**
- * For currency/dollar parent metrics that have sub-metrics, roll up the quarterly forecast
- * by summing the individual sub-metric forecast values per month, then averaging.
- * This guarantees the parent's displayed Q1 Target always equals the sum of its sub-metric targets.
- * Returns null if no sub-metric forecast data is found (caller should fall back to calcRatioAwareForecast).
- */
-const calcSubMetricSumForecast = (
-  metricKey: string,
-  qtrMonthIds: string[],
-  subEntries: Array<{ parentMetricKey: string; name: string; orderIndex: number }>,
-  getTarget: (key: string, mid: string) => number | null,
-): { value: number | null; isForecast: boolean } => {
-  // Get unique sub-metric names for this parent, preserving insertion order
-  const seen = new Set<string>();
-  const subNames: string[] = [];
-  for (const sm of subEntries) {
-    if (sm.parentMetricKey === metricKey && !seen.has(sm.name)) {
-      seen.add(sm.name);
-      subNames.push(sm.name);
-    }
-  }
-  if (subNames.length === 0) return { value: null, isForecast: false };
-
-  // Sum sub-metric forecasts per month, then average across the quarter
-  const monthlyTotals = qtrMonthIds.map((mid) =>
-    subNames.reduce((sum, subName) => {
-      const subEntry = subEntries.find(
-        (sm) => sm.parentMetricKey === metricKey && sm.name === subName,
-      );
-      if (!subEntry) return sum;
-      const orderStr = String(subEntry.orderIndex).padStart(3, "0");
-      const key = `sub:${metricKey}:${orderStr}:${subName}`;
-      return sum + (getTarget(key, mid) ?? 0);
-    }, 0),
-  );
-
-  const nonZero = monthlyTotals.filter((v) => v > 0);
-  if (nonZero.length === 0) return { value: null, isForecast: false };
-
-  // Use the full quarter length (3) for the denominator so the average is consistent
-  const avg = monthlyTotals.reduce((s, v) => s + v, 0) / qtrMonthIds.length;
-  return { value: avg, isForecast: true };
-};
-
-const getPrecedingQuarters = (currentQuarter: number, currentYear: number, count: number = 4) => {
-  const quarters = [];
-  let q = currentQuarter;
-  let y = currentYear;
-
-  for (let i = 0; i < count; i++) {
-    q--;
-    if (q < 1) {
-      q = 4;
-      y--;
-    }
-    quarters.push({ quarter: q, year: y, label: `Q${q} ${y}` });
-  }
-
-  return quarters.reverse();
-};
-
-const getQuarterTrendPeriods = (currentQuarter: number, currentYear: number) => {
-  const quarters = [];
-  const startYear = currentYear - 1;
-
-  // Start from Q1 of last year - matches ScorecardGrid behavior
-  for (let y = startYear; y <= currentYear; y++) {
-    const startQ = 1;
-    const endQ = y === currentYear ? currentQuarter : 4;
-
-    for (let q = startQ; q <= endQ; q++) {
-      quarters.push({
-        quarter: q,
-        year: y,
-        label: `Q${q} ${y}`,
-      });
-    }
-  }
-
-  return quarters;
-};
-
-interface MonthlyTrendPeriod {
-  month: number;
-  year: number;
-  label: string;
-  identifier: string;
-  type: "month" | "year-avg" | "year-total";
-  summaryYear?: number;
-  isYTD?: boolean;
-}
-
-const getMonthlyTrendPeriods = (selectedYear: number): MonthlyTrendPeriod[] => {
-  const periods: MonthlyTrendPeriod[] = [];
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-  // Add all 12 months for the selected year only
-  for (let m = 0; m < 12; m++) {
-    periods.push({
-      month: m,
-      year: selectedYear,
-      label: `${monthNames[m]} ${selectedYear}`,
-      identifier: `${selectedYear}-${String(m + 1).padStart(2, "0")}`,
-      type: "month",
-    });
-  }
-
-  // Add year summary columns
-  periods.push({
-    month: -1,
-    year: selectedYear,
-    label: `Avg ${selectedYear}`,
-    identifier: `avg-${selectedYear}`,
-    type: "year-avg",
-    summaryYear: selectedYear,
-  });
-  periods.push({
-    month: -1,
-    year: selectedYear,
-    label: `Total ${selectedYear}`,
-    identifier: `total-${selectedYear}`,
-    type: "year-total",
-    summaryYear: selectedYear,
-  });
-
-  return periods;
-};
 
 export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSummaryProps) => {
   const [entries, setEntries] = useState<{ [key: string]: number }>({});
@@ -3087,7 +2859,6 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
       if (isNaN(targetYear) || isNaN(targetMonth)) return [];
 
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       const options: import("./MonthDropZone").CopySourceOption[] = [];
 
       // Add YTD average option for the same year
@@ -3105,7 +2876,7 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
 
         options.push({
           identifier: monthId,
-          label: `${monthNames[m - 1]} ${targetYear}`,
+          label: `${MONTH_NAMES_SHORT[m - 1]} ${targetYear}`,
           isAverage: false,
         });
       }
@@ -3290,15 +3061,14 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         await loadPrecedingQuartersData();
         await refetchSubMetrics();
 
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const sourceLabel = isSourceAverage
           ? `Avg ${sourceYear} YTD`
           : (() => {
               const [sYear, sMonth] = sourceIdentifier.split("-").map(Number);
-              return `${monthNames[sMonth - 1]} ${sYear}`;
+              return `${MONTH_NAMES_SHORT[sMonth - 1]} ${sYear}`;
             })();
         const [tYear, tMonth] = targetMonthIdentifier.split("-").map(Number);
-        const targetLabel = `${monthNames[tMonth - 1]} ${tYear}`;
+        const targetLabel = `${MONTH_NAMES_SHORT[tMonth - 1]} ${tYear}`;
 
         // Save copy metadata
         const {
@@ -3403,23 +3173,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
         await fetchCopyMetadata();
 
         // Format month label for toast
-        const monthNames = [
-          "January",
-          "February",
-          "March",
-          "April",
-          "May",
-          "June",
-          "July",
-          "August",
-          "September",
-          "October",
-          "November",
-          "December",
-        ];
         const [yearStr, monthStr] = monthIdentifier.split("-");
         const monthIndex = parseInt(monthStr) - 1;
-        const monthLabel = `${monthNames[monthIndex]} ${yearStr}`;
+        const monthLabel = `${MONTH_NAMES_FULL[monthIndex]} ${yearStr}`;
 
         toast({
           title: "Month data cleared",
@@ -4073,17 +3829,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                       calculatedValue !== 0 &&
                                       targetValue !== null
                                     ) {
-                                      const variance =
-                                        metric.type === "percentage"
-                                          ? calculatedValue - targetValue
-                                          : ((calculatedValue - targetValue) / Math.abs(targetValue)) * 100;
-
-                                      if (targetDirection === "above") {
-                                        status =
-                                          variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                      } else {
-                                        status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                      }
+                                      const variance = calcVariance(calculatedValue, targetValue, metric.type);
+                                      status = getVarianceStatus(variance, targetDirection);
                                     }
 
                                     return (
@@ -4139,16 +3886,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   let status: "success" | "warning" | "destructive" | null = null;
 
                                   if (mValue !== null && mValue !== undefined && mValue !== 0 && targetValue !== null) {
-                                    const variance =
-                                      metric.type === "percentage"
-                                        ? mValue - targetValue
-                                        : ((mValue - targetValue) / Math.abs(targetValue)) * 100;
-
-                                    if (targetDirection === "above") {
-                                      status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                    } else {
-                                      status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                    }
+                                    const variance = calcVariance(mValue, targetValue, metric.type);
+                                    status = getVarianceStatus(variance, targetDirection);
                                   }
 
                                   return (
@@ -4455,16 +4194,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 targetValue !== undefined &&
                                 targetValue !== 0
                               ) {
-                                const variance =
-                                  metric.type === "percentage"
-                                    ? qValue - targetValue
-                                    : ((qValue - targetValue) / Math.abs(targetValue)) * 100;
-
-                                if (qtrTargetDirection === "above") {
-                                  status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                } else {
-                                  status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                }
+                                const variance = calcVariance(qValue, targetValue, metric.type);
+                                status = getVarianceStatus(variance, qtrTargetDirection);
                               }
 
                               return (
@@ -4517,16 +4248,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const target = targetInfo.value;
                                   const targetDirection = targetInfo.direction || metric.targetDirection;
 
-                                  const variance =
-                                    metric.type === "percentage"
-                                      ? qValue - target
-                                      : ((qValue - target) / Math.abs(target)) * 100;
-
-                                  if (targetDirection === "above") {
-                                    status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                  } else {
-                                    status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                  }
+                                  const variance = calcVariance(qValue, target, metric.type);
+                                  status = getVarianceStatus(variance, targetDirection);
                                 }
 
                                 return (
@@ -4691,16 +4414,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                   const target = targetInfo.value;
                                   const targetDir = targetInfo.direction || metric.targetDirection;
 
-                                  const variance =
-                                    metric.type === "percentage"
-                                      ? value - target
-                                      : ((value - target) / Math.abs(target)) * 100;
-
-                                  if (targetDir === "above") {
-                                    status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                  } else {
-                                    status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                  }
+                                  const variance = calcVariance(value, target, metric.type);
+                                  status = getVarianceStatus(variance, targetDir);
                                 }
 
                                 return (
@@ -4934,18 +4649,8 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
                                 const monthTargetSource = resolvedMonthTarget?.source ?? (target ? "manual" : null);
                                 let status = "default";
                                 if (value !== null && value !== undefined && value !== 0 && effectiveTarget) {
-                                  const variance =
-                                    metric.type === "percentage"
-                                      ? value - effectiveTarget
-                                      : ((value - effectiveTarget) / Math.abs(effectiveTarget)) * 100;
-
-                                  if (effectiveDir === "above") {
-                                    // Higher is better
-                                    status = variance >= 0 ? "success" : variance >= -10 ? "warning" : "destructive";
-                                  } else {
-                                    // Lower is better (invert the logic)
-                                    status = variance <= 0 ? "success" : variance <= 10 ? "warning" : "destructive";
-                                  }
+                                  const variance = calcVariance(value, effectiveTarget, metric.type);
+                                  status = getVarianceStatus(variance, effectiveDir);
                                 }
 
                                 return (
@@ -5698,23 +5403,9 @@ export const FinancialSummary = ({ departmentId, year, quarter }: FinancialSumma
             <AlertDialogDescription>
               {clearMonthTarget &&
                 (() => {
-                  const monthNames = [
-                    "January",
-                    "February",
-                    "March",
-                    "April",
-                    "May",
-                    "June",
-                    "July",
-                    "August",
-                    "September",
-                    "October",
-                    "November",
-                    "December",
-                  ];
                   const [yearStr, monthStr] = clearMonthTarget.split("-");
                   const monthIndex = parseInt(monthStr) - 1;
-                  return `This will permanently delete all financial data for ${monthNames[monthIndex]} ${yearStr}. This action cannot be undone.`;
+                  return `This will permanently delete all financial data for ${MONTH_NAMES_FULL[monthIndex]} ${yearStr}. This action cannot be undone.`;
                 })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
