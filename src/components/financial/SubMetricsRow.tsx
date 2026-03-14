@@ -178,8 +178,8 @@ export const SubMetricsRow: React.FC<SubMetricsRowProps> = ({
   // Get question data for sub-metric tooltips
   const { getQuestionsForSubMetric, hasQuestionsForSubMetric } = useSubMetricQuestions(departmentId);
 
-  // "View All" toggle: when OFF (default), hide sub-metrics where all values are 0 or blank
-  const [showAll, setShowAll] = useState(false);
+  // "View All" toggle: percentage metrics default to showing all; dollar metrics default to hiding zeros
+  const [showAll, setShowAll] = useState(isPercentageMetric);
 
   const filterMonthIds = useMemo(() => {
     if (periods && periods.length > 0) {
