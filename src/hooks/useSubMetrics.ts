@@ -314,17 +314,18 @@ export const useSubMetrics = (departmentId: string, monthIdentifiers: string[]) 
       monthId: string,
       getFinancialValue: (metricKey: string, monthId: string) => number | null
     ): number | null => {
-      // Special case: Unapplied Time GP % = Unapplied Time GP Net / Total Sales
-      if (parentMetricKey === 'gp_percent' && subMetricName === 'Unapplied Time') {
-        const unappliedTimeGpNet = getSubMetricValue('gp_net', 'Unapplied Time', monthId);
+      // GP % sub-metrics: calculate as (gp_net sub-metric / total_sales) * 100
+      // Sub-metric data is stored under 'gp_net', not 'gp_percent'
+      if (parentMetricKey === 'gp_percent') {
+        const gpNetValue = getSubMetricValue('gp_net', subMetricName, monthId);
         const totalSales = getFinancialValue('total_sales', monthId);
-        
-        if (unappliedTimeGpNet !== null && totalSales !== null && totalSales !== 0) {
-          return (unappliedTimeGpNet / totalSales) * 100; // Return as percentage
+
+        if (gpNetValue !== null && totalSales !== null && totalSales !== 0) {
+          return (gpNetValue / totalSales) * 100;
         }
         return null;
       }
-      
+
       // Default: return the actual stored value
       return getSubMetricValue(parentMetricKey, subMetricName, monthId);
     },
