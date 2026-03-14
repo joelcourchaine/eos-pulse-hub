@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tricare Claims Reference | Steve Marshall Group</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black: #1a1407;
+    --dark: #f7f3ec;
+    --card: #ffffff;
+    --border: #e0d8cc;
+    --gold: #b8892a;
+    --gold-light: #c8a44a;
+    --gold-dim: rgba(184,137,42,0.12);
+    --white: #1a1407;
+    --muted: #888070;
+    --red: #c0392b;
+    --green: #27ae60;
+    --blue: #2471a3;
+    --teal: #148a72;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #f7f3ec;
+    color: #1a1407;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── NAV ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255,252,245,0.97);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid #d8cfc0;
+    padding: 0 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo-wrap { display: flex; align-items: center; gap: 16px; }
+  .logo-img { height: 36px; filter: brightness(1.1); }
+  .logo-divider { width: 1px; height: 28px; background: #c8bfaa; }
+  .logo-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: #8a6010; letter-spacing: 0.15em; text-transform: uppercase; }
+
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    font-size: 13px; font-weight: 500; color: #7a6e5a;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    border: none; background: none; transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .nav-tab:hover { color: #1a1407; background: #ede8df; }
+  .nav-tab.active { color: #8a6010; background: rgba(184,137,42,0.12); }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 60px 32px 40px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(184,137,42,0.07) 0%, transparent 100%);
+  }
+  .hero-label { font-family: 'DM Mono', monospace; font-size: 11px; color: #8a6010; letter-spacing: 0.2em; margin-bottom: 12px; text-transform: uppercase; }
+  .hero-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(42px, 6vw, 72px); line-height: 0.95; letter-spacing: 0.02em; color: #1a1407; }
+  .hero-title span { color: var(--gold); }
+  .hero-subtitle { margin-top: 16px; color: #6a5e4a; max-width: 560px; font-size: 15px; }
+  .hero-contact {
+    margin-top: 24px; display: flex; flex-wrap: wrap; gap: 12px;
+  }
+  .hero-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e0d8cc;
+    border-radius: 100px; padding: 8px 16px; font-size: 13px; font-weight: 500;
+  }
+  .hero-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .hero-pill a { color: var(--white); text-decoration: none; }
+  .hero-pill a:hover { color: var(--gold); }
+
+  /* ── CONTENT ── */
+  .content { padding: 40px 32px; max-width: 1400px; margin: 0 auto; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── SECTION HEADERS ── */
+  .section-header { margin-bottom: 32px; }
+  .section-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.04em; }
+  .section-header p { color: #7a6e5a; margin-top: 4px; font-size: 14px; }
+
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .grid-4 { grid-template-columns: 1fr 1fr; } }
+
+  /* ── CARDS ── */
+  .card {
+    background: #ffffff; border: 1px solid #e0d8cc;
+    border-radius: 12px; padding: 24px;
+  }
+  .card-gold { border-color: rgba(184,137,42,0.35); background: linear-gradient(135deg, #ffffff, rgba(184,137,42,0.06)); }
+  .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 0.04em; margin-bottom: 12px; }
+  .card-title.gold { color: var(--gold); }
+
+  /* ── ALERT BOX ── */
+  .alert {
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;
+    display: flex; gap: 12px; align-items: flex-start;
+    font-size: 14px; font-weight: 500;
+  }
+  .alert-red { background: rgba(192,57,43,0.08); border: 1px solid rgba(192,57,43,0.3); color: #8b1a0f; }
+  .alert-gold { background: rgba(184,137,42,0.10); border: 1px solid rgba(184,137,42,0.35); color: #7a5a10; }
+  .alert-blue { background: rgba(36,113,163,0.08); border: 1px solid rgba(36,113,163,0.3); color: #1a4f75; }
+  .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── STEPS ── */
+  .steps { display: flex; flex-direction: column; gap: 12px; }
+  .step { display: flex; gap: 14px; align-items: flex-start; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--gold-dim);
+    border: 1px solid var(--gold); color: var(--gold); font-weight: 600;
+    font-size: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
+  }
+  .step-body { flex: 1; }
+  .step-label { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  .step-desc { color: #7a6e5a; font-size: 13px; }
+
+  /* ── CHECKLIST ── */
+  .checklist { display: flex; flex-direction: column; gap: 8px; }
+  .check-item { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+  .check-icon { color: var(--gold); font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── TABLE ── */
+  .rate-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .rate-table th {
+    text-align: left; padding: 10px 14px;
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #7a6e5a; border-bottom: 1px solid var(--border);
+  }
+  .rate-table td { padding: 12px 14px; border-bottom: 1px solid rgba(42,42,42,0.7); }
+  .rate-table tr:last-child td { border-bottom: none; }
+  .rate-table tr:hover td { background: rgba(184,137,42,0.05); }
+  .rate-table .num { font-family: 'DM Mono', monospace; font-weight: 500; }
+  .rate-table .factory { color: var(--gold); }
+  .rate-table .cp { color: var(--teal); }
+  .rate-missing { color: var(--red); font-size: 12px; font-style: italic; }
+  .dealer-id { font-family: 'DM Mono', monospace; font-size: 12px; color: #7a6e5a; }
+
+  /* ── BAR CHART ── */
+  .chart-wrap { margin-top: 8px; }
+  .bar-row { margin-bottom: 14px; }
+  .bar-meta { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; }
+  .bar-name { color: var(--white); font-weight: 500; }
+  .bar-vals { display: flex; gap: 12px; }
+  .bar-val-f { color: var(--gold); font-family: 'DM Mono', monospace; font-size: 12px; }
+  .bar-val-c { color: var(--teal); font-family: 'DM Mono', monospace; font-size: 12px; }
+  .bar-track { height: 6px; background: #e0d8cc; border-radius: 99px; overflow: hidden; display: flex; gap: 2px; }
+  .bar-seg { height: 100%; border-radius: 99px; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+  .bar-f { background: var(--gold); }
+  .bar-c { background: var(--teal); }
+
+  /* ── CLAIM CARDS ── */
+  .claim-card {
+    background: #ffffff; border: 1px solid #e0d8cc;
+    border-radius: 12px; padding: 20px; cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .claim-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+  .claim-card-icon { font-size: 28px; margin-bottom: 10px; }
+  .claim-card-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+  .claim-card-limit { font-size: 12px; color: #7a6e5a; margin-bottom: 10px; }
+  .claim-card-badge { display: inline-block; font-size: 11px; font-family: 'DM Mono', monospace; padding: 2px 8px; border-radius: 4px; background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(200,164,74,0.2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 500;
+    background: rgba(26,20,7,0.65); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #ffffff; border: 1px solid #e0d8cc;
+    border-radius: 16px; max-width: 560px; width: 100%; padding: 32px;
+    position: relative; animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+  .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #7a6e5a; font-size: 22px; cursor: pointer; line-height: 1; }
+  .modal-close:hover { color: var(--white); }
+  .modal-icon { font-size: 40px; margin-bottom: 12px; }
+  .modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .modal-tag { font-size: 12px; font-family: 'DM Mono', monospace; color: #8a6010; margin-bottom: 20px; }
+  .modal-section { margin-top: 16px; }
+  .modal-section-title { font-size: 11px; font-family: 'DM Mono', monospace; letter-spacing: 0.15em; text-transform: uppercase; color: #7a6e5a; margin-bottom: 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .modal ul { padding-left: 16px; font-size: 14px; color: #ccc; line-height: 1.8; }
+  .modal .info-row { display: flex; gap: 8px; font-size: 13px; margin-top: 6px; }
+  .modal .info-label { color: #7a6e5a; white-space: nowrap; min-width: 130px; }
+  .modal .info-val { color: var(--white); font-weight: 500; }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--border); margin: 32px 0; }
+
+  /* ── REIMBURSEMENT GRID ── */
+  .reimb-block { background: #ffffff; border: 1px solid #e0d8cc; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .reimb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .reimb-title { font-weight: 600; }
+  .reimb-tag { font-size: 11px; font-family: 'DM Mono', monospace; padding: 3px 10px; border-radius: 4px; }
+  .tag-gold { background: var(--gold-dim); color: var(--gold); }
+  .tag-teal { background: rgba(82,200,180,0.1); color: var(--teal); }
+  .tag-blue { background: rgba(82,152,224,0.1); color: var(--blue); }
+  .reimb-rows { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+  .reimb-key { color: #7a6e5a; white-space: nowrap; }
+  .reimb-val { color: var(--white); font-weight: 500; }
+
+  /* ── QUICK ACTION BTNS ── */
+  .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 500;
+    cursor: pointer; text-decoration: none; border: none; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .btn-gold { background: var(--gold); color: var(--black); }
+  .btn-gold:hover { background: var(--gold-light); }
+  .btn-outline { background: transparent; color: var(--white); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ── COVERAGE LIST ── */
+  .coverage-list {
+    font-size: 13px; color: #5a5040; line-height: 1.9;
+  }
+  .coverage-card.hidden { display: none; }
+
+  /* ── FOOTER ── */
+  .footer { text-align: center; padding: 40px 32px; border-top: 1px solid var(--border); color: #7a6e5a; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo-wrap">
+    <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADZAyEDASIAAhEBAxEB/8QAHQABAAICAwEBAAAAAAAAAAAAAAcIBgkDBAUCAf/EAF4QAAEDAgMEBQUJDQUGAgYLAAEAAgMEBQYHEQgSITETGEFRlCJXYXHSFBYyQlJydYHTFSM3OVVWYoKRs7TB0QkkM5KhFzRDY3OxU6IldHbC4fA2OFiDk5WlssPi8f/EABsBAQADAQADAAAAAAAAAAAAAAAEBQYDAQIH/8QALREBAAEDAwAIBQUAAAAAAAAAAAECAwQFERIGISMxMkFRgRMiYXHRFFKRobH/2gAMAwEAAhEDEQA/ALloq/5zbSLcu8x58FxYGrL3UQwRzCWCt3C4PbvaBgjceA9KxXreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xTreXDzO3zxjvsUFqkVVet5cPM7fPGO+xXns23bK1o6fL+4MceQZcWOGnrLAgt0iqP14MP8A5hXTx0fsp14MP/mFdPHR+ygtwiqP14MP/mFdPHR+ynXgw/8AmFdPHR+ygtwiqP14MP8A5hXTx0fsp14MP/mFdPHR+ygtwiqP14MP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vrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hOuVb/NrffEt9hWqRBVXrlW/za33xLfYTrlW/wA2t98S32FapEFVeuVb/NrffEt9hUndZLzUNa+C0V8rQNCWUz3AHXlwC3BIg0+e93EH5CunhH/0T3u4g/IV08I/+i3Bog0+e93EH5CunhH/ANE97uIPyFdPCP8A6LcGiDT573cQfkK6eEf/AET3u4g/IV08I/8AotwaINPnvdxB+Qrp4R/9E97uIPyFdPCP/otwaINPnvdxB+Qrp4R/9E97uIPyFdPCP/otwaINPnvdxB+Qrp4R/wDRPe7iD8hXTwj/AOi3Bog0+e93EH5CunhH/wBE97uIPyFdPCP/AKLcGiDT573cQfkK6eEf/RPe7iD8hXTwj/6LcGiDT573cQfkK6eEf/RPe7iD8hXTwj/6LcGiDT573cQfkK6eEf8A0T3u4g/IV08I/wDotwaINPnvdxB+Qrp4R/8ARPe7iD8hXTwj/wCi3Bog0+e93EH5CunhH/0T3u4g/IV08I/+i3Bog0+e93EH5CunhH/0T3u4g/IV08I/+i3Bog0+e93EH5CunhH/ANE97uIPyFdPCP8A6LcGiDT573cQfkK6eEf/AET3u4g/IV08I/8AotwaINPnvdxB+Qrp4R/9Fk2VFhvsWaWE5ZbLcWMZe6NznOpXgNAnZqSdOAW11EBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERB/9k=" alt="Steve Marshall Group" style="height:44px; display:block;">
+    <div class="logo-divider"></div>
+    <div class="logo-sub">Tricare Claims<br>Reference Guide</div>
+  </div>
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="showSection('overview')">Overview</button>
+    <button class="nav-tab" onclick="showSection('rates')">Labour Rates</button>
+    <button class="nav-tab" onclick="showSection('reimbursement')">Reimbursement</button>
+    <button class="nav-tab" onclick="showSection('hazard')">Hazard Claims</button>
+    <button class="nav-tab" onclick="showSection('coverage')">What's Covered</button>
+    <button class="nav-tab" onclick="showSection('appearance')">Appearance Claims</button>
+    <button class="nav-tab" onclick="showSection('submit')">How to Submit</button>
+  </nav>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">Service Advisor Reference · Tricare Warranty Claims</div>
+  <div class="hero-title">TRICARE<br><span>CLAIMS</span> GUIDE</div>
+  <div class="hero-subtitle">Everything your service team needs to process Tricare claims correctly — rates, reimbursement rules, and step-by-step submission instructions.</div>
+  <div class="hero-contact">
+    <div class="hero-pill"><span class="dot"></span>Claims Portal: <a href="https://tricor.yde.claims/" target="_blank">tricor.yde.claims</a></div>
+    <div class="hero-pill"><span class="dot" style="background:var(--gold)"></span>Claims Phone: <a href="tel:18446012018">1-844-601-2018</a></div>
+    <div class="hero-pill"><span class="dot" style="background:var(--blue)"></span>Email: <a href="mailto:claimreview@tricorauto.com">claimreview@tricorauto.com</a></div>
+    <div class="hero-pill"><span class="dot" style="background:var(--blue)"></span>Payments: <a href="mailto:claimpayments@rps-tpa.com">claimpayments@rps-tpa.com</a></div>
+    <div class="hero-pill"><span class="dot" style="background:var(--red)"></span>Escalation: <a href="tel:18004577703">1-800-457-7703 ext. 7011</a></div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="content">
+
+  <!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
+  <div id="section-overview" class="section active">
+    <div class="section-header">
+      <h2>Quick Overview</h2>
+      <p>Start here — the critical rules every advisor must know before touching a Tricare claim.</p>
+    </div>
+
+    <div class="alert alert-red">
+      <span class="alert-icon">🚫</span>
+      <div><strong>No repairs or payment shall be made without prior authorization.</strong> Always obtain authorization through the SDX portal or by phone before beginning any work on a Tricare claim.</div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px">
+      <div class="card card-gold">
+        <div class="card-title gold">Hours of Operation</div>
+        <div class="checklist">
+          <div class="check-item"><span class="check-icon">🕐</span>Monday to Friday: 8 AM – 6 PM EST</div>
+          <div class="check-item"><span class="check-icon">🕐</span>Saturday: 9 AM – 3 PM EST</div>
+          <div class="check-item"><span class="check-icon">📞</span>Phone: 1-844-601-2018</div>
+          <div class="check-item"><span class="check-icon">🌐</span>Portal: tricor.yde.claims</div>
+          <div class="check-item"><span class="check-icon">📧</span>claims@rps-tpa.com</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Escalation to Supervisor</div>
+        <p style="color:#aaa; font-size:14px; margin-bottom:12px;">For exceptional circumstances on a current claim — extra labour, parts issues, or diagnosis disputes — escalate directly to a claims adjuster supervisor.</p>
+        <div class="check-item" style="margin-bottom:8px;"><span class="check-icon">📞</span><strong>1-800-457-7703 ext. 7011</strong></div>
+        <p style="color:#666; font-size:13px;">Use this for active claims only — not for new claim authorization.</p>
+      </div>
+    </div>
+
+    <div class="section-header" style="margin-top:40px; margin-bottom:16px;">
+      <h2>Before You Call — Have This Ready</h2>
+      <p>Required information for every claim authorization request</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Vehicle & Customer Info</div>
+        <div class="checklist">
+          <div class="check-item"><span class="check-icon">✦</span>Agreement / Contract number</div>
+          <div class="check-item"><span class="check-icon">✦</span>VIN</div>
+          <div class="check-item"><span class="check-icon">✦</span>Customer name</div>
+          <div class="check-item"><span class="check-icon">✦</span>Year, Make, Model</div>
+          <div class="check-item"><span class="check-icon">✦</span>Odometer reading</div>
+          <div class="check-item"><span class="check-icon">✦</span>Date work order was opened</div>
+          <div class="check-item"><span class="check-icon">✦</span>Work order number</div>
+          <div class="check-item"><span class="check-icon">✦</span>Your name and facility</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Repair Details</div>
+        <div class="checklist">
+          <div class="check-item"><span class="check-icon">✦</span>Estimate with part numbers and labour times</div>
+          <div class="check-item"><span class="check-icon">✦</span>3 C's: <strong>Complaint, Cause, Correction</strong></div>
+          <div class="check-item"><span class="check-icon">✦</span>Tow bill details if applicable (invoice # and amount)</div>
+          <div class="check-item"><span class="check-icon">✦</span>Rental required? (Yes/No)</div>
+          <div class="check-item"><span class="check-icon">✦</span>Any other complaints on the work order</div>
+          <div class="check-item"><span class="check-icon">✦</span>Photos of damage (for appearance/hazard claims)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Our Stores at a Glance</h2>
+      <p>Dealer numbers for the SDX platform — required for all claim submissions</p>
+    </div>
+
+    <div class="grid-4">
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.006</div>
+        <div style="font-weight:600; font-size:14px;">Steve Marshall Ford</div>
+        <div style="color:var(--muted); font-size:12px;">Campbell River</div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.004</div>
+        <div style="font-weight:600; font-size:14px;">North Island Nissan</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.005</div>
+        <div style="font-weight:600; font-size:14px;">Pacific Nations</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.003</div>
+        <div style="font-weight:600; font-size:14px;">Island Owl Mazda</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.011</div>
+        <div style="font-weight:600; font-size:14px;">Titanium Ford</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.009</div>
+        <div style="font-weight:600; font-size:14px;">Vernon Nissan</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.013</div>
+        <div style="font-weight:600; font-size:14px;">Rivershore Chrysler</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.002</div>
+        <div style="font-weight:600; font-size:14px;">Courtenay Nissan</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.014</div>
+        <div style="font-weight:600; font-size:14px;">Abbotsford Nissan</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.015</div>
+        <div style="font-weight:600; font-size:14px;">River City Chrysler</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+      <div class="card" style="padding:16px;">
+        <div style="font-size:11px; font-family:'DM Mono',monospace; color:var(--gold); margin-bottom:4px;">76.001</div>
+        <div style="font-weight:600; font-size:14px;">Campbell River Honda</div>
+        <div style="color:var(--muted); font-size:12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ LABOUR RATES ═══════════════════════════════ -->
+  <div id="section-rates" class="section">
+    <div class="section-header">
+      <h2>Store Labour Rates</h2>
+      <p>Rates on file with Tricare as of February 2024 — contact Michelle Jawan to update</p>
+    </div>
+
+    <div class="alert alert-gold">
+      <span class="alert-icon">⚠️</span>
+      <div>
+        <strong>Rate Update Process:</strong> Any changes to your CP retail door rate or factory labour rate must be reported to Tricare at <strong>claimreview@tricorauto.com</strong>. Rates typically update annually.
+        <br><br>
+        <strong>To update CP labour rate:</strong> Provide a current CP invoice (closed prior to today) showing one hour of general labour.<br>
+        <strong>To update Factory rate:</strong> Provide the manufacturer communication showing the new rate and effective date.
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:32px;">
+      <div class="card">
+        <div class="card-title">Rate Table — All Stores</div>
+        <table class="rate-table">
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Dealer #</th>
+              <th>Factory / On-Make</th>
+              <th>CP Retail / Off-Make</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Steve Marshall Ford CR</td>
+              <td class="dealer-id">76.006</td>
+              <td class="num factory">$145.64</td>
+              <td class="rate-missing">Not on file</td>
+            </tr>
+            <tr>
+              <td>North Island Nissan</td>
+              <td class="dealer-id">76.004</td>
+              <td class="num factory">$175.30</td>
+              <td class="num cp">$199.95</td>
+            </tr>
+            <tr>
+              <td>Island Owl Mazda</td>
+              <td class="dealer-id">76.003</td>
+              <td class="num factory">$154.78</td>
+              <td class="num cp">$155.00</td>
+            </tr>
+            <tr>
+              <td>Titanium Ford</td>
+              <td class="dealer-id">76.011</td>
+              <td class="num factory">$155.57</td>
+              <td class="num cp">$199.95</td>
+            </tr>
+            <tr>
+              <td>Vernon Nissan</td>
+              <td class="dealer-id">76.009</td>
+              <td class="num factory">$162.20</td>
+              <td class="num cp">$188.95</td>
+            </tr>
+            <tr>
+              <td>Rivershore Chrysler</td>
+              <td class="dealer-id">76.013</td>
+              <td class="num factory">$150.60</td>
+              <td class="num cp">$179.95</td>
+            </tr>
+            <tr>
+              <td>Courtenay Nissan</td>
+              <td class="dealer-id">76.002</td>
+              <td class="num factory">$173.80</td>
+              <td class="num cp">$199.00</td>
+            </tr>
+            <tr>
+              <td>Abbotsford Nissan</td>
+              <td class="dealer-id">76.014</td>
+              <td class="num factory">$126.50</td>
+              <td class="num cp">$190.00</td>
+            </tr>
+            <tr>
+              <td>River City Chrysler</td>
+              <td class="dealer-id">76.015</td>
+              <td class="num factory">$116.00</td>
+              <td class="num cp">$180.00</td>
+            </tr>
+            <tr>
+              <td>Campbell River Honda</td>
+              <td class="dealer-id">76.001</td>
+              <td class="num factory">$122.00</td>
+              <td class="num cp">$144.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Visual Comparison</div>
+        <div style="display:flex; gap:16px; margin-bottom:16px; font-size:12px; font-family:'DM Mono',monospace;">
+          <span style="color:var(--gold);">█ Factory / On-Make</span>
+          <span style="color:var(--teal);">█ CP Retail / Off-Make</span>
+        </div>
+        <div class="chart-wrap" id="rate-chart"></div>
+      </div>
+    </div>
+
+    <div class="alert alert-blue">
+      <span class="alert-icon">💡</span>
+      <div><strong>Note for Steve Marshall Ford Campbell River:</strong> The CP Retail / Off-Make rate is not currently on file with Tricare. If your store handles off-make claims at CP rates, contact <strong>claimreview@tricorauto.com</strong> to get this rate added.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ REIMBURSEMENT ═══════════════════════════════ -->
+  <div id="section-reimbursement" class="section">
+    <div class="section-header">
+      <h2>Reimbursement Schedule</h2>
+      <p>Parts and labour times/rates for Tricare Ultimate Protect warranty claims — effective March 2024</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px;">
+
+      <div>
+        <div class="reimb-block">
+          <div class="reimb-header">
+            <div class="reimb-title">🔧 On-Makes (OEM / Same Brand)</div>
+            <div class="reimb-tag tag-gold">Factory Rate</div>
+          </div>
+          <div class="reimb-rows">
+            <div class="reimb-key">Labour Times</div>
+            <div class="reimb-val">Mitchell ProDemand times</div>
+            <div class="reimb-key">Labour Rate</div>
+            <div class="reimb-val">Your Factory labour rate</div>
+            <div class="reimb-key">OEM Parts</div>
+            <div class="reimb-val">MSRP <strong style="color:var(--red);">minus 20%</strong></div>
+            <div class="reimb-key">Jobber Parts</div>
+            <div class="reimb-val">MSRP (if back-ordered only)</div>
+          </div>
+        </div>
+
+        <div class="reimb-block">
+          <div class="reimb-header">
+            <div class="reimb-title">🔩 Off-Makes (All Other Brands)</div>
+            <div class="reimb-tag tag-teal">CP Retail Rate</div>
+          </div>
+          <div class="reimb-rows">
+            <div class="reimb-key">Labour Times</div>
+            <div class="reimb-val">Mitchell ProDemand times</div>
+            <div class="reimb-key">Labour Rate</div>
+            <div class="reimb-val">Your CP retail door rate</div>
+            <div class="reimb-key">Parts</div>
+            <div class="reimb-val">MSRP</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="reimb-block">
+          <div class="reimb-header">
+            <div class="reimb-title">🔄 Aftermarket / Used Parts</div>
+            <div class="reimb-tag tag-blue">Special Rules Apply</div>
+          </div>
+          <div class="checklist" style="font-size:14px; gap:10px;">
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Aftermarket parts (on or off-make):</strong> 30% mark-up on verified MSRP. Pricing will be compared to OEM — most cost-effective choice authorized.</div></div>
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Used Powertrain parts</strong> (engines, transmissions): 20% mark-up, capped at <strong>$1,000</strong></div></div>
+          </div>
+        </div>
+
+        <div class="reimb-block">
+          <div class="reimb-header">
+            <div class="reimb-title">🚗 Sublet Reimbursement</div>
+            <div class="reimb-tag tag-gold">Full Reimb. Available</div>
+          </div>
+          <div class="checklist" style="font-size:14px; gap:10px;">
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Full vehicle repair (sent to another facility):</strong> Full reimbursement of the sublet invoice amount.</div></div>
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Component sublet repair</strong> (machine shop, rim repair, windshield, called-in sublet): <strong>20% mark-up</strong> can be added to your sublet invoice.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Emergency Roadside Assistance</h2>
+      <p>Included with every Tricare Ultimate Protect plan — 24/7, 365 days a year</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px;">
+      <div class="card card-gold">
+        <div class="card-title gold">📞 Roadside Number</div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:36px; color:var(--gold); letter-spacing:0.05em; margin-bottom:4px;">1-855-287-4267</div>
+        <div style="font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); margin-bottom:16px;">1-855-2TRICOR · 24 hrs / 365 days</div>
+        <div class="checklist" style="font-size:13px; gap:8px;">
+          <div class="check-item"><span class="check-icon">✦</span>Customer calls this number directly — not the claims line</div>
+          <div class="check-item"><span class="check-icon">✦</span>If costs exceed the maximums, customer pays the difference directly to the provider</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Service Maximums</div>
+        <table style="width:100%; font-size:14px; border-collapse:collapse;">
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Towing — to Selling Dealer / Group</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--gold); text-align:right;">$250 max</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Towing — elsewhere</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--gold); text-align:right;">$150 max</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Jump starts</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--teal); text-align:right;">$150 / incident</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Flat tire change (using spare)</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--teal); text-align:right;">$150 / incident</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Fluid delivery <span style="font-size:11px;">(fluids extra, paid on-site)</span></td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--teal); text-align:right;">$150 / incident</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:10px 0; color:var(--muted);">Lockout service</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--teal); text-align:right;">$150 / incident</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0; color:var(--muted);">Concierge service</td>
+            <td style="padding:10px 0; font-family:'DM Mono',monospace; color:var(--teal); text-align:right;">$150 / incident</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Additional Customer Benefits</h2>
+      <p>Included at no extra cost with every Tricare Ultimate Protect plan — let customers know!</p>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:32px;">
+      <div class="card">
+        <div class="card-title">✈️ Trip Interruption</div>
+        <p style="font-size:14px; color:#aaa; margin-bottom:12px;">If the vehicle breaks down more than <strong style="color:var(--white);">160 km from home</strong> and requires overnight repairs, Tricare reimburses the customer for meals and lodging while the vehicle is being repaired.</p>
+        <div style="font-family:'DM Mono',monospace; font-size:12px; color:var(--gold); padding:10px; background:var(--gold-dim); border-radius:8px;">
+          Covered when vehicle is disabled 160+ km from home
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🚗 Substitute Transportation</div>
+        <p style="font-size:14px; color:#aaa; margin-bottom:12px;">If the vehicle must be kept overnight for covered repairs, Tricare reimburses the customer for rental / substitute transportation costs while repairs are completed.</p>
+        <div style="font-family:'DM Mono',monospace; font-size:12px; color:var(--teal); padding:10px; background:rgba(82,200,180,0.08); border-radius:8px;">
+          Applies to any covered overnight repair
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🌎 Coverage Details</div>
+        <div class="checklist" style="font-size:13px; gap:10px;">
+          <div class="check-item"><span class="check-icon">✦</span><strong>North America-wide</strong> — covered across all of Canada and the continental United States</div>
+          <div class="check-item"><span class="check-icon">✦</span><strong>Transferable</strong> — coverage can transfer to a new owner</div>
+          <div class="check-item"><span class="check-icon">✦</span><strong>Choice of deductible</strong> — set at time of purchase</div>
+          <div class="check-item"><span class="check-icon">✦</span><strong>Financing available</strong> — for the contract cost</div>
+          <div class="check-item"><span class="check-icon">✦</span>Insured by licensed Canadian Insurance companies</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Getting Paid — Renascent Payment Rules</h2>
+      <p>Follow these rules exactly to avoid short payment on your final invoice</p>
+    </div>
+
+    <div class="alert alert-red" style="margin-bottom:20px;">
+      <span class="alert-icon">⚠️</span>
+      <div><strong>Your final invoice must match the authorization sheet exactly.</strong> The claim payments department cannot add anything after the fact — go back to your adjuster before submitting if anything changes.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-title">Final Invoice Checklist</div>
+      <div class="checklist" style="font-size:14px; gap:12px;">
+        <div class="check-item"><span class="check-icon" style="color:var(--green);">✓</span>All labour dollar amounts match the auth sheet and clearly state what each labour line is for</div>
+        <div class="check-item"><span class="check-icon" style="color:var(--green);">✓</span>All part numbers, quantities, and prices match exactly</div>
+        <div class="check-item"><span class="check-icon" style="color:var(--green);">✓</span>Sublets are booked out on your invoice</div>
+        <div class="check-item"><span class="check-icon" style="color:var(--green);">✓</span>If you need to add parts or labour, go back to your adjuster to amend the claim FIRST</div>
+        <div class="check-item"><span class="check-icon" style="color:var(--green);">✓</span>Include any sublet invoices when submitting for payment</div>
+      </div>
+      <div class="btn-group">
+        <a href="mailto:claimpayments@rps-tpa.com" class="btn btn-gold">📧 Submit to claimpayments@rps-tpa.com</a>
+        <div class="btn btn-outline">📠 Fax: (614) 652-3684</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ HAZARD CLAIMS ═══════════════════════════════ -->
+  <div id="section-hazard" class="section">
+    <div class="section-header">
+      <h2>Hazard Protect — Claim Types</h2>
+      <p>Click any coverage card for full details, what's covered, and claim limits</p>
+    </div>
+
+    <div class="alert alert-red" style="margin-bottom:24px;">
+      <span class="alert-icon">🚫</span>
+      <div><strong>Authorization required before all repairs.</strong> Submit through SDX: <a href="https://tricor.yde.claims/" style="color:var(--gold)">tricor.yde.claims</a> — or call 1-844-601-2018 — or email claims@rps-tpa.com</div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:32px;">
+      <div class="claim-card" onclick="openModal('tire')">
+        <div class="claim-card-icon">🛞</div>
+        <div class="claim-card-title">Tire Road Hazard</div>
+        <div class="claim-card-limit">No limit on claims · Max $1,000 over term</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('tirerim')">
+        <div class="claim-card-icon">⚙️</div>
+        <div class="claim-card-title">Tire & Rim Road Hazard</div>
+        <div class="claim-card-limit">No limit on claims · Max $10,000 over term</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('windshield')">
+        <div class="claim-card-icon">🪟</div>
+        <div class="claim-card-title">Windshield Repair / Replace</div>
+        <div class="claim-card-limit">Repair: no limit · Replace: 1 claim / $1,000</div>
+        <div class="claim-card-badge">NOT AVAILABLE: AB/SK/MB/YT/NT/NU</div>
+      </div>
+      <div class="claim-card" onclick="openModal('dent')">
+        <div class="claim-card-icon">🔨</div>
+        <div class="claim-card-title">Dent & Ding (PDR)</div>
+        <div class="claim-card-limit">Max $2,000 over term · Hail: $500</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('paint')">
+        <div class="claim-card-icon">🎨</div>
+        <div class="claim-card-title">Paint Repair</div>
+        <div class="claim-card-limit">2 repairs over term · Max $750 aggregate</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('rim')">
+        <div class="claim-card-icon">🔵</div>
+        <div class="claim-card-title">Cosmetic Rim Damage</div>
+        <div class="claim-card-limit">Cosmetic only — no structural replacement</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('lights')">
+        <div class="claim-card-icon">💡</div>
+        <div class="claim-card-title">Headlight / Tail / Fog Light</div>
+        <div class="claim-card-limit">2 repairs or 1 replacement · Max $800</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('key')">
+        <div class="claim-card-icon">🔑</div>
+        <div class="claim-card-title">Key & Remote Replacement</div>
+        <div class="claim-card-limit">Max $1,000 per contract year</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+      <div class="claim-card" onclick="openModal('interior')">
+        <div class="claim-card-icon">🪑</div>
+        <div class="claim-card-title">Rip, Tear, Burn / Spot Removal</div>
+        <div class="claim-card-limit">RTB: 3 claims / $500 each · Spot: 1/year</div>
+        <div class="claim-card-badge">HAZARD PROTECT</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Standard Photos Required</h2>
+      <p>Most appearance and hazard claims require the following photos — have the customer send or bring these in</p>
+    </div>
+    <div class="card">
+      <div class="checklist" style="font-size:14px; gap:10px;">
+        <div class="check-item"><span class="check-icon">📸</span>VIN number (dashboard)</div>
+        <div class="check-item"><span class="check-icon">📸</span>Odometer reading</div>
+        <div class="check-item"><span class="check-icon">📸</span>Full front of vehicle</div>
+        <div class="check-item"><span class="check-icon">📸</span>Full rear of vehicle</div>
+        <div class="check-item"><span class="check-icon">📸</span>Driver side of vehicle</div>
+        <div class="check-item"><span class="check-icon">📸</span>Passenger side of vehicle</div>
+        <div class="check-item"><span class="check-icon">📸</span>Close-up of damage</div>
+        <div class="check-item"><span class="check-icon">📸</span>Wide shot of damage in context</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════ WHAT'S COVERED ═══════════════════════════════ -->
+  <div id="section-coverage" class="section">
+    <div class="section-header">
+      <h2>Tricare Ultimate Protect — What's Covered</h2>
+      <p>Coverage for just about every failure. Unless an item is listed as NOT covered — it is!</p>
+    </div>
+
+    <div class="alert alert-gold" style="margin-bottom:28px;">
+      <span class="alert-icon">⭐</span>
+      <div><strong>Comprehensive Coverage Philosophy:</strong> Tricare Ultimate Protect covers virtually all mechanical and electrical failures. Use the exclusions list at the bottom to quickly confirm — if it's not on that list, it's covered.</div>
+    </div>
+
+    <!-- SEARCH BAR -->
+    <div style="margin-bottom:28px;">
+      <input id="coverage-search" type="text" placeholder="🔍  Search components (e.g. turbo, fuel pump, ABS...)" oninput="filterCoverage(this.value)"
+        style="width:100%; max-width:500px; padding:12px 16px; background:#fff; border:2px solid #b8892a; border-radius:10px; color:#1a1407; font-family:'DM Sans',sans-serif; font-size:15px; outline:none; box-shadow: 0 2px 8px rgba(184,137,42,0.1);">
+    </div>
+
+    <div id="coverage-grid" class="grid-3" style="margin-bottom:40px;">
+
+      <div class="card coverage-card" data-terms="engine manifolds expansion plugs harmonic balancer pulleys oil pan rotary supercharger turbocharger timing belt chain water pump seals gaskets cylinder heads block">
+        <div class="card-title gold">🔧 Engine</div>
+        <div class="coverage-list">All internal lubricated parts · Manifolds · Expansion plugs · Harmonic balancer · Pulleys · Engine mounts · Oil pan · Rotary engine / rotor housing · Supercharger / turbocharger (factory installed): housing, internal parts, vanes · Timing belt/chain and tensioner · Timing chain cover · Valve cover(s) · Water pump · Seals and gaskets · Metal cooler lines · Hoses with metal/alloy pressure fittings · Engine block · Cylinder heads</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="transmission automatic standard transfer case torque converter flywheel flexplate dual clutch cooler front pump vacuum modulator control module seals gaskets">
+        <div class="card-title gold">⚙️ Transmission</div>
+        <div class="coverage-list">Automatic, Standard or Transfer Case — all internal lubricated parts · Mounts · Torque converter · Flywheel/flexplate · Transmission and transfer case housing · Dual clutch transmission · Transmission cooler · Front pump · Oil pan · Vacuum modulator · External and internal control units · Seals and gaskets · Metal cooler lines · Hoses with metal/alloy fittings · Transmission Control Module</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="front rear all wheel drive axles axle bearings cv joints constant velocity boots drive shaft differential hub bearings locking assemblies universal joints four wheel drive actuator seals gaskets">
+        <div class="card-title gold">🚗 Front / Rear / AWD</div>
+        <div class="coverage-list">All internal lubricated parts within drive/transaxle assembly · Axles and axle bearings · Constant velocity joints · Constant velocity boots · Drive axle housing · Drive shaft support · Differential cover · Hub bearings · Front hub locking assemblies · Drive shaft · Universal joints · Four wheel drive actuator · Seals and gaskets</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="steering power steering rack pinion tie rod pitman arm idler arm intermediate shaft tilt wheel electronic steering seals gaskets">
+        <div class="card-title gold">🔄 Steering</div>
+        <div class="coverage-list">All internal lubricated parts within steering gear and power steering pump · Power steering hoses and couplings · Intermediate shaft and main shaft · Steering gear and pump housing · Pitman arm · Idler arm · Tie rod ends · Drag link · Tilt wheel mechanism · Rack and pinion gear and housing · Electronic steering systems · Seals and gaskets</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="brakes master cylinder proportioning valve vacuum booster hydro boost disc brake caliper wheel cylinders hydraulic lines abs wheel speed sensors electronic brake seals gaskets">
+        <div class="card-title gold">🛑 Brakes</div>
+        <div class="coverage-list">Master cylinder · Proportioning valve · Vacuum assist booster · Hydro boost · Disc brake caliper · Wheel cylinders · Compensating valve · Brake hydraulic lines and fittings · Hydraulic control unit · Seals and gaskets · Electronic control processor · Wheel speed sensors · Hydraulic pump/motor assembly · Pressure modulator valve/isolation dump valve · Accumulator · Electronic emergency brake · Electronic brake booster</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="suspension ball joints control arms bearings bushings shafts torsion bars stabilizer sway bar links spindles wheel bearings shocks struts upper pivot air ride height sensor">
+        <div class="card-title gold">🌀 Suspension</div>
+        <div class="coverage-list">Ball joints · Control arms · Bearings · Bushings · Shafts · Torsion bars · Mounts and bushings · Stabilizer bar · Links and bushings · Radius arm and bushings · Height sensor · Mode switch · Spindles · Wheel bearings · Shocks & Struts · Upper pivot bearing mounting assembly · Wheel seals · Air Ride System: level control sensors, limiter valves and compressor</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="air conditioning ac compressor blower condenser evaporator orifice tube suction accumulator refrigerant seals gaskets idler pulley">
+        <div class="card-title gold">❄️ Air Conditioning</div>
+        <div class="coverage-list">Accumulator · Blower motor · Compressor: clutch, internal parts and pulley assembly · Condenser · Evaporator · Orifice tube · Suction control devices · Thermostatic expansion valve · High/low compressor cut-off switch · Pressure cycling switch · Seals and gaskets · A/C lines · Idler pulley and bearings · Refrigerant ONLY if needed in conjunction with a covered repair</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="cooling radiator fan heater core thermostat heater control belt tensioner water seals gaskets metal cooler lines hoses">
+        <div class="card-title gold">🌡️ Cooling System</div>
+        <div class="coverage-list">Cooling fan motor · Blade assembly · Clutch and motor · Radiator · Belt tensioner · Heater core · Thermostat · Heater control valve · Seals and gaskets · Metal cooler lines · Hoses with metal/alloy fittings attached</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="fuel system fuel pump distributor injectors lines pressure regulator rail tank sending unit">
+        <div class="card-title gold">⛽ Fuel System</div>
+        <div class="coverage-list">Fuel pump · Fuel distributor · Injectors · Lines (metal) · Pressure regulator · Rail · Tank · Fuel tank sending unit</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="electrical alternator ignition coil module ecm pcm bcm starter motor solenoid wiper washer mirror wiring harness switches usb throttle body idle sensors">
+        <div class="card-title gold">⚡ Electrical</div>
+        <div class="coverage-list">Alternator · Back up light switch · Horns · Ignition coil · Oil pressure sending unit · Sensors (engine management) · Main wiring harness · Ignition module · Electronic Control Unit (ECU) · Powertrain Control Module (PCM) · Body Control Module (BCM) · Starter motor · Solenoid and starter drive · Washer pump motor · Wiper motor (front and rear) · Power mirror motor · USB ports and wiring · Throttle body · Idle speed / automatic idle speed assemblies · Diesel: accessory vacuum pump, injector pump<br><br><em style="color:var(--muted); font-size:12px;">Switches (manually/mechanically operated):</em> Brake light · Defogger · Headlight dimmer · Headlight · Ignition · Mirror · Turn signal · Washer pump · Window · Wiper</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="high tech navigation backup camera bluetooth lane departure blind spot crash prevention voice recognition audio antenna anti theft cruise control door locks hvac instrument cluster heads up display">
+        <div class="card-title gold">📱 High-Tech Components</div>
+        <div class="coverage-list"><em style="color:var(--muted); font-size:12px;">Factory-installed equipment only:</em><br>Navigation systems · Backup cameras · Bluetooth modules · Lane departure systems · Blind spot monitors · Front and rear crash prevention: perimeter-warning system, sensors, radars, LIDAR · Voice recognition system · Audio components · Antenna: GPS, audio · Anti-theft system: switches, relays, sensors and siren · Convertible top engagement switch and motor · Cruise control system · Power door lock actuators · Headlamp door motors · HVAC system · Instrument cluster · Electronic driver information display module/power supply · Gauges · Heads up display</div>
+      </div>
+
+      <div class="card coverage-card" data-terms="power seat sunroof windows sliding door step rail trunk rear entertainment steering wheel keyless entry seat heater massager led hid headlamps auto start push button">
+        <div class="card-title gold">🪑 Interior & Convenience</div>
+        <div class="coverage-list">Keyless entry system · Power seat motor · Seat memory switches · Seat heaters and A/C · Seat massager · Third row seat release switch · Sunroof: motor, switches · Seat switches · Trunk lid release switch · Trunk lid release activator and motor · Power windows: motor, regulator · Rear kick sensor · LED/HID headlamps · Sliding door motors · Step rail motors · Auto start/stop · Push button start ignition · Rear entertainment system and DVD player · Steering wheel remote controls</div>
+      </div>
+
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- EXCLUSIONS -->
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>What's NOT Covered</h2>
+      <p>If the item isn't on this list, it's covered. Use this to quickly rule things out.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card" style="border-color:rgba(224,82,82,0.25);">
+        <div class="card-title" style="color:var(--red);">🚫 Routine Maintenance Items</div>
+        <div class="checklist" style="font-size:14px; gap:8px;">
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Oil, coolant, fluids, refrigerant — <em style="color:#888;">unless required by a covered repair</em></div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Spark plugs and ignition wires</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Filters (all types)</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Wiper blades</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Batteries</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Lights and bulbs</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Tires</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Brake discs and pads</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Clutch friction material</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Drums and shoes</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Exhaust system</div>
+        </div>
+      </div>
+      <div class="card" style="border-color:rgba(224,82,82,0.25);">
+        <div class="card-title" style="color:var(--red);">🚫 Appearance & Exterior Items</div>
+        <div class="checklist" style="font-size:14px; gap:8px; margin-bottom:20px;">
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Glass</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Ornaments</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Vinyl (exterior)</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Paint</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Wheel covers</div>
+        </div>
+        <div class="card-title" style="color:var(--red); margin-top:4px;">🚫 Interior Appearance</div>
+        <div class="checklist" style="font-size:14px; gap:8px; margin-bottom:20px;">
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Upholstery / leather vinyl</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Buttons</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Carpet</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Door and window handles</div>
+        </div>
+        <div class="alert alert-red" style="margin-top:12px; margin-bottom:0;">
+          <span class="alert-icon">⚠️</span>
+          <div><strong>Note:</strong> Breakdowns caused by rust or corrosion are excluded from all coverages.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ APPEARANCE CLAIMS ═══════════════════════════════ -->
+  <div id="section-appearance" class="section">
+    <div class="section-header">
+      <h2>Appearance Protection Claims</h2>
+      <p>Exterior paint, rust, corrosion, and interior damage — these use a <strong>separate email and process</strong> from mechanical claims</p>
+    </div>
+
+    <div class="alert alert-red" style="margin-bottom:16px;">
+      <span class="alert-icon">⚠️</span>
+      <div><strong>Different email than mechanical claims!</strong> All appearance protection claims go to <strong>appearanceclaims@rps-tpa.com</strong> — not claims@rps-tpa.com. Using the wrong address will delay or reject the claim.</div>
+    </div>
+
+    <div class="alert alert-gold" style="margin-bottom:28px;">
+      <span class="alert-icon">📸</span>
+      <div><strong>Module photos required for all corrosion/rust/paint bubbling claims.</strong> In addition to the standard vehicle photos, you must include: module installation location, black &amp; red wire connection, and green wire connection. Missing these photos = rejected claim.</div>
+    </div>
+
+    <!-- CLAIM TYPE CARDS -->
+    <div class="grid-2" style="margin-bottom:32px;">
+
+      <div class="card">
+        <div class="card-title gold">🎨 Exterior Paint Damage</div>
+        <p style="font-size:13px; color:#5a5040; margin-bottom:14px;">Permanent paint damage caused by environmental contaminants on outer body sheet metal panels.</p>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">What's Covered</div>
+          <div class="checklist" style="font-size:13px; gap:6px;">
+            <div class="check-item"><span class="check-icon">✦</span>Acid rain damage</div>
+            <div class="check-item"><span class="check-icon">✦</span>Tree sap</div>
+            <div class="check-item"><span class="check-icon">✦</span>Bird droppings</div>
+            <div class="check-item"><span class="check-icon">✦</span>Road tar &amp; salt</div>
+            <div class="check-item"><span class="check-icon">✦</span>Overspray &amp; insects</div>
+            <div class="check-item"><span class="check-icon">✦</span>Industrial fall-out, oxidation &amp; loss of gloss</div>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Areas Covered</div>
+          <div style="font-size:13px; color:#5a5040; line-height:1.8;">Roof · Rear quarter panels · Front fenders · Doors (exterior, closed position) · Engine hood (exterior, closed position) · Trunk lid / tailgate (exterior, closed position)</div>
+        </div>
+        <div style="background:#faf7f2; border:1px solid #e0d8cc; border-radius:8px; padding:10px 14px; font-size:12px; color:#7a5a10;">
+          📋 Requires: <strong>Exterior Paint Damage Claim Report</strong> + module photos
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title gold">🫧 Paint Bubbling</div>
+        <p style="font-size:13px; color:#5a5040; margin-bottom:14px;">A paint bubble on outer body sheet metal where no rust or bare metal is visible and paint is not broken around the bubble.</p>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Key Requirement</div>
+          <div class="checklist" style="font-size:13px; gap:6px;">
+            <div class="check-item"><span class="check-icon">✦</span>No surface rust or bare metal showing</div>
+            <div class="check-item"><span class="check-icon">✦</span>Paint must NOT be broken, cracked, split, chipped, peeled, delaminated, flaked, or missing around or leading up to the bubble</div>
+          </div>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Areas Covered</div>
+          <div style="font-size:13px; color:#5a5040; line-height:1.8;">Roof · Rear quarter panels · Front fenders · Doors (exterior, closed) · Engine hood (exterior, closed) · Trunk lid / tailgate (exterior, closed)</div>
+        </div>
+        <div style="background:#faf7f2; border:1px solid #e0d8cc; border-radius:8px; padding:10px 14px; font-size:12px; color:#7a5a10;">
+          📋 Requires: <strong>Corrosion Damage Claim Report</strong> + module photos
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title gold">🟤 Cosmetic Rust</div>
+        <p style="font-size:13px; color:#5a5040; margin-bottom:14px;">Surface rust damage where paint is missing and the rust area is <strong>at least 2 cm in diameter</strong>.</p>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Areas Covered</div>
+          <div style="font-size:13px; color:#5a5040; line-height:1.8;">Outer body sheet metal panels visible when walking around the vehicle:<br>Roof · Rear quarter panels · Front fenders · Doors (exterior, closed) · Engine hood (exterior, closed) · Trunk lid / tailgate (exterior, closed)</div>
+        </div>
+        <div style="background:#faf7f2; border:1px solid #e0d8cc; border-radius:8px; padding:10px 14px; font-size:12px; color:#7a5a10;">
+          📋 Requires: <strong>Corrosion Damage Claim Report</strong> + module photos
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title gold">🕳️ Rust Perforation (Hole)</div>
+        <p style="font-size:13px; color:#5a5040; margin-bottom:14px;">A <strong>hole</strong> caused by rust or corrosion through finished painted body sheet metal panels, frame, or floorboards. <em>A visible hole must be confirmed upon inspection to qualify.</em></p>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:6px;">Areas Covered</div>
+          <div style="font-size:13px; color:#5a5040; line-height:1.8;">Roof · Rear quarter panels · Front fenders · Doors · Rocker panels · Engine hood · Trunk lid / tailgate · Frame · Floorboards</div>
+        </div>
+        <div style="background:#fef2f2; border:1px solid rgba(192,57,43,0.2); border-radius:8px; padding:10px 14px; font-size:12px; color:#8b1a0f; margin-bottom:10px;">
+          🔍 Must visually confirm a hole is present before filing — not just surface rust
+        </div>
+        <div style="background:#faf7f2; border:1px solid #e0d8cc; border-radius:8px; padding:10px 14px; font-size:12px; color:#7a5a10;">
+          📋 Requires: <strong>Corrosion Damage Claim Report</strong> + module photos
+        </div>
+      </div>
+
+    </div>
+
+    <!-- INTERIOR APPEARANCE -->
+    <div class="card" style="margin-bottom:24px; border-color:rgba(184,137,42,0.3);">
+      <div class="card-title gold">🪑 Interior Appearance Damage</div>
+      <p style="font-size:13px; color:#5a5040; margin-bottom:16px;">Note: This is the <strong>Appearance Protection</strong> version of interior coverage — different from the Hazard Protect rip/tear/burn coverage. Uses a separate form and email.</p>
+      <div class="grid-2">
+        <div>
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">What's Covered</div>
+          <div class="checklist" style="font-size:13px; gap:8px;">
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Permanent stains</strong> from accidental spills — food, beverages, oil, grease, urine, or similar liquids</div></div>
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Rips &amp; tears</strong> less than <strong>12 cm</strong> in length (accidental only)</div></div>
+            <div class="check-item"><span class="check-icon">✦</span><div><strong>Punctures &amp; burns</strong> up to <strong>1 cm</strong> in diameter (accidental only)</div></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:11px; font-family:'DM Mono',monospace; color:#7a6e5a; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:8px;">Areas Covered</div>
+          <div class="checklist" style="font-size:13px; gap:6px;">
+            <div class="check-item"><span class="check-icon">✦</span>Seats (vinyl/leather and fabric)</div>
+            <div class="check-item"><span class="check-icon">✦</span>Armrests</div>
+            <div class="check-item"><span class="check-icon">✦</span>Headrests</div>
+            <div class="check-item"><span class="check-icon">✦</span>Carpets</div>
+            <div class="check-item"><span class="check-icon">✦</span>Vinyl/leather dashboard</div>
+          </div>
+          <div style="background:#faf7f2; border:1px solid #e0d8cc; border-radius:8px; padding:10px 14px; font-size:12px; color:#7a5a10; margin-top:12px;">
+            📋 Requires: <strong>Interior Damage Claim Report</strong> (no module photos needed)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WHAT TO HAVE READY -->
+    <div class="divider"></div>
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>What to Have Ready — Appearance Claims</h2>
+      <p>Required for all appearance claim submissions</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="card-title">📋 All Appearance Claims</div>
+        <div class="checklist" style="font-size:14px; gap:8px;">
+          <div class="check-item"><span class="check-icon">✦</span>Date of claim</div>
+          <div class="check-item"><span class="check-icon">✦</span>Contract number</div>
+          <div class="check-item"><span class="check-icon">✦</span>Work order number</div>
+          <div class="check-item"><span class="check-icon">✦</span>Vehicle info — VIN, year, make, model, kilometers</div>
+          <div class="check-item"><span class="check-icon">✦</span>Vehicle owner info</div>
+          <div class="check-item"><span class="check-icon">✦</span>Area of damage</div>
+          <div class="check-item"><span class="check-icon">✦</span>Repair estimate</div>
+          <div class="check-item"><span class="check-icon">✦</span>Completed claim report form (type depends on claim)</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📸 Photos Required</div>
+        <div style="font-size:12px; font-family:'DM Mono',monospace; color:#7a6e5a; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Standard (all claims)</div>
+        <div class="checklist" style="font-size:13px; gap:6px; margin-bottom:14px;">
+          <div class="check-item"><span class="check-icon">📷</span>VIN number</div>
+          <div class="check-item"><span class="check-icon">📷</span>Odometer reading</div>
+          <div class="check-item"><span class="check-icon">📷</span>Full front &amp; full rear of vehicle</div>
+          <div class="check-item"><span class="check-icon">📷</span>Driver &amp; passenger sides of vehicle</div>
+          <div class="check-item"><span class="check-icon">📷</span>Close-up of damage</div>
+          <div class="check-item"><span class="check-icon">📷</span>Wide shot of damage</div>
+        </div>
+        <div style="font-size:12px; font-family:'DM Mono',monospace; color:#8b1a0f; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">+ Module Photos (rust/paint/bubbling only)</div>
+        <div class="checklist" style="font-size:13px; gap:6px;">
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">📷</span>Module installation location</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">📷</span>Black &amp; red wire connection</div>
+          <div class="check-item"><span class="check-icon" style="color:var(--red);">📷</span>Green wire connection</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEFECTIVE MODULE -->
+    <div class="divider"></div>
+    <div class="section-header" style="margin-bottom:16px;">
+      <h2>Defective Rust Module Procedure</h2>
+      <p>When the rust protection module itself fails — separate from a damage claim</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:32px;">
+      <div class="card card-gold">
+        <div class="card-title gold">⚙️ Module Warranty</div>
+        <div class="checklist" style="font-size:14px; gap:10px;">
+          <div class="check-item"><span class="check-icon">✦</span>Modules are warranted <strong>5 years from installation date</strong></div>
+          <div class="check-item"><span class="check-icon">✦</span>WRC-administered contracts: warranted for the full contract term (up to <strong>10 years</strong> if inspections are maintained)</div>
+          <div class="check-item"><span class="check-icon">✦</span>Dealer's responsibility: confirm customer warranty is valid <em>before</em> replacing the module</div>
+        </div>
+        <div style="margin-top:16px; padding:12px 14px; background:rgba(184,137,42,0.08); border-radius:8px; font-size:13px;">
+          <div style="font-weight:600; margin-bottom:4px;">Verify warranty validity first:</div>
+          <div style="font-family:'DM Mono',monospace; font-size:13px; color:#7a5a10;">1-800-952-7164 (WRC)</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">📦 Return Process</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-label">Call Final Coat for Authorization</div>
+              <div class="step-desc"><strong>1-800-952-7164 ext. 223</strong> — all returns require an authorization number from the final coat</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-label">Complete the Defective Module Return Form</div>
+              <div class="step-desc">Include: dealer name, rep, date, VIN (last 6), module serial #, model, coat date, warranty #</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-label">Ship Defective Module to Final Coat Inc.</div>
+              <div class="step-desc" style="font-family:'DM Mono',monospace; font-size:12px; line-height:1.7;">Final Coat Inc.<br>321 Cityview Blvd., Unit #1<br>Vaughan, ON &nbsp;L4H 3S7</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-label">Module Tested on Receipt</div>
+              <div class="step-desc">Qualifying defective modules replaced with a new unit and returned to dealer. Non-qualifying modules are returned and tested — dealer will be notified.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK REFERENCE TABLE -->
+    <div class="card" style="margin-bottom:8px;">
+      <div class="card-title">Appearance Claims — Quick Reference</div>
+      <table class="rate-table" style="margin-top:8px;">
+        <thead>
+          <tr>
+            <th>Claim Type</th>
+            <th>Form Required</th>
+            <th>Module Photos?</th>
+            <th>Submit To</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Exterior Paint Damage</td>
+            <td>Exterior Paint Damage Claim Report</td>
+            <td style="color:var(--red); font-weight:600;">Yes</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;"><a href="mailto:appearanceclaims@rps-tpa.com" style="color:var(--gold);">appearanceclaims@rps-tpa.com</a></td>
+          </tr>
+          <tr>
+            <td>Paint Bubbling</td>
+            <td>Corrosion Damage Claim Report</td>
+            <td style="color:var(--red); font-weight:600;">Yes</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;"><a href="mailto:appearanceclaims@rps-tpa.com" style="color:var(--gold);">appearanceclaims@rps-tpa.com</a></td>
+          </tr>
+          <tr>
+            <td>Cosmetic Rust</td>
+            <td>Corrosion Damage Claim Report</td>
+            <td style="color:var(--red); font-weight:600;">Yes</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;"><a href="mailto:appearanceclaims@rps-tpa.com" style="color:var(--gold);">appearanceclaims@rps-tpa.com</a></td>
+          </tr>
+          <tr>
+            <td>Rust Perforation</td>
+            <td>Corrosion Damage Claim Report</td>
+            <td style="color:var(--red); font-weight:600;">Yes</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;"><a href="mailto:appearanceclaims@rps-tpa.com" style="color:var(--gold);">appearanceclaims@rps-tpa.com</a></td>
+          </tr>
+          <tr>
+            <td>Interior Appearance</td>
+            <td>Interior Damage Claim Report</td>
+            <td style="color:var(--green); font-weight:600;">No</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;"><a href="mailto:appearanceclaims@rps-tpa.com" style="color:var(--gold);">appearanceclaims@rps-tpa.com</a></td>
+          </tr>
+          <tr>
+            <td>Defective Module Return</td>
+            <td>Defective Module Return Form</td>
+            <td>N/A</td>
+            <td style="font-family:'DM Mono',monospace; font-size:12px;">Final Coat Inc., Vaughan ON</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════ HOW TO SUBMIT ═══════════════════════════════ -->
+  <div id="section-submit" class="section">
+    <div class="section-header">
+      <h2>How to Submit a Claim</h2>
+      <p>Step-by-step process for Strategic DX (SDX) — the preferred submission platform</p>
+    </div>
+
+    <div class="alert alert-gold" style="margin-bottom:28px;">
+      <span class="alert-icon">⭐</span>
+      <div><strong>Important: After setting up your SDX login,</strong> email Michelle Jawan to confirm. There is a function in SDX that allows all stores to see each other's claims — she needs to know when you've successfully created a login to switch this on for your account.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Step-by-Step Claim Process</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-label">Open the Work Order</div>
+              <div class="step-desc">Document the date, customer info, vehicle info, odometer, and 3 C's (Complaint, Cause, Correction).</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-label">Prepare Your Estimate</div>
+              <div class="step-desc">Build estimate with part numbers, Mitchell ProDemand labour times, and applicable rates before calling.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-label">Obtain Prior Authorization</div>
+              <div class="step-desc">Submit through <strong>tricor.yde.claims</strong> using your dealer number, or call 1-844-601-2018 during business hours.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <div class="step-label">Complete Authorized Repairs</div>
+              <div class="step-desc">Perform only what was authorized. If additional parts or labour are needed, contact your adjuster to amend before proceeding.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <div class="step-label">Match Invoice to Auth Sheet</div>
+              <div class="step-desc">Every line on your invoice must match the authorization exactly — amounts, part numbers, quantities.</div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div class="step-body">
+              <div class="step-label">Submit Signed Invoice for Payment</div>
+              <div class="step-desc">Email signed customer invoice + any sublet invoices to <strong>claimpayments@rps-tpa.com</strong> or fax to (614) 652-3684.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title">SDX Portal Setup</div>
+          <div class="checklist" style="font-size:14px; gap:10px; margin-bottom:16px;">
+            <div class="check-item"><span class="check-icon">1️⃣</span>Go to <a href="https://tricor.yde.claims/" style="color:var(--gold);">tricor.yde.claims</a> (copy/paste into browser)</div>
+            <div class="check-item"><span class="check-icon">2️⃣</span>Watch the setup video for account creation guidance</div>
+            <div class="check-item"><span class="check-icon">3️⃣</span>Create your login using your store's dealer number</div>
+            <div class="check-item"><span class="check-icon">4️⃣</span><strong>Email Michelle Jawan</strong> to confirm your account is created — this unlocks multi-store claim visibility</div>
+          </div>
+          <div class="btn-group">
+            <a href="https://tricor.yde.claims/" target="_blank" class="btn btn-gold">🌐 Open SDX Portal</a>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title">Contact Directory</div>
+          <table style="width:100%; font-size:13px;">
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0; color:var(--muted);">Claims authorization</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">1-844-601-2018</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0; color:var(--muted);">Claim supervisor</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">1-800-457-7703 ext. 7011</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0; color:var(--muted);">Claims email</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">claims@rps-tpa.com</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0; color:var(--muted);">Rate changes</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">claimreview@tricorauto.com</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border);">
+              <td style="padding:8px 0; color:var(--muted);">Invoice payment</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">claimpayments@rps-tpa.com</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0; color:var(--muted);">Payment fax</td>
+              <td style="padding:8px 0; font-family:'DM Mono',monospace; font-size:12px;">(614) 652-3684</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title" style="color:var(--red);">Common Mistakes to Avoid</div>
+          <div class="checklist" style="font-size:13px; gap:10px;">
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Starting repairs before getting authorization</div>
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Invoice totals that don't match the auth sheet</div>
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Adding labour or parts to invoice that weren't authorized</div>
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Forgetting to include sublet invoices with payment request</div>
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Using wrong labour rate (check On-Make vs Off-Make)</div>
+            <div class="check-item"><span class="check-icon" style="color:var(--red);">✗</span>Not reporting rate changes to claimreview@tricorauto.com</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end content -->
+
+<!-- FOOTER -->
+<div class="footer">
+  Steve Marshall Group · Tricare Claims Reference · Prepared for service advisor use · Contact Michelle Jawan at Tricare for updates
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-content">
+    <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">×</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+const modalData = {
+  tire: {
+    icon:'🛞', title:'Tire Road Hazard', tag:'HAZARD PROTECT',
+    covered: ['Repair of flat tire(s) caused by a road hazard','Replacement if tire is not repairable due to road hazard','Curb impact: repair or replacement of tire due to impact with curb or fixed road item','Mounting & balancing, valve stems, and tire disposal','Trip interruption if disabled 160+ km from home'],
+    limits: [['Claim Limit','No limit on number of claims'],['Max Aggregate','$1,000 over the contract term'],['Note','Tire not covered if tread depth under 3/32", has dry rot, or improper wear']],
+    info: [['Need Ready','Date of claim, contract #, WO #, vehicle info, cause of damage, tire brand/size/tread depth, which tire, repairable or replacement, parts & labour estimate']]
+  },
+  tirerim: {
+    icon:'⚙️', title:'Tire & Rim Road Hazard', tag:'HAZARD PROTECT',
+    covered: ['Repair or replacement of flat tire(s) caused by road hazard','Repair to rim caused by road hazard; replacement if unrepairable','Curb impact: repair or replacement of tire and/or rim','Mounting & balancing, valve stems, tire disposal','Trip interruption if disabled 160+ km from home'],
+    limits: [['Claim Limit','No limit on number of claims'],['Max Aggregate','$10,000 over the contract term']],
+    info: [['Also Need','Rim damage details: repair or replacement required']]
+  },
+  windshield: {
+    icon:'🪟', title:'Windshield Repair / Repair+Replace', tag:'NOT AVAILABLE: AB / SK / MB / YT / NT / NU',
+    covered: ['Repair: chips or cracks up to 6 inches in length to front windshield caused by propelled rocks or road debris','Repair/Replace: same as above, PLUS one-time replacement up to $1,000 if not repairable, OR benefit applied to customer comprehensive deductible'],
+    limits: [['Repair Claim Limit','No limit on repairs'],['Replace Claim Limit','One (1) replacement claim during contract term'],['Replace Max','$1,000 over contract term']],
+    info: [['Photos Required','VIN, odometer, full front & rear, close-up of damage, wide shot of damage']]
+  },
+  dent: {
+    icon:'🔨', title:'Dent & Ding (PDR)', tag:'HAZARD PROTECT',
+    covered: ['Dents up to 4-inch diameter and/or up to 3-inch depth on outer body panels via PDR process','Must be accessible for Paintless Dent Repair','Hail & acorn damage repairable via PDR up to $500 — if not repairable, benefit may apply to purchaser\'s comprehensive deductible','Deductible coverage extends to hail/acorn damage to glass panels (windshield, sunroof, panoramic)'],
+    limits: [['Hail & Acorn Max','$500 benefit during contract term'],['Total Max','$2,000 over contract term (includes $500 hail benefit)']],
+    info: [['Photos Required','VIN, odometer, full front & rear, close-up of damage, wide shot, driver & passenger side']]
+  },
+  paint: {
+    icon:'🎨', title:'Paint Repair', tag:'HAZARD PROTECT',
+    covered: ['Repair to an exterior painted body panel that is accidentally scratched','Scratch must be greater than 2 inches in length'],
+    limits: [['Claim Limit','Two (2) repairs during contract term'],['Max Aggregate','$750 total over contract term']],
+    info: [['Photos Required','VIN, odometer, full front & rear, driver & passenger side, close-up, wide shot of damage']]
+  },
+  rim: {
+    icon:'🔵', title:'Cosmetic Rim Damage', tag:'HAZARD PROTECT',
+    covered: ['Road hazard or curb contact damage that does not render the wheel unserviceable','Cosmetic repair only — not replacement unless facility determines damage is too severe and structural integrity is compromised'],
+    limits: [['Note','Cosmetic damage does not result in wheel replacement unless structurally necessary']],
+    info: [['Need Ready','Date of claim, contract #, WO #, vehicle info, cause of damage, photos of damage, repair estimate, your name & facility, original selling dealer']]
+  },
+  lights: {
+    icon:'💡', title:'Headlight / Tail Light / Fog Light', tag:'HAZARD PROTECT',
+    covered: ['Repair of headlight/taillight/foglight damaged due to road hazard','One-time replacement if lamp cannot be repaired','Fading or yellowing: reconditioning up to $100 over contract term'],
+    limits: [['Claim Limit','2 repairs or 1 replacement during contract term'],['Max Aggregate','$800 over contract term'],['Fading/Yellowing','$100 maximum over contract term']],
+    info: [['Photos Required','VIN, odometer, full front & rear, driver & passenger side, close-up, wide shot']]
+  },
+  key: {
+    icon:'🔑', title:'Key & Remote Replacement', tag:'HAZARD PROTECT',
+    covered: ['Keys/remotes that are lost, stolen, or broken','Must have received minimum two complete sets of keys/remotes at time of delivery','Other lost/damaged keys (home, apartment, office, motorcycle, valet, motor home, trailer) up to $250 per occurrence — does NOT apply to programmable keys/remotes for other vehicles','Home lockout assistance up to $100 per occurrence','Trip interruption if vehicle disabled 160+ km from home due to key/remote issue'],
+    limits: [['Max Per Year','$1,000 per contract year'],['Other Keys','Up to $250 per occurrence'],['Home Lockout','Up to $100 per occurrence']],
+    info: [['Need Ready','Date of claim, contract #, WO #, vehicle info, parts & labour estimate']]
+  },
+  interior: {
+    icon:'🪑', title:'Rip, Tear, Burn & Spot Removal', tag:'HAZARD PROTECT',
+    covered: ['Rip/Tear/Burn: repair to damaged area of seat if accidentally ripped, torn, or burned — full seat upholstery replacement not covered, normal wear excluded','Spot Removal: cleaning of a seat that is accidentally soiled'],
+    limits: [['RTB Claim Limit','Three (3) claims during contract term'],['RTB Max Per Claim','$500 per claim'],['Spot Removal','One (1) cleaning per year'],['Spot Max','One cleaning per year over contract term']],
+    info: [['Photos Required','VIN, odometer, close-up of damage, wide shot']]
+  }
+};
+
+function openModal(key) {
+  const d = modalData[key];
+  if (!d) return;
+  let html = `
+    <div class="modal-icon">${d.icon}</div>
+    <div class="modal-title">${d.title}</div>
+    <div class="modal-tag">${d.tag}</div>
+    <div class="modal-section">
+      <div class="modal-section-title">What's Covered</div>
+      <ul>${d.covered.map(c => `<li>${c}</li>`).join('')}</ul>
+    </div>
+    <div class="modal-section">
+      <div class="modal-section-title">Claim Limits</div>
+      ${d.limits.map(([k,v]) => `<div class="info-row"><div class="info-label">${k}</div><div class="info-val">${v}</div></div>`).join('')}
+    </div>`;
+  if (d.info) {
+    html += `<div class="modal-section">
+      <div class="modal-section-title">Additional Notes</div>
+      ${d.info.map(([k,v]) => `<div class="info-row"><div class="info-label">${k}</div><div class="info-val">${v}</div></div>`).join('')}
+    </div>`;
+  }
+  html += `<div class="btn-group" style="margin-top:20px;">
+    <a href="https://tricor.yde.claims/" target="_blank" class="btn btn-gold">🌐 Submit via SDX Portal</a>
+    <a href="tel:18446012018" class="btn btn-outline">📞 1-844-601-2018</a>
+  </div>`;
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+function filterCoverage(val) {
+  const q = val.toLowerCase().trim();
+  document.querySelectorAll('.coverage-card').forEach(card => {
+    const terms = (card.dataset.terms || '') + ' ' + card.innerText;
+    card.classList.toggle('hidden', q.length > 0 && !terms.toLowerCase().includes(q));
+  });
+}
+
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  event.target.classList.add('active');
+  if (id === 'rates') buildChart();
+}
+
+function buildChart() {
+  const stores = [
+    { name: 'North Island Nissan', f: 175.30, c: 199.95 },
+    { name: 'Courtenay Nissan', f: 173.80, c: 199.00 },
+    { name: 'Vernon Nissan', f: 162.20, c: 188.95 },
+    { name: 'Titanium Ford', f: 155.57, c: 199.95 },
+    { name: 'Island Owl Mazda', f: 154.78, c: 155.00 },
+    { name: 'Rivershore Chrysler', f: 150.60, c: 179.95 },
+    { name: 'Steve Marshall Ford CR', f: 145.64, c: null },
+    { name: 'Abbotsford Nissan', f: 126.50, c: 190.00 },
+    { name: 'Campbell River Honda', f: 122.00, c: 144.00 },
+    { name: 'River City Chrysler', f: 116.00, c: 180.00 },
+  ];
+  const max = 210;
+  const chart = document.getElementById('rate-chart');
+  chart.innerHTML = stores.map(s => `
+    <div class="bar-row">
+      <div class="bar-meta">
+        <div class="bar-name" style="font-size:12px;">${s.name}</div>
+        <div class="bar-vals">
+          <span class="bar-val-f">F: $${s.f.toFixed(2)}</span>
+          <span class="bar-val-c">${s.c ? 'CP: $'+s.c.toFixed(2) : '<span style="color:var(--red);font-size:11px;">CP not on file</span>'}</span>
+        </div>
+      </div>
+      <div class="bar-track">
+        <div class="bar-seg bar-f" style="width:${(s.f/max*100).toFixed(1)}%"></div>
+        ${s.c ? `<div class="bar-seg bar-c" style="width:${((s.c-s.f)/max*100).toFixed(1)}%"></div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// init chart if on rates section
+window.addEventListener('load', () => {
+  // pre-render chart data
+});
+</script>
+</body>
+</html>
