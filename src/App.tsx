@@ -37,6 +37,7 @@ import ProcessDetail from "./pages/ProcessDetail";
 import MyTeam from "./pages/MyTeam";
 import Pricing from "./pages/Pricing";
 import MurrayAssessment from "./pages/MurrayAssessment";
+import SMGServiceGuide from "./pages/SMGServiceGuide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
