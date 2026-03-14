@@ -37,6 +37,7 @@ import ProcessDetail from "./pages/ProcessDetail";
 import MyTeam from "./pages/MyTeam";
 import Pricing from "./pages/Pricing";
 import MurrayAssessment from "./pages/MurrayAssessment";
+import SMGServiceGuide from "./pages/SMGServiceGuide";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -91,6 +92,7 @@ const App = () => {
             <Route path="/my-team" element={<MyTeam />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/assessment/murray-hyundai" element={<MurrayAssessment />} />
+            <Route path="/smgserviceguide" element={<SMGServiceGuide />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
