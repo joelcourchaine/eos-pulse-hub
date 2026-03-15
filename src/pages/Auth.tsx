@@ -94,17 +94,20 @@ const Auth = () => {
           .eq('id', signedInUser.id)
           .single();
 
-        const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id, profileForDomain?.store_id);
-        const currentOrigin = window.location.origin;
+        // Only redirect if user has a store group association
+        if (profileForDomain?.store_group_id || profileForDomain?.store_id) {
+          const targetDomain = await getDomainForStoreGroup(profileForDomain?.store_group_id, profileForDomain?.store_id);
+          const currentOrigin = window.location.origin;
 
-        if (targetDomain !== currentOrigin && currentSession) {
-          setRedirecting(true);
-          // Pass session tokens so the branded domain can pick up the session
-          const redirectUrl = new URL("/auth", targetDomain);
-          redirectUrl.searchParams.set("access_token", currentSession.access_token);
-          redirectUrl.searchParams.set("refresh_token", currentSession.refresh_token);
-          window.location.href = redirectUrl.toString();
-          return;
+          if (targetDomain !== currentOrigin && currentSession) {
+            setRedirecting(true);
+            // Pass session tokens so the branded domain can pick up the session
+            const redirectUrl = new URL("/auth", targetDomain);
+            redirectUrl.searchParams.set("access_token", currentSession.access_token);
+            redirectUrl.searchParams.set("refresh_token", currentSession.refresh_token);
+            window.location.href = redirectUrl.toString();
+            return;
+          }
         }
       }
 
